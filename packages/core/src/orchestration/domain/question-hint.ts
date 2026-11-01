@@ -19,3 +19,15 @@ export function looksLikeQuestion(input: string): boolean {
   if (ACTION.test(text)) return false;
   return QUESTION.test(text) || text.length <= SMALL_TALK_CHARS;
 }
+
+const PROCEED = /^\s*(그래도|그냥)\s*(진행|해\s?줘|해|할게|실행)/;
+
+/** 한도 때문에 미뤄 둔 요청을 "그래도 진행"이라고 해서 되살리는 말인지 */
+export function wantsToProceed(input: string): boolean {
+  return PROCEED.test(input);
+}
+
+/** 같은 질문인지 가르는 열쇠. 공백과 대소문자 차이는 무시한다. */
+export function sameQuestionKey(input: string): string {
+  return input.trim().replace(/\s+/g, ' ').toLowerCase();
+}

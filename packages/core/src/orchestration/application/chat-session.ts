@@ -5,10 +5,8 @@ import type { MemoryPort } from '../../memory/application/memory.port.js';
 import { continuable, recallBlock, WorkMemory, type MemoryEntry, type Recall } from '../../memory/domain/work-memory.js';
 import { citedPaths, FactCheck, normalizeUrl, type CheckedClaim } from '../domain/fact-check.js';
 import { LearningBook } from '../domain/learning-book.js';
-import { CompanyBook, type CompanyEntry } from '../domain/company-book.js';
-import { SessionBudget } from '../domain/session-budget.js';
-import { isSmallTalk, looksLikeQuestion } from '../domain/question-hint.js';
-import { Department, LAUNCH_ORDER, type DepartmentId, type DepartmentMemberRole } from '../domain/department.js';
+import type { CompanyEntry } from '../domain/company-book.js';
+import { isSmallTalk, looksLikeQuestion, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
 import { AnswerDto } from './dto/answer.dto.js';
 import type { MemberRole, RoleSettingsDto } from './dto/role-settings.dto.js';
@@ -16,50 +14,29 @@ import type { ChatSnapshot } from './dto/chat-snapshot.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import { RouteDto, type Route } from './dto/route.dto.js';
-import { AnalysisReportDto } from './dto/analysis-report.dto.js';
-import { CompanyPlanDto } from './dto/company-plan.dto.js';
-import { ANALYSIS_SCHEMA, ANSWER_SCHEMA, COMPANY_PLAN_SCHEMA, OPS_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
+import { ANSWER_SCHEMA, OPS_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
 import { OpsReportDto } from './dto/ops-report.dto.js';
 import type { RunContextBlocks, RunOutcome } from './minimal-loop.service.js';
-import type { AccountBlock, CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
+import type { SessionBudget } from '../domain/session-budget.js';
+import { CompanyDesk, type MemberOptions } from './company-desk.js';
+import type { CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
+import { conversationBlock } from './prompt-blocks.js';
+import type { DesignTaskResult, TurnOutcome } from './turn-outcome.js';
 
 export type { RunContextBlocks };
 
-/** 읽기만 하고 보고하는 팀원(기획·디버깅·위험 점검·회사 부서 팀원, 운영 팀원) */
-type ReportRole = DepartmentMemberRole;
 
 /** 팀장에게 넘길 앞 대화 턴 수 */
 const CONVERSATION_TURNS = 6;
 /** 결과 글을 얼마나 남기고 넘기는지. 바로 앞 턴은 길게("두 번째 거 더 자세히"가 가리키는 곳이 거기다), 그 전은 짧게. */
 const KEPT_RESULT_CHARS = 1200;
 const OLDER_RESULT_CHARS = 300;
-/** 런칭 계획에서 부서별로 앞 대화에 남기는 글자 수(다섯 부서를 합쳐도 KEPT_RESULT_CHARS 안에 든다) */
-const LAUNCH_KEPT_CHARS = 190;
 /** 기억 묶음 글자 수 상한 */
 const MEMORY_CHARS = 3000;
 const CANDIDATES = 3;
 
-export type TurnOutcome =
-  | { readonly kind: 'work'; readonly outcome: RunOutcome }
-  /** basis: 답이 읽은 기준(`main (a1b2c3d)`). 저장소 지식이 없으면 null. */
-  | { readonly kind: 'answer'; readonly answer: string; readonly checked: readonly CheckedClaim[]; readonly costUsd: number; readonly durationMs: number; readonly basis: string | null }
-  /** /review: 사용자의 변경을 리뷰어가 본 결과. target null = 커밋 안 한 변경. files가 비면 리뷰어를 부르지 않았다. */
-  | { readonly kind: 'review'; readonly target: string | null; readonly files: readonly string[]; readonly checked: readonly CheckedClaim[]; readonly summary: string; readonly durationMs: number }
-  /** 설계 대화로 승인받은 설계와 그 작업들의 결과 */
-  | { readonly kind: 'design'; readonly title: string; readonly path: string; readonly tasks: readonly DesignTaskResult[]; readonly durationMs: number }
-  /** 팀원을 부르지 않고 알릴 것(예: 여러 저장소를 한 번에 고치는 요청). */
-  | { readonly kind: 'notice'; readonly message: string }
-  /** 계정 문제(사용 한도, 로그인 안 됨)로 막힘. 사용 한도면 message에 풀리는 시각이 들어 있다. */
-  | { readonly kind: 'blocked'; readonly reason: AccountBlock['reason']; readonly message: string };
-
-/** 설계가 나눈 작업 하나의 결과. skipped: 앞 작업이 멈춰 하지 않았다. */
-export interface DesignTaskResult {
-  readonly id: string;
-  readonly title: string;
-  readonly status: 'complete' | 'stopped' | 'skipped';
-  readonly outcome: RunOutcome | null;
-}
+export type { DesignTaskResult, TurnOutcome } from './turn-outcome.js';
 
 export interface ChatSessionDeps {
   /** 요청 하나를 돌릴 최소 루프. carried = 세션 중 rauha가 남긴 파일(그 위에서 이어 일함). */
@@ -106,16 +83,6 @@ const STOPPED: MemberResult = {
   usage: { model: 'sonnet', durationMs: 0, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' },
 };
 
-interface MemberOptions {
-  readonly signal?: AbortSignal | undefined;
-  readonly dirs?: readonly string[];
-  readonly canWrite?: (path: string) => boolean;
-  /** 역할 기본 모델 대신 쓸 모델(저장소를 나눠 읽는 일은 싼 모델로) */
-  readonly tier?: ModelTier;
-  /** 진행 줄에 "작업 중…"을 내지 않는다(여러 호출을 묶어 따로 진행을 알릴 때) */
-  readonly quiet?: boolean;
-}
-
 /** 답변 팀원에게 넘길 저장소 지식 묶음과 그 기준 */
 interface Known {
   readonly block: string;
@@ -144,13 +111,9 @@ interface HeldRequest {
   readonly route: Route;
 }
 
-/** 런칭 계획에서 뒤 부서에 넘기는 앞 부서 글의 글자 수 */
-const HANDOFF_CHARS = 700;
 /** 같은 질문을 다시 했을 때 앞 답을 다시 보여 주는 시간 */
 const REPEAT_WINDOW_MS = 30 * 60_000;
-const UNREADABLE = '보고를 읽지 못했어요';
 
-const OVERRIDE = /^\s*(그래도|그냥)\s*(진행|해\s?줘|해|할게|실행)/;
 
 interface Turn {
   readonly input: string;
@@ -186,13 +149,23 @@ export class ChatSession {
   private readonly calls: Record<ModelTier, number> = { haiku: 0, sonnet: 0, opus: 0 };
   private lastTitle: string | null = null;
   private held: HeldRequest | null = null;
-  private savingNoted = false;
-  /** 이번 입력의 부서 팀원에게 싣는 회사 장부 글 */
-  private bookText = '';
   /** 방금 한 질문과 그 답. 코드를 바꾸는 일이 있거나 /clear 하면 비운다. */
   private answered = new Map<string, { answer: string; at: number }>();
 
-  private constructor(private readonly deps: ChatSessionDeps) {}
+  /** 회사 부서가 하는 일(기획·디버깅·위험 점검·부서장 배분·런칭). 호출과 비용 합산은 세션이 빌려준다. */
+  private readonly desk: CompanyDesk;
+
+  private constructor(private readonly deps: ChatSessionDeps) {
+    this.desk = new CompanyDesk(
+      {
+        member: (role, parts, schema, options) => this.member(role, parts, schema, options),
+        settle: (label, input, answer, remembered, started, costBefore) => this.settle(label, input, answer, remembered, started, costBefore),
+        spent: () => this.costUsd,
+        workspaceBlock: () => this.workspaceBlock(),
+      },
+      { today: deps.today, now: deps.now, progress: deps.progress, budget: deps.budget, company: deps.company },
+    );
+  }
 
   /** 매 입력마다 부르는 라우터·답변 팀원은 미리 띄워 둔다(띄우는 데만 2초쯤 걸린다). */
   static start(deps: ChatSessionDeps): ChatSession {
@@ -223,10 +196,9 @@ export class ChatSession {
   async handle(input: string, also: readonly AlsoRepo[] = [], force?: 'design'): Promise<TurnOutcome> {
     const started = this.deps.now();
     const conversation = this.conversation();
-    this.savingNoted = false;
     const heldRequest = this.held;
     this.held = null;
-    if (heldRequest !== null && OVERRIDE.test(input)) return this.rerun(heldRequest, conversation, started);
+    if (heldRequest !== null && wantsToProceed(input)) return this.rerun(heldRequest, conversation, started);
     const again = this.repeated(input);
     if (again !== null) return { kind: 'answer', answer: again, checked: [], costUsd: 0, durationMs: 0, basis: null };
     // /design: 라우터를 거치지 않고 바로 설계부터 한다.
@@ -245,17 +217,17 @@ export class ChatSession {
     const asked = looksLikeQuestion(input) ? Promise.all([known(), others()]).then(([k, o]) => this.askAnswerer(input, null, k, conversation, early.signal, o)) : null;
     // 라우터를 기다리는 동안 실패해도 처리 안 된 거절로 프로세스가 죽지 않게. 쓰기로 하면 answer()가 await에서 다시 받는다.
     asked?.catch(() => undefined);
-    const routed = await this.member('router', [conversation !== null ? `<conversation>\n${conversation}\n</conversation>` : '', `<message>\n${input}\n</message>`], ROUTE_SCHEMA, {});
+    const routed = await this.member('router', [conversationBlock(conversation), `<message>\n${input}\n</message>`], ROUTE_SCHEMA, {});
     const route = RouteDto.read(routed.output);
     if (routed.blocked || route.mode !== 'question' || route.refersToPast) early.abort();
     if (routed.blocked) return { kind: 'blocked', ...routed.blocked };
     if (route.mode === 'task') return this.task(input, conversation, also, started);
     if (route.mode === 'ops') return this.ops(input, conversation, started);
-    if (route.mode === 'debug') return this.analyze('debugger', '디버깅', input, conversation, started);
-    if (route.mode === 'company') return (route.member === null ? this.hold(input, route) : null) ?? this.company(input, conversation, route, started);
-    if (route.mode === 'launch') return this.hold(input, route) ?? this.launch(input, conversation, started);
-    if (route.mode === 'ideate') return this.analyze('planner', '기획', input, conversation, started, 'planning');
-    if (route.mode === 'risk') return this.analyze('riskchecker', '위험 점검', input, conversation, started);
+    if (route.mode === 'debug') return this.desk.analyze('debugger', '디버깅', input, conversation, started);
+    if (route.mode === 'company') return (route.member === null ? this.hold(input, route) : null) ?? this.desk.company(input, conversation, route, started);
+    if (route.mode === 'launch') return this.hold(input, route) ?? this.desk.launch(input, conversation, started);
+    if (route.mode === 'ideate') return this.desk.analyze('planner', '기획', input, conversation, started, 'planning');
+    if (route.mode === 'risk') return this.desk.analyze('riskchecker', '위험 점검', input, conversation, started);
     const changesCode = route.mode === 'work' || route.mode === 'feature';
     if (changesCode && also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };
     const past = route.refersToPast ? await this.pickPast(route.pastQuery ?? input, route.mode) : null;
@@ -263,7 +235,7 @@ export class ChatSession {
     if (route.mode === 'feature' && past === null && this.canDesign()) return this.feature(input, conversation, started);
     if (changesCode) return this.work(input, conversation, past);
     const answered = await this.answer(input, route.refersToPast || asked === null ? this.askAnswerer(input, past, await known(), conversation, undefined, await others()) : asked, started);
-    if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(this.askKey(input), { answer: answered.answer, at: this.deps.now() });
+    if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
     return answered;
   }
 
@@ -388,48 +360,16 @@ export class ChatSession {
    * 운영 팀원이 명령을 직접 실행하고, 위험한 명령은 도구 검사가 사용자에게 묻는다. 자격 증명 설정(aws configure)은 하지 않는다.
    */
   private async ops(input: string, conversation: string | null, started: number): Promise<TurnOutcome> {
-    const result = await this.member(
-      'operator',
-      [conversation !== null ? `<conversation>\n${conversation}\n</conversation>` : '', `<today>${this.deps.today()}</today>`, `<request>\n${input}\n</request>`],
-      OPS_SCHEMA,
-      {},
-    );
+    const costBefore = this.costUsd;
+    const result = await this.member('operator', [conversationBlock(conversation), `<today>${this.deps.today()}</today>`, `<request>\n${input}\n</request>`], OPS_SCHEMA, {});
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
-    const answer = OpsReportDto.read(result.output).toAnswer();
-    await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: [], basis: null }));
+    // 인프라가 바뀌었을 수 있어 앞의 같은 질문 답은 더 쓰지 않는다.
     this.answered.clear();
-    this.turns.push({ input, result: `운영: ${answer.slice(0, KEPT_RESULT_CHARS)}` });
-    return { kind: 'answer', answer, checked: [], costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis: null };
+    const answer = OpsReportDto.read(result.output).toAnswer();
+    return this.settle('운영', input, answer, answer, started, costBefore);
   }
 
-  // ── 디버깅·위험 점검·회사 부서 ────────────────────────────
-
-  /**
-   * 한 팀원이 읽기만 하고 보고하는 일을 한 번 부른다(디버깅·위험 점검·기획과 회사 부서 팀원 모두).
-   * 운영 팀원만 명령을 실행하므로 보고 모양이 달라 그것만 따로 읽는다. 파일은 아무도 고치지 않는다.
-   */
-  private async report(role: ReportRole, label: string, parts: readonly string[]): Promise<{ blocked: NonNullable<MemberResult['blocked']> } | { answer: string; files: readonly string[] }> {
-    if (role === 'operator') {
-      const result = await this.member(role, parts, OPS_SCHEMA, {});
-      return result.blocked ? { blocked: result.blocked } : { answer: OpsReportDto.read(result.output).toAnswer(), files: [] };
-    }
-    const result = await this.member(role, parts, ANALYSIS_SCHEMA, {});
-    if (result.blocked) return { blocked: result.blocked };
-    const read = AnalysisReportDto.read(result.output, label);
-    return { answer: read.answer, files: read.files };
-  }
-
-  /** 팀원에게 보내는 공통 입력. brief가 있으면 부서장이 이 팀원에게 준 지시다. */
-  private reportParts(input: string, conversation: string | null, brief: string | null = null): string[] {
-    return [
-      conversation !== null ? `<conversation>\n${conversation}\n</conversation>` : '',
-      `<today>${this.deps.today()}</today>`,
-      this.workspaceBlock(),
-      this.bookText,
-      brief !== null && brief !== '' ? `<assignment>\n${brief}\n</assignment>` : '',
-      `<request>\n${input}\n</request>`,
-    ];
-  }
+  // ── 회사 부서(CompanyDesk가 맡는다) ───────────────────────
 
   /** 결과를 기억과 앞 대화에 남기고 답으로 돌려준다. label: 다음 대화의 말머리 */
   private async settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number): Promise<TurnOutcome> {
@@ -438,165 +378,25 @@ export class ChatSession {
     return { kind: 'answer', answer, checked: [], costUsd: this.costUsd - costBefore, durationMs: this.deps.now() - started, basis: null };
   }
 
-  /**
-   * 원인을 찾아 달라(debug)거나 바꾸기 전에 위험을 짚어 달라(risk), 아이디어를 달라(ideate)는 요청처럼 팀원 하나가 혼자 하는 일.
-   * 지금 저장소를 읽고 보고만 하며 파일은 고치지 않는다. 고치는 일은 사용자가 이어서 시키면 작업 흐름으로 간다.
-   */
-  private async analyze(role: ReportRole, label: string, input: string, conversation: string | null, started: number, department: DepartmentId | null = null): Promise<TurnOutcome> {
-    const costBefore = this.costUsd;
-    await this.loadBook();
-    const done = await this.report(role, label, this.reportParts(input, conversation));
-    if ('blocked' in done) return { kind: 'blocked', ...done.blocked };
-    const answer = AnalysisReportDto.read({ answer: done.answer, files: done.files }, label).toAnswer();
-    if (department !== null) await this.record(department, answer);
-    return this.settle(label, input, answer, answer, started, costBefore);
-  }
-
-  private askKey(input: string): string {
-    return input.trim().replace(/\s+/g, ' ').toLowerCase();
-  }
-
   /** 방금 한 질문을 그대로 다시 하면 앞 답(호출 없이). 코드를 바꾼 뒤이거나 오래됐으면 null. */
   private repeated(input: string): string | null {
-    const hit = this.answered.get(this.askKey(input));
+    const hit = this.answered.get(sameQuestionKey(input));
     if (hit === undefined || this.deps.now() - hit.at > REPEAT_WINDOW_MS) return null;
-    return `(방금 같은 질문에 한 답이에요. 새로 알아보려면 조금 다르게 물어봐 주세요.)
-
-${hit.answer}`;
+    return `(방금 같은 질문에 한 답이에요. 새로 알아보려면 조금 다르게 물어봐 주세요.)\n\n${hit.answer}`;
   }
 
-  /** 부서 팀원 입력에 싣을 회사 장부 글을 읽어 둔다. 읽지 못하면 없는 것으로 한다. */
-  private async loadBook(): Promise<void> {
-    try {
-      this.bookText = (await this.deps.company?.load())?.block() ?? '';
-    } catch {
-      this.bookText = '';
-    }
-  }
-
-  /** 부서의 결과를 요약해 장부에 남긴다. 읽지 못한 보고는 남기지 않고, 저장에 실패해도 대화는 막지 않는다. */
-  private async record(department: DepartmentId, answer: string): Promise<void> {
-    if (this.deps.company === undefined || answer.includes(UNREADABLE)) return;
-    try {
-      const book = (await this.deps.company.load()).with({ department, summary: CompanyBook.summaryOf(answer, HANDOFF_CHARS), at: this.at() });
-      await this.deps.company.save(book);
-    } catch {
-      // 장부는 다음 일을 돕는 참고라서, 남기지 못해도 이번 답은 그대로 보인다.
-    }
-  }
-
-  private budget(): SessionBudget {
-    return this.deps.budget?.() ?? SessionBudget.ample();
-  }
-
-  /** 한도가 위험하면 호출이 많은 일을 미루고 안내한다(호출 없이). 미룬 요청은 "그래도 진행"으로 되살린다. */
+  /** 한도가 위험하면 호출이 많은 일을 미루고 안내한다. 미룬 요청은 대화에 남기고 "그래도 진행"으로 되살린다. */
   private hold(input: string, route: Route): TurnOutcome | null {
-    const budget = this.budget();
-    if (!budget.holdsHeavyWork) return null;
+    const notice = this.desk.holdNotice();
+    if (notice === null) return null;
     this.held = { input, route };
     this.turns.push({ input, result: '세션 한도가 빠듯해 미뤄 둠("그래도 진행"이라고 하면 함)' });
-    const reset = budget.resetsAt !== null ? ` 한도는 ${new Date(budget.resetsAt).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })}쯤 풀려요.` : '';
-    return {
-      kind: 'notice',
-      message: `세션 한도를 ${Math.round(budget.percent)}% 썼어요. 이 요청은 호출이 많이 들어서 미뤄 뒀어요.${reset} 풀린 뒤에 다시 말씀해 주시거나, 지금 꼭 하려면 "그래도 진행"이라고 말씀해 주세요. (질문과 작은 요청은 지금도 할 수 있어요)`,
-    };
+    return notice;
   }
 
   /** 미뤄 둔 요청을 한도 검사 없이 한다. */
-  private async rerun(held: HeldRequest, conversation: string | null, started: number): Promise<TurnOutcome> {
-    return held.route.mode === 'launch' ? this.launch(held.input, conversation, started) : this.company(held.input, conversation, held.route, started);
-  }
-
-  /** 부서장의 종합·런칭 섹션 호출 설정. 한도가 빠듯하면 상위 모델 대신 sonnet을 쓰고, 한 번 알린다. */
-  private chiefOptions(): MemberOptions {
-    if (!this.budget().saving) return {};
-    if (!this.savingNoted) {
-      this.savingNoted = true;
-      this.deps.progress.step(`세션 한도를 ${Math.round(this.budget().percent)}% 썼어서 부서장도 sonnet으로 돌려요`);
-    }
-    return { tier: 'sonnet' };
-  }
-
-  /**
-   * 마케팅·사업 모델·디자인·보안·릴리스처럼 회사 부서가 맡는 일. 한 팀원이 하면 될 일은 그 팀원만 부른다(호출 하나).
-   * 넓은 요청은 부서장이 팀원을 최대 셋까지 골라 나눠 주고(계획), 팀원들이 동시에 일한 뒤, 둘 이상이면 부서장이 하나로 모은다(종합).
-   * 한 명만 골랐으면 종합은 건너뛴다.
-   */
-  private async company(input: string, conversation: string | null, route: Route, started: number): Promise<TurnOutcome> {
-    const department = Department.of(route.department ?? 'planning');
-    const label = (role: ReportRole) => department.member(role)?.label ?? role;
-    if (route.member !== null) return this.analyze(route.member, label(route.member), input, conversation, started, department.id);
-
-    const costBefore = this.costUsd;
-    await this.loadBook();
-    const known = [`<department>\n${department.persona}\n</department>`, this.bookText, conversation !== null ? `<conversation>\n${conversation}\n</conversation>` : '', `<request>\n${input}\n</request>`];
-    const members = `<members>\n${department.members.map((m) => `- ${m.role}: ${m.does}`).join('\n')}\n</members>`;
-    // 계획은 짧은 분배라 sonnet이면 충분하다. 부서장의 상위 모델은 팀원 보고를 모으는 종합과 런칭 섹션에 쓴다.
-    const planned = await this.member('chief', ['<job>plan</job>', members, ...known], COMPANY_PLAN_SCHEMA, { tier: 'sonnet' });
-    if (planned.blocked) return { kind: 'blocked', ...planned.blocked };
-    const { assignments } = CompanyPlanDto.read(planned.output, department);
-
-    const reports = await Promise.all(assignments.map((a) => this.report(a.role, label(a.role), this.reportParts(input, conversation, a.brief))));
-    const done: { role: ReportRole; answer: string; files: readonly string[] }[] = [];
-    for (const [i, r] of reports.entries()) {
-      if ('blocked' in r) return { kind: 'blocked', ...r.blocked };
-      done.push({ role: assignments[i]!.role, answer: r.answer, files: r.files });
-    }
-    if (done.length === 1) {
-      const only = done[0]!;
-      const answer = AnalysisReportDto.read({ answer: only.answer, files: only.files }, label(only.role)).toAnswer();
-      await this.record(department.id, answer);
-      return this.settle(department.label, input, answer, answer, started, costBefore);
-    }
-
-    const body = done.map((d) => `<report member="${d.role}">\n${d.answer}\n</report>`).join('\n');
-    const merged = await this.member('chief', ['<job>merge</job>', ...known, `<reports>\n${body}\n</reports>`], ANALYSIS_SCHEMA, this.chiefOptions());
-    if (merged.blocked) return { kind: 'blocked', ...merged.blocked };
-    const read = AnalysisReportDto.read(merged.output, department.label);
-    // 팀원이 읽은 파일은 부서장이 빠뜨려도 사라지지 않게 합친다.
-    const files = [...new Set([...read.files, ...done.flatMap((d) => d.files)])];
-    const answer = AnalysisReportDto.read({ answer: read.answer, files }, department.label).toAnswer();
-    await this.record(department.id, answer);
-    return this.settle(department.label, input, answer, answer, started, costBefore);
-  }
-
-  /**
-   * 앱·웹을 기획해 오픈하고 운영하기까지의 런칭 계획. 부서장이 부서마다 한 번씩(팀원을 따로 부르지 않고) 순서대로 자기 부서의 몫을 쓰고,
-   * 뒤 부서는 앞 부서의 글을 받아 이어 쓴다. 호출은 부서 수(5)만큼이다. 개발은 계획이 정해진 뒤 설계 대화로 이어 간다.
-   */
-  private async launch(input: string, conversation: string | null, started: number): Promise<TurnOutcome> {
-    const costBefore = this.costUsd;
-    await this.loadBook();
-    const sections: { label: string; answer: string }[] = [];
-    for (const id of LAUNCH_ORDER) {
-      const department = Department.of(id);
-      this.deps.progress.step(`런칭 계획: ${department.label}`);
-      // 뒤 부서에는 앞 부서 글 전문이 아니라 요약만 넘긴다(전문은 호출마다 입력을 불린다).
-      const earlier = sections.map((s) => `[${s.label}]\n${CompanyBook.summaryOf(s.answer, HANDOFF_CHARS)}`).join('\n\n');
-      const result = await this.member(
-        'chief',
-        [
-          `<department>\n${department.persona}\n</department>`,
-          '<job>section</job>',
-          conversation !== null ? `<conversation>\n${conversation}\n</conversation>` : '',
-          `<today>${this.deps.today()}</today>`,
-          this.workspaceBlock(),
-          this.bookText,
-          earlier !== '' ? `<earlier>\n${earlier}\n</earlier>` : '',
-          `<request>\n${input}\n</request>`,
-        ],
-        ANALYSIS_SCHEMA,
-        this.chiefOptions(),
-      );
-      if (result.blocked) return { kind: 'blocked', ...result.blocked };
-      const section = AnalysisReportDto.read(result.output, department.label).answer;
-      sections.push({ label: department.label, answer: section });
-      await this.record(id, section);
-    }
-    const answer = [...sections.map((s) => `━━ ${s.label} ━━\n${s.answer}`), '개발은 이 계획이 정해진 뒤에 시작해요. "이 계획으로 설계 시작해줘"라고 하시면 설계 대화로 이어지고, "런칭 계획 문서로 남겨줘"라고 하시면 파일로 써요.'].join('\n\n');
-    // 앞 대화에는 부서별 핵심만 남긴다(전문은 기억에 있다). 다음 말이 이 계획을 가리켜도 이어지게.
-    const remembered = sections.map((s) => `${s.label}: ${s.answer.replace(/\s+/g, ' ').slice(0, LAUNCH_KEPT_CHARS)}`).join(' / ');
-    return this.settle('런칭 계획', input, answer, remembered, started, costBefore);
+  private rerun(held: HeldRequest, conversation: string | null, started: number): Promise<TurnOutcome> {
+    return held.route.mode === 'launch' ? this.desk.launch(held.input, conversation, started) : this.desk.company(held.input, conversation, held.route, started);
   }
 
   // ── 문서 작업 ─────────────────────────────────────────────
@@ -620,7 +420,7 @@ ${hit.answer}`;
     const result = await this.member(
       'writer',
       [
-        conversation !== null ? `<conversation>\n${conversation}\n</conversation>` : '',
+        conversationBlock(conversation),
         `<today>${this.deps.today()}</today>`,
         this.workspaceBlock(),
         `<repos>\n${repos.join('\n')}\n</repos>`,
@@ -709,8 +509,12 @@ ${hit.answer}`;
         known?.block ?? '',
         ...others.map((o) => o.known?.block ?? `<repo name="${o.name}" root="${o.root}"/>`),
         this.workspaceBlock(),
-        conversation !== null ? `<conversation>\n${conversation}\n</conversation>` : '',
-        `<today>${this.deps.today()}</today>`, `<now>${this.deps.nowText()}</now>`, block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '', `<question>\n${input}\n</question>`],
+        conversationBlock(conversation),
+        `<today>${this.deps.today()}</today>`,
+        `<now>${this.deps.nowText()}</now>`,
+        block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '',
+        `<question>\n${input}\n</question>`,
+      ],
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
       { signal, dirs: [...others.map((o) => o.root), ...(others.length > 0 && this.deps.folder !== undefined ? [this.deps.folder.root] : [])] },
@@ -735,7 +539,7 @@ ${hit.answer}`;
   private async answer(input: string, asked: Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }>, started: number): Promise<TurnOutcome> {
     const { result, recalls, basis } = await asked;
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
-    const dto = this.readAnswer(result.output);
+    const dto = this.tryRead(() => AnswerDto.from(result.output));
     const claims = dto?.claims() ?? [];
     const files = new Map(await Promise.all(citedPaths(claims).map(async (path) => [path, await this.deps.workspace.readFile(path)] as const)));
     const checked = FactCheck.of(claims, {
@@ -775,7 +579,7 @@ ${hit.answer}`;
       {},
     );
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
-    const report = this.readReview(result.output);
+    const report = this.tryRead(() => ReviewReportDto.from(result.output));
     const claims = report?.claims() ?? [];
     const cited = new Map(await Promise.all(citedPaths(claims).map(async (path) => [path, await this.deps.workspace.readFile(path)] as const)));
     const checked = FactCheck.of(claims, {
@@ -831,17 +635,10 @@ ${hit.answer}`;
     return result;
   }
 
-  private readReview(output: unknown): ReviewReportDto | null {
+  /** 읽을 수 없는 출력은 null(그때는 "읽지 못했어요"로 보인다) */
+  private tryRead<T>(read: () => T): T | null {
     try {
-      return ReviewReportDto.from(output);
-    } catch {
-      return null;
-    }
-  }
-
-  private readAnswer(output: unknown): AnswerDto | null {
-    try {
-      return AnswerDto.from(output);
+      return read();
     } catch {
       return null;
     }
