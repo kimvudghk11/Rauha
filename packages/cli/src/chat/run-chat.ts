@@ -9,26 +9,27 @@ import {
   discoverRepos,
   FileChatSnapshots,
   FileCompanyBook,
+  FileDesignStore,
   FileLearningStore,
   FileRoutineStore,
-  Routine,
-  FileDesignStore,
   FileWorkspaceStore,
   GitWorkspace,
   isRepo,
   loadSecretPolicy,
+  readPlanUsage,
+  SessionBudget,
   Workspace,
   WorkspaceSession,
   type ChatSnapshot,
-  type DesignUserPort,
+  type PlanUsage,
+  type Profile,
   type RepoSession,
   type WorkspaceRepo,
-  readPlanUsage, SessionBudget, type PermissionAsker, type PlanUsage, type Profile, type UserPort } from '@rauha/core';
-import { FACT_ANSWERED, FACT_OPTIONS, PERMISSION_ANSWERED, PERMISSION_OPTIONS, toFactAnswer, toPermissionAnswer } from '../ask.js';
+} from '@rauha/core';
 import { readLoginStatus } from '../login-status.js';
 import { mascotView } from '../mascot.js';
 import { copyToClipboard } from '../clipboard.js';
-import { createNotifier, LONG_WORK_MS, NOTIFY_AFTER_MS, notifyIfLong, notifyWhile } from '../notify.js';
+import { createNotifier, LONG_WORK_MS, notifyIfLong } from '../notify.js';
 import { createKnowledge, createLoop, createTeam, definedEnv, loadPrompts, openMemory, projectRoot, roleSettings } from '../run.js';
 import { ChatApp } from './chat-app.js';
 import { chatProgress } from './chat-progress.js';
@@ -37,7 +38,10 @@ import { localDate } from '../local-date.js';
 import { runShell } from '../shell-run.js';
 import { companyLines } from './company-lines.js';
 import { learningLines } from './learning-lines.js';
-import { dueNotice, ROUTINE_USAGE, routineLines } from './routine-lines.js';
+import { dueNotice } from './routine-lines.js';
+import { markStarted, routineCommand } from './routine-command.js';
+import { createChatUser } from './chat-user.js';
+import { queueLines, shellLines } from './command-lines.js';
 import { teamLines } from './team-lines.js';
 import { HELP_TEXT, parseCommand, type ChatCommand } from './commands.js';
 import { parkingStream } from './cursor-park.js';
@@ -107,75 +111,11 @@ export async function runChat(options: ChatOptions): Promise<number> {
   const progress = chatProgress(store, view, Date.now);
   const finishWorking = progress.finish;
 
-  const askPermission: PermissionAsker = async (request) => {
-    const screen = view?.permission(request, columns()) ?? `⚠ 위험 동작 허락? ${request.reason}\n  ${request.detail}`;
-    const compactScreen = view?.permission(request, columns(), true);
-    const index = (await store.ask({ kind: 'menu', screen, compactScreen, options: PERMISSION_OPTIONS })) as number;
-    const note = index === 3 ? ((await store.ask({ kind: 'text', label: '팀원에게 전할 이유' })) as string) : null;
-    store.print(`  → ${PERMISSION_ANSWERED[index < 0 ? 2 : index]}`);
-    return toPermissionAnswer(index, note);
-  };
-  const asker: UserPort = {
-    interactive: true,
-    choose: async (assumption) => {
-      const options = [`${assumption.chosen}  (추천)`, ...assumption.alternatives];
-      const index = (await store.ask({ kind: 'menu', screen: `? ${assumption.question}`, options })) as number;
-      return index < 0 ? 0 : index;
-    },
-    confirmFact: async (claim) => {
-      const screen = view?.factCheck(claim.text, columns()) ?? `? 근거를 확인하지 못했어요. 맞나요?\n  ${claim.text}`;
-      const compactScreen = view?.factCheck(claim.text, columns(), true);
-      const index = (await store.ask({ kind: 'menu', screen, compactScreen, options: FACT_OPTIONS })) as number;
-      const correction = index === 1 ? ((await store.ask({ kind: 'text', label: '바로잡을 내용' })) as string) : null;
-      store.print(`  → ${FACT_ANSWERED[index < 0 ? 2 : index]}`);
-      return toFactAnswer(index, correction);
-    },
-    pickPast: async (candidates) => {
-      const screen = view?.pastPick(columns()) ?? '? 혹시 이 작업을 말씀하시는 건가요?';
-      const options = [...candidates.map((c) => `${c.title}  (${c.at.slice(0, 16).replace('T', ' ')})`), '아니요, 새 작업이에요'];
-      const compactScreen = view?.pastPick(columns(), true);
-      const index = (await store.ask({ kind: 'menu', screen, compactScreen, options })) as number;
-      return index >= 0 && index < candidates.length ? candidates[index]!.id : null;
-    },
-  };
-
   // 사용자가 바로 답하지 않는 질문은 운영체제 알림으로도 알린다(바로 답하면 알림은 뜨지 않는다).
   const notifier = createNotifier();
-  const asking = <T>(body: string, task: () => Promise<T>) => notifyWhile(notifier, NOTIFY_AFTER_MS, `${profile.badge()} 선택이 필요해요`, body, task);
-  const ask: PermissionAsker = (request) => asking(`${request.tool} 실행 허락: ${request.detail}`, () => askPermission(request));
-  const user: UserPort = {
-    interactive: true,
-    choose: (assumption) => asking(`요청의 해석을 정해 주세요: ${assumption.question}`, () => asker.choose(assumption)),
-    confirmFact: (claim) => asking(`근거를 못 찾은 사실이 맞는지 알려 주세요: ${claim.text}`, () => asker.confirmFact(claim)),
-    pickPast: (candidates) => asking('이 작업이 맞는지 알려 주세요', () => asker.pickPast(candidates)),
-    discuss: (q) =>
-      asking(`설계 질문에 답해 주세요: ${q.question}`, async () => {
-        store.printLines(['', `  ? 설계 질문 ${q.round}: ${q.question}`]);
-        if (q.suggestion !== null) store.print(`    추천: ${q.suggestion}`);
-        store.print('    (Enter 또는 "알아서 해" = 추천대로, /cancel = 설계 그만두기)');
-        const text = ((await store.ask({ kind: 'text', label: '답' })) as string).trim();
-        return text.toLowerCase() === '/cancel' ? null : text;
-      }),
-    approve: (plan) =>
-      asking(`설계를 보고 승인해 주세요: ${plan.title}`, async () => {
-        store.printLines(['', ...plan.summary, `  설계 문서: ${plan.path} (직접 고쳐도 돼요)`, '']);
-        const index = (await store.ask({ kind: 'menu', screen: '? 이 설계로 진행할까요?', options: ['승인하고 시작', '고칠 점 말하기', '그만두기'] })) as number;
-        if (index === 0) return { kind: 'approve' } as const;
-        if (index !== 1) return { kind: 'cancel' } as const;
-        const note = ((await store.ask({ kind: 'text', label: '고칠 점' })) as string).trim();
-        return note === '' ? ({ kind: 'cancel' } as const) : ({ kind: 'revise', note } as const);
-      }),
-    pickRepo: (candidates) =>
-      asking('어느 저장소 일인지 골라 주세요', async () => {
-        const index = (await store.ask({ kind: 'menu', screen: '? 어느 저장소 일인가요?', options: candidates.map((c) => c.name) })) as number;
-        return index >= 0 && index < candidates.length ? candidates[index]!.name : null;
-      }),
-  };
+  const { ask, user, designUser } = createChatUser({ store, view, notifier, badge: profile.badge(), columns });
 
   const prompts = await loadPrompts();
-
-  /** 설계 서비스가 쓰는 사용자 쪽(위 user의 설계 대화 부분) */
-  const designUser: DesignUserPort = { discuss: (q) => user.discuss!(q), approve: (plan) => user.approve!(plan) };
 
   // 작업 공간: 띄운 폴더가 저장소면 그것 하나, 저장소들을 담은 폴더면 그 아래 저장소들, 없으면 띄운 폴더 하나.
   const wsStore = new FileWorkspaceStore(join(home, '.rauha', 'workspaces'), workDir);
@@ -336,8 +276,7 @@ export async function runChat(options: ChatOptions): Promise<number> {
       store.print(dropped > 0 ? `  기다리던 입력 ${dropped}개를 지웠어요.` : '  기다리는 입력이 없어요.');
       return;
     }
-    const queued = store.queue;
-    store.printLines(queued.length === 0 ? ['  기다리는 입력이 없어요.'] : ['', `  기다리는 입력 ${queued.length}개 (/queue clear로 비워요)`, ...queued.map((t, i) => `    ${i + 1}. ${t}`)]);
+    store.printLines(queueLines(store.queue));
   }
 
   // Ctrl+C: 일하는 중이면 그 작업만 멈춘다(팀원 호출을 끊고 기다리던 질문은 거절로 닫는다).
@@ -363,7 +302,15 @@ export async function runChat(options: ChatOptions): Promise<number> {
     setTimeout(() => store.setNotice(''), EXIT_WINDOW_MS).unref();
   }
 
+  /** /routine run으로 대기열에 넣은 업무(요청 글 → 업무 번호). 실제로 시작될 때 오늘 했다고 표시한다. */
+  const startingRoutines = new Map<string, string>();
+
   async function handle(text: string): Promise<void> {
+    const routineId = startingRoutines.get(text);
+    if (routineId !== undefined) {
+      startingRoutines.delete(text);
+      void markStarted(routineStore(), routineId, today());
+    }
     const command = parseCommand(text);
     if (command !== null) {
       switch (command.kind) {
@@ -433,30 +380,13 @@ export async function runChat(options: ChatOptions): Promise<number> {
         case 'queue':
           return queueCommand(command.action);
         case 'routine': {
-          const routines = routineStore();
-          const book = await routines.load();
-          if (command.action === 'usage') return store.printLines(['', ...ROUTINE_USAGE, '']);
-          if (command.action === 'list') return store.printLines(routineLines(book, today()));
-          if (command.action === 'run') {
-            const due = book.due(today());
-            if (due.length === 0) return store.print('  때가 된 정기 업무가 없어요.');
-            await routines.save(book.markRun(due.map((r) => r.id), today()));
-            store.print(`  정기 업무 ${due.length}개를 차례로 실행해요.`);
-            for (const r of due) store.enqueue(r.request);
-            return;
+          const effect = await routineCommand(command, routineStore(), today(), () => crypto.randomUUID());
+          store.printLines(effect.lines);
+          for (const r of effect.start) {
+            startingRoutines.set(r.request, r.id);
+            store.enqueue(r.request);
           }
-          try {
-            if (command.action === 'add') {
-              await routines.save(book.add(Routine.create({ id: crypto.randomUUID(), request: command.request, cadence: command.cadence, today: today() })));
-              return store.print(`  정기 업무를 등록했어요: ${command.request}  (${command.cadence.kind === 'daily' ? '매일' : '매주'}, 때가 되면 알려 드려요)`);
-            }
-            if (command.action === 'remove') {
-              await routines.save(book.remove(command.number));
-              return store.print(`  ${command.number}번 정기 업무를 지웠어요.`);
-            }
-          } catch (error) {
-            return store.print(`  ${(error as Error).message}`);
-          }
+          return;
         }
         case 'learn': {
           const b = current();
@@ -479,9 +409,7 @@ export async function runChat(options: ChatOptions): Promise<number> {
           store.setBusy(true);
           try {
             const result = await runShell(command.command, ws.current()?.root ?? workDir, SHELL_TIMEOUT_MS);
-            const body = result.output.trimEnd();
-            const status = result.timedOut ? `  ${SHELL_TIMEOUT_MS / 1000}초가 지나 멈췄어요.` : result.exitCode === 0 ? null : `  종료 코드 ${result.exitCode ?? '-'}`;
-            store.printLines([...(body === '' ? [] : body.split(/\r?\n/).map((l) => `  ${l}`)), ...(status === null ? [] : [status])]);
+            store.printLines(shellLines(result, SHELL_TIMEOUT_MS));
           } finally {
             store.setBusy(false);
           }
