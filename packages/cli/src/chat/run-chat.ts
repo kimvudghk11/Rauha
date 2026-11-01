@@ -3,39 +3,18 @@ import React from 'react';
 import { execFile, spawn } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import {
-  ChatSession,
-  DesignService,
-  discoverRepos,
-  FileChatSnapshots,
-  FileCompanyBook,
-  FileDesignStore,
-  FileLearningStore,
-  FileRoutineStore,
-  FileWorkspaceStore,
-  GitWorkspace,
-  isRepo,
-  loadSecretPolicy,
-  readPlanUsage,
-  SessionBudget,
-  Workspace,
-  WorkspaceSession,
-  type ChatSnapshot,
-  type PlanUsage,
-  type Profile,
-  type RepoSession,
-  type WorkspaceRepo,
-} from '@rauha/core';
+import { FileRoutineStore, isRepo, readPlanUsage, type PlanUsage, type Profile } from '@rauha/core';
 import { readLoginStatus } from '../login-status.js';
 import { mascotView } from '../mascot.js';
 import { createNotifier, LONG_WORK_MS, notifyIfLong } from '../notify.js';
-import { createKnowledge, createLoop, createTeam, definedEnv, loadPrompts, openMemory, projectRoot, roleSettings } from '../run.js';
+import { definedEnv, loadPrompts, roleSettings } from '../run.js';
 import { ChatApp } from './chat-app.js';
 import { chatProgress } from './chat-progress.js';
 import { ChatStore, type Printable } from './chat-store.js';
 import { localDate } from '../local-date.js';
 import { dueNotice } from './routine-lines.js';
 import { createChatUser } from './chat-user.js';
+import { openRepoSessions } from './repo-sessions.js';
 import { queueCommand, runCommand, type ChatState, type CommandContext } from './command-handlers.js';
 import { parseCommand, type ChatCommand } from './commands.js';
 import { markStarted } from './routine-command.js';
@@ -110,79 +89,21 @@ export async function runChat(options: ChatOptions): Promise<number> {
 
   const prompts = await loadPrompts();
 
-  // 작업 공간: 띄운 폴더가 저장소면 그것 하나, 저장소들을 담은 폴더면 그 아래 저장소들, 없으면 띄운 폴더 하나.
-  const wsStore = new FileWorkspaceStore(join(home, '.rauha', 'workspaces'), workDir);
-  const savedWs = await wsStore.load();
-  const found = discoverRepos(workDir);
-  const extra = (savedWs?.extra ?? []).filter((r) => isRepo(r));
-  const roots = [...(found.length > 0 ? found : [workDir]), ...extra];
-  const workspace = Workspace.of(roots, savedWs?.current ?? (roots.length === 1 ? roots[0]! : null));
-  const multi = () => workspace.repos.length > 1;
-  const saveWs = () => void wsStore.save({ extra, current: workspace.current()?.root ?? null }).catch(() => undefined);
-
-  /** 저장소 하나에 딸린 것들. 저장소마다 그 저장소의 계정(프로필)으로 팀원·기억·지식을 따로 둔다. */
-  interface Bundle {
-    readonly profile: Profile;
-    readonly chat: ChatSession;
-    readonly team: ReturnType<typeof createTeam>;
-    readonly memory: ReturnType<typeof openMemory>;
-    readonly snapshots: FileChatSnapshots;
-  }
-  const bundles = new Map<string, Bundle>();
-  // --continue: 저장소마다 저장해 둔 대화를 미리 읽는다(세션은 그 저장소를 처음 쓸 때 연다).
-  const resumed = new Map<string, ChatSnapshot | null>();
-  if (options.resume) {
-    for (const repo of workspace.repos) resumed.set(repo.root, await new FileChatSnapshots(options.profileFor(repo.root).sessionsDir(home), projectRoot(repo.root)).load());
-  }
-
-  const open = (repo: WorkspaceRepo): RepoSession => {
-    const repoProfile = options.profileFor(repo.root);
-    const ctx = { root: repo.root, profile: repoProfile, home, ask, user, progress, requireClean: true, threePass: options.threePass };
-    const team = createTeam(ctx, prompts);
-    const knowledge = createKnowledge(ctx, team);
-    const memory = openMemory(ctx);
-    const deps = {
-      knowledge,
-      repoName: repo.name,
-      // /repo add로 저장소가 늘 수 있어 부를 때마다 읽는다.
-      get folder() {
-        return multi() ? { root: workDir, repos: workspace.repos.map((r) => ({ name: r.name, root: r.root })) } : undefined;
-      },
-      designer: new DesignService({ team, roles: roleSettings(), user: designUser, store: new FileDesignStore(repoProfile.designsDir(home), repo.root), progress, today: localDate }),
-      newLoop: (carried: ReadonlyMap<string, string>) => createLoop(ctx, prompts, team, carried, knowledge),
-      team,
-      workspace: new GitWorkspace(repo.root, loadSecretPolicy(repo.root)),
-      memory,
-      user,
-      progress,
-      roles: roleSettings(),
-      now: Date.now,
-      newId: () => crypto.randomUUID(),
-      today: localDate,
-      learning: new FileLearningStore(repoProfile.learningDir(home), repo.root),
-      company: new FileCompanyBook(repoProfile.companyDir(home), repo.root),
-      // 한도를 얼마나 썼는지(1분마다 읽는 값). 빠듯하면 부서장이 아끼고, 위험하면 큰 요청을 미룬다.
-      budget: () => SessionBudget.fromWindows([plan?.session ?? null, plan?.weekly ?? null]),
-      nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
-    };
-    const saved = resumed.get(repo.root) ?? null;
-    const chat = saved !== null ? ChatSession.resume(deps, saved) : ChatSession.start(deps);
-    bundles.set(repo.root, { profile: repoProfile, chat, team, memory, snapshots: new FileChatSnapshots(repoProfile.sessionsDir(home), projectRoot(repo.root)) });
-    return { repo, profileName: repoProfile.name, chat, knowledge };
-  };
-  const ws = new WorkspaceSession({ workspace, open, user, onCurrent: () => saveWs() });
-  /** 지금 저장소의 묶음(처음이면 연다). 지금 저장소가 없으면 null. */
-  const current = (): Bundle | null => {
-    const repo = ws.current();
-    if (repo === null) return null;
-    ws.session(repo);
-    return bundles.get(repo.root) ?? null;
-  };
-  /** 입력 하나를 마칠 때마다 남겨 두어 --continue로 이어 연다. 저장 실패는 대화를 막지 않는다. */
-  const remember = (bundle: Bundle | null | undefined) => {
-    if (bundle) void bundle.snapshots.save(bundle.chat.snapshot(new Date().toISOString())).catch(() => undefined);
-  };
-  const bundleNamed = (name: string | null) => bundles.get(workspace.repos.find((r) => r.name === name)?.root ?? '') ?? null;
+  // 한도를 얼마나 썼는지는 아래 상태 줄 새로고침이 1분마다 읽어 둔다.
+  let plan: PlanUsage | null = null;
+  const { workspace, found, extra, multi, saveWs, bundles, resumed, ws, current, remember, bundleNamed } = await openRepoSessions({
+    workDir,
+    home,
+    resume: options.resume,
+    threePass: options.threePass,
+    profileFor: options.profileFor,
+    prompts,
+    ask,
+    user,
+    designUser,
+    progress,
+    plan: () => plan,
+  });
   // 지금 저장소가 있으면 미리 연다(라우터·답변 팀원을 미리 띄워 첫 질문이 빠르게).
   const first = current();
   /** /guide·/copy·/retry·/update가 이어서 쓰는 상태 */
@@ -398,7 +319,6 @@ export async function runChat(options: ChatOptions): Promise<number> {
 
   // 상태 줄: 시작할 때, 입력 하나가 끝날 때, 그리고 입력이 없어도 1분마다 사용률을 새로 읽는다(모델을 부르지 않는다).
   // 세션 한도가 풀린 뒤에도 옛 퍼센트가 남아 있지 않게 하려고. 읽기에 실패하면 마지막으로 읽은 값을 그대로 둔다.
-  let plan: PlanUsage | null = null;
   const usageTimer = startRefreshing(async () => {
     const repo = ws.current();
     const shown = repo === null ? profile : options.profileFor(repo.root);
