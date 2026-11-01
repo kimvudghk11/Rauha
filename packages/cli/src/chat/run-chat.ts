@@ -1,8 +1,7 @@
 import { render } from 'ink';
 import React from 'react';
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 import { FileRoutineStore, isRepo, readPlanUsage, type PlanUsage, type Profile } from '@rauha/core';
 import { readLoginStatus } from '../login-status.js';
 import { mascotView } from '../mascot.js';
@@ -15,6 +14,9 @@ import { localDate } from '../local-date.js';
 import { dueNotice } from './routine-lines.js';
 import { createChatUser } from './chat-user.js';
 import { openRepoSessions } from './repo-sessions.js';
+import { currentBranch, listFiles } from './git-info.js';
+import { createInputQueue } from './input-queue.js';
+import { createInterrupt } from './interrupt.js';
 import { queueCommand, runCommand, type ChatState, type CommandContext } from './command-handlers.js';
 import { parseCommand, type ChatCommand } from './commands.js';
 import { markStarted } from './routine-command.js';
@@ -39,30 +41,8 @@ export interface ChatOptions {
 }
 
 const columns = () => process.stderr.columns ?? 80;
-/** 쉬는 중 Ctrl+C를 두 번 눌러 끝낼 때 두 번째를 기다리는 시간 */
-const EXIT_WINDOW_MS = 2000;
 /** 상태 줄의 사용률을 다시 읽는 간격 */
 const USAGE_REFRESH_MS = 60_000;
-
-/** 지금 브랜치 이름. git이 없거나 실패하면 null. */
-async function currentBranch(cwd: string): Promise<string | null> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
-    return stdout.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-/** 저장소의 파일 목록(추적 중이거나 아직 추적하지 않지만 무시되지 않은 것). git이 없거나 실패하면 빈 목록. */
-async function listFiles(cwd: string): Promise<string[]> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['ls-files', '-co', '--exclude-standard'], { cwd, maxBuffer: 32 * 1024 * 1024 });
-    return stdout.split(/\r?\n/).filter((l) => l !== '');
-  } catch {
-    return [];
-  }
-}
 
 /** rauha(인자 없음): Claude Code 같은 대화 화면. 화면이 없으면 열지 않는다. */
 export async function runChat(options: ChatOptions): Promise<number> {
@@ -155,50 +135,31 @@ export async function runChat(options: ChatOptions): Promise<number> {
     });
   }
 
-  // 일하는 중에 받은 입력은 대기열에 세우고, 지금 일이 끝나면 넣은 순서대로 하나씩 처리한다.
-  let running = false;
-  function submit(text: string): void {
-    void inputHistory.append(text);
-    // 쌓아 둔 입력을 다루는 명령은 줄 서지 않고 바로 처리한다.
-    const command = parseCommand(text);
-    if (command?.kind === 'queue') return queueCommand(store, command.action);
-    if (running) {
-      store.enqueue(text);
-      return;
-    }
-    void drain(text);
-  }
-  async function drain(first: string): Promise<void> {
-    running = true;
-    try {
-      for (let next: string | undefined = first; next !== undefined; next = store.dequeue()) await handle(next).catch((error: Error) => store.print(`rauha: ${error.message}`));
-    } finally {
-      running = false;
-    }
-  }
+  const input = createInputQueue({
+    enqueue: (text) => store.enqueue(text),
+    dequeue: () => store.dequeue(),
+    print: (line) => store.print(line),
+    saveHistory: (text) => void inputHistory.append(text),
+    isQueueCommand: (text) => parseCommand(text)?.kind === 'queue',
+    queueCommand: (text) => {
+      const command = parseCommand(text);
+      if (command?.kind === 'queue') queueCommand(store, command.action);
+    },
+    handle: (text) => handle(text),
+  });
+  const submit = input.submit;
 
-  // Ctrl+C: 일하는 중이면 그 작업만 멈춘다(팀원 호출을 끊고 기다리던 질문은 거절로 닫는다).
-  // 쉬는 중이면 2초 안에 한 번 더 눌러야 끝난다.
-  let lastInterrupt = 0;
-  function interrupt(): void {
-    if (store.busy) {
-      for (const b of bundles.values()) b.team.cancel();
-      store.cancelPrompts();
-      const dropped = store.clearQueue();
-      store.print(dropped > 0 ? `  멈추는 중이에요… (기다리던 입력 ${dropped}개도 지웠어요)` : '  멈추는 중이에요…');
-      return;
-    }
-    if (Date.now() - lastInterrupt < EXIT_WINDOW_MS) {
-      // 알림을 지운 화면이 한 번 그려진 뒤 닫는다(바로 닫으면 마지막 화면에 알림이 남는다).
-      store.setNotice('');
-      setTimeout(() => app.unmount(), 50);
-      return;
-    }
-    lastInterrupt = Date.now();
-    // 지난 출력에 남기지 않고 입력창 아래에 잠깐 띄운다(Claude Code·Kiro처럼).
-    store.setNotice('한 번 더 Ctrl+C(또는 Ctrl+D)를 누르면 끝나요');
-    setTimeout(() => store.setNotice(''), EXIT_WINDOW_MS).unref();
-  }
+  const interrupt = createInterrupt({
+    busy: () => store.busy,
+    cancelWork: () => bundles.forEach((b) => b.team.cancel()),
+    cancelPrompts: () => store.cancelPrompts(),
+    clearQueue: () => store.clearQueue(),
+    print: (line) => store.print(line),
+    setNotice: (text) => store.setNotice(text),
+    exit: () => app.unmount(),
+    now: Date.now,
+    later: (fn, ms) => void setTimeout(fn, ms).unref(),
+  });
 
   const commandContext: CommandContext = {
     store,
