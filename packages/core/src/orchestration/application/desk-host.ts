@@ -26,3 +26,9 @@ export interface DeskHost {
   spent(): number;
   workspaceBlock(): string;
 }
+
+/** 답변·설계 팀원에게 넘길 저장소 지식 묶음과 그 기준 */
+export interface Known {
+  readonly block: string;
+  readonly basis: string;
+}

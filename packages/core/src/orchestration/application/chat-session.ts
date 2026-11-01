@@ -20,7 +20,8 @@ import { OpsReportDto } from './dto/ops-report.dto.js';
 import type { RunContextBlocks, RunOutcome } from './minimal-loop.service.js';
 import type { SessionBudget } from '../domain/session-budget.js';
 import { CompanyDesk } from './company-desk.js';
-import type { DeskHost, MemberOptions } from './desk-host.js';
+import type { DeskHost, Known, MemberOptions } from './desk-host.js';
+import { DesignDesk } from './design-desk.js';
 import { DocumentDesk } from './document-desk.js';
 import type { CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
 import { conversationBlock } from './prompt-blocks.js';
@@ -80,12 +81,6 @@ const STOPPED: MemberResult = {
   fetched: [],
   usage: { model: 'sonnet', durationMs: 0, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' },
 };
-
-/** 답변 팀원에게 넘길 저장소 지식 묶음과 그 기준 */
-interface Known {
-  readonly block: string;
-  readonly basis: string;
-}
 
 /** 여러 저장소에 걸친 질문에서 함께 읽을 다른 저장소 */
 export interface AlsoRepo {
@@ -154,6 +149,8 @@ export class ChatSession {
   private readonly desk: CompanyDesk;
   /** 코드가 아닌 결과물(문서)을 쓰는 일 */
   private readonly documents: DocumentDesk;
+  /** 기능 요청의 설계 대화와 승인된 설계의 작업 돌리기. 설계 팀원이 없으면 없다. */
+  private readonly designs: DesignDesk | null;
 
   private constructor(private readonly deps: ChatSessionDeps) {
     const host: DeskHost = {
@@ -163,6 +160,26 @@ export class ChatSession {
       workspaceBlock: () => this.workspaceBlock(),
     };
     this.desk = new CompanyDesk(host, { today: deps.today, now: deps.now, progress: deps.progress, budget: deps.budget, company: deps.company });
+    this.designs =
+      deps.designer === undefined
+        ? null
+        : new DesignDesk(
+            {
+              knowledge: () => this.knowledgeOf(),
+              memoryBlock: async (input) => {
+                const block = recallBlock(await this.deps.memory.search(input, CANDIDATES), MEMORY_CHARS);
+                return block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : null;
+              },
+              work: async (request, block) => (await this.work(request, null, null, block)),
+              charge: (cost) => {
+                this.costUsd += cost.costUsd;
+                this.calls[cost.tier] += cost.calls;
+              },
+              remember: (question, answer, basis) => this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question, answer, citedFiles: [], basis })),
+              noteTurn: (input, result) => void this.turns.push({ input, result }),
+            },
+            { designer: deps.designer, repoName: deps.repoName, progress: deps.progress, now: deps.now },
+          );
     this.documents = new DocumentDesk({ ...host, titled: (title) => (this.lastTitle = title) }, { today: deps.today, progress: deps.progress, repoName: deps.repoName, folder: () => this.deps.folder });
   }
 
@@ -203,7 +220,7 @@ export class ChatSession {
     // /design: 라우터를 거치지 않고 바로 설계부터 한다.
     if (force === 'design') {
       if (also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };
-      return this.canDesign() ? this.feature(input, conversation, started) : { kind: 'notice', message: '설계 대화는 터미널 대화 모드에서만 할 수 있어요.' };
+      return this.canDesign() ? this.designs!.run(input, conversation, started) : { kind: 'notice', message: '설계 대화는 터미널 대화 모드에서만 할 수 있어요.' };
     }
     const early = new AbortController();
     // 저장소 지식은 답변 팀원이 필요할 때 처음 한 번만 읽는다(처음이면 조사 팀원이 저장소를 훑는다). 작업·인사에는 읽지 않는다.
@@ -231,7 +248,7 @@ export class ChatSession {
     if (changesCode && also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };
     const past = route.refersToPast ? await this.pickPast(route.pastQuery ?? input, route.mode) : null;
     // 기능 요청은 설계 대화부터. 사용자와 주고받을 화면이 없으면(-p) 작업으로 바로 진행한다.
-    if (route.mode === 'feature' && past === null && this.canDesign()) return this.feature(input, conversation, started);
+    if (route.mode === 'feature' && past === null && this.canDesign()) return this.designs!.run(input, conversation, started);
     if (changesCode) return this.work(input, conversation, past);
     const answered = await this.answer(input, route.refersToPast || asked === null ? this.askAnswerer(input, past, await known(), conversation, undefined, await others()) : asked, started);
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
@@ -296,60 +313,7 @@ export class ChatSession {
   // ── 설계 대화 ─────────────────────────────────────────────
 
   private canDesign(): boolean {
-    return this.deps.designer !== undefined && this.deps.user.interactive && typeof this.deps.user.discuss === 'function';
-  }
-
-  /**
-   * 기능 요청: 설계 팀원과 충분히 이야기해 설계를 승인받고, 승인된 설계의 작업을 순서대로 최소 루프에 넣는다.
-   * 앞 작업이 멈추면 그것에 의존하는 작업은 하지 않고, 의존하지 않는 작업은 계속한다.
-   * 승인 뒤의 접수는 설계 블록을 기준으로 거의 묻지 않는다.
-   */
-  private async feature(input: string, conversation: string | null, started: number): Promise<TurnOutcome> {
-    const known = await this.knowledgeOf();
-    const recalls = await this.deps.memory.search(input, CANDIDATES);
-    const memory = recallBlock(recalls, MEMORY_CHARS);
-    const result = await this.deps.designer!.run({
-      request: input,
-      repo: this.deps.repoName ?? '이 저장소',
-      knowledge: known?.block ?? null,
-      memory: memory !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${memory}\n</memory>` : null,
-      conversation,
-      basis: known?.basis ?? null,
-    });
-    this.costUsd += result.cost.costUsd;
-    this.calls[result.cost.tier] += result.cost.calls;
-    if (result.kind === 'blocked') return { kind: 'blocked', ...result.block };
-    if (result.kind === 'cancelled') {
-      this.turns.push({ input, result: '설계를 그만둠' });
-      return { kind: 'notice', message: '설계를 그만뒀어요. 필요하면 다시 말씀해 주세요.' };
-    }
-    if (result.kind === 'failed') return { kind: 'notice', message: `설계를 끝내지 못했어요: ${result.message} 요청을 조금 더 구체적으로 다시 해 주세요.` };
-
-    const { design, path } = result;
-    // 설계의 이유를 기억에 남긴다. 나중에 질문에 설계의 이유로 답할 수 있다(작업 기억은 작업마다 따로 남는다).
-    const decided = design.decisions.map((d) => `- ${d.what} (${d.by === 'user' ? '사용자가 정함' : 'rauha가 정함'})`);
-    await this.deps.memory.save(
-      WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: `설계 ${design.title}: ${input}`, answer: [design.purpose, ...decided].join('\n'), citedFiles: [], basis: known?.basis ?? null }),
-    );
-    const order = design.runOrder();
-    const results: DesignTaskResult[] = [];
-    const stopped = new Set<string>();
-    for (const [i, task] of order.entries()) {
-      if (design.isBlocked(task.id, stopped)) {
-        stopped.add(task.id);
-        results.push({ id: task.id, title: task.title, status: 'skipped', outcome: null });
-        continue;
-      }
-      this.deps.progress.step(`설계 작업 ${i + 1}/${order.length}: ${task.title}`);
-      const { request, block } = DesignDocDto.taskRequest(design, task, path);
-      const turn = await this.work(request, null, null, block);
-      const outcome = turn.kind === 'work' ? turn.outcome : null;
-      const complete = outcome?.status === 'complete';
-      if (!complete) stopped.add(task.id);
-      results.push({ id: task.id, title: task.title, status: complete ? 'complete' : 'stopped', outcome });
-    }
-    this.turns.push({ input, result: `설계 "${design.title}" 작업 ${results.filter((r) => r.status === 'complete').length}/${results.length}개 완료` });
-    return { kind: 'design', title: design.title, path, tasks: results, durationMs: this.deps.now() - started };
+    return this.designs !== null && this.deps.user.interactive && typeof this.deps.user.discuss === 'function';
   }
 
   // ── 운영 요청 ─────────────────────────────────────────────
