@@ -19,7 +19,9 @@ import { WriterReportDto } from './dto/writer-report.dto.js';
 import { OpsReportDto } from './dto/ops-report.dto.js';
 import type { RunContextBlocks, RunOutcome } from './minimal-loop.service.js';
 import type { SessionBudget } from '../domain/session-budget.js';
-import { CompanyDesk, type MemberOptions } from './company-desk.js';
+import { CompanyDesk } from './company-desk.js';
+import type { DeskHost, MemberOptions } from './desk-host.js';
+import { DocumentDesk } from './document-desk.js';
 import type { CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
 import { conversationBlock } from './prompt-blocks.js';
 import type { DesignTaskResult, TurnOutcome } from './turn-outcome.js';
@@ -68,10 +70,6 @@ export interface ChatSessionDeps {
   readonly learning?: LearningPort;
 }
 
-/** 저장소가 이 수를 넘으면 문서 팀원 한 명이 다 읽지 않고, 저장소마다 나눠 읽은 요약을 모아 쓴다. */
-const GATHER_ABOVE = 4;
-/** 저장소를 나눠 읽을 때 동시에 돌리는 수 */
-const GATHER_PARALLEL = 4;
 /** 함께 묻는 다른 저장소가 이 수를 넘으면 그 저장소들의 지식은 미리 만들지 않는다(저장소마다 조사 팀원이 돌아 오래 걸린다). 답변 팀원이 직접 읽는다. */
 const ALSO_KNOWLEDGE_MAX = 3;
 
@@ -154,17 +152,18 @@ export class ChatSession {
 
   /** 회사 부서가 하는 일(기획·디버깅·위험 점검·부서장 배분·런칭). 호출과 비용 합산은 세션이 빌려준다. */
   private readonly desk: CompanyDesk;
+  /** 코드가 아닌 결과물(문서)을 쓰는 일 */
+  private readonly documents: DocumentDesk;
 
   private constructor(private readonly deps: ChatSessionDeps) {
-    this.desk = new CompanyDesk(
-      {
-        member: (role, parts, schema, options) => this.member(role, parts, schema, options),
-        settle: (label, input, answer, remembered, started, costBefore) => this.settle(label, input, answer, remembered, started, costBefore),
-        spent: () => this.costUsd,
-        workspaceBlock: () => this.workspaceBlock(),
-      },
-      { today: deps.today, now: deps.now, progress: deps.progress, budget: deps.budget, company: deps.company },
-    );
+    const host: DeskHost = {
+      member: (role, parts, schema, options) => this.member(role, parts, schema, options),
+      settle: (label, input, answer, remembered, started, costBefore, cited) => this.settle(label, input, answer, remembered, started, costBefore, cited),
+      spent: () => this.costUsd,
+      workspaceBlock: () => this.workspaceBlock(),
+    };
+    this.desk = new CompanyDesk(host, { today: deps.today, now: deps.now, progress: deps.progress, budget: deps.budget, company: deps.company });
+    this.documents = new DocumentDesk({ ...host, titled: (title) => (this.lastTitle = title) }, { today: deps.today, progress: deps.progress, repoName: deps.repoName, folder: () => this.deps.folder });
   }
 
   /** 매 입력마다 부르는 라우터·답변 팀원은 미리 띄워 둔다(띄우는 데만 2초쯤 걸린다). */
@@ -221,7 +220,7 @@ export class ChatSession {
     const route = RouteDto.read(routed.output);
     if (routed.blocked || route.mode !== 'question' || route.refersToPast) early.abort();
     if (routed.blocked) return { kind: 'blocked', ...routed.blocked };
-    if (route.mode === 'task') return this.task(input, conversation, also, started);
+    if (route.mode === 'task') return this.documents.write(input, conversation, also, started);
     if (route.mode === 'ops') return this.ops(input, conversation, started);
     if (route.mode === 'debug') return this.desk.analyze('debugger', '디버깅', input, conversation, started);
     if (route.mode === 'company') return (route.member === null ? this.hold(input, route) : null) ?? this.desk.company(input, conversation, route, started);
@@ -369,11 +368,11 @@ export class ChatSession {
     return this.settle('운영', input, answer, answer, started, costBefore);
   }
 
-  // ── 회사 부서(CompanyDesk가 맡는다) ───────────────────────
+  // ── 회사 부서(CompanyDesk)·문서(DocumentDesk)가 쓰는 것 ───────────────────────
 
   /** 결과를 기억과 앞 대화에 남기고 답으로 돌려준다. label: 다음 대화의 말머리 */
-  private async settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number): Promise<TurnOutcome> {
-    await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: [], basis: null }));
+  private async settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number, cited: readonly string[] = []): Promise<TurnOutcome> {
+    await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: [...cited], basis: null }));
     this.turns.push({ input, result: `${label}: ${remembered.slice(0, KEPT_RESULT_CHARS)}` });
     return { kind: 'answer', answer, checked: [], costUsd: this.costUsd - costBefore, durationMs: this.deps.now() - started, basis: null };
   }
@@ -397,88 +396,6 @@ export class ChatSession {
   /** 미뤄 둔 요청을 한도 검사 없이 한다. */
   private rerun(held: HeldRequest, conversation: string | null, started: number): Promise<TurnOutcome> {
     return held.route.mode === 'launch' ? this.desk.launch(held.input, conversation, started) : this.desk.company(held.input, conversation, held.route, started);
-  }
-
-  // ── 문서 작업 ─────────────────────────────────────────────
-
-  /**
-   * 코드가 아닌 결과물(포트폴리오·보고서·정리 문서). 테스트로 확인할 것이 없어 TDD 대신 문서 팀원이 읽고 쓴다.
-   * 크기로 돌려보내지 않는다. 문서 팀원은 .md만 쓸 수 있다.
-   */
-  private async task(input: string, conversation: string | null, also: readonly AlsoRepo[], started: number): Promise<TurnOutcome> {
-    const current = this.deps.repoName ?? '이 저장소';
-    const repos = [`- ${current} (지금 작업 폴더, 문서는 여기에)`, ...also.map((r) => `- ${r.name}: ${r.root}`)];
-    const folderRoot = this.deps.folder?.root;
-    const dirs = [...also.map((r) => r.root), ...(folderRoot !== undefined ? [folderRoot] : [])];
-
-    let digests = '';
-    if (also.length + 1 > GATHER_ABOVE) {
-      const gathered = await this.gather(input, [{ name: current, root: this.deps.folder?.repos.find((r) => r.name === current)?.root ?? null }, ...also]);
-      if ('blocked' in gathered) return { kind: 'blocked', ...gathered.blocked };
-      digests = gathered.digests;
-    }
-    const result = await this.member(
-      'writer',
-      [
-        conversationBlock(conversation),
-        `<today>${this.deps.today()}</today>`,
-        this.workspaceBlock(),
-        `<repos>\n${repos.join('\n')}\n</repos>`,
-        digests !== '' ? `<digests>\n${digests}\n</digests>` : '',
-        `<request>\n${input}\n</request>`,
-      ],
-      WRITER_SCHEMA,
-      { dirs, canWrite: (path) => /\.md$/i.test(path) },
-    );
-    if (result.blocked) return { kind: 'blocked', ...result.blocked };
-    const report = WriterReportDto.read(result.output);
-    const answer = report.toAnswer();
-    await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: report.files, basis: null }));
-    this.lastTitle = input.slice(0, 60);
-    this.turns.push({ input, result: `문서: ${report.files.join(', ') || '없음'}` });
-    return { kind: 'answer', answer, checked: [], costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis: null };
-  }
-
-  /**
-   * 저장소가 많은 문서 요청: 저장소마다 싼 모델이 자기 저장소만 읽고 요약을 낸다(동시에 몇 개씩).
-   * 문서 팀원 한 명이 수십 개를 다 읽다 시간·턴이 모자라는 것을 피한다. 읽지 못한 저장소는 표시해서 넘긴다.
-   */
-  private async gather(
-    input: string,
-    repos: readonly { name: string; root: string | null }[],
-  ): Promise<{ digests: string } | { blocked: NonNullable<MemberResult['blocked']> }> {
-    const digests: string[] = new Array(repos.length).fill('');
-    let blocked: MemberResult['blocked'] = undefined;
-    let next = 0;
-    let finished = 0;
-    const worker = async () => {
-      while (blocked === undefined) {
-        const at = next;
-        next += 1;
-        const repo = repos[at];
-        if (repo === undefined) return;
-        const result = await this.member(
-          'writer',
-          [
-            `<today>${this.deps.today()}</today>`,
-            `<gather repo="${repo.name}"${repo.root !== null ? ` root="${repo.root}"` : ''}/>`,
-            `<request>\n${input}\n</request>`,
-          ],
-          WRITER_SCHEMA,
-          { dirs: repo.root !== null ? [repo.root] : [], canWrite: () => false, tier: 'haiku', quiet: true },
-        );
-        if (result.blocked) {
-          blocked = result.blocked;
-          return;
-        }
-        const report = WriterReportDto.read(result.output);
-        digests[at] = `<repo name="${repo.name}">\n${result.output === null ? '(읽지 못했어요)' : report.summary}\n</repo>`;
-        finished += 1;
-        this.deps.progress.step(`저장소 읽는 중 ${finished}/${repos.length}`, 'writer');
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(GATHER_PARALLEL, repos.length) }, worker));
-    return blocked !== undefined ? { blocked } : { digests: digests.join('\n') };
   }
 
   /** 여러 저장소 작업 공간에서 rauha를 띄운 폴더와 저장소 목록. 저장소가 하나뿐이면 빈 글. */

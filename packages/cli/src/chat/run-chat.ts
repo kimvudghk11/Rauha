@@ -28,26 +28,21 @@ import {
 } from '@rauha/core';
 import { readLoginStatus } from '../login-status.js';
 import { mascotView } from '../mascot.js';
-import { copyToClipboard } from '../clipboard.js';
 import { createNotifier, LONG_WORK_MS, notifyIfLong } from '../notify.js';
 import { createKnowledge, createLoop, createTeam, definedEnv, loadPrompts, openMemory, projectRoot, roleSettings } from '../run.js';
 import { ChatApp } from './chat-app.js';
 import { chatProgress } from './chat-progress.js';
 import { ChatStore, type Printable } from './chat-store.js';
 import { localDate } from '../local-date.js';
-import { runShell } from '../shell-run.js';
-import { companyLines } from './company-lines.js';
-import { learningLines } from './learning-lines.js';
 import { dueNotice } from './routine-lines.js';
-import { markStarted, routineCommand } from './routine-command.js';
 import { createChatUser } from './chat-user.js';
-import { queueLines, shellLines } from './command-lines.js';
-import { teamLines } from './team-lines.js';
-import { HELP_TEXT, parseCommand, type ChatCommand } from './commands.js';
+import { queueCommand, runCommand, type ChatState, type CommandContext } from './command-handlers.js';
+import { parseCommand, type ChatCommand } from './commands.js';
+import { markStarted } from './routine-command.js';
 import { parkingStream } from './cursor-park.js';
 import { describeTurn } from './describe-turn.js';
 import { InputHistoryFile } from './input-history.js';
-import { isRauhaRepo, nodeExec, relaunch, repoRoot, runUpdate, withContinue } from '../update.js';
+import { relaunch, withContinue } from '../update.js';
 import { startRefreshing } from './status-refresh.js';
 import { statusLine, usageLines } from './usage-view.js';
 
@@ -63,8 +58,6 @@ export interface ChatOptions {
   /** 저장소마다 계정(프로필) 고르기. 폴더 규칙(config.toml)을 그 저장소 경로에 적용한다. */
   readonly profileFor: (root: string) => Profile;
 }
-
-const NO_CURRENT = '  어느 저장소인지 먼저 정해 주세요. /repo <이름>으로 고를 수 있어요.';
 
 const columns = () => process.stderr.columns ?? 80;
 /** 쉬는 중 Ctrl+C를 두 번 눌러 끝낼 때 두 번째를 기다리는 시간 */
@@ -192,14 +185,8 @@ export async function runChat(options: ChatOptions): Promise<number> {
   const bundleNamed = (name: string | null) => bundles.get(workspace.repos.find((r) => r.name === name)?.root ?? '') ?? null;
   // 지금 저장소가 있으면 미리 연다(라우터·답변 팀원을 미리 띄워 첫 질문이 빠르게).
   const first = current();
-  /** 마지막 작업의 읽기 안내서. 결과 카드 대신 자세히 볼 때 /guide로 연다. */
-  let lastGuide: string | null = null;
-  /** 마지막 답 글(/copy로 클립보드에 복사한다) */
-  let lastAnswer: string | null = null;
-  /** /update로 갱신을 마쳐 화면을 닫은 뒤 다시 띄워야 하는지 */
-  let restartAfterExit = false;
-  /** 마지막으로 보낸 요청 글(/retry로 다시 보낸다) */
-  let lastRequest: string | null = null;
+  /** /guide·/copy·/retry·/update가 이어서 쓰는 상태 */
+  const state: ChatState = { lastGuide: null, lastAnswer: null, lastRequest: null, restartAfterExit: false };
 
   // @를 치면 보여 줄 파일 목록. 저장소가 바뀌거나 일이 끝나면 다시 읽는다.
   let fileList: string[] = [];
@@ -248,13 +235,12 @@ export async function runChat(options: ChatOptions): Promise<number> {
   }
 
   // 일하는 중에 받은 입력은 대기열에 세우고, 지금 일이 끝나면 넣은 순서대로 하나씩 처리한다.
-  const SHELL_TIMEOUT_MS = 120_000;
   let running = false;
   function submit(text: string): void {
     void inputHistory.append(text);
     // 쌓아 둔 입력을 다루는 명령은 줄 서지 않고 바로 처리한다.
     const command = parseCommand(text);
-    if (command?.kind === 'queue') return queueCommand(command.action);
+    if (command?.kind === 'queue') return queueCommand(store, command.action);
     if (running) {
       store.enqueue(text);
       return;
@@ -268,15 +254,6 @@ export async function runChat(options: ChatOptions): Promise<number> {
     } finally {
       running = false;
     }
-  }
-
-  function queueCommand(action: 'show' | 'clear'): void {
-    if (action === 'clear') {
-      const dropped = store.clearQueue();
-      store.print(dropped > 0 ? `  기다리던 입력 ${dropped}개를 지웠어요.` : '  기다리는 입력이 없어요.');
-      return;
-    }
-    store.printLines(queueLines(store.queue));
   }
 
   // Ctrl+C: 일하는 중이면 그 작업만 멈춘다(팀원 호출을 끊고 기다리던 질문은 거절로 닫는다).
@@ -302,6 +279,41 @@ export async function runChat(options: ChatOptions): Promise<number> {
     setTimeout(() => store.setNotice(''), EXIT_WINDOW_MS).unref();
   }
 
+  const commandContext: CommandContext = {
+    store,
+    view,
+    state,
+    roles: roleSettings(),
+    current,
+    repoLabel: () => (multi() ? `[${ws.current()?.name}] ` : ''),
+    clearAll: () => {
+      for (const b of bundles.values()) {
+        b.chat.clear();
+        remember(b);
+      }
+    },
+    remember: (repo) => remember([...bundles.values()].find((b) => b.chat === repo.chat)),
+    showUsage: async () => {
+      await usageTimer.now();
+      store.printLines(usageLines(plan, totalUsage(), new Date(), undefined, view?.gauge));
+    },
+    repoCommand,
+    userTurn,
+    finishWorking,
+    runTurn,
+    unmount: () => app.unmount(),
+    shellDir: () => ws.current()?.root ?? workDir,
+    routines: {
+      store: routineStore,
+      today,
+      // /routine run: 대기열에 넣고, 실제로 시작될 때 handle이 오늘 했다고 표시한다.
+      startLater: (request, id) => {
+        startingRoutines.set(request, id);
+        store.enqueue(request);
+      },
+    },
+  };
+
   /** /routine run으로 대기열에 넣은 업무(요청 글 → 업무 번호). 실제로 시작될 때 오늘 했다고 표시한다. */
   const startingRoutines = new Map<string, string>();
 
@@ -312,130 +324,8 @@ export async function runChat(options: ChatOptions): Promise<number> {
       void markStarted(routineStore(), routineId, today());
     }
     const command = parseCommand(text);
-    if (command !== null) {
-      switch (command.kind) {
-        case 'clear':
-          for (const b of bundles.values()) {
-            b.chat.clear();
-            remember(b);
-          }
-          // 터미널의 clear처럼 화면과 스크롤까지 지우고 배너부터 새로 그린다.
-          store.clearScreen();
-          return;
-        case 'status': {
-          const b = current();
-          if (b === null) return store.print(NO_CURRENT);
-          const s = b.chat.status();
-          store.print(`  ${multi() ? `[${ws.current()?.name}] ` : ''}대화 ${s.turns}번 · 이어 일할 파일 ${s.carriedFiles}개 · 마지막 작업: ${s.lastTitle ?? '없음'}`);
-          return;
-        }
-        case 'usage':
-          await usageTimer.now();
-          store.printLines(usageLines(plan, totalUsage(), new Date(), undefined, view?.gauge));
-          return;
-        case 'update': {
-          if (!isRauhaRepo()) {
-            store.print('  rauha가 저장소에서 실행 중이 아니라 갱신할 수 없어요. 저장소에서 yarn rauha update를 실행해 주세요.');
-            return;
-          }
-          store.setBusy(true);
-          store.print('\n  새 버전이 있는지 확인해요…');
-          const result = await runUpdate(repoRoot(), nodeExec(), (line) => store.print(line));
-          store.setBusy(false);
-          if (!result.ok || !result.built) return;
-          // 방금 빌드한 코드로 뜨도록, 이 화면을 닫고 같은 터미널에서 새 프로세스로 다시 띄운다(지난 작업 기억은 파일에 있어 남는다).
-          store.print('  다시 띄울게요.');
-          restartAfterExit = true;
-          app.unmount();
-          return;
-        }
-        case 'guide':
-          store.print(lastGuide !== null ? `\n${lastGuide}\n` : '  아직 끝난 작업이 없어요.');
-          return;
-        case 'repo':
-          return repoCommand(command);
-        case 'review': {
-          const b = current();
-          if (b === null) return store.print(NO_CURRENT);
-          store.printLines(userTurn(text));
-          b.team.resume();
-          store.setBusy(true);
-          try {
-            const turn = await b.chat.review(command.target);
-            finishWorking();
-            store.printLines(describeTurn(turn, view));
-          } catch (error) {
-            finishWorking();
-            store.print(`rauha: ${(error as Error).message}`);
-          } finally {
-            store.setBusy(false);
-            remember(b);
-          }
-          return;
-        }
-        case 'design': {
-          if (command.request === null) return store.print('  /design <요청>으로 설계부터 시작해요. 예: /design 쿠폰 기능 만들어줘');
-          return runTurn(text, command.request, 'design');
-        }
-        case 'queue':
-          return queueCommand(command.action);
-        case 'routine': {
-          const effect = await routineCommand(command, routineStore(), today(), () => crypto.randomUUID());
-          store.printLines(effect.lines);
-          for (const r of effect.start) {
-            startingRoutines.set(r.request, r.id);
-            store.enqueue(r.request);
-          }
-          return;
-        }
-        case 'learn': {
-          const b = current();
-          if (b === null) return store.print(NO_CURRENT);
-          store.printLines(learningLines(await b.chat.learningNotes()));
-          return;
-        }
-        case 'company': {
-          const b = current();
-          if (b === null) return store.print(NO_CURRENT);
-          store.printLines(companyLines(await b.chat.companyEntries()));
-          return;
-        }
-        case 'team':
-          store.printLines(teamLines(roleSettings()));
-          return;
-        case 'shell': {
-          if (command.command === null) return store.print('  !<명령>으로 바로 실행해요. 예: !aws s3 ls');
-          store.printLines(userTurn(text));
-          store.setBusy(true);
-          try {
-            const result = await runShell(command.command, ws.current()?.root ?? workDir, SHELL_TIMEOUT_MS);
-            store.printLines(shellLines(result, SHELL_TIMEOUT_MS));
-          } finally {
-            store.setBusy(false);
-          }
-          return;
-        }
-        case 'copy': {
-          const text = lastAnswer ?? lastGuide;
-          if (text === null) return store.print('  복사할 답이 아직 없어요.');
-          store.print((await copyToClipboard(text)) ? '  마지막 답을 클립보드에 복사했어요.' : '  클립보드에 복사하지 못했어요. (Windows는 PowerShell, macOS는 pbcopy, Linux는 xclip이 필요해요)');
-          return;
-        }
-        case 'retry':
-          if (lastRequest === null) return store.print('  다시 보낼 요청이 아직 없어요.');
-          return runTurn(lastRequest, lastRequest);
-        case 'help':
-          store.print(HELP_TEXT);
-          return;
-        case 'exit':
-          app.unmount();
-          return;
-        case 'unknown':
-          store.print(`  ${command.name}는 없는 명령이에요. /help로 명령을 볼 수 있어요.`);
-          return;
-      }
-    }
-    lastRequest = text;
+    if (command !== null) return runCommand(commandContext, command, text);
+    state.lastRequest = text;
     return runTurn(text, text);
   }
 
@@ -450,10 +340,10 @@ export async function runChat(options: ChatOptions): Promise<number> {
       const turn = await ws.handle(request, force);
       handled = turn.repo;
       if (turn.kind === 'work') {
-        lastGuide = turn.outcome.guide.toMarkdown();
-        lastAnswer = null;
+        state.lastGuide = turn.outcome.guide.toMarkdown();
+        state.lastAnswer = null;
       }
-      if (turn.kind === 'answer') lastAnswer = turn.answer;
+      if (turn.kind === 'answer') state.lastAnswer = turn.answer;
       finishWorking();
       if (multi() && turn.repo !== null) store.print(`  [${turn.repo}]`);
       store.printLines(describeTurn(turn, view));
@@ -525,7 +415,7 @@ export async function runChat(options: ChatOptions): Promise<number> {
     b.team.close();
     b.memory.close();
   }
-  if (restartAfterExit) return relaunch(spawn, process.execPath, process.execArgv, process.argv[1]!, withContinue(process.argv.slice(2)));
+  if (state.restartAfterExit) return relaunch(spawn, process.execPath, process.execArgv, process.argv[1]!, withContinue(process.argv.slice(2)));
   process.stderr.write('\n  대화를 마쳤어요. 이어서 하려면 rauha -c\n');
   return 0;
 }

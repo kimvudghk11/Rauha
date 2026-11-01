@@ -1,29 +1,19 @@
 import { CompanyBook } from '../domain/company-book.js';
 import { Department, LAUNCH_ORDER, type DepartmentId, type DepartmentMemberRole } from '../domain/department.js';
-import type { MemberRole } from '../domain/member-role.js';
 import { SessionBudget } from '../domain/session-budget.js';
-import type { ModelTier } from '../domain/team.js';
 import { AnalysisReportDto } from './dto/analysis-report.dto.js';
 import { CompanyPlanDto } from './dto/company-plan.dto.js';
 import { OpsReportDto } from './dto/ops-report.dto.js';
 import type { Route } from './dto/route.dto.js';
 import { ANALYSIS_SCHEMA, COMPANY_PLAN_SCHEMA, OPS_SCHEMA } from './dto/schemas.js';
+import type { DeskHost } from './desk-host.js';
 import type { CompanyBookPort, MemberResult, ProgressPort } from './ports.js';
 import { conversationBlock } from './prompt-blocks.js';
 import type { TurnOutcome } from './turn-outcome.js';
 
-/** 팀원 한 번 호출에 붙는 선택 사항 */
-export interface MemberOptions {
-  readonly signal?: AbortSignal | undefined;
-  readonly dirs?: readonly string[];
-  readonly canWrite?: (path: string) => boolean;
-  /** 역할 기본 모델 대신 쓸 모델(저장소를 나눠 읽는 일은 싼 모델로) */
-  readonly tier?: ModelTier;
-  /** 진행 줄에 "작업 중…"을 내지 않는다(여러 호출을 묶어 따로 진행을 알릴 때) */
-  readonly quiet?: boolean;
-}
-
 /** 읽기만 하고 보고하는 팀원(기획·디버깅·위험 점검·회사 부서 팀원, 운영 팀원) */
+import type { MemberOptions } from './desk-host.js';
+
 export type ReportRole = DepartmentMemberRole;
 
 /** 런칭 계획에서 뒤 부서에 넘기는 앞 부서 글, 그리고 장부에 남기는 요약의 글자 수 */
@@ -31,16 +21,6 @@ const HANDOFF_CHARS = 700;
 /** 런칭 계획에서 부서별로 앞 대화에 남기는 글자 수(다섯 부서를 합쳐도 대화에 남기는 한도 안에 든다) */
 const LAUNCH_KEPT_CHARS = 190;
 const UNREADABLE = '보고를 읽지 못했어요';
-
-/** 세션이 데스크에 빌려주는 것. 호출 비용·호출 수는 세션이 합산하고, 결과를 기억과 앞 대화에 남기는 일도 세션이 한다. */
-export interface DeskHost {
-  member(role: MemberRole, parts: readonly string[], outputSchema: Record<string, unknown>, options: MemberOptions): Promise<MemberResult>;
-  /** 결과를 기억과 앞 대화에 남기고 답으로 돌려준다 */
-  settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number): Promise<TurnOutcome>;
-  /** 지금까지 쓴 비용(한 입력의 비용을 재려고 앞뒤로 읽는다) */
-  spent(): number;
-  workspaceBlock(): string;
-}
 
 export interface DeskDeps {
   readonly today: () => string;
