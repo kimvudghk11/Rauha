@@ -54,6 +54,7 @@ export { FileCompanyBook } from './orchestration/infrastructure/file-company-boo
 export { Routine, RoutineBook, type Cadence } from './orchestration/domain/routine.js';
 export { FileRoutineStore } from './orchestration/infrastructure/file-routine-store.js';
 export { SessionBudget, type BudgetLevel, type BudgetWindow } from './orchestration/domain/session-budget.js';
+export { MEMBER_ROLES, ROLE_INFO, type RoleInfo } from './orchestration/domain/member-role.js';
 export { Department, LAUNCH_ORDER, type DepartmentId, type DepartmentMember, type DepartmentMemberRole } from './orchestration/domain/department.js';
 export { ReadingGuideDto, type ReadingGuideProps, type RunStopReason, type SettledAssumption } from './orchestration/application/dto/reading-guide.dto.js';
 export {

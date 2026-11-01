@@ -1,12 +1,10 @@
-import type { MemberRole } from '@rauha/core';
+import { ROLE_INFO, type MemberRole } from '@rauha/core';
 import { formatElapsed } from '../live-line.js';
 import type { MascotView } from '../mascot.js';
 import type { ChatStore } from './chat-store.js';
 
 /** 질문을 나누고 답하는 팀원. 사용자에게는 한 가지 "작업 중"으로 보이고, 끝나도 줄을 남기지 않는다(답이 곧 결과). */
 const QUIET: ReadonlySet<MemberRole> = new Set(['router', 'answerer']);
-/** 작업 단계 이름. 진행 줄은 "접수 > 테스트 > 구현 중…"처럼 지나온 단계를 한 줄에 잇는다. */
-const STAGE: Readonly<Partial<Record<MemberRole, string>>> = { intake: '접수', tester: '테스트', implementer: '구현', reviewer: '리뷰', operator: '운영', surveyor: '파악', writer: '문서', designer: '설계', debugger: '진단', riskchecker: '점검', planner: '기획', chief: '부서장', bm: '사업모델', marketer: '마케팅', growth: '그로스', uxdesigner: 'UX', brand: '브랜드', securitychecker: '보안', releaser: '릴리스' };
 
 /** 끝난 뒤 남는 요약에 보이는 단계 수. 되돌아가는 일이 길어져도 줄이 창 너비를 넘지 않게 최근 단계만 보인다. */
 const SHOWN_STAGES = 4;
@@ -23,7 +21,7 @@ export function chatProgress(store: ChatStore, view: MascotView | null, now: () 
   let pipelineStart = 0;
 
   const stageLabel = (role: MemberRole) => {
-    const name = STAGE[role] ?? role;
+    const name = ROLE_INFO[role].stage ?? role;
     const count = stages.filter((s) => s === name || s.startsWith(`${name}(`)).length;
     return count === 0 ? name : `${name}(${count + 1})`;
   };

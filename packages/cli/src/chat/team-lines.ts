@@ -1,10 +1,5 @@
-import { Department, type MemberRole, type RoleSettingsDto } from '@rauha/core';
+import { Department, ROLE_INFO, type MemberRole, type RoleSettingsDto } from '@rauha/core';
 import { displayWidth } from '../text-width.js';
-
-const NAME: Readonly<Record<MemberRole, string>> = {
-  intake: '팀장', tester: '테스트 팀원', implementer: '구현 팀원', reviewer: '리뷰어', router: '라우터', answerer: '답변 팀원', surveyor: '저장소 파악', writer: '문서 팀원', designer: '설계 팀원', operator: '운영 팀원',
-  debugger: '디버깅 팀원', riskchecker: '위험 점검 팀원', planner: '기획 팀원', chief: '부서장', bm: '사업 모델 팀원', marketer: '마케팅 팀원', growth: '그로스 팀원', uxdesigner: 'UX 디자인 팀원', brand: '브랜드 팀원', securitychecker: '보안 점검 팀원', releaser: '릴리스 팀원',
-};
 
 /** 개발부와 회사 공통은 작업 흐름이 따로 있어 부서 정의(Department)에 없다. */
 const DEVELOPMENT: readonly MemberRole[] = ['intake', 'tester', 'implementer', 'reviewer'];
@@ -26,7 +21,7 @@ function ability(role: MemberRole, tools: readonly string[]): string {
 export function teamLines(roles: RoleSettingsDto): string[] {
   const row = (role: MemberRole, title?: string) => {
     const s = roles.get(role);
-    return { name: title ?? NAME[role], detail: `${s.tier} · ${s.effort}`, ability: ability(role, s.tools) };
+    return { name: title ?? ROLE_INFO[role].name, detail: `${s.tier} · ${s.effort}`, ability: ability(role, s.tools) };
   };
   const groups: { readonly title: string; readonly rows: ReturnType<typeof row>[] }[] = [
     { title: '개발부', rows: DEVELOPMENT.map((r) => row(r)) },

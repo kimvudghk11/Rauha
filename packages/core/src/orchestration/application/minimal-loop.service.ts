@@ -1,7 +1,8 @@
 import type { KnowledgePort } from '../../knowledge/application/ports.js';
 import { DomainError } from '../../shared/domain-error.js';
 import { citedPaths, FactCheck, normalizeUrl, ReviewFindings, type CheckedClaim } from '../domain/fact-check.js';
-import type { ModelTier, TeamRole } from '../domain/team.js';
+import { ROLE_INFO } from '../domain/member-role.js';
+import type { ModelTier } from '../domain/team.js';
 import { TestRun } from '../domain/test-run.js';
 import { RunScope } from '../domain/run-scope.js';
 import { Verification, type VerificationVerdict } from '../domain/verification.js';
@@ -37,31 +38,6 @@ const INTAKE_ATTEMPTS = 2;
 /** 상태 머신이 멈추게 되어 있지만, 무한 반복을 막는 마지막 안전장치. */
 const MAX_STEPS = 12;
 const toSettled = ({ question, chosen, confirmed }: SettledAssumptionChoice): SettledAssumption => ({ question, chosen, confirmed });
-/** 쓰기 권한(WritePolicy)에서 어느 팀 역할로 볼지. 접수·라우터·답변은 파일을 쓰지 않는 팀장과 같다. */
-const WRITE_ROLE: Readonly<Record<MemberRole, TeamRole>> = {
-  intake: 'lead',
-  router: 'lead',
-  answerer: 'lead',
-  surveyor: 'lead',
-  tester: 'tester',
-  implementer: 'implementer',
-  reviewer: 'reviewer',
-  writer: 'writer',
-  designer: 'lead',
-  operator: 'lead',
-  debugger: 'lead',
-  riskchecker: 'lead',
-  planner: 'lead',
-  chief: 'lead',
-  bm: 'lead',
-  marketer: 'lead',
-  growth: 'lead',
-  uxdesigner: 'lead',
-  brand: 'lead',
-  securitychecker: 'lead',
-  releaser: 'lead',
-};
-const ROLE_LABEL: Readonly<Record<MemberRole, string>> = { intake: '팀장 접수', tester: '테스트 팀원', implementer: '구현 팀원', reviewer: '리뷰어', router: '라우터', answerer: '답변 팀원', surveyor: '저장소 파악', writer: '문서 팀원', designer: '설계 팀원', operator: '운영 팀원', debugger: '디버깅 팀원', riskchecker: '위험 점검 팀원', planner: '기획 팀원', chief: '부서장', bm: '사업 모델 팀원', marketer: '마케팅 팀원', growth: '그로스 팀원', uxdesigner: 'UX 디자인 팀원', brand: '브랜드 팀원', securitychecker: '보안 점검 팀원', releaser: '릴리스 팀원' };
 
 export interface RunOutcome {
   readonly guide: ReadingGuideDto;
@@ -559,7 +535,7 @@ export class MinimalLoopService {
     tier?: ModelTier,
   ): Promise<unknown> {
     const setting = tier === undefined ? this.deps.roles.get(role) : this.deps.roles.forAssignment(role, tier);
-    const writeRole = WRITE_ROLE[role];
+    const writeRole = ROLE_INFO[role].writeRole;
     const call: MemberCall = {
       role,
       setting,
@@ -567,7 +543,7 @@ export class MinimalLoopService {
       outputSchema,
       canWrite: (path) => order !== null && order.allowsWrite(writeRole, path),
     };
-    this.deps.progress.step(`${ROLE_LABEL[role]} 작업 중…`, role);
+    this.deps.progress.step(`${ROLE_INFO[role].stepName} 작업 중…`, role);
     const result = await this.deps.team.run(call);
     const attempt = tally.add(call, result);
     await this.deps.log.recordCall(role, attempt, call, result);
@@ -575,7 +551,7 @@ export class MinimalLoopService {
       this.deps.progress.step(`${BLOCK_STEP[result.blocked.reason]}: ${result.blocked.message}`);
       throw new AccountBlocked(result.blocked);
     }
-    if (result.error !== null) this.deps.progress.step(`${ROLE_LABEL[role]} 오류: ${result.error}`);
+    if (result.error !== null) this.deps.progress.step(`${ROLE_INFO[role].stepName} 오류: ${result.error}`);
     return result.output;
   }
 

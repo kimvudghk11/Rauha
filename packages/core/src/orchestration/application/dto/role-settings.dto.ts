@@ -1,7 +1,9 @@
 import { DomainError } from '../../../shared/domain-error.js';
+import { MEMBER_ROLES, type MemberRole } from '../../domain/member-role.js';
 import type { ModelTier } from '../../domain/team.js';
 
-export type MemberRole = 'intake' | 'tester' | 'implementer' | 'reviewer' | 'router' | 'answerer' | 'surveyor' | 'writer' | 'designer' | 'operator' | 'debugger' | 'riskchecker' | 'planner' | 'chief' | 'bm' | 'marketer' | 'growth' | 'uxdesigner' | 'brand' | 'securitychecker' | 'releaser';
+export type { MemberRole };
+
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface RoleSetting {
@@ -18,7 +20,6 @@ const READ_TOOLS = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'];
 const WRITE_TOOLS = [...READ_TOOLS, 'Edit', 'Write', 'Bash'];
 const TIERS: readonly ModelTier[] = ['haiku', 'sonnet', 'opus'];
 const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
-const ROLES: readonly MemberRole[] = ['intake', 'tester', 'implementer', 'reviewer', 'router', 'answerer', 'surveyor', 'writer', 'designer', 'operator', 'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser'];
 
 /** 상태 머신이 sonnet으로 올렸을 때 쓰는 설정. 표에 없는 조합은 역할 기본값에서 모델만 바꾼다. */
 const ESCALATED: Readonly<Partial<Record<MemberRole, Partial<Record<ModelTier, Partial<RoleSetting>>>>>> = {
@@ -79,7 +80,7 @@ export class RoleSettingsDto {
   withEnv(env: Readonly<Record<string, string | undefined>>): RoleSettingsDto {
     const next = { ...this.settings };
     const pinned = new Set(this.pinned);
-    for (const role of ROLES) {
+    for (const role of MEMBER_ROLES) {
       const key = `RAUHA_ROLE_${role.toUpperCase()}`;
       const value = env[key];
       if (value === undefined || value.trim() === '') continue;
@@ -95,7 +96,7 @@ export class RoleSettingsDto {
 
   /** 모든 역할의 설정. 화면에 팀 구성을 보여 줄 때 쓴다. */
   entries(): readonly ({ readonly role: MemberRole } & RoleSetting)[] {
-    return ROLES.map((role) => ({ role, ...this.settings[role] }));
+    return MEMBER_ROLES.map((role) => ({ role, ...this.settings[role] }));
   }
 
   get(role: MemberRole): RoleSetting {

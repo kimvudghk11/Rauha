@@ -3,9 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DomainError } from '../../shared/domain-error.js';
-import type { MemberRole } from '../application/dto/role-settings.dto.js';
+import { MEMBER_ROLES, type MemberRole } from '../domain/member-role.js';
 
-const ROLES: readonly MemberRole[] = ['intake', 'tester', 'implementer', 'reviewer', 'router', 'answerer', 'surveyor', 'writer', 'designer', 'operator', 'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser'];
 /** 업무 지시서를 받아 일하는 팀원. 공통 앞부분(_common.md)은 이들에게만 붙인다. 라우터·답변 팀원에게는 맞지 않는 지침이라 입력만 길어진다. */
 const WORK_ROLES: ReadonlySet<MemberRole> = new Set(['intake', 'tester', 'implementer', 'reviewer']);
 
@@ -34,10 +33,10 @@ export class PromptLibrary {
     };
     const common = await read('_common.md');
     // 동시에 읽되, 없는 파일은 역할 순서상 첫 번째 것을 알려 준다(어느 읽기가 먼저 끝나는지에 따라 메시지가 바뀌지 않게).
-    const settled = await Promise.allSettled(ROLES.map((role) => read(`${role}.md`)));
+    const settled = await Promise.allSettled(MEMBER_ROLES.map((role) => read(`${role}.md`)));
     const missing = settled.find((s): s is PromiseRejectedResult => s.status === 'rejected');
     if (missing !== undefined) throw missing.reason;
-    const entries = ROLES.map((role, i) => {
+    const entries = MEMBER_ROLES.map((role, i) => {
       const own = (settled[i] as PromiseFulfilledResult<string>).value;
       return [role, WORK_ROLES.has(role) ? `${common}\n\n${own}` : own] as const;
     });
