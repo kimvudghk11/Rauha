@@ -26,15 +26,17 @@ import type { AccountBlock, CompanyBookPort, LearningPort, MemberResult, Prepare
 
 export type { RunContextBlocks };
 
-/** 팀장에게 넘길 앞 대화 턴 수와 기억 묶음 글자 수 상한 */
-const CONVERSATION_TURNS = 6;
-/** 결과 글을 얼마나 남기고 넘기는지. 바로 앞 턴은 길게("두 번째 거 더 자세히"가 가리키는 곳이 거기다), 그 전은 짧게. */
 /** 읽기만 하고 보고하는 팀원(기획·디버깅·위험 점검·회사 부서 팀원, 운영 팀원) */
 type ReportRole = DepartmentMemberRole;
-/** 런칭 계획에서 부서별로 앞 대화에 남기는 글자 수(다섯 부서를 합쳐도 KEPT_RESULT_CHARS 안에 든다) */
-const LAUNCH_KEPT_CHARS = 190;
+
+/** 팀장에게 넘길 앞 대화 턴 수 */
+const CONVERSATION_TURNS = 6;
+/** 결과 글을 얼마나 남기고 넘기는지. 바로 앞 턴은 길게("두 번째 거 더 자세히"가 가리키는 곳이 거기다), 그 전은 짧게. */
 const KEPT_RESULT_CHARS = 1200;
 const OLDER_RESULT_CHARS = 300;
+/** 런칭 계획에서 부서별로 앞 대화에 남기는 글자 수(다섯 부서를 합쳐도 KEPT_RESULT_CHARS 안에 든다) */
+const LAUNCH_KEPT_CHARS = 190;
+/** 기억 묶음 글자 수 상한 */
 const MEMORY_CHARS = 3000;
 const CANDIDATES = 3;
 
@@ -184,7 +186,6 @@ export class ChatSession {
   private readonly calls: Record<ModelTier, number> = { haiku: 0, sonnet: 0, opus: 0 };
   private lastTitle: string | null = null;
   private held: HeldRequest | null = null;
-  private overrideBudget = false;
   private savingNoted = false;
   /** 이번 입력의 부서 팀원에게 싣는 회사 장부 글 */
   private bookText = '';
@@ -396,6 +397,7 @@ export class ChatSession {
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const answer = OpsReportDto.read(result.output).toAnswer();
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: [], basis: null }));
+    this.answered.clear();
     this.turns.push({ input, result: `운영: ${answer.slice(0, KEPT_RESULT_CHARS)}` });
     return { kind: 'answer', answer, checked: [], costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis: null };
   }
@@ -492,6 +494,7 @@ ${hit.answer}`;
     const budget = this.budget();
     if (!budget.holdsHeavyWork) return null;
     this.held = { input, route };
+    this.turns.push({ input, result: '세션 한도가 빠듯해 미뤄 둠("그래도 진행"이라고 하면 함)' });
     const reset = budget.resetsAt !== null ? ` 한도는 ${new Date(budget.resetsAt).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })}쯤 풀려요.` : '';
     return {
       kind: 'notice',
@@ -501,12 +504,7 @@ ${hit.answer}`;
 
   /** 미뤄 둔 요청을 한도 검사 없이 한다. */
   private async rerun(held: HeldRequest, conversation: string | null, started: number): Promise<TurnOutcome> {
-    this.overrideBudget = true;
-    try {
-      return held.route.mode === 'launch' ? await this.launch(held.input, conversation, started) : await this.company(held.input, conversation, held.route, started);
-    } finally {
-      this.overrideBudget = false;
-    }
+    return held.route.mode === 'launch' ? this.launch(held.input, conversation, started) : this.company(held.input, conversation, held.route, started);
   }
 
   /** 부서장의 종합·런칭 섹션 호출 설정. 한도가 빠듯하면 상위 모델 대신 sonnet을 쓰고, 한 번 알린다. */

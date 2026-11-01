@@ -961,6 +961,14 @@ describe('ChatSession — 한도 연동', () => {
     expect(team.calls.filter((c) => c.role === 'router')).toHaveLength(1);
   });
 
+  it('미룬 요청도 대화에 남아, 다음 말이 그것을 가리켜도 이어진다', async () => {
+    const team = new FakeTeam({ router: [route('launch'), route('question')], answerer: [() => ({ answer: '네.', claims: [] })] });
+    const chat = session({ team, budget: used(95) });
+    await chat.handle('런칭 계획 짜줘');
+    await chat.handle('그거 왜 안 했어?');
+    expect(team.calls.find((c) => c.role === 'router' && c.message.includes('그거 왜'))!.message).toContain('런칭 계획 짜줘');
+  });
+
   it('미룬 요청이 없을 때의 "그래도 진행"은 평범한 입력으로 라우터에 간다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네.', claims: [] })] });
     await session({ team, budget: used(95) }).handle('그래도 진행');
@@ -1071,6 +1079,14 @@ describe('ChatSession — 같은 질문 다시', () => {
     await chat.handle('이 함수 뭐 해?');
     await chat.handle('Money에 할인 넣어줘');
     expect(await chat.handle('이 함수 뭐 해?')).toMatchObject({ answer: '새 답' });
+  });
+
+  it('그 사이 운영 명령을 돌렸어도 다시 묻는다 (인프라가 바뀌었을 수 있다)', async () => {
+    const team = new FakeTeam({ router: [route('question'), route('ops'), route('question')], answerer: answerer(), operator: [() => ({ answer: '올렸어요.', commands: [] })] });
+    const chat = session({ team });
+    await chat.handle('서버 몇 대야?');
+    await chat.handle('서버 하나 더 띄워줘');
+    expect(await chat.handle('서버 몇 대야?')).toMatchObject({ answer: '새 답' });
   });
 
   it('/clear 뒤에는 다시 묻는다', async () => {

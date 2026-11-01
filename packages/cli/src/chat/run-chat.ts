@@ -33,6 +33,7 @@ import { createKnowledge, createLoop, createTeam, definedEnv, loadPrompts, openM
 import { ChatApp } from './chat-app.js';
 import { chatProgress } from './chat-progress.js';
 import { ChatStore, type Printable } from './chat-store.js';
+import { localDate } from '../local-date.js';
 import { runShell } from '../shell-run.js';
 import { companyLines } from './company-lines.js';
 import { learningLines } from './learning-lines.js';
@@ -214,7 +215,7 @@ export async function runChat(options: ChatOptions): Promise<number> {
       get folder() {
         return multi() ? { root: workDir, repos: workspace.repos.map((r) => ({ name: r.name, root: r.root })) } : undefined;
       },
-      designer: new DesignService({ team, roles: roleSettings(), user: designUser, store: new FileDesignStore(repoProfile.designsDir(home), repo.root), progress, today: () => new Date().toISOString().slice(0, 10) }),
+      designer: new DesignService({ team, roles: roleSettings(), user: designUser, store: new FileDesignStore(repoProfile.designsDir(home), repo.root), progress, today: localDate }),
       newLoop: (carried: ReadonlyMap<string, string>) => createLoop(ctx, prompts, team, carried, knowledge),
       team,
       workspace: new GitWorkspace(repo.root, loadSecretPolicy(repo.root)),
@@ -224,10 +225,10 @@ export async function runChat(options: ChatOptions): Promise<number> {
       roles: roleSettings(),
       now: Date.now,
       newId: () => crypto.randomUUID(),
-      today: () => new Date().toISOString().slice(0, 10),
-      // 한도를 얼마나 썼는지(1분마다 읽는 값). 빠듯하면 부서장이 아끼고, 위험하면 큰 요청을 미룬다.
+      today: localDate,
       learning: new FileLearningStore(repoProfile.learningDir(home), repo.root),
       company: new FileCompanyBook(repoProfile.companyDir(home), repo.root),
+      // 한도를 얼마나 썼는지(1분마다 읽는 값). 빠듯하면 부서장이 아끼고, 위험하면 큰 요청을 미룬다.
       budget: () => SessionBudget.fromWindows([plan?.session ?? null, plan?.weekly ?? null]),
       nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
     };
@@ -280,7 +281,7 @@ export async function runChat(options: ChatOptions): Promise<number> {
   );
 
   // 정기 업무: 자동으로 돌지 않는다. 때가 된 것을 알리기만 하고, /routine run을 할 때 돈다.
-  const today = () => new Date().toLocaleDateString('sv-SE');
+  const today = () => localDate();
   const routineStore = () => {
     const root = ws.current()?.root ?? workDir;
     return new FileRoutineStore(options.profileFor(root).routinesDir(home), root);
