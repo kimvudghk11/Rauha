@@ -75,7 +75,25 @@ const KUBECTL_READS = new Set(['get', 'describe', 'logs', 'top', 'explain', 'ver
 
 const firstWord = (args: readonly string[]): string => args.find((a) => !a.startsWith('-')) ?? '';
 
-/** aws <서비스> <명령>: 조회는 허용하고 변경은 묻는다. aws configure는 자격 증명을 다루므로(list만 빼고) 거절한다. */
+/** 자격 증명 값이 든 설정 이름(`profile.dev.aws_secret_access_key`처럼 프로필이 앞에 붙기도 한다) */
+const AWS_SECRET_KEYS = /(^|\.)(aws_access_key_id|aws_secret_access_key|aws_session_token)$/;
+/** 설정을 읽기만 하는 aws configure 명령 */
+const CONFIGURE_READS = new Set(['list', 'list-profiles', 'get']);
+
+/**
+ * aws configure: 설정된 프로필·리전은 읽어야 어느 계정으로 일할지 안다. 비밀 값은 읽지도 쓰지도 않고,
+ * 키를 입력받는 대화형 설정(`aws configure`, `aws configure sso`)은 rauha에서 끝나지 않으니 사용자에게 맡긴다.
+ */
+function assessConfigure(operation: string | undefined, key: string | undefined): ToolVerdict {
+  const yourself = 'aws configure: 키 입력은 rauha가 하지 않아요. 터미널에서 직접 설정해 주세요';
+  if (operation === undefined || operation === 'sso') return deny(yourself);
+  if (operation === 'export-credentials') return deny('aws configure export-credentials: 자격 증명 값은 rauha가 보지 않아요');
+  if ((operation === 'get' || operation === 'set') && key !== undefined && AWS_SECRET_KEYS.test(key)) return deny('aws configure: 자격 증명 값은 rauha가 읽거나 쓰지 않아요');
+  if (CONFIGURE_READS.has(operation)) return ALLOW;
+  return ask(`AWS 설정 바꾸기 (aws configure ${operation})`);
+}
+
+/** aws <서비스> <명령>: 조회는 허용하고 변경은 묻는다. */
 function assessAws(args: readonly string[]): ToolVerdict {
   const words: string[] = [];
   for (let i = 0; i < args.length; i += 1) {
@@ -86,11 +104,10 @@ function assessAws(args: readonly string[]): ToolVerdict {
     }
     if (!arg.startsWith('-')) words.push(arg);
   }
-  const [service, operation] = words;
+  const [service, operation, key] = words;
   if (service === undefined) return ALLOW;
-  if (service === 'configure') {
-    return operation === 'list' ? ALLOW : deny('aws configure: 자격 증명은 rauha가 다루지 않아요. 터미널에서 직접 설정해 주세요');
-  }
+  if (service === 'configure') return assessConfigure(operation, key);
+  if (service === 'sso' && operation === 'login') return ask('AWS SSO 로그인 (브라우저에서 승인이 필요해요)');
   if (operation === undefined) return ALLOW;
   if (AWS_READ_EXACT.has(operation) || AWS_READ_PREFIXES.some((p) => operation.startsWith(p))) return ALLOW;
   return ask(`AWS 변경 (aws ${service} ${operation})`);

@@ -123,12 +123,32 @@ describe('ToolRisk — 클라우드 명령', () => {
     expect(ToolRisk.assess('Bash', { command: 'aws s3 rb s3://b' }, ROOT).reason).toMatch(/AWS 변경/);
   });
 
-  it('aws configure는 자격 증명을 다루므로 거절한다 (list만 허용)', () => {
-    expect(bash('aws configure')).toBe('deny');
-    expect(bash('aws configure set aws_secret_access_key x')).toBe('deny');
-    expect(bash('aws configure get aws_secret_access_key')).toBe('deny');
+  it('aws configure로 설정된 프로필·리전은 묻지 않고 읽는다 (어느 계정으로 일할지 알아야 해서)', () => {
     expect(bash('aws configure list')).toBe('allow');
+    expect(bash('aws configure list-profiles')).toBe('allow');
+    expect(bash('aws configure get region --profile dev')).toBe('allow');
+    expect(bash('aws configure get profile.prod.sso_account_id')).toBe('allow');
+  });
+
+  it('aws configure의 비밀 값은 읽지도 쓰지도 않는다', () => {
+    expect(bash('aws configure get aws_secret_access_key')).toBe('deny');
+    expect(bash('aws configure get profile.dev.aws_access_key_id')).toBe('deny');
+    expect(bash('aws configure set aws_secret_access_key x')).toBe('deny');
+    expect(bash('aws configure set aws_session_token x --profile dev')).toBe('deny');
+    expect(bash('aws configure export-credentials --profile dev')).toBe('deny');
+  });
+
+  it('입력을 기다리는 aws configure(키 입력, sso 설정)는 rauha에서 끝나지 않으므로 사용자에게 맡긴다', () => {
+    expect(bash('aws configure')).toBe('deny');
+    expect(bash('aws configure --profile dev')).toBe('deny');
+    expect(bash('aws configure sso')).toBe('deny');
     expect(ToolRisk.assess('Bash', { command: 'aws configure' }, ROOT).reason).toMatch(/직접/);
+  });
+
+  it('비밀이 아닌 설정 바꾸기와 SSO 로그인은 묻고 한다', () => {
+    expect(bash('aws configure set region ap-northeast-2 --profile dev')).toBe('ask');
+    expect(bash('aws sso login --profile dev')).toBe('ask');
+    expect(bash('aws sso list-accounts')).toBe('allow');
   });
 
   it('다른 명령 안에 숨겨도 같은 규칙으로 본다', () => {
