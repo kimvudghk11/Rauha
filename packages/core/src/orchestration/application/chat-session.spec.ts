@@ -236,6 +236,8 @@ describe('ChatSession — 설계 대화', () => {
       decisions: [{ what: '원 미만 버림', by: 'rauha' }],
       tasks,
       risks: [],
+      architecture: { overview: 'Coupon 값 객체', components: [{ name: 'Coupon', responsibility: '할인 계산', location: 'src/t1/coupon.ts' }], flow: [], alternatives: [] },
+      edgeCases: [{ case: '할인율 0%', handling: '거절', task: tasks[0]?.id ?? 't1' }],
     });
   const cost = { calls: 3, costUsd: 0.05, tier: 'sonnet' as const };
   const approved = (design = designOf()): DesignResult => ({ kind: 'approved', design, path: 'C:/designs/a.md', cost });

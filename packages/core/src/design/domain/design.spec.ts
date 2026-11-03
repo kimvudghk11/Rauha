@@ -20,10 +20,28 @@ const props = (tasks: DesignTask[] = [task('t1')], over: Partial<DesignProps> = 
   decisions: [{ what: '할인액은 원 미만을 버린다', by: 'rauha' }],
   tasks,
   risks: [],
+  architecture: {
+    overview: '주문 도메인에 Coupon 값 객체를 두고 Order.applyCoupon이 금액을 바꾼다',
+    components: [{ name: 'Coupon', responsibility: '할인율 검증과 할인액 계산', location: 'src/t1/coupon.ts' }],
+    flow: ['주문 API가 쿠폰 코드를 받는다', 'Order.applyCoupon이 Coupon으로 금액을 다시 계산한다'],
+    alternatives: [{ option: '할인을 결제 단계에서 계산', whyNot: '주문 금액과 결제 금액이 달라져 환불 계산이 꼬인다' }],
+  },
+  edgeCases: [{ case: '할인액에 원 미만이 생기는 금액(9,999원에 10%)', handling: '원 미만은 버려 9,000원', task: 't1' }],
   ...over,
 });
 
 describe('Design', () => {
+  it('작업마다 그 작업이 맡은 엣지 케이스를 돌려준다 (테스트로 먼저 잠그게)', () => {
+    const design = Design.of(props([task('t1'), task('t2')], { edgeCases: [
+      { case: '빈 쿠폰 코드', handling: '거절', task: 't1' },
+      { case: '같은 쿠폰 두 번', handling: '두 번째는 거절', task: 't2' },
+      { case: '만료된 쿠폰', handling: '거절', task: 't1' },
+    ] }));
+    expect(design.edgeCasesOf('t1').map((e) => e.case)).toEqual(['빈 쿠폰 코드', '만료된 쿠폰']);
+    expect(design.edgeCasesOf('t2').map((e) => e.case)).toEqual(['같은 쿠폰 두 번']);
+  });
+
+
   it('제목·목적·시나리오·작업이 갖춰지면 만든다', () => {
     expect(Design.of(props()).tasks).toHaveLength(1);
   });
@@ -38,6 +56,10 @@ describe('Design', () => {
     ['자기 자신에 의존하면', props([task('t1', ['t1'])])],
     ['순환으로 의존하면', props([task('t1', ['t2']), task('t2', ['t1'])])],
     ['작업에 수용 기준이 없으면', props([task('t1', [], { acceptance: [] })])],
+    ['엣지 케이스가 하나도 없으면', props([task('t1')], { edgeCases: [] })],
+    ['엣지 케이스를 맡은 작업이 없으면', props([task('t1')], { edgeCases: [{ case: '빈 쿠폰 코드', handling: '거절', task: 't9' }] })],
+    ['구조 설명이 비면', props([task('t1')], { architecture: { overview: ' ', components: [{ name: 'A', responsibility: 'a', location: 'src/a.ts' }], flow: [], alternatives: [] } })],
+    ['구성 요소가 하나도 없으면', props([task('t1')], { architecture: { overview: '개요', components: [], flow: [], alternatives: [] } })],
     ['작업에 범위가 없으면', props([task('t1', [], { scope: [] })])],
   ])('%s 거부한다', (_name, bad) => {
     expect(() => Design.of(bad)).toThrow(DomainError);

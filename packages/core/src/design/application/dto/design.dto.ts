@@ -1,6 +1,6 @@
 import { DomainError } from '../../../shared/domain-error.js';
 import { asRecord, readOptionalString, readString, readStringArray } from '../../../shared/validation.js';
-import { Design, type DesignDecision, type DesignScenario, type DesignTask } from '../../domain/design.js';
+import { Design, type DesignAlternative, type DesignArchitecture, type DesignComponent, type DesignDecision, type DesignEdgeCase, type DesignScenario, type DesignTask } from '../../domain/design.js';
 
 /** 설계 팀원의 한 번의 답: 사용자에게 물을 질문 하나, 또는 승인받을 설계안. */
 export type DesignReply =
@@ -13,6 +13,16 @@ function list<T>(value: unknown, what: string, read: (item: Record<string, unkno
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) throw new DomainError('INVALID_INPUT', `${what}: 배열이 필요합니다.`);
   return value.map((item, i) => read(asRecord(item, `${what}[${i}]`), `${what}[${i}]`));
+}
+
+function architectureOf(value: unknown): DesignArchitecture {
+  const a = asRecord(value, '설계.architecture');
+  return {
+    overview: readString(a, 'overview', '설계.architecture'),
+    components: list<DesignComponent>(a['components'], '설계.architecture.components', (c, at) => ({ name: readString(c, 'name', at), responsibility: readString(c, 'responsibility', at), location: readString(c, 'location', at) })),
+    flow: readStringArray(a, 'flow', '설계.architecture'),
+    alternatives: list<DesignAlternative>(a['alternatives'], '설계.architecture.alternatives', (c, at) => ({ option: readString(c, 'option', at), whyNot: readString(c, 'whyNot', at) })),
+  };
 }
 
 /** 설계 팀원 출력 → 질문 또는 검증된 설계. 모양이 틀리거나 설계 규칙을 어기면 DomainError. */
@@ -48,6 +58,8 @@ export class DesignReplyDto {
           dependsOn: readStringArray(s, 'dependsOn', at),
         })),
         risks: readStringArray(d, 'risks', '설계'),
+        architecture: architectureOf(d['architecture']),
+        edgeCases: list<DesignEdgeCase>(d['edgeCases'], '설계.edgeCases', (e, at) => ({ case: readString(e, 'case', at), handling: readString(e, 'handling', at), task: readString(e, 'task', at) })),
       }),
     };
   }
@@ -63,6 +75,8 @@ export interface DesignDocMeta {
 
 const scenarioLine = (s: DesignScenario) => `- Given ${s.given}\n  When ${s.when}\n  Then ${s.then}`;
 const bullets = (items: readonly string[], empty = '없음') => (items.length === 0 ? [`- ${empty}`] : items.map((i) => `- ${i}`));
+const edgeLine = (e: DesignEdgeCase) => `- ${e.case} → ${e.handling} (${e.task})`;
+const componentLine = (c: DesignComponent) => `- ${c.name}: ${c.responsibility} (${c.location})`;
 const whoDecided = (d: DesignDecision) => `- ${d.what} (${d.by === 'user' ? '사용자가 정함' : 'rauha가 정함'})`;
 
 /** 설계 → 문서, 승인 화면 요약, 작업별 요청. 모델을 부르지 않는다. */
@@ -87,8 +101,23 @@ export class DesignDocDto {
       '## 하지 않을 것',
       ...bullets(design.nonGoals),
       '',
+      '## 구조',
+      design.architecture.overview,
+      '',
+      '### 구성 요소',
+      ...design.architecture.components.map(componentLine),
+      '',
+      '### 흐름',
+      ...(design.architecture.flow.length === 0 ? ['- 없음'] : design.architecture.flow.map((f, i) => `${i + 1}. ${f}`)),
+      '',
+      '### 검토하고 버린 안',
+      ...(design.architecture.alternatives.length === 0 ? ['- 없음'] : design.architecture.alternatives.map((a) => `- ${a.option}: ${a.whyNot}`)),
+      '',
       '## 동작 시나리오',
       ...design.scenarios.map(scenarioLine),
+      '',
+      '## 엣지 케이스',
+      ...design.edgeCases.map(edgeLine),
       '',
       '## 정한 해석',
       ...(design.decisions.length === 0 ? ['- 없음'] : design.decisions.map(whoDecided)),
@@ -114,8 +143,9 @@ export class DesignDocDto {
     return [
       `  설계: ${design.title}`,
       `  목적: ${design.purpose}`,
+      `  구조: ${design.architecture.overview}`,
       ...(byRauha.length > 0 ? ['  rauha가 정한 것 (다르면 고칠 점으로 말해 주세요)', ...byRauha.map((d) => `    - ${d.what}`)] : []),
-      `  작업 ${design.tasks.length}개`,
+      `  엣지 케이스 ${design.edgeCases.length}개 · 작업 ${design.tasks.length}개`,
       ...design.runOrder().map((t, i) => `    ${i + 1}. ${t.title}${t.dependsOn.length > 0 ? `  (앞 작업: ${t.dependsOn.join(', ')})` : ''}`),
     ];
   }
@@ -125,11 +155,14 @@ export class DesignDocDto {
    * 접수 팀장은 이 블록을 기준으로 범위와 파일만 확인하고, 설계가 답한 지점은 다시 묻지 않는다.
    */
   static taskRequest(design: Design, task: DesignTask, path: string): { request: string; block: string } {
-    const request = `${task.title}\n${task.acceptance.map((a) => `- ${a}`).join('\n')}`;
+    const edges = design.edgeCasesOf(task.id);
+    const request = [task.title, ...task.acceptance.map((a) => `- ${a}`), ...edges.map((e) => `- 엣지 케이스: ${e.case} → ${e.handling}`)].join('\n');
     const block = [
       `<design title="${design.title}" file="${path}">`,
       '사용자가 승인한 설계입니다. 이 설계가 답하는 지점은 다시 묻지 말고 그대로 따르세요. 설계가 답하지 않는 지점 중 되돌리기 어려운 것(돈, 데이터 삭제, 보안·권한, 공개 API, DB 구조)만 사용자에게 물어도 됩니다.',
       `목적: ${design.purpose}`,
+      `구조: ${design.architecture.overview}`,
+      ...design.architecture.components.map(componentLine),
       '동작 시나리오:',
       ...design.scenarios.map(scenarioLine),
       '정한 해석:',
@@ -138,6 +171,7 @@ export class DesignDocDto {
       `범위: ${task.scope.join(', ')}`,
       '수용 기준:',
       ...task.acceptance.map((a) => `- ${a}`),
+      ...(edges.length > 0 ? ['이 작업이 맡은 엣지 케이스(수용 기준과 함께 테스트로 먼저 잠근다):', ...edges.map(edgeLine)] : []),
       '</design>',
     ].join('\n');
     return { request, block };

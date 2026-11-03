@@ -59,7 +59,9 @@ export class DesignDesk {
     const { design, path } = result;
     // 설계의 이유를 기억에 남긴다. 나중에 질문에 설계의 이유로 답할 수 있다(작업 기억은 작업마다 따로 남는다).
     const decided = design.decisions.map((d) => `- ${d.what} (${d.by === 'user' ? '사용자가 정함' : 'rauha가 정함'})`);
-    await this.host.remember(`설계 ${design.title}: ${input}`, [design.purpose, ...decided].join('\n'), known?.basis ?? null);
+    // 버린 안도 남긴다: "왜 결제 단계에서 계산 안 했어?"에 그때의 이유로 답한다.
+    const rejected = design.architecture.alternatives.map((a) => `- 버린 안: ${a.option} — ${a.whyNot}`);
+    await this.host.remember(`설계 ${design.title}: ${input}`, [design.purpose, `구조: ${design.architecture.overview}`, ...decided, ...rejected].join('\n'), known?.basis ?? null);
     const order = design.runOrder();
     const results: DesignTaskResult[] = [];
     const stopped = new Set<string>();

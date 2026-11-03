@@ -22,6 +22,35 @@ export interface DesignTask {
   readonly dependsOn: readonly string[];
 }
 
+/** 구조의 한 부분: 무엇이 무엇을 맡고 어디에 사는지 */
+export interface DesignComponent {
+  readonly name: string;
+  readonly responsibility: string;
+  /** 파일이나 폴더(새로 만들 곳이면 만들 곳) */
+  readonly location: string;
+}
+
+/** 검토하고 버린 안. 나중에 "왜 이렇게 안 했어?"에 답이 된다. */
+export interface DesignAlternative {
+  readonly option: string;
+  readonly whyNot: string;
+}
+
+/** 어떤 층·부품으로 나누고 데이터가 어떻게 흐르는지. 작은 기능이면 구성 요소 하나, 흐름 한두 줄로 충분하다. */
+export interface DesignArchitecture {
+  readonly overview: string;
+  readonly components: readonly DesignComponent[];
+  readonly flow: readonly string[];
+  readonly alternatives: readonly DesignAlternative[];
+}
+
+/** 구현 전에 잡아 두는 엣지 케이스. 맡은 작업(task)의 테스트로 먼저 잠근다. */
+export interface DesignEdgeCase {
+  readonly case: string;
+  readonly handling: string;
+  readonly task: string;
+}
+
 export interface DesignProps {
   readonly title: string;
   readonly purpose: string;
@@ -31,6 +60,8 @@ export interface DesignProps {
   readonly decisions: readonly DesignDecision[];
   readonly tasks: readonly DesignTask[];
   readonly risks: readonly string[];
+  readonly architecture: DesignArchitecture;
+  readonly edgeCases: readonly DesignEdgeCase[];
 }
 
 const MAX_TASKS = 8;
@@ -55,6 +86,9 @@ export class Design {
     if (props.purpose.trim() === '') throw invalid('설계의 목적이 비었습니다.');
     if (props.scenarios.length === 0) throw invalid('동작 시나리오가 하나도 없습니다.');
     if (props.tasks.length === 0) throw invalid('작업이 하나도 없습니다.');
+    if (props.architecture.overview.trim() === '') throw invalid('구조 설명(architecture.overview)이 비었습니다.');
+    if (props.architecture.components.length === 0) throw invalid('구성 요소(architecture.components)가 하나도 없습니다.');
+    if (props.edgeCases.length === 0) throw invalid('엣지 케이스가 하나도 없습니다. 빈 값·경계 값·중복·동시 요청·바깥 실패 중 이 기능에 해당하는 것을 적으세요.');
     if (props.tasks.length > MAX_TASKS) throw invalid(`작업이 ${MAX_TASKS}개를 넘습니다. 설계를 더 작게 나누거나 단계로 묶으세요.`);
 
     const ids = new Set<string>();
@@ -69,6 +103,9 @@ export class Design {
         if (dep === task.id) throw invalid(`작업 ${task.id}가 자기 자신에 의존합니다.`);
         if (!ids.has(dep)) throw invalid(`작업 ${task.id}가 없는 작업(${dep})에 의존합니다.`);
       }
+    }
+    for (const edge of props.edgeCases) {
+      if (!ids.has(edge.task)) throw invalid(`엣지 케이스(${edge.case})를 맡은 작업(${edge.task})이 없습니다.`);
     }
     const design = new Design(props);
     if (design.order().length !== props.tasks.length) throw invalid('작업의 의존이 순환합니다.');
@@ -98,6 +135,18 @@ export class Design {
   }
   get risks(): readonly string[] {
     return this.props.risks;
+  }
+
+  get architecture(): DesignArchitecture {
+    return this.props.architecture;
+  }
+  get edgeCases(): readonly DesignEdgeCase[] {
+    return this.props.edgeCases;
+  }
+
+  /** 이 작업이 맡은 엣지 케이스 */
+  edgeCasesOf(taskId: string): DesignEdgeCase[] {
+    return this.props.edgeCases.filter((e) => e.task === taskId);
   }
 
   decidedBy(who: DesignDecision['by']): DesignDecision[] {

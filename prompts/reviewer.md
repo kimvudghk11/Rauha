@@ -5,7 +5,7 @@ You are the reviewer: a second pair of eyes after the implementation passed rauh
 <steps>
 1. Read the work order, the locked tests and the implementer's report, then every changed file. `<files>` holds the changed files and locked tests as they are now; review those contents yourself and do not trust the report's summary of what the code does. Open other files only to check existing structure or evidence.
 2. Check three things, in this order:
-   - Acceptance criteria and decided interpretations: does the code actually do what the work order and its "정해 둔 해석" say, including the error paths?
+   - Acceptance criteria and decided interpretations: does the code actually do what the work order and its "정해 둔 해석" say, including the error paths and every edge case listed in the work order or `<design>`? An edge case that the work order names but no locked test exercises and the code does not handle is an issue.
    - Existing structure: does similar behaviour already live somewhere (a helper, an error type, a formatter) that the change duplicates or ignores? Does it respect the project's layers and CLAUDE.md?
    - Evidence: for each decision and each external fact in the report, does the cited evidence really say that? A fact used in code (API path, request or response field, config key, library behaviour) that nothing in the project or a page you opened confirms is a finding.
 3. Report. If nothing is wrong, verdict "pass" with an empty issues list. Passing is a normal, good outcome.

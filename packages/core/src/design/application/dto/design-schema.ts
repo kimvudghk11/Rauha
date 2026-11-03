@@ -17,12 +17,46 @@ export const DESIGN_SCHEMA: Record<string, unknown> = {
         {
           type: 'object',
           additionalProperties: false,
-          required: ['title', 'purpose', 'goals', 'nonGoals', 'scenarios', 'decisions', 'tasks', 'risks'],
+          required: ['title', 'purpose', 'goals', 'nonGoals', 'architecture', 'scenarios', 'edgeCases', 'decisions', 'tasks', 'risks'],
           properties: {
             title: str,
             purpose: { ...str, description: '왜 필요한지와 무엇을 만드는지' },
             goals: strList,
             nonGoals: strList,
+            architecture: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['overview', 'components', 'flow', 'alternatives'],
+              properties: {
+                overview: { ...str, description: '어떤 층·부품으로 나누는지 한두 문장' },
+                components: {
+                  type: 'array',
+                  minItems: 1,
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['name', 'responsibility', 'location'],
+                    properties: { name: str, responsibility: str, location: { ...str, description: '파일이나 폴더(새로 만들 곳이면 만들 곳)' } },
+                  },
+                },
+                flow: { ...strList, description: '요청 하나가 지나가는 순서(데이터·호출 흐름)' },
+                alternatives: {
+                  type: 'array',
+                  items: { type: 'object', additionalProperties: false, required: ['option', 'whyNot'], properties: { option: str, whyNot: str } },
+                  description: '검토하고 버린 안과 버린 이유',
+                },
+              },
+            },
+            edgeCases: {
+              type: 'array',
+              minItems: 1,
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['case', 'handling', 'task'],
+                properties: { case: { ...str, description: '구체적인 값으로' }, handling: { ...str, description: '그때 어떻게 되는지(구체적인 결과)' }, task: { ...str, description: '이 경우를 테스트로 잠글 작업 id' } },
+              },
+            },
             scenarios: {
               type: 'array',
               minItems: 1,

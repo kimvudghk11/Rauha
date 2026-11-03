@@ -18,6 +18,8 @@ const draft = (title = '쿠폰 할인') => ({
     decisions: [{ what: '원 미만 버림', by: 'rauha' }],
     tasks: [{ id: 't1', title: 'Coupon', scope: ['src/**'], acceptance: ['10%면 9,000원'], dependsOn: [] }],
     risks: [],
+    architecture: { overview: 'Coupon 값 객체', components: [{ name: 'Coupon', responsibility: '할인 계산', location: 'src/coupon.ts' }], flow: [], alternatives: [] },
+    edgeCases: [{ case: '할인율 0%', handling: '거절', task: 't1' }],
   },
 });
 

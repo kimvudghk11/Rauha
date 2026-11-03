@@ -21,6 +21,19 @@ const draftOutput = (over: Record<string, unknown> = {}) => ({
       { id: 't2', title: '주문에 쿠폰 적용', scope: ['src/order/**'], acceptance: ['쿠폰 둘이면 거절'], dependsOn: ['t1'] },
     ],
     risks: ['환불 시 쿠폰 복원은 다루지 않음'],
+    architecture: {
+      overview: '주문 도메인에 Coupon 값 객체를 두고 Order가 쓴다',
+      components: [
+        { name: 'Coupon', responsibility: '할인율 검증과 할인액 계산', location: 'src/coupon/coupon.ts' },
+        { name: 'Order.applyCoupon', responsibility: '쿠폰 하나만 받아 금액을 다시 계산', location: 'src/order/order.ts' },
+      ],
+      flow: ['주문 API가 쿠폰 코드를 받는다', 'Order.applyCoupon이 Coupon으로 금액을 계산한다'],
+      alternatives: [{ option: '결제 단계에서 할인 계산', whyNot: '주문 금액과 결제 금액이 달라져 환불이 꼬인다' }],
+    },
+    edgeCases: [
+      { case: '할인율 0% 또는 100% 초과', handling: '쿠폰을 만들 때 거절', task: 't1' },
+      { case: '같은 주문에 쿠폰을 두 번 적용', handling: '두 번째는 거절하고 금액은 그대로', task: 't2' },
+    ],
   },
   ...over,
 });
@@ -45,6 +58,8 @@ describe('DesignReplyDto.from', () => {
     ['모양이 틀린 출력', 'oops'],
     ['질문 답인데 질문이 빈 경우', { status: 'ask', question: ' ', suggestion: null, design: null }],
     ['설계안인데 설계가 없는 경우', { status: 'draft', question: null, suggestion: null, design: null }],
+    ['설계안에 엣지 케이스가 없는 경우', draftOutput({ design: { ...draftOutput().design, edgeCases: [] } })],
+    ['설계안에 구조가 없는 경우', draftOutput({ design: { ...draftOutput().design, architecture: undefined } })],
     ['설계안의 작업이 순환하는 경우', draftOutput({ design: { ...draftOutput().design, tasks: [{ id: 't1', title: 'a', scope: ['a'], acceptance: ['a'], dependsOn: ['t1'] }] } })],
   ])('%s 거부한다', (_name, output) => {
     expect(() => DesignReplyDto.from(output)).toThrow(DomainError);
@@ -71,6 +86,12 @@ describe('DesignDocDto', () => {
     expect(md).toContain('t2');
     expect(md).toContain('의존: t1');
     expect(md).toContain('환불 시 쿠폰 복원은 다루지 않음');
+    expect(md).toContain('## 구조');
+    expect(md).toContain('Coupon: 할인율 검증과 할인액 계산 (src/coupon/coupon.ts)');
+    expect(md).toContain('1. 주문 API가 쿠폰 코드를 받는다');
+    expect(md).toContain('결제 단계에서 할인 계산: 주문 금액과 결제 금액이 달라져 환불이 꼬인다');
+    expect(md).toContain('## 엣지 케이스');
+    expect(md).toContain('같은 주문에 쿠폰을 두 번 적용 → 두 번째는 거절하고 금액은 그대로 (t2)');
   });
 
   it('승인 화면 요약은 목적·rauha가 정한 것·작업 목록을 짧게 보여 준다', () => {
@@ -81,6 +102,8 @@ describe('DesignDocDto', () => {
     expect(text).toContain('할인액은 원 미만을 버린다');
     expect(text).toContain('1. Coupon 값 객체');
     expect(text).toContain('2. 주문에 쿠폰 적용');
+    expect(text).toContain('구조: 주문 도메인에 Coupon 값 객체를 두고 Order가 쓴다');
+    expect(text).toContain('엣지 케이스 2개');
     expect(lines.length).toBeLessThan(30);
   });
 
@@ -95,5 +118,11 @@ describe('DesignDocDto', () => {
     expect(block).toContain('쿠폰은 주문당 1개');
     expect(block).toContain('src/order/**');
     expect(block).toContain('승인');
+    expect(block).toContain('구조: 주문 도메인에 Coupon 값 객체를 두고 Order가 쓴다');
+    expect(block).toContain('Order.applyCoupon');
+    // 이 작업이 맡은 엣지 케이스만, 수용 기준과 함께 테스트로 먼저 잠그라고 넘긴다.
+    expect(block).toContain('같은 주문에 쿠폰을 두 번 적용');
+    expect(block).not.toContain('할인율 0% 또는 100% 초과');
+    expect(request).toContain('같은 주문에 쿠폰을 두 번 적용');
   });
 });
