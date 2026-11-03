@@ -1,3 +1,4 @@
+import { BrowserNeed } from '../domain/browser-need.js';
 import { CompanyBook } from '../domain/company-book.js';
 import { Department, LAUNCH_ORDER, type DepartmentId, type DepartmentMemberRole } from '../domain/department.js';
 import { SessionBudget } from '../domain/session-budget.js';
@@ -61,7 +62,7 @@ export class CompanyDesk {
   async analyze(role: ReportRole, label: string, input: string, conversation: string | null, started: number, department: DepartmentId | null = null): Promise<TurnOutcome> {
     const costBefore = this.host.spent();
     const book = await this.loadBook();
-    const done = await this.report(role, label, this.reportParts(input, conversation, book));
+    const done = await this.report(role, label, input, this.reportParts(input, conversation, book));
     if ('blocked' in done) return { kind: 'blocked', ...done.blocked };
     const answer = AnalysisReportDto.read({ answer: done.answer, files: done.files }, label).toAnswer();
     if (department !== null) await this.record(department, answer);
@@ -87,7 +88,7 @@ export class CompanyDesk {
     if (planned.blocked) return { kind: 'blocked', ...planned.blocked };
     const { assignments } = CompanyPlanDto.read(planned.output, department);
 
-    const reports = await Promise.all(assignments.map((a) => this.report(a.role, label(a.role), this.reportParts(input, conversation, book, a.brief))));
+    const reports = await Promise.all(assignments.map((a) => this.report(a.role, label(a.role), input, this.reportParts(input, conversation, book, a.brief))));
     const done: { role: ReportRole; answer: string; files: readonly string[] }[] = [];
     for (const [i, r] of reports.entries()) {
       if ('blocked' in r) return { kind: 'blocked', ...r.blocked };
@@ -152,12 +153,12 @@ export class CompanyDesk {
   }
 
   /** 운영 팀원만 명령을 실행해 보고 모양이 달라 그것만 따로 읽는다. 나머지는 읽기 보고다. */
-  private async report(role: ReportRole, label: string, parts: readonly string[]): Promise<{ blocked: NonNullable<MemberResult['blocked']> } | { answer: string; files: readonly string[] }> {
+  private async report(role: ReportRole, label: string, input: string, parts: readonly string[]): Promise<{ blocked: NonNullable<MemberResult['blocked']> } | { answer: string; files: readonly string[] }> {
     if (role === 'operator') {
       const result = await this.host.member(role, parts, OPS_SCHEMA, {});
       return result.blocked ? { blocked: result.blocked } : { answer: OpsReportDto.read(result.output).toAnswer(), files: [] };
     }
-    const result = await this.host.member(role, parts, ANALYSIS_SCHEMA, {});
+    const result = await this.host.member(role, parts, ANALYSIS_SCHEMA, { browser: BrowserNeed.wanted(role, input) });
     if (result.blocked) return { blocked: result.blocked };
     const read = AnalysisReportDto.read(result.output, label);
     return { answer: read.answer, files: read.files };

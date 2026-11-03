@@ -12,6 +12,8 @@ export interface MemberOptions {
   readonly tier?: ModelTier;
   /** 진행 줄에 "작업 중…"을 내지 않는다(여러 호출을 묶어 따로 진행을 알릴 때) */
   readonly quiet?: boolean;
+  /** 브라우저 도구를 붙인다(BrowserNeed가 정한다) */
+  readonly browser?: boolean;
 }
 
 /**

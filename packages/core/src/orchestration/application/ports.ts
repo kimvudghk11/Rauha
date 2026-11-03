@@ -19,10 +19,12 @@ export interface MemberCall {
   readonly signal?: AbortSignal;
   /** 작업 폴더 밖에서 더 읽을 수 있는 폴더(여러 저장소에 걸친 질문). 절대 경로. */
   readonly additionalDirectories?: readonly string[];
+  /** 브라우저 도구를 붙인다(요청이 웹페이지를 가리킬 때만, BrowserNeed). */
+  readonly browser?: boolean;
 }
 
 /** 미리 띄워 둘 호출. 보낼 메시지만 아직 모른다. */
-export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories'>;
+export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories' | 'browser'>;
 
 export interface MemberUsage {
   readonly model: string;

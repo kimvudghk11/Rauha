@@ -48,7 +48,8 @@ export class RoleSettingsDto {
       // 라우터는 입력 종류만 가른다. 도구도 프로젝트 설정도 없이 짧게.
       router: { tier: 'haiku', effort: 'low', maxTurns: 2, maxBudgetUsd: 0.05, tools: [], readsProject: false },
       // 질문에는 코드나 공식 문서를 읽고 답하되 파일은 쓰지 않는다. 일반 기술 질문은 문서 여러 장을 열어 봐야 해서 턴·예산을 넉넉히.
-      answerer: { tier: 'sonnet', effort: 'medium', maxTurns: 25, maxBudgetUsd: 1, tools: READ_TOOLS, readsProject: true },
+      // "테스트 돌려봐", "git log 보여줘"처럼 명령 결과를 묻는 말은 사용자에게 시키지 않고 직접 돌려 답한다(위험한 명령은 ToolRisk가 묻는다).
+      answerer: { tier: 'sonnet', effort: 'medium', maxTurns: 25, maxBudgetUsd: 1, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 저장소 지식의 영역 메모를 쓴다. 이 저장소 파일만 보면 되니 웹 없이 가장 싼 모델로.
       surveyor: { tier: 'haiku', effort: 'low', maxTurns: 20, maxBudgetUsd: 0.5, tools: ['Read', 'Grep', 'Glob'], readsProject: true },
       // 코드가 아닌 결과물(포트폴리오·보고서·정리 문서)을 만든다. git 기록을 읽어야 해서 Bash, 문서만 쓰므로 Write·Edit은 .md로 막는다.

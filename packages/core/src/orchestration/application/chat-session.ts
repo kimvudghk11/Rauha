@@ -19,6 +19,7 @@ import { WriterReportDto } from './dto/writer-report.dto.js';
 import { OpsReportDto } from './dto/ops-report.dto.js';
 import type { RunContextBlocks, RunOutcome } from './minimal-loop.service.js';
 import type { SessionBudget } from '../domain/session-budget.js';
+import { BrowserNeed } from '../domain/browser-need.js';
 import { CompanyDesk } from './company-desk.js';
 import type { DeskHost, Known, MemberOptions } from './desk-host.js';
 import { DesignDesk } from './design-desk.js';
@@ -398,7 +399,7 @@ export class ChatSession {
       ],
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
-      { signal, dirs: [...others.map((o) => o.root), ...(others.length > 0 && this.deps.folder !== undefined ? [this.deps.folder.root] : [])] },
+      { signal, browser: BrowserNeed.wanted('answerer', input), dirs: [...others.map((o) => o.root), ...(others.length > 0 && this.deps.folder !== undefined ? [this.deps.folder.root] : [])] },
     );
     const basis =
       others.length === 0
@@ -510,6 +511,7 @@ export class ChatSession {
       userMessage: parts.filter((p) => p !== '').join('\n\n'),
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
       ...(additionalDirectories.length > 0 ? { additionalDirectories } : {}),
+      ...(options.browser === true ? { browser: true } : {}),
     });
     this.costUsd += result.usage.costUsd;
     this.calls[call.setting.tier] += 1;

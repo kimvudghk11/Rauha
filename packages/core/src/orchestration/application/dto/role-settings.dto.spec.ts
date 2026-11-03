@@ -63,6 +63,9 @@ describe('RoleSettingsDto', () => {
   it('답변 팀원은 공식 문서를 찾아 읽을 수 있고, 여러 페이지를 볼 만큼 턴과 노력을 갖는다', () => {
     const answerer = RoleSettingsDto.defaults().get('answerer');
     expect(answerer.tools).toEqual(expect.arrayContaining(['WebSearch', 'WebFetch']));
+    // 명령 결과를 묻는 질문("테스트 돌려봐", "지금 브랜치 뭐야")은 사용자에게 시키지 않고 직접 돌린다.
+    expect(answerer.tools).toContain('Bash');
+    expect(answerer.tools).not.toContain('Edit');
     expect(answerer.effort).toBe('medium');
     expect(answerer.maxTurns).toBeGreaterThanOrEqual(25);
   });

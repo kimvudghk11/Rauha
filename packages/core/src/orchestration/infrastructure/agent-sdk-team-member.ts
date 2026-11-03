@@ -3,6 +3,7 @@ import type { SecretPolicy } from '../domain/secret-policy.js';
 import { MODEL_ID } from '../domain/team.js';
 import type { AccountBlock, MemberCall, MemberResult, MemberUsage, PreparedCall, TeamMemberPort } from '../application/ports.js';
 import type { PromptLibrary } from './prompt-library.js';
+import { BROWSER_SERVER, BROWSER_TOOLS, localBrowserServer } from './browser-mcp.js';
 import { createFetchLog } from './fetch-log.js';
 import { createToolGuard, type PermissionAsker } from './tool-guard.js';
 import { accountBlock } from './usage-limit.js';
@@ -130,9 +131,9 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     return { output: result.structured_output ?? null, error: result.structured_output === undefined ? '구조화 출력이 없습니다.' : null, usage, fetched };
   }
 
-  /** 다른 폴더도 읽는 호출은 띄울 때의 설정이 달라서 미리 띄운 프로세스를 쓰지 않는다. */
+  /** 다른 폴더도 읽거나 브라우저를 붙이는 호출은 띄울 때의 설정이 달라서 미리 띄운 프로세스를 쓰지 않는다. */
   private takeSpare(call: MemberCall): Spare | null {
-    if ((call.additionalDirectories?.length ?? 0) > 0) return null;
+    if ((call.additionalDirectories?.length ?? 0) > 0 || call.browser === true) return null;
     const key = spareKey(call);
     const spare = this.spares.get(key) ?? null;
     this.spares.delete(key);
@@ -160,7 +161,8 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     return () => (files ??= this.options.secretFiles());
   }
 
-  private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories'>, session: Session): Options {
+  private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'browser'>, session: Session): Options {
+    const browser = call.browser === true;
     return {
       model: MODEL_ID[call.setting.tier],
       abortController: session.controller,
@@ -169,7 +171,9 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       env: this.options.env,
       systemPrompt: this.options.prompts.system(call.role),
       tools: [...call.setting.tools],
-      allowedTools: [...call.setting.tools],
+      allowedTools: [...call.setting.tools, ...(browser ? BROWSER_TOOLS : [])],
+      // 브라우저 도구는 요청이 웹페이지를 가리킬 때만 붙인다(도구 설명만 2만 자쯤이라).
+      ...(browser ? { mcpServers: { [BROWSER_SERVER]: localBrowserServer(this.options.env) } } : {}),
       permissionMode: 'dontAsk',
       settingSources: call.setting.readsProject ? ['project'] : [],
       effort: call.setting.effort,
