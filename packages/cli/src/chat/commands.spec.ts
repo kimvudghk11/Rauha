@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseCommand, suggestCommands } from './commands.js';
+import { displayWidth } from '../text-width.js';
+import { helpLines, parseCommand, suggestCommands } from './commands.js';
 
 describe('parseCommand', () => {
   it('/로 시작하지 않으면 명령이 아니다', () => {
@@ -137,5 +138,29 @@ describe('/routine', () => {
   it('remove는 번호를 읽는다', () => {
     expect(parseCommand('/routine remove 2')).toEqual({ kind: 'routine', action: 'remove', number: 2 });
     expect(parseCommand('/routine remove x')).toEqual({ kind: 'routine', action: 'usage' });
+  });
+});
+
+describe('helpLines', () => {
+  it('명령을 쓰임새별로 묶어 보여 주고, 모든 명령과 ! 명령·입력 요령을 빠뜨리지 않는다', () => {
+    const text = helpLines().join('\n');
+    for (const group of ['대화', '작업', '팀·회사', 'rauha']) expect(text).toContain(`  ${group}`);
+    for (const name of suggestCommands('/').map((c) => c.name)) expect(text).toContain(name);
+    expect(text).toContain('!<명령>');
+    expect(text).toContain('Alt+Enter');
+    expect(text.indexOf('  대화')).toBeLessThan(text.indexOf('/clear'));
+    expect(text.indexOf('  작업')).toBeLessThan(text.indexOf('/review'));
+  });
+
+  it('설명은 이름 뒤 두 칸 이상 띄워, 창이 좁아 접혀도 설명 칸에 맞춰진다', () => {
+    expect(helpLines().find((l) => l.includes('/review'))).toMatch(/^ {4}\/review {2,}\S/);
+  });
+});
+
+describe('helpLines 정렬', () => {
+  it('한글이 든 이름(!<명령>)도 다른 명령과 같은 칸에서 설명이 시작한다', () => {
+    const at = (line: string) => displayWidth(line.slice(0, line.search(/ {2,}\S/))) + line.slice(line.search(/ {2,}\S/)).search(/\S/);
+    const lines = helpLines();
+    expect(at(lines.find((l) => l.includes('!<명령>'))!)).toBe(at(lines.find((l) => l.includes('/review'))!));
   });
 });

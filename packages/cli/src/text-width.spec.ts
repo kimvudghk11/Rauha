@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { displayWidth, fitLines, truncateWidth } from './text-width.js';
 
 describe('fitLines', () => {
+  it('"이름  설명" 줄이 접히면 다음 줄을 설명 시작 칸에 맞춘다 (/help·/team 표)', () => {
+    expect(fitLines('  /review   내 변경을 리뷰어가 검토해요', 30)).toEqual(['  /review   내 변경을 리뷰어가', '            검토해요']);
+  });
+
+  it('⚠·✓·✗ 표시가 붙은 줄이 접히면 표시 뒤에 맞춘다', () => {
+    expect(fitLines('  ⚠ 로그인되어 있지 않아요 다시 와 주세요', 20)).toEqual(['  ⚠ 로그인되어 있지', '    않아요 다시 와', '    주세요']);
+  });
+
   it('줄마다 너비를 넘지 않게 접고, 원래 줄바꿈도 지킨다', () => {
     expect(fitLines('가나다라\nabcde', 4)).toEqual(['가나', '다라', 'abcd', 'e']);
   });

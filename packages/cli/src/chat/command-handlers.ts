@@ -5,7 +5,7 @@ import { runShell } from '../shell-run.js';
 import { isRauhaRepo, nodeExec, repoRoot, runUpdate } from '../update.js';
 import { queueLines, shellLines } from './command-lines.js';
 import { companyLines } from './company-lines.js';
-import { HELP_TEXT, type ChatCommand } from './commands.js';
+import { helpLines, type ChatCommand } from './commands.js';
 import { describeTurn } from './describe-turn.js';
 import { learningLines } from './learning-lines.js';
 import { routineCommand, type RoutineStorePort } from './routine-command.js';
@@ -151,7 +151,8 @@ const HANDLERS: Handlers = {
     ctx.store.printLines(companyLines(await repo.chat.companyEntries()));
   },
 
-  team: (ctx) => ctx.store.printLines(teamLines(ctx.roles)),
+  // 창 너비에 맞춰 표를 짠다(창 크기를 바꾸면 그 너비로 다시 짠다).
+  team: (ctx) => ctx.store.printLines([(columns: number) => teamLines(ctx.roles, columns).join('\n')]),
 
   shell: async (ctx, command, text) => {
     if (command.command === null) return ctx.store.print('  !<명령>으로 바로 실행해요. 예: !aws s3 ls');
@@ -177,15 +178,22 @@ const HANDLERS: Handlers = {
     return ctx.runTurn(last, last);
   },
 
-  help: (ctx) => ctx.store.print(HELP_TEXT),
+  help: (ctx) => ctx.store.printLines(helpLines()),
 
   exit: (ctx) => ctx.unmount(),
 
   unknown: (ctx, command) => ctx.store.print(`  ${command.name}는 없는 명령이에요. /help로 명령을 볼 수 있어요.`),
 };
 
+/**
+ * 친 명령을 결과 앞에 되짚어 찍는다(이어 친 명령의 결과와 섞이지 않게). 스스로 되짚는 명령(요청을 돌리는 것)과
+ * 화면을 지우거나 끝내는 명령은 뺀다.
+ */
+const ECHOES_ITSELF: ReadonlySet<ChatCommand['kind']> = new Set(['review', 'shell', 'retry', 'design', 'clear', 'exit']);
+
 /** 슬래시·! 명령 하나를 처리한다. 명령마다 처리기가 하나씩이라 종류를 빠뜨리면 컴파일이 막는다. */
 export async function runCommand(ctx: CommandContext, command: ChatCommand, text: string): Promise<void> {
+  if (!ECHOES_ITSELF.has(command.kind)) ctx.store.printLines(ctx.userTurn(text));
   const handler = HANDLERS[command.kind] as Handler<typeof command.kind>;
   await handler(ctx, command as never, text);
 }

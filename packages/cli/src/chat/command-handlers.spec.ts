@@ -34,7 +34,8 @@ function setup(overrides: Partial<CommandContext> = {}, state: Partial<ChatState
     ...overrides,
   };
   const run = async (text: string) => runCommand(ctx, parseCommand(text)!, text);
-  const printed = () => store.lines.map((l) => (typeof l === 'string' ? l : '')).join('\n');
+  // 창 너비에 맞춰 그리는 줄(/team 표 등)은 100칸 창으로 그려 본다.
+  const printed = () => store.lines.map((l) => (typeof l === 'string' ? l : l(100, 40))).join('\n');
   return { ctx, store, run, turns, printed, state: full, unmounted: () => unmounted, queued };
 }
 
@@ -118,5 +119,27 @@ describe('queueCommand', () => {
     queueCommand(store, 'clear');
     expect(store.queue).toEqual([]);
     expect(store.lines.join('\n')).toContain('2개를 지웠어요');
+  });
+});
+
+describe('명령 되짚기', () => {
+  it('보기 명령(/team, /help, /guide …)은 친 명령을 먼저 찍어, 이어 친 명령의 결과와 섞이지 않는다', async () => {
+    const t = setup();
+    await t.run('/team');
+    await t.run('/help');
+    const text = t.printed();
+    expect(text.indexOf('> /team')).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf('> /team')).toBeLessThan(text.indexOf('rauha 회사 구성'));
+    expect(text.indexOf('> /help')).toBeGreaterThan(text.indexOf('rauha 회사 구성'));
+  });
+
+  it('스스로 되짚는 명령(/review, !명령, /retry, /design)과 화면을 지우거나 끝내는 명령은 두 번 찍지 않는다', async () => {
+    const t = setup();
+    await t.run('/clear');
+    await t.run('/exit');
+    await t.run('/design 쿠폰');
+    expect(t.printed()).not.toContain('> /clear');
+    expect(t.printed()).not.toContain('> /exit');
+    expect(t.printed()).not.toContain('> /design');
   });
 });

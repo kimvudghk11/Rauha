@@ -357,7 +357,7 @@ export function mascotView(depth: number, version: string, badge: string): Masco
     finale: (status) =>
       status === 'complete'
         ? say('done', ['끝났어요! 아래 읽기 안내서부터 봐 주세요.'])
-        : say('stuck', ['여기서 멈췄어요. 이유는 아래 안내서에 적어 뒀어요.']),
+        : say('stuck', ['여기서 멈췄어요. 이유는 아래에 적어 뒀어요.']),
     // compact: 낮은 창용. Delfi 없이 한 줄 안내와 상자만 둔다(화면이 창보다 높으면 Ink가 매번 전체를 다시 찍는다).
     permission: (request, columns, compact) => {
       const inner = Math.min(columns - 1, MAX_PERMISSION_WIDTH) - 4;
@@ -382,7 +382,8 @@ export function mascotView(depth: number, version: string, badge: string): Masco
       const shown = card.files.slice(0, MAX_CARD_FILES);
       const lines = [
         // '·'는 한글 글꼴 cmd에서 두 칸이라 박스 안에서는 띄어쓰기로 나눈다.
-        ...fit(`\x1b[1m${state}\x1b[1m  ${card.title}${RESET}  ${dim(card.elapsed)}`),
+        // 걸린 시간('3분 5초')은 줄바꿈 안 되는 공백으로 이어 한 덩어리로 둔다(제목이 길어 접혀도 쪼개지지 않게).
+        ...fit(`\x1b[1m${state}\x1b[1m  ${card.title}${RESET}  ${dim(card.elapsed.replace(/ /g, ' '))}`),
         ...(card.stopMessage !== null ? ['', ...fit(card.stopMessage)] : []),
         ...(card.files.length > 0
           ? [

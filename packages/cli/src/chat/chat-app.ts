@@ -9,6 +9,7 @@ import type { ChatStore, Prompt, Working } from './chat-store.js';
 import { suggestCommands } from './commands.js';
 import { completeMention, mentionAt, suggestFiles } from './file-mention.js';
 import { editInput, inputLayout, moveVertical, type InputState } from './input-line.js';
+import { menuWindow } from './menu-window.js';
 
 const h = React.createElement;
 
@@ -49,6 +50,9 @@ function withCursor(state: InputState): React.ReactNode {
   const at = Math.min(state.cursor, chars.length);
   return h(Text, null, chars.slice(0, at).join(''), h(Text, { inverse: true }, chars[at] ?? ' '), chars.slice(at + 1).join(''));
 }
+
+/** 명령·파일 후보를 한 번에 보여 주는 수. 넘치면 고른 것 둘레만 보여 준다. */
+const MENU_MAX = 8;
 
 /** 이 높이보다 낮은 창에서는 작은 Delfi(4줄) 대신 한 줄짜리 작업 중 표시를 쓴다. */
 const MIN_ROWS_FOR_MINI_DELFI = 16;
@@ -136,13 +140,16 @@ function InputBox({ width, history, files, onSubmit, onInterrupt, onEscape, curs
   const [state, setState] = useState<InputState>({ text: '', cursor: 0 });
   const [browsing, setBrowsing] = useState<{ at: number; draft: string } | null>(null);
   const [pick, setPick] = useState(0);
+  /** Esc로 후보를 닫았을 때의 입력 글. 글이 바뀌면 다시 띄운다. */
+  const [dismissed, setDismissed] = useState<string | null>(null);
   // '/'로 시작하는 글을 치는 동안 명령 후보를 띄운다. 명령을 다 쳤으면 띄우지 않는다.
   const candidates = suggestCommands(state.text);
   const commandsShown = candidates.length === 1 && candidates[0]!.name === state.text ? [] : candidates;
   // 명령 후보가 없을 때 커서 앞이 "@검색어"이면 파일 후보를 띄운다(Tab으로 채운다).
   const mention = commandsShown.length === 0 && files !== null ? mentionAt(state) : null;
   const fileMatches = mention !== null && files !== null ? suggestFiles(mention.query, files()) : [];
-  const shown = commandsShown.length > 0 ? commandsShown : fileMatches.map((path) => ({ name: `@${path}`, help: '' }));
+  const listed = commandsShown.length > 0 ? commandsShown : fileMatches.map((path) => ({ name: `@${path}`, help: '' }));
+  const shown = dismissed === state.text ? [] : listed;
   const selected = Math.min(pick, Math.max(0, shown.length - 1));
   const fill = (text: string) => setState({ text, cursor: [...text].length });
   useInput(
@@ -161,19 +168,23 @@ function InputBox({ width, history, files, onSubmit, onInterrupt, onEscape, curs
         return;
       }
       if (key.escape) {
+        // 후보가 떠 있으면 Esc는 후보만 닫는다(쓰던 글은 그대로). 일하는 중 멈추기는 그다음 Esc.
+        if (shown.length > 0) return setDismissed(state.text);
         onEscape();
         return;
       }
       if (shown.length > 0 && (key.upArrow || key.downArrow)) {
-        setPick((selected + (key.upArrow ? shown.length - 1 : 1)) % shown.length);
+        // 키를 누르고 있으면 한 번에 여러 개가 온다. 지난 값이 아니라 지금 값에서 옮긴다.
+        const step = key.upArrow ? shown.length - 1 : 1;
+        setPick((p) => (Math.min(p, shown.length - 1) + step) % shown.length);
         return;
       }
-      if (mention !== null && fileMatches.length > 0 && key.tab) {
+      if (mention !== null && shown.length > 0 && key.tab) {
         setState(completeMention(state, mention, fileMatches[selected]!));
         setPick(0);
         return;
       }
-      if (commandsShown.length > 0 && (key.tab || key.return)) {
+      if (commandsShown.length > 0 && shown.length > 0 && (key.tab || key.return)) {
         const name = shown[selected]!.name;
         setPick(0);
         if (key.tab) return fill(name);
@@ -213,7 +224,20 @@ function InputBox({ width, history, files, onSubmit, onInterrupt, onEscape, curs
   // 테두리 두 칸, 여백 두 칸, '> ' 두 칸을 빼고 접는다. Ink가 따로 접지 않게 미리 접어야 커서 자리를 안다.
   const layout = inputLayout(state, width - 6);
   // 입력 줄 아래에 아래 테두리·명령 후보·상태 줄이 있고, Ink는 그린 뒤 커서를 그다음 줄에 둔다.
-  useParkedCursor(cursor, { up: layout.lines.length - layout.row + 1 + shown.length + below, column: 4 + layout.column });
+  // 후보는 고른 것 둘레만, 넘친 수와 키 안내를 붙여 보여 준다.
+  const win = menuWindow(shown.length, selected, MENU_MAX);
+  const nameWidth = Math.max(0, ...shown.map((c) => displayWidth(c.name)));
+  const menuRows: { key: string; text: string; style: Record<string, unknown> }[] = [
+    ...(win.above > 0 ? [{ key: 'above', text: `   ↑ ${win.above}개 더`, style: { dimColor: true } }] : []),
+    ...shown.slice(win.start, win.end).map((c, i) => {
+      const on = win.start + i === selected;
+      const name = c.help === '' ? c.name : c.name + ' '.repeat(nameWidth - displayWidth(c.name));
+      return { key: c.name, text: `${on ? ' ❯ ' : '   '}${name}${c.help === '' ? '' : `  ${c.help}`}`, style: on ? { color: SKY, bold: true } : { dimColor: true } };
+    }),
+    ...(win.below > 0 ? [{ key: 'below', text: `   ↓ ${win.below}개 더`, style: { dimColor: true } }] : []),
+    ...(shown.length > 0 ? [{ key: 'hint', text: commandsShown.length > 0 ? '   ↑↓ 고르기 · Enter 실행 · Tab 채우기 · Esc 닫기' : '   ↑↓ 고르기 · Tab 채우기 · Esc 닫기', style: { dimColor: true } }] : []),
+  ];
+  useParkedCursor(cursor, { up: layout.lines.length - layout.row + 1 + menuRows.length + below, column: 4 + layout.column });
   const offset = layout.offset;
   const line = (text: string, row: number) =>
     h(
@@ -231,9 +255,7 @@ function InputBox({ width, history, files, onSubmit, onInterrupt, onEscape, curs
       layout.lines.map(line),
     ),
     // 후보 줄은 접히면 커서 자리가 틀어져서 넘치는 설명은 자른다.
-    ...shown.map((c, i) =>
-      h(Text, { key: c.name, wrap: 'truncate', ...(i === selected ? { color: SKY, bold: true } : { dimColor: true }) }, c.help === '' ? `  ${c.name}` : `  ${c.name.padEnd(9)} ${c.help}`),
-    ),
+    ...menuRows.map((row) => h(Text, { key: row.key, wrap: 'truncate', ...row.style }, row.text)),
   );
 }
 

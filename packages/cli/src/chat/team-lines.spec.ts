@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { teamLines } from './team-lines.js';
 
 describe('teamLines', () => {
+  it('가장 긴 모델·노력 수준(sonnet · medium) 뒤에도 두 칸을 띄워 할 수 있는 일과 붙지 않는다', () => {
+    const lines = teamLines(RoleSettingsDto.defaults());
+    const rows = lines.filter((l) => / · (low|medium|high|xhigh|max)/.test(l));
+    expect(rows.length).toBeGreaterThan(5);
+    for (const row of rows) expect(row).toMatch(/(low|medium|high|xhigh|max) {2,}\S/);
+  });
+
   it('팀원마다 이름·모델·노력 수준·쓰는 도구 종류를 한 줄씩 보여 준다', () => {
     const lines = teamLines(RoleSettingsDto.defaults());
     expect(lines.some((l) => l.includes('팀장') && l.includes('sonnet'))).toBe(true);
@@ -58,5 +65,23 @@ describe('teamLines — 할 수 있는 일 표현', () => {
   it('운영 팀원만 인프라를 바꾸는 명령 실행이라고 적는다', () => {
     expect(lines.find((l) => l.includes('운영 팀원'))).toContain('명령 실행');
     expect(lines.find((l) => l.includes('운영 팀원'))).not.toContain('조회');
+  });
+});
+
+describe('teamLines 좁은 창', () => {
+  it('한 줄에 안 들어가는 창에서는 할 수 있는 일을 다음 줄에 모델 칸에 맞춰 내리고, 어느 줄도 창을 넘지 않는다', async () => {
+    const { displayWidth } = await import('../text-width.js');
+    const lines = teamLines(RoleSettingsDto.defaults(), 60);
+    const tester = lines.findIndex((l) => l.includes('테스트 팀원'));
+    expect(lines[tester]).not.toContain('파일 수정');
+    expect(lines[tester + 1]!.trim()).toBe('파일 수정 · 명령 실행');
+    // 한글은 두 칸이라 글자 자리가 아니라 화면 칸으로 비교한다.
+    expect(lines[tester + 1]!.indexOf('파일')).toBe(displayWidth(lines[tester]!.slice(0, lines[tester]!.indexOf('haiku'))));
+    for (const line of lines.filter((l) => l.startsWith('    '))) expect(displayWidth(line)).toBeLessThanOrEqual(59);
+  });
+
+  it('넓은 창에서는 한 줄씩 그대로다', () => {
+    const lines = teamLines(RoleSettingsDto.defaults(), 120);
+    expect(lines.find((l) => l.includes('테스트 팀원'))).toContain('파일 수정 · 명령 실행');
   });
 });

@@ -241,6 +241,18 @@ describe('mascotView', () => {
     }
   });
 
+  it('제목이 길어 첫 줄이 접혀도 걸린 시간("3분 5초")은 한 줄에 붙어 있다', () => {
+    const view = mascotView(24, 'v0', '[personal]')!;
+    const card = { status: 'complete' as const, title: '쿠폰 할인 적용 — Order.applyCoupon 추가와 결제 금액 재계산', elapsed: '3분 5초', stopMessage: null, files: [], decided: [], todo: [] };
+    const lines = view.resultCard(card, 80).split('\n').map(visible);
+    expect(lines.some((l) => /3분[  ]5초/.test(l))).toBe(true);
+  });
+
+  it('멈춘 작업의 Delfi 말은 이유가 바로 아래 카드에 있다고 한다', () => {
+    const view = mascotView(24, 'v0', '[personal]')!;
+    expect(visible(view.finale('stopped'))).toContain('이유는 아래에');
+  });
+
   it('멈춘 결과 카드에는 멈춘 이유를 쓰고, 바뀐 파일이 많으면 몇 개만 보여 준다', () => {
     const view = mascotView(24, 'v0', '[personal]')!;
     const files = Array.from({ length: 9 }, (_, i) => ({ path: `src/f${i}.ts`, kind: 'modified' as const }));

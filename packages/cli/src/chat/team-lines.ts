@@ -18,7 +18,7 @@ function ability(role: MemberRole, tools: readonly string[]): string {
  * /team: 회사 구성. 부서마다 부서장과 팀원의 모델·노력 수준·할 수 있는 일을 묶어 보여 준다.
  * 모델은 환경 변수로 고정한 값이 반영된 기본값이고, 작업 중에는 상태 머신이 올리기도 한다.
  */
-export function teamLines(roles: RoleSettingsDto): string[] {
+export function teamLines(roles: RoleSettingsDto, columns = Number.POSITIVE_INFINITY): string[] {
   const row = (role: MemberRole, title?: string) => {
     const s = roles.get(role);
     return { name: title ?? ROLE_INFO[role].name, detail: `${s.tier} · ${s.effort}`, ability: ability(role, s.tools) };
@@ -28,7 +28,15 @@ export function teamLines(roles: RoleSettingsDto): string[] {
     ...Department.all().map((d) => ({ title: d.label, rows: [row('chief', '부서장'), ...d.members.map((m) => row(m.role))] })),
     { title: '회사 공통', rows: COMMON.map((c) => row(c.role, c.title)) },
   ];
-  const width = Math.max(...groups.flatMap((g) => g.rows.map((r) => displayWidth(r.name))));
-  const pad = (s: string) => s + ' '.repeat(width - displayWidth(s));
-  return ['', '  rauha 회사 구성 (부서장은 7년차 이상의 판단을 하는 상위 모델로, 넓은 요청에서만 부르고 작은 요청은 팀원이 바로 해요)', ...groups.flatMap((g) => ['', `  ${g.title}`, ...g.rows.map((r) => `    ${pad(r.name)}  ${r.detail.padEnd(16)}${r.ability}`)]), ''];
+  const all = groups.flatMap((g) => g.rows);
+  const nameWidth = Math.max(...all.map((r) => displayWidth(r.name)));
+  const detailWidth = Math.max(...all.map((r) => displayWidth(r.detail)));
+  const pad = (s: string, width: number) => s + ' '.repeat(width - displayWidth(s));
+  // 한 줄에 안 들어가면(좁은 창) 할 수 있는 일을 다음 줄의 모델 칸 자리로 내린다. 터미널이 접으면 맨 앞으로 떨어져 표가 깨진다.
+  const rowLines = (r: ReturnType<typeof row>) => {
+    const head = `    ${pad(r.name, nameWidth)}  `;
+    const one = `${head}${pad(r.detail, detailWidth)}  ${r.ability}`;
+    return displayWidth(one) <= columns - 1 ? [one] : [`${head}${r.detail}`, `${' '.repeat(displayWidth(head))}${r.ability}`];
+  };
+  return ['', '  rauha 회사 구성 (부서장은 7년차 이상의 판단을 하는 상위 모델로, 넓은 요청에서만 부르고 작은 요청은 팀원이 바로 해요)', ...groups.flatMap((g) => ['', `  ${g.title}`, ...g.rows.flatMap(rowLines)]), ''];
 }

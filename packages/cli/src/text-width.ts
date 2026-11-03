@@ -69,8 +69,11 @@ export function fitLines(text: string, width: number): string[] {
   return lines;
 }
 
-/** 줄 앞 들여쓰기와 글머리. 접힌 줄을 이만큼 들여 쓴다. */
-const BULLET = /^ *(?:[-•*] |■ |▍ |\d+\. )?/;
+/**
+ * 줄 앞 들여쓰기와 글머리. 접힌 줄을 이만큼 들여 쓴다.
+ * 글머리: 목록("- ", "1. "), 제목("■ "), 표시("⚠ ", "✓ ", "✗ ", "· "), 그리고 "이름  설명" 표의 이름 칸(두 칸 이상 띄운 짧은 이름).
+ */
+const BULLET = /^ *(?:[-•*] |■ |▍ |[⚠✓✗·] |\d+\. |[^\s]{1,16} {2,})?/;
 
 /** 너비를 넘는 줄을 접는다. 위험한 명령은 줄이지 않고 전부 보여 줘야 해서 '...' 대신 접는다. */
 export function wrapText(text: string, width: number): string[] {
