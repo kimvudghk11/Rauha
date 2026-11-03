@@ -63,6 +63,8 @@ export class RoleSettingsDto {
       // 바꾸기 전에 영향받을 곳과 깨질 수 있는 곳을 짚는다. git 기록·diff를 읽을 수 있지만 파일은 고치지 않는다.
       riskchecker: { tier: 'sonnet', effort: 'medium', maxTurns: 30, maxBudgetUsd: 1, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 사업·제품 아이디어와 앱·웹 구성, 알맞은 아키텍처·패턴을 제안한다. 비슷한 서비스를 찾아볼 수 있어야 해서 웹 도구를 쓰고, 파일은 쓰지 않는다. 참신함이 중요해 노력 수준을 높인다.
+      // 여러 저장소 요청을 저장소별 일과 그 사이의 약속으로 나누고, 끝난 뒤 약속이 양쪽 코드에서 맞는지 본다. 모든 저장소를 읽어야 해서 턴을 넉넉히.
+      splitter: { tier: 'sonnet', effort: 'high', maxTurns: 40, maxBudgetUsd: 1.5, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       planner: { tier: 'sonnet', effort: 'high', maxTurns: 30, maxBudgetUsd: 1.5, tools: READ_TOOLS, readsProject: true },
       // 부서장: 7년차 이상의 판단으로 부서 일을 나누고(계획) 팀원의 보고를 하나로 모은다(종합). 호출 수가 적어 가장 높은 모델을 쓴다. 파일은 쓰지 않는다.
       chief: { tier: 'opus', effort: 'medium', maxTurns: 20, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },

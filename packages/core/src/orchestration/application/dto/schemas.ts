@@ -257,3 +257,73 @@ export const ANSWER_SCHEMA: Record<string, unknown> = {
     },
   },
 };
+
+/** 여러 저장소 요청 나누기. RepoPlanDto.from()이 같은 모양과 계획 규칙을 검증한다. */
+export const REPO_PLAN_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['parts', 'contract', 'edgeCases', 'decisions'],
+  properties: {
+    parts: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['repo', 'request', 'dependsOn'],
+        properties: {
+          repo: { ...str, description: '<repos>에 있는 저장소 이름 그대로' },
+          request: { ...str, description: '이 저장소에서 할 일. 그 저장소의 접수 팀장이 이것만 보고 일할 수 있게 구체적으로' },
+          dependsOn: { ...strList, description: '이 저장소보다 먼저 끝나야 하는 저장소(그 저장소가 만든 것을 이 저장소가 쓸 때만)' },
+        },
+      },
+    },
+    contract: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['what', 'between', 'shape'],
+        properties: {
+          what: str,
+          between: { ...strList, minItems: 2, description: '이 약속을 지켜야 하는 저장소들' },
+          shape: { ...str, description: '정확한 모양: 경로·메서드, 필드 이름과 타입, 이벤트 이름' },
+        },
+      },
+    },
+    edgeCases: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['case', 'handling', 'repo'],
+        properties: { case: str, handling: str, repo: { ...str, description: '이 경우를 테스트로 잠글 저장소' } },
+      },
+    },
+    decisions: { ...strList, description: '요청이 두 가지로 읽힐 수 있어 rauha가 정한 것' },
+  },
+};
+
+/** 약속 검사. ContractCheckDto.from()이 읽는다. */
+export const CONTRACT_CHECK_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['what', 'ok', 'repo', 'fix', 'evidence'],
+        properties: {
+          what: { ...str, description: '<contract>의 약속 이름 그대로' },
+          ok: { type: 'boolean', description: '양쪽 코드가 약속대로인지' },
+          repo: { ...nullableStr, description: '어긋났을 때 고칠 저장소. 맞으면 null' },
+          fix: { ...nullableStr, description: '어긋났을 때 고칠 점 한두 문장. 맞으면 null' },
+          evidence: { ...str, description: '양쪽 코드의 경로:줄과 그 줄을 그대로 옮긴 것' },
+        },
+      },
+    },
+  },
+};

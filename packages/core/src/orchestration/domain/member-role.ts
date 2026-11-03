@@ -3,7 +3,7 @@ import type { TeamRole } from './team.js';
 /** 팀원 역할 전체. 새 역할은 아래 ROLE_INFO 한 곳에 더하면 이름·진행 단계·쓰기 권한이 한꺼번에 정해진다(빠뜨리면 컴파일이 막는다). */
 export const MEMBER_ROLES = [
   'intake', 'tester', 'implementer', 'reviewer', 'router', 'answerer', 'surveyor', 'writer', 'designer', 'operator',
-  'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser',
+  'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'splitter',
 ] as const;
 
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -43,4 +43,5 @@ export const ROLE_INFO: Readonly<Record<MemberRole, RoleInfo>> = {
   brand: info('브랜드 팀원', '브랜드'),
   securitychecker: info('보안 점검 팀원', '보안'),
   releaser: info('릴리스 팀원', '릴리스'),
+  splitter: info('저장소 나누기 팀원', '나누기'),
 };

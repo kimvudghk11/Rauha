@@ -164,7 +164,7 @@ class RunTally {
   };
   costUsd = 0;
   calls = 0;
-  readonly attempts: Record<MemberRole, number> = { intake: 0, tester: 0, implementer: 0, reviewer: 0, router: 0, answerer: 0, surveyor: 0, writer: 0, designer: 0, operator: 0, debugger: 0, riskchecker: 0, planner: 0, chief: 0, bm: 0, marketer: 0, growth: 0, uxdesigner: 0, brand: 0, securitychecker: 0, releaser: 0 };
+  readonly attempts: Record<MemberRole, number> = { intake: 0, tester: 0, implementer: 0, reviewer: 0, router: 0, answerer: 0, surveyor: 0, writer: 0, designer: 0, operator: 0, debugger: 0, riskchecker: 0, planner: 0, chief: 0, bm: 0, marketer: 0, growth: 0, uxdesigner: 0, brand: 0, securitychecker: 0, releaser: 0, splitter: 0 };
   readonly implementerTiers: ModelTier[] = [];
   /** 승격된 업무에서 구현 팀원을 부른 적이 있는지(모델 고정 실험과 구분하려고 모델 이름이 아니라 업무 상태로 센다) */
   escalated = false;

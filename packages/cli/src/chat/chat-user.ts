@@ -1,4 +1,4 @@
-import type { DesignUserPort, PermissionAsker, UserPort } from '@rauha/core';
+import { oneAtATime, type DesignUserPort, type PermissionAsker, type UserPort } from '@rauha/core';
 import { FACT_ANSWERED, FACT_OPTIONS, PERMISSION_ANSWERED, PERMISSION_OPTIONS, toFactAnswer, toPermissionAnswer } from '../ask.js';
 import type { MascotView } from '../mascot.js';
 import { NOTIFY_AFTER_MS, notifyWhile, type Notifier } from '../notify.js';
@@ -44,7 +44,9 @@ export function createChatUser(p: { store: ChatStore; view: MascotView | null; n
     },
   };
 
-  const asking = <T>(body: string, task: () => Promise<T>) => notifyWhile(notifier, NOTIFY_AFTER_MS, `${badge} 선택이 필요해요`, body, task);
+  // 여러 저장소가 함께 일하면 묻는 화면이 동시에 올 수 있다. 하나씩 차례로 보여 준다.
+  const inTurn = oneAtATime((task: () => Promise<unknown>) => task());
+  const asking = <T>(body: string, task: () => Promise<T>) => inTurn(() => notifyWhile(notifier, NOTIFY_AFTER_MS, `${badge} 선택이 필요해요`, body, task)) as Promise<T>;
 
   const ask: PermissionAsker = (request) => asking(`${request.tool} 실행 허락: ${request.detail}`, () => askPermission(request));
   const user: UserPort = {

@@ -7,7 +7,7 @@ import type { Workspace, WorkspaceRepo } from '../domain/workspace.js';
 export interface RepoSession {
   readonly repo: WorkspaceRepo;
   readonly profileName: string;
-  readonly chat: { handle(input: string, also?: readonly AlsoRepo[], force?: 'design'): Promise<TurnOutcome> };
+  readonly chat: { handle(input: string, also?: readonly AlsoRepo[], force?: 'design'): Promise<TurnOutcome>; workIn?(request: string, block: string): Promise<TurnOutcome> };
   readonly knowledge: KnowledgePort | null;
 }
 
@@ -48,7 +48,8 @@ export class WorkspaceSession {
         repo: first.repo.name,
       };
     }
-    const also = rest.map((s): AlsoRepo => ({ name: s.repo.name, root: s.repo.root, knowledge: s.knowledge }));
+    // 다른 저장소의 몫은 그 저장소의 세션(그 저장소의 팀·작업 잠금·기억)이 한다.
+    const also = rest.map((s): AlsoRepo => ({ name: s.repo.name, root: s.repo.root, knowledge: s.knowledge, ...(s.chat.workIn !== undefined ? { work: (request: string, block: string) => s.chat.workIn!(request, block) } : {}) }));
     return { ...(await first.chat.handle(input, also, force)), repo: first.repo.name };
   }
 

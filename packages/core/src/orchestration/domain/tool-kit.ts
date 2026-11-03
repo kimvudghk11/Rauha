@@ -9,7 +9,7 @@ export type ToolKit = 'browser' | 'aws';
 /** 브라우저로 페이지를 열어 볼 수 있는 역할. 답을 찾거나(답변·디버깅) 화면을 다루는(UX) 팀원만. */
 const BROWSER_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'debugger', 'uxdesigner']);
 /** AWS 지식을 쓰는 역할. 설계·구현·운영과 그 판단을 돕는 팀원. 테스트 팀원은 이미 정한 동작만 검증하므로 뺀다. */
-const AWS_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'operator', 'designer', 'intake', 'implementer', 'debugger', 'riskchecker', 'securitychecker', 'planner']);
+const AWS_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'operator', 'designer', 'intake', 'implementer', 'debugger', 'riskchecker', 'securitychecker', 'planner', 'splitter']);
 
 const ADDRESS = /https?:\/\/\S+|\b(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\b/i;
 const WEB_WORDS = /웹\s?페이지|웹\s?사이트|브라우저|browser|web\s?page|(dev|개발)\s?서버/i;

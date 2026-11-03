@@ -79,7 +79,18 @@ export async function openRepoSessions(p: RepoSessionsInput) {
 
   const open = (repo: WorkspaceRepo): RepoSession => {
     const repoProfile = p.profileFor(repo.root);
-    const ctx = { root: repo.root, profile: repoProfile, home, ask: p.ask, user: p.user, progress: p.progress, requireClean: true, threePass: p.threePass };
+    // 저장소가 여럿이면 진행 줄과 묻는 화면에 저장소 이름을 붙인다(여러 저장소가 함께 일할 때 어느 쪽 일인지 보이게).
+    const label = (text: string) => (multi() ? `[${repo.name}] ${text}` : text);
+    const progress: ProgressPort = { step: (message, role) => p.progress.step(label(message), role) };
+    const ask: PermissionAsker = (request) => p.ask({ ...request, reason: label(request.reason) });
+    const user: UserPort = {
+      ...p.user,
+      interactive: p.user.interactive,
+      choose: (assumption) => p.user.choose({ ...assumption, question: label(assumption.question) }),
+      confirmFact: (claim) => p.user.confirmFact(claim),
+      pickPast: (candidates) => p.user.pickPast(candidates),
+    };
+    const ctx = { root: repo.root, profile: repoProfile, home, ask, user, progress, requireClean: true, threePass: p.threePass };
     const team = createTeam(ctx, p.prompts);
     const knowledge = createKnowledge(ctx, team);
     const memory = openMemory(ctx);
@@ -90,13 +101,13 @@ export async function openRepoSessions(p: RepoSessionsInput) {
       get folder() {
         return multi() ? { root: workDir, repos: workspace.repos.map((r) => ({ name: r.name, root: r.root })) } : undefined;
       },
-      designer: new DesignService({ team, roles: roleSettings(), user: p.designUser, store: new FileDesignStore(repoProfile.designsDir(home), repo.root), progress: p.progress, today: localDate }),
+      designer: new DesignService({ team, roles: roleSettings(), user: p.designUser, store: new FileDesignStore(repoProfile.designsDir(home), repo.root), progress, today: localDate }),
       newLoop: (carried: ReadonlyMap<string, string>) => createLoop(ctx, p.prompts, team, carried, knowledge),
       team,
       workspace: new GitWorkspace(repo.root, loadSecretPolicy(repo.root)),
       memory,
-      user: p.user,
-      progress: p.progress,
+      user,
+      progress,
       roles: roleSettings(),
       now: Date.now,
       newId: () => crypto.randomUUID(),

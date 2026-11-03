@@ -3,7 +3,7 @@ import { displayWidth } from '../text-width.js';
 
 /** 개발부와 회사 공통은 작업 흐름이 따로 있어 부서 정의(Department)에 없다. */
 const DEVELOPMENT: readonly MemberRole[] = ['intake', 'tester', 'implementer', 'reviewer'];
-const COMMON: readonly { readonly role: MemberRole; readonly title?: string }[] = [{ role: 'router', title: '대표 (라우터)' }, { role: 'answerer' }, { role: 'surveyor' }, { role: 'writer' }, { role: 'designer' }];
+const COMMON: readonly { readonly role: MemberRole; readonly title?: string }[] = [{ role: 'router', title: '대표 (라우터)' }, { role: 'answerer' }, { role: 'surveyor' }, { role: 'writer' }, { role: 'designer' }, { role: 'splitter' }];
 
 /** 팀원이 할 수 있는 일을 한 마디로. 명령 실행이 있으면 그것이 가장 큰 차이라 먼저 말한다. */
 function ability(role: MemberRole, tools: readonly string[]): string {

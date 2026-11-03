@@ -24,6 +24,7 @@ import { CompanyDesk } from './company-desk.js';
 import type { DeskHost, Known, MemberOptions } from './desk-host.js';
 import { DesignDesk } from './design-desk.js';
 import { DocumentDesk } from './document-desk.js';
+import { ManyRepoDesk, type RepoRunner } from './many-repo-desk.js';
 import type { CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
 import { conversationBlock } from './prompt-blocks.js';
 import type { DesignTaskResult, TurnOutcome } from './turn-outcome.js';
@@ -88,6 +89,8 @@ export interface AlsoRepo {
   readonly name: string;
   readonly root: string;
   readonly knowledge: KnowledgePort | null;
+  /** 그 저장소의 세션으로 작업 하나를 한다(여러 저장소를 함께 고칠 때). 없으면 그 저장소는 고칠 수 없다. */
+  readonly work?: (request: string, block: string) => Promise<TurnOutcome>;
 }
 
 /** 함께 읽을 저장소와 그 지식(없으면 null) */
@@ -152,6 +155,8 @@ export class ChatSession {
   private readonly documents: DocumentDesk;
   /** 기능 요청의 설계 대화와 승인된 설계의 작업 돌리기. 설계 팀원이 없으면 없다. */
   private readonly designs: DesignDesk | null;
+  /** 여러 저장소를 함께 고치는 요청 */
+  private readonly repos: ManyRepoDesk;
 
   private constructor(private readonly deps: ChatSessionDeps) {
     const host: DeskHost = {
@@ -160,6 +165,7 @@ export class ChatSession {
       spent: () => this.costUsd,
       workspaceBlock: () => this.workspaceBlock(),
     };
+    this.repos = new ManyRepoDesk(host, { progress: deps.progress, now: deps.now, ...(deps.budget !== undefined ? { budget: deps.budget } : {}) });
     this.desk = new CompanyDesk(host, { today: deps.today, now: deps.now, progress: deps.progress, budget: deps.budget, company: deps.company });
     this.designs =
       deps.designer === undefined
@@ -246,7 +252,7 @@ export class ChatSession {
     if (route.mode === 'ideate') return this.desk.analyze('planner', '기획', input, conversation, started, 'planning');
     if (route.mode === 'risk') return this.desk.analyze('riskchecker', '위험 점검', input, conversation, started);
     const changesCode = route.mode === 'work' || route.mode === 'feature';
-    if (changesCode && also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };
+    if (changesCode && also.length > 0) return this.manyRepos(input, conversation, also, await known(), await others(), started);
     const past = route.refersToPast ? await this.pickPast(route.pastQuery ?? input, route.mode) : null;
     // 기능 요청은 설계 대화부터. 사용자와 주고받을 화면이 없으면(-p) 작업으로 바로 진행한다.
     if (route.mode === 'feature' && past === null && this.canDesign()) return this.designs!.run(input, conversation, started);
@@ -309,6 +315,25 @@ export class ChatSession {
     this.lastTitle = outcome.title;
     this.turns.push({ input, result: `작업 "${outcome.title}" ${outcome.status === 'complete' ? '완료' : `멈춤(${outcome.stopReason})`}, 바뀐 파일 ${outcome.changedInRun.map((c) => c.path).join(', ') || '없음'}` });
     return { kind: 'work', outcome };
+  }
+
+  /** 여러 저장소를 함께 고칠 때 다른 저장소의 세션이 이 저장소 몫의 작업을 맡긴다. block: 저장소 사이 약속 */
+  workIn(request: string, block: string): Promise<TurnOutcome> {
+    return this.work(request, null, null, block);
+  }
+
+  /** 여러 저장소 작업: 이 세션과 함께 고를 저장소들의 세션을 모아 나누기 → 순서대로 작업 → 약속 검사. */
+  private async manyRepos(input: string, conversation: string | null, also: readonly AlsoRepo[], known: Known | null, others: readonly AlsoKnown[], started: number): Promise<TurnOutcome> {
+    const self = this.deps.folder?.repos.find((r) => r.name === this.deps.repoName);
+    if (self === undefined || also.some((a) => a.work === undefined)) return { kind: 'notice', message: MANY_REPO_WORK };
+    const runners: RepoRunner[] = [
+      { name: self.name, root: self.root, work: (request, block) => this.workIn(request, block) },
+      ...also.map((a) => ({ name: a.name, root: a.root, work: a.work! })),
+    ];
+    const blocks = [known?.block ?? '', ...others.map((o) => o.known?.block ?? '')].filter((b) => b !== '');
+    const outcome = await this.repos.run(input, conversation, runners, blocks, started);
+    this.turns.push({ input, result: outcome.kind === 'repos' ? `여러 저장소 작업: ${outcome.repos.map((r) => `${r.repo} ${r.status}`).join(', ')}` : outcome.kind });
+    return outcome;
   }
 
   // ── 설계 대화 ─────────────────────────────────────────────

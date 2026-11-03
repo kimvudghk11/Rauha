@@ -95,6 +95,30 @@ export function describeTurn(turn: TurnOutcome, view: MascotView | null): Printa
         '',
       ];
     }
+    case 'repos': {
+      const ok = turn.repos.filter((r) => r.status === 'complete').length;
+      const line = (r: (typeof turn.repos)[number]) => {
+        const last = r.fixed ?? r.outcome;
+        const files = last?.changedInRun.map((c) => `      ${c.path}`) ?? [];
+        if (r.status === 'skipped') return [`  · ${r.repo}`, `      ${r.note ?? '하지 않았어요'}`];
+        const why = r.status === 'stopped' ? (last?.guide.stopMessage() ?? r.note) : null;
+        return [`  ${r.status === 'complete' ? '✓' : '✗'} ${r.repo}${last !== null ? ` · ${last.title}` : ''}${r.fixed !== null ? ' (약속에 맞게 한 번 더 고침)' : ''}`, ...(why ? [`      ${why}`] : []), ...files];
+      };
+      const contract = turn.contract.flatMap((c) => {
+        if (!c.checked) return [`  · ${c.what}: 검사하지 못했어요`];
+        if (c.ok) return [`  ✓ ${c.what}`];
+        return [`  ✗ ${c.what}${c.fixedIn !== null ? ` → ${c.fixedIn}에서 고침` : ''}`, ...(c.evidence !== '' ? [`      ${c.evidence}`] : [])];
+      });
+      return [
+        '',
+        `  저장소 ${turn.repos.length}곳 중 ${ok}곳 완료 · ${formatElapsed(turn.durationMs)} · 고친 곳: 작업 트리(커밋은 직접 하세요)`,
+        '',
+        ...turn.repos.flatMap(line),
+        ...(contract.length > 0 ? ['', '  저장소 사이 약속', ...contract] : []),
+        ...(turn.decisions.length > 0 ? ['', '  rauha가 정한 것 (다르면 말해 주세요)', ...turn.decisions.map((d) => `    - ${d}`)] : []),
+        '',
+      ];
+    }
     case 'notice':
       return ['', `  ${turn.message}`, ''];
     case 'blocked':

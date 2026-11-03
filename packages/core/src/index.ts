@@ -17,6 +17,7 @@ export {
 export { RunScope, type ScopeDecision, type StopReason } from './orchestration/domain/run-scope.js';
 export { WorkspaceState } from './orchestration/domain/workspace-state.js';
 export { relativeToRoot, isInsideRoot, toPosixPath } from './shared/path-pattern.js';
+export { oneAtATime } from './shared/one-at-a-time.js';
 export {
   WorkOrder,
   type HaltReason,

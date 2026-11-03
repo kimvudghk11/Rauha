@@ -10,10 +10,32 @@ export type TurnOutcome =
   | { readonly kind: 'review'; readonly target: string | null; readonly files: readonly string[]; readonly checked: readonly CheckedClaim[]; readonly summary: string; readonly durationMs: number }
   /** 설계 대화로 승인받은 설계와 그 작업들의 결과 */
   | { readonly kind: 'design'; readonly title: string; readonly path: string; readonly tasks: readonly DesignTaskResult[]; readonly durationMs: number }
+  /** 여러 저장소를 함께 고친 결과: 저장소별 결과(먼저 만든 저장소가 앞), 약속 검사, rauha가 정한 것 */
+  | { readonly kind: 'repos'; readonly repos: readonly RepoWorkResult[]; readonly contract: readonly RepoContractResult[]; readonly decisions: readonly string[]; readonly durationMs: number }
   /** 팀원을 부르지 않고 알릴 것(예: 여러 저장소를 한 번에 고치는 요청). */
   | { readonly kind: 'notice'; readonly message: string }
   /** 계정 문제(사용 한도, 로그인 안 됨)로 막힘. 사용 한도면 message에 풀리는 시각이 들어 있다. */
   | { readonly kind: 'blocked'; readonly reason: AccountBlock['reason']; readonly message: string };
+
+/** 저장소 하나의 결과. skipped: 기다리던 저장소가 멈춰 하지 않았다. fixed: 약속 검사 뒤 한 번 더 고친 결과 */
+export interface RepoWorkResult {
+  readonly repo: string;
+  readonly status: 'complete' | 'stopped' | 'skipped';
+  readonly outcome: RunOutcome | null;
+  readonly fixed: RunOutcome | null;
+  /** 멈춘 이유(계정 막힘 등 결과가 없는 경우) */
+  readonly note: string | null;
+}
+
+/** 약속 하나가 양쪽 코드에서 맞는지. checked false: 검사하지 못했다(모든 저장소가 끝나지 않았거나 검사 출력을 못 읽음). */
+export interface RepoContractResult {
+  readonly what: string;
+  readonly checked: boolean;
+  readonly ok: boolean;
+  readonly evidence: string;
+  /** 어긋나서 고치러 보낸 저장소 */
+  readonly fixedIn: string | null;
+}
 
 /** 설계가 나눈 작업 하나의 결과. skipped: 앞 작업이 멈춰 하지 않았다. */
 export interface DesignTaskResult {

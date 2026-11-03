@@ -151,3 +151,35 @@ describe('describeTurn — 설계', () => {
     expect(text).not.toContain('✗');
   });
 });
+
+describe('describeTurn — 여러 저장소', () => {
+  const outcome = (title: string, files: string[], status: 'complete' | 'stopped' = 'complete') =>
+    ({ status, title, changedInRun: files.map((path) => ({ path, kind: 'modified' })), guide: { stopMessage: () => (status === 'stopped' ? '테스트가 계속 실패했어요' : null) } }) as never;
+
+  it('먼저 만든 저장소부터 결과·바뀐 파일·약속 검사·rauha가 정한 것을 보여 준다', () => {
+    const text = describeTurn(
+      {
+        kind: 'repos',
+        durationMs: 300_000,
+        decisions: ['할인액은 원 단위 정수'],
+        repos: [
+          { repo: 'shop-api', status: 'complete', outcome: outcome('쿠폰 할인액 응답', ['src/order.dto.ts']), fixed: null, note: null },
+          { repo: 'shop-web', status: 'complete', outcome: outcome('할인 줄', ['src/a.tsx']), fixed: outcome('약속에 맞춤', ['src/order.tsx']), note: null },
+          { repo: 'shop-app', status: 'skipped', outcome: null, fixed: null, note: '기다리던 저장소가 멈춰서 하지 않았어요' },
+        ],
+        contract: [{ what: '쿠폰 할인액', checked: true, ok: false, evidence: 'src/order.tsx:9 order.coupon_discount', fixedIn: 'shop-web' }],
+      },
+      null,
+    ).join('\n');
+    expect(text).toContain('저장소 3곳 중 2곳 완료');
+    expect(text.indexOf('shop-api')).toBeLessThan(text.indexOf('shop-web'));
+    expect(text).toContain('✓ shop-api · 쿠폰 할인액 응답');
+    expect(text).toContain('src/order.dto.ts');
+    expect(text).toContain('약속에 맞춤 (약속에 맞게 한 번 더 고침)');
+    expect(text).toContain('src/order.tsx');
+    expect(text).toContain('· shop-app');
+    expect(text).toContain('기다리던 저장소가 멈춰서 하지 않았어요');
+    expect(text).toContain('✗ 쿠폰 할인액 → shop-web에서 고침');
+    expect(text).toContain('할인액은 원 단위 정수');
+  });
+});

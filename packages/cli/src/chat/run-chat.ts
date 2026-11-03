@@ -218,6 +218,8 @@ export async function runChat(options: ChatOptions): Promise<number> {
     store.setBusy(true);
     const startedAt = Date.now();
     let handled: string | null = null;
+    /** 여러 저장소를 함께 고쳤으면 그 저장소들(대화를 저장소마다 남긴다) */
+    let touched: readonly string[] = [];
     try {
       const turn = await ws.handle(request, force);
       handled = turn.repo;
@@ -226,6 +228,16 @@ export async function runChat(options: ChatOptions): Promise<number> {
         state.lastAnswer = null;
       }
       if (turn.kind === 'answer') state.lastAnswer = turn.answer;
+      if (turn.kind === 'repos') {
+        touched = turn.repos.map((r) => r.repo);
+        // /guide로 저장소마다의 읽기 안내서를 이어서 본다.
+        const guides = turn.repos.flatMap((r) => {
+          const last = r.fixed ?? r.outcome;
+          return last !== null ? [`# ${r.repo}\n\n${last.guide.toMarkdown()}`] : [];
+        });
+        state.lastGuide = guides.length > 0 ? guides.join('\n\n') : null;
+        state.lastAnswer = null;
+      }
       finishWorking();
       if (multi() && turn.repo !== null) store.print(`  [${turn.repo}]`);
       store.printLines(describeTurn(turn, view));
@@ -237,6 +249,7 @@ export async function runChat(options: ChatOptions): Promise<number> {
       // 오래 걸린 일이 끝나면 다른 창에 있어도 알 수 있게 알린다.
       notifyIfLong(notifier, startedAt, Date.now(), LONG_WORK_MS, `${profile.badge()} 작업이 끝났어요`, shown);
       remember(bundleNamed(handled));
+      for (const name of touched) if (name !== handled) remember(bundleNamed(name));
       void usageTimer.now();
       refreshFiles();
     }
