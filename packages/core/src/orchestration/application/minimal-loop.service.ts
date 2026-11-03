@@ -17,6 +17,7 @@ import { ReadingGuideDto, type FactsSummary, type RunStopReason, type SettledAss
 export type { FactsSummary };
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import type { MemberRole, RoleSettingsDto } from './dto/role-settings.dto.js';
+import { ToolKits } from '../domain/tool-kit.js';
 import { IMPLEMENTER_REPORT_SCHEMA, INTAKE_SCHEMA, REVIEWER_REPORT_SCHEMA, TESTER_REPORT_SCHEMA } from './dto/schemas.js';
 import type {
   AccountBlock,
@@ -153,6 +154,9 @@ const NO_LOCK: HeldLock = { release: async () => undefined };
 
 /** 한 번 실행하는 동안의 기록. 판정에는 쓰지 않는다. */
 class RunTally {
+  /** 사용자 요청. 팀원마다 붙일 도구 묶음(ToolKits)을 이것으로 고른다. */
+  constructor(readonly request: string = '') {}
+
   readonly usage: Record<ModelTier, { calls: number; tokens: number }> = {
     haiku: { calls: 0, tokens: 0 },
     sonnet: { calls: 0, tokens: 0 },
@@ -212,7 +216,7 @@ export class MinimalLoopService {
     const dirty = await workspace.dirtyFiles();
     const start = dirty === null ? { files: new Map<string, string>() } : await workspace.snapshot();
     WorkspaceState.of(dirty, this.deps.carried, start.files).assertReady(this.deps.requireClean);
-    const tally = new RunTally();
+    const tally = new RunTally(request);
     const current: RunProgress = { title: request.slice(0, 60), assumptions: [], start, lockedTests: [] };
     try {
       return await this.execute(request, tally, started, current, context);
@@ -542,6 +546,7 @@ export class MinimalLoopService {
       userMessage,
       outputSchema,
       canWrite: (path) => order !== null && order.allowsWrite(writeRole, path),
+      kits: ToolKits.for(role, tally.request),
     };
     this.deps.progress.step(`${ROLE_INFO[role].stepName} 작업 중…`, role);
     const result = await this.deps.team.run(call);

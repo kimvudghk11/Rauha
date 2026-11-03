@@ -1,5 +1,6 @@
 import type { MemberRole } from '../domain/member-role.js';
 import type { ModelTier } from '../domain/team.js';
+import type { ToolKit } from '../domain/tool-kit.js';
 import type { MemberResult } from './ports.js';
 import type { TurnOutcome } from './turn-outcome.js';
 
@@ -12,8 +13,8 @@ export interface MemberOptions {
   readonly tier?: ModelTier;
   /** 진행 줄에 "작업 중…"을 내지 않는다(여러 호출을 묶어 따로 진행을 알릴 때) */
   readonly quiet?: boolean;
-  /** 브라우저 도구를 붙인다(BrowserNeed가 정한다) */
-  readonly browser?: boolean;
+  /** 더 붙일 도구 묶음(ToolKits가 요청을 보고 정한다) */
+  readonly kits?: readonly ToolKit[];
 }
 
 /**

@@ -1,4 +1,4 @@
-import { BrowserNeed } from '../domain/browser-need.js';
+import { ToolKits } from '../domain/tool-kit.js';
 import { CompanyBook } from '../domain/company-book.js';
 import { Department, LAUNCH_ORDER, type DepartmentId, type DepartmentMemberRole } from '../domain/department.js';
 import { SessionBudget } from '../domain/session-budget.js';
@@ -155,10 +155,10 @@ export class CompanyDesk {
   /** 운영 팀원만 명령을 실행해 보고 모양이 달라 그것만 따로 읽는다. 나머지는 읽기 보고다. */
   private async report(role: ReportRole, label: string, input: string, parts: readonly string[]): Promise<{ blocked: NonNullable<MemberResult['blocked']> } | { answer: string; files: readonly string[] }> {
     if (role === 'operator') {
-      const result = await this.host.member(role, parts, OPS_SCHEMA, {});
+      const result = await this.host.member(role, parts, OPS_SCHEMA, { kits: ToolKits.for(role, input) });
       return result.blocked ? { blocked: result.blocked } : { answer: OpsReportDto.read(result.output).toAnswer(), files: [] };
     }
-    const result = await this.host.member(role, parts, ANALYSIS_SCHEMA, { browser: BrowserNeed.wanted(role, input) });
+    const result = await this.host.member(role, parts, ANALYSIS_SCHEMA, { kits: ToolKits.for(role, input) });
     if (result.blocked) return { blocked: result.blocked };
     const read = AnalysisReportDto.read(result.output, label);
     return { answer: read.answer, files: read.files };

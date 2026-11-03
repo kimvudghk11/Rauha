@@ -44,6 +44,8 @@ const GUIDE: Readonly<Record<SpecialtyName, { readonly label: string; readonly r
       '실제 클라우드 자원을 만들거나 바꾸는 명령은 직접 실행하지 않는다. 설정 파일과 스크립트를 쓰고, 실행은 사용자가 정한다.',
       '비밀 값(키, 토큰, 비밀번호)을 코드·설정 파일에 쓰지 않는다. 환경 변수나 비밀 저장소 이름으로 가리킨다.',
       '비용이 크게 늘거나 되돌리기 어려운 변경은 안내서의 확인할 것에 남긴다.',
+      '프로젝트가 쓰는 IaC 도구(CDK·Terraform·CloudFormation·SAM)를 그대로 쓰고, 쓴 뒤에는 그 도구의 오프라인 검사(cdk synth, terraform validate, sam validate, cfn-lint)를 돌린다.',
+      'IAM은 필요한 동작·자원만 허락하고, 저장소는 암호화하고 공개를 막으며, 멈추면 안 되는 것은 가용 영역을 둘 이상 쓴다. 그렇게 못 하면 이유를 남긴다.',
     ],
   },
 };

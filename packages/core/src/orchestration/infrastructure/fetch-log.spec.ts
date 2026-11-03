@@ -45,6 +45,26 @@ describe('createFetchLog', () => {
     expect(entries[1]!.body).toContain('button "로그인"');
   });
 
+  it('AWS 문서 검색 결과는 결과마다 그 주소와 본문 조각을 남긴다', async () => {
+    const log = createFetchLog();
+    const found = JSON.stringify({ content: { result: [
+      { rank_order: 1, title: 'Lambda timeout', context: 'up to a maximum value of 900 seconds (15 minutes).', url: 'https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html' },
+      { rank_order: 2, title: 'Quotas', context: 'Function timeout 900 seconds', url: 'https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html' },
+    ] } });
+    await log.hook(post('mcp__aws__aws___search_documentation', { search_phrase: 'Lambda timeout' }, [{ type: 'text', text: found }]), 't', opts);
+    expect(log.entries()).toEqual([
+      { url: 'https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html', body: 'up to a maximum value of 900 seconds (15 minutes).' },
+      { url: 'https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html', body: 'Function timeout 900 seconds' },
+    ]);
+  });
+
+  it('AWS 문서 읽기는 요청한 주소에 읽은 본문을 남긴다', async () => {
+    const log = createFetchLog();
+    const url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html';
+    await log.hook(post('mcp__aws__aws___read_documentation', { requests: [{ url }] }, [{ type: 'text', text: '# What is Amazon S3?\nAmazon S3 is an object storage service.' }]), 't', opts);
+    expect(log.entries()).toEqual([{ url, body: '# What is Amazon S3?\nAmazon S3 is an object storage service.' }]);
+  });
+
   it('주소를 알 수 없는 브라우저 결과는 남기지 않는다', async () => {
     const log = createFetchLog();
     await log.hook(post('mcp__browser__browser_tabs', { action: 'list' }, [{ type: 'text', text: '탭 없음' }]), 't', opts);

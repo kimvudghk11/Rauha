@@ -1,6 +1,7 @@
 import { isDelegation, type Design } from '../domain/design.js';
 import type { AccountBlock, ProgressPort, TeamMemberPort } from '../../orchestration/application/ports.js';
 import type { ModelTier } from '../../orchestration/domain/team.js';
+import { ToolKits } from '../../orchestration/domain/tool-kit.js';
 import type { RoleSettingsDto } from '../../orchestration/application/dto/role-settings.dto.js';
 import { DomainError } from '../../shared/domain-error.js';
 import { DESIGN_SCHEMA } from './dto/design-schema.js';
@@ -86,6 +87,7 @@ export class DesignService implements DesignPort {
         setting,
         outputSchema: DESIGN_SCHEMA,
         canWrite: () => false,
+        kits: ToolKits.for('designer', input.request),
         userMessage: this.message(input, dialog, asked >= MAX_QUESTIONS, feedback),
       });
       cost.calls += 1;

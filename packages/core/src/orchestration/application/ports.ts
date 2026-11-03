@@ -3,6 +3,7 @@ import type { LearningBook } from '../domain/learning-book.js';
 import type { CompanyBook } from '../domain/company-book.js';
 import type { CheckedClaim } from '../domain/fact-check.js';
 import type { TestRun } from '../domain/test-run.js';
+import type { ToolKit } from '../domain/tool-kit.js';
 import type { CheckResult } from '../domain/verification.js';
 import type { Assumption } from './dto/intake.dto.js';
 import type { MemberRole, RoleSetting } from './dto/role-settings.dto.js';
@@ -19,12 +20,12 @@ export interface MemberCall {
   readonly signal?: AbortSignal;
   /** 작업 폴더 밖에서 더 읽을 수 있는 폴더(여러 저장소에 걸친 질문). 절대 경로. */
   readonly additionalDirectories?: readonly string[];
-  /** 브라우저 도구를 붙인다(요청이 웹페이지를 가리킬 때만, BrowserNeed). */
-  readonly browser?: boolean;
+  /** 더 붙일 도구 묶음(브라우저, AWS 지식). 요청이 그쪽을 가리킬 때만 ToolKits가 고른다. */
+  readonly kits?: readonly ToolKit[];
 }
 
 /** 미리 띄워 둘 호출. 보낼 메시지만 아직 모른다. */
-export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories' | 'browser'>;
+export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories' | 'kits'>;
 
 export interface MemberUsage {
   readonly model: string;
