@@ -1,5 +1,5 @@
 import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared/ipc.js';
-import { CHARACTER_ROLES, spriteFor, type CharacterRole } from './characters.js';
+import { CHARACTER_ROLES, leadName, spriteFor, type CharacterRole } from './characters.js';
 import { el } from './dom.js';
 import { characterStateOf, elapsedText } from './room.js';
 import { mountStage, paintOnce } from './stage.js';
@@ -31,7 +31,7 @@ interface RoomEl {
 }
 
 /**
- * 채팅 탭: 메인 칸(Delfi) + 팀 방 + 맨 위 띠 + 팀 상세. 배치(나란히·위아래·메인만)는 CSS가 .app의 data-mode로 바꾼다.
+ * 채팅 탭: 메인 칸(팀장 캐릭터) + 팀 방 + 맨 위 띠 + 팀 상세. 배치(나란히·위아래·메인만)는 CSS가 .app의 data-mode로 바꾼다.
  * 화면은 board·approvals를 받아 그리기만 한다. 규칙 판단은 main(core)에 있다.
  */
 export function buildChat(actions: ChatActions) {
@@ -49,7 +49,7 @@ export function buildChat(actions: ChatActions) {
   const headFace = el('canvas', 'sp');
   paintOnce(headFace, 'intake', 2);
   const layoutToggle = el('div', 'ltoggle');
-  head.append(headFace, el('b', undefined, '메인'), el('span', 'hint', 'Delfi에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.'), layoutToggle);
+  head.append(headFace, el('b', undefined, '메인'), el('span', 'hint', `${leadName()}에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.`), layoutToggle);
   const msgs = el('div', 'msgs');
   const empty = el('div', 'empty');
   const emptyFace = el('canvas', 'sp');
@@ -129,7 +129,7 @@ export function buildChat(actions: ChatActions) {
     stop.addEventListener('click', () => actions.stop(job.id));
     hand.append(dot, line, state, go, stop);
     tx.appendChild(hand);
-    body.append(el('div', 'who', 'Delfi'), tx);
+    body.append(el('div', 'who', leadName()), tx);
     reply.append(av, body);
     msgs.append(me, reply);
     cards.set(job.id, { dot, state, stop, line });
@@ -144,7 +144,7 @@ export function buildChat(actions: ChatActions) {
     card.stop.hidden = job.status === 'done' || job.status === 'stopped';
   }
 
-  /** 끝난 일의 결과는 Delfi가 한 번 말해 준다 */
+  /** 끝난 일의 결과는 메인(팀장)이 한 번 말해 준다 */
   function report(job: JobView): void {
     if (reported.has(job.id) || (job.status !== 'done' && job.status !== 'stopped')) return;
     reported.add(job.id);
@@ -155,7 +155,7 @@ export function buildChat(actions: ChatActions) {
     av.appendChild(face);
     const body = el('div');
     const text = job.status === 'done' ? (job.result ?? '끝났어요.') : `멈췄어요${job.stopReason !== null ? `: ${job.stopReason}` : ''}`;
-    body.append(el('div', 'who', 'Delfi'), el('div', 'tx', text));
+    body.append(el('div', 'who', leadName()), el('div', 'tx', text));
     m.append(av, body);
     msgs.appendChild(m);
     msgs.scrollTop = msgs.scrollHeight;

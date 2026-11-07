@@ -3,7 +3,7 @@ import { PIXEL_CHARACTERS } from './characters-data.js';
 /**
  * 캐릭터 그림. 화면은 "역할 → 그림"을 이 파일의 spriteFor 한 곳에서만 얻는다.
  * 지금은 픽셀 격자 데이터이고, 나중에 수채화 PNG로 바꿀 때는 pixel-art.ts 대신 같은 CharacterArt를 구현한 공급자를 끼운다.
- * 역할 id는 core의 MemberRole과 같다(intake = Delfi, 팀장).
+ * 역할 id는 core의 MemberRole과 같다(intake = 팀장, 메인 칸의 얼굴. 지금은 돌고래 Delfi).
  */
 export const CHARACTER_ROLES = [
   'intake', 'tester', 'implementer', 'reviewer', 'router', 'answerer', 'surveyor', 'writer', 'designer', 'operator',
@@ -19,6 +19,11 @@ export interface Sprite {
   readonly animal: string;
   readonly palette: Readonly<Record<string, string>>;
   readonly frames: readonly (readonly string[])[];
+}
+
+/** 메인(팀장) 캐릭터의 이름. 화면의 안내 글은 이름을 직접 쓰지 않고 여기서 읽는다. */
+export function leadName(): string {
+  return spriteFor('intake').name;
 }
 
 export function spriteFor(role: CharacterRole): Sprite {
