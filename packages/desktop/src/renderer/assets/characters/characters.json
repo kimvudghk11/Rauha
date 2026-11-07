@@ -1,5 +1,5 @@
 {
-  "intake":          { "file": "dali.png",    "name": "달이",  "animal": "해달" },
+  "intake":          { "file": "delfi.png",   "name": "Delfi", "animal": "돌고래" },
   "router":          { "file": "maru.png",    "name": "마루",  "animal": "해마" },
   "answerer":        { "file": "mongsil.png", "name": "몽실",  "animal": "물범" },
   "chief":           { "file": "suyeom.png",  "name": "수염",  "animal": "바다코끼리" },
@@ -11,7 +11,7 @@
   "splitter":        { "file": "topi.png",    "name": "톱이",  "animal": "톱상어" },
   "writer":          { "file": "ink.png",     "name": "잉크",  "animal": "오징어" },
   "planner":         { "file": "ppogeul.png", "name": "뽀글",  "animal": "복어" },
-  "bm":              { "file": "delfi.png",   "name": "Delfi", "animal": "돌고래" },
+  "bm":              { "file": "dali.png",    "name": "달이",  "animal": "해달" },
   "marketer":        { "file": "juhong.png",  "name": "주홍",  "animal": "흰동가리" },
   "growth":          { "file": "pdeok.png",   "name": "펄떡",  "animal": "연어" },
   "uxdesigner":      { "file": "muni.png",    "name": "무니",  "animal": "문어" },
