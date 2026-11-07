@@ -48,6 +48,11 @@ export class KnowledgeService implements KnowledgePort {
     return { block: knowledge.toBlock(this.deps.repoName), basis: knowledge.basis };
   }
 
+  async stored(): Promise<{ block: string; basis: RepoRef } | null> {
+    const knowledge = await this.deps.store.load();
+    return knowledge === null ? null : { block: knowledge.toBlock(this.deps.repoName), basis: knowledge.basis };
+  }
+
   async noteChanged(paths: readonly string[]): Promise<void> {
     const { reader, store } = this.deps;
     const [ref, knowledge] = await Promise.all([reader.current(), store.load()]);

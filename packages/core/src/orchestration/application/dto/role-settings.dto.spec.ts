@@ -96,3 +96,18 @@ describe('RoleSettingsDto', () => {
     expect(() => RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_TESTER: 'gpt:fast' })).toThrow(DomainError);
   });
 });
+
+describe('RoleSettingsDto — 가벼운 답변', () => {
+  it('light 답변 팀원은 haiku 등급이고 턴이 적고 웹·명령 도구가 없다', () => {
+    const light = RoleSettingsDto.defaults().lightAnswerer();
+    expect(light.tier).toBe('haiku');
+    expect(light.effort).toBe('low');
+    expect(light.maxTurns).toBe(6);
+    expect(light.tools).toEqual(['Read', 'Grep', 'Glob']);
+  });
+
+  it('환경 변수로 답변 팀원 모델을 고정했으면 light도 그 모델을 따른다', () => {
+    const pinned = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_ANSWERER: 'opus' });
+    expect(pinned.lightAnswerer().tier).toBe('opus');
+  });
+});

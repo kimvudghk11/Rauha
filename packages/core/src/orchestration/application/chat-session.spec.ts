@@ -134,7 +134,7 @@ class FakeLoops {
   });
 }
 
-const route = (mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch', refersToPast = false, pastQuery: string | null = null, extra: { department?: string; member?: string | null } = {}) => () => ({ mode, refersToPast, pastQuery, ...extra });
+const route = (mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch', refersToPast = false, pastQuery: string | null = null, extra: { department?: string; member?: string | null; depth?: 'light' | 'deep' } = {}) => () => ({ mode, refersToPast, pastQuery, ...extra });
 
 type SessionParts = { team: FakeTeam; loops?: FakeLoops; memory?: FakeMemory; user?: UserPort; files?: Record<string, string>; steps?: string[]; changes?: FileChange[]; budget?: SessionBudget; company?: CompanyBookPort; learning?: LearningPort };
 
@@ -528,18 +528,20 @@ describe('ChatSession — 저장소 지식은 필요할 때만', () => {
 });
 
 describe('ChatSession — 빠른 답', () => {
-  it('세션을 시작하면 라우터와 답변 팀원을 미리 띄워 둔다', () => {
+  it('세션을 시작해도 팀원을 미리 띄우지 않는다 (미리 시작 호출이 없다)', () => {
     const team = new FakeTeam({});
     session({ team });
-    expect(team.prepared).toEqual(['router', 'answerer']);
+    expect(team.prepared).toEqual([]);
   });
 
-  it('라우터의 판정을 기다리지 않고 답변 팀원도 함께 시작한다', async () => {
+  it('라우터 판정이 끝나기 전에는 답변 팀원을 부르지 않는다', async () => {
     let openGate = () => {};
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네.', claims: [] })] });
     team.routerGate = new Promise((resolve) => (openGate = resolve));
     const pending = session({ team }).handle('이거 뭐야?');
-    await vi.waitFor(() => expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer']));
+    await vi.waitFor(() => expect(team.calls.map((c) => c.role)).toEqual(['router']));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(team.calls.map((c) => c.role)).toEqual(['router']);
     openGate();
     expect(await pending).toMatchObject({ kind: 'answer', answer: '네.' });
   });
@@ -553,29 +555,11 @@ describe('ChatSession — 빠른 답', () => {
     expect([...memory.nodes.values()].some((n) => n.kind === 'question')).toBe(false);
   });
 
-  it('질문처럼 보이는데 라우터가 작업이라 하면 미리 시작한 답변을 멈춘다', async () => {
-    const team = new FakeTeam({ router: [route('work')], answerer: [() => ({ answer: '버릴 답', claims: [] })] });
-    await session({ team }).handle('이 함수 왜 이래?');
-    expect(team.calls.find((c) => c.role === 'answerer')!.signal!.aborted).toBe(true);
-  });
-
   it('질문처럼 안 보였어도 라우터가 질문이라 하면 그때 답한다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '그렇습니다.', claims: [] })] });
     const turn = await session({ team }).handle('결제 모듈에 할인 쿠폰 적용 순서를 장바구니 단위로 바꾸는 방향으로 정리하고 싶어요');
     expect(turn).toMatchObject({ kind: 'answer', answer: '그렇습니다.' });
     expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer']);
-  });
-
-  it('지식을 늦게 읽는 사이 작업으로 판정돼 이미 멈춘 답변은 뒤늦게 시작하지 않는다 (작업 중 표시가 남지 않게)', async () => {
-    let release = () => {};
-    const slow = { current: () => new Promise<null>((resolve) => (release = () => resolve(null))), noteChanged: async () => undefined };
-    const team = new FakeTeam({ router: [route('work')] });
-    const steps: string[] = [];
-    await ChatSession.start({ ...sessionDeps({ team, steps }), knowledge: slow }).handle('Money에 할인 넣어줘');
-    release();
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(team.calls.some((c) => c.role === 'answerer')).toBe(false);
-    expect(steps).toEqual(['작업 중…']);
   });
 
   it('저장소가 많은 질문은 다른 저장소의 지식을 미리 만들지 않는다 (조사 팀원을 수십 번 부르지 않게)', async () => {
@@ -596,7 +580,6 @@ describe('ChatSession — 빠른 답', () => {
     await chat.handle('Money에 할인 넣어줘');
     await chat.handle('아까 그거 왜 그렇게 했어?');
     const answers = team.calls.filter((c) => c.role === 'answerer');
-    expect(answers.at(-2)!.signal!.aborted).toBe(true);
     expect(answers.at(-1)!.message).toContain('Money에 퍼센트 할인 discount 추가');
   });
 });
@@ -1210,5 +1193,110 @@ describe('ChatSession — 세션', () => {
     const chat = session({ team });
     await chat.handle('Money에 할인 넣어줘');
     expect(chat.usage().costUsd).toBeCloseTo(0.052);
+  });
+});
+
+describe('ChatSession — 가벼운 질문 (light)', () => {
+  const answer = () => ({ answer: '2입니다.', claims: [] });
+  const basis = RepoRef.of({ branch: 'main', commit: 'a1b2c3d'.padEnd(40, '0'), dirty: false });
+  const fullKnowledge = (log: string[]) => ({
+    current: async () => (log.push('current'), { block: '<repo_knowledge>전체</repo_knowledge>', basis }),
+    stored: async () => (log.push('stored'), null),
+    noteChanged: async () => undefined,
+  });
+
+  it('인사·짧은 질문은 저장소 파악 팀원을 부르지 않고 저장소 지식도 새로 읽지 않는다', async () => {
+    const log: string[] = [];
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), knowledge: fullKnowledge(log) }).handle('1+1은 얼마야?');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(turn).toMatchObject({ kind: 'answer', answer: '2입니다.' });
+    expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer']);
+    expect(log).not.toContain('current');
+  });
+
+  it('light 답은 haiku 등급 팀원이 답한다', async () => {
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
+    await session({ team }).handle('1+1은 얼마야?');
+    expect(team.calls.find((c) => c.role === 'answerer')!.tier).toBe('haiku');
+  });
+
+  it('light 답은 이미 저장된 저장소 지식이 있으면 그것만 쓴다', async () => {
+    const stored = { block: '<repo_knowledge repo="shop">저장된 요약</repo_knowledge>', basis };
+    const knowledge = { current: async () => { throw new Error('읽으면 안 됨'); }, stored: async () => stored, noteChanged: async () => undefined };
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
+    await ChatSession.start({ ...sessionDeps({ team }), knowledge }).handle('이 저장소 뭐 하는 거야?');
+    expect(team.calls.find((c) => c.role === 'answerer')!.message).toContain('저장된 요약');
+  });
+
+  it('인사는 라우터가 deep이라 해도 light로 답한다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [answer] });
+    await session({ team }).handle('안녕');
+    expect(team.calls.find((c) => c.role === 'answerer')!.tier).toBe('haiku');
+  });
+
+  it('light 답은 더 깊게 알아볼 수 있다고 알리고, deep 답은 알리지 않는다', async () => {
+    const light = await session({ team: new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] }) }).handle('1+1은 얼마야?');
+    const deep = await session({ team: new FakeTeam({ router: [route('question')], answerer: [answer] }) }).handle('이 함수 어디서 써?');
+    expect(light).toMatchObject({ kind: 'answer', canGoDeeper: true });
+    expect(deep).toMatchObject({ kind: 'answer', canGoDeeper: false });
+  });
+
+  it('더 깊게 알아보면 라우터 없이 sonnet 등급 팀원이 같은 질문에 다시 답한다', async () => {
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer, () => ({ answer: '자세히: 2입니다.', claims: [] })] });
+    const chat = session({ team });
+    await chat.handle('1+1은 얼마야?');
+    const deeper = await chat.handle('1+1은 얼마야?', [], 'deep');
+    expect(deeper).toMatchObject({ kind: 'answer', answer: '자세히: 2입니다.', canGoDeeper: false });
+    expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer', 'answerer']);
+    expect(team.calls.at(-1)!.tier).toBe('sonnet');
+  });
+});
+
+describe('ChatSession — 저장소 조사는 답한 뒤 배경에서', () => {
+  const gated = () => {
+    const log: string[] = [];
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const knowledge = {
+      current: async () => {
+        log.push('current:start');
+        await gate;
+        log.push('current:end');
+        return null;
+      },
+      stored: async () => null,
+      noteChanged: async () => undefined,
+    };
+    return { log, release, knowledge };
+  };
+
+  it('deep 질문은 조사가 끝나길 기다리지 않고 답하며, 답한 뒤에 조사를 시작한다', async () => {
+    const { log, release, knowledge } = gated();
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네.', claims: [] })] });
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), knowledge }).handle('이 함수 어디서 써?');
+    expect(turn).toMatchObject({ kind: 'answer', answer: '네.' });
+    await vi.waitFor(() => expect(log).toEqual(['current:start']));
+    release();
+  });
+
+  it('조사는 세션에서 한 번만 돈다', async () => {
+    const { log, release, knowledge } = gated();
+    release();
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네.', claims: [] })] });
+    const chat = ChatSession.start({ ...sessionDeps({ team }), knowledge });
+    await chat.handle('이 함수 어디서 써?');
+    await chat.handle('저 함수는 어디서 써?');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(log.filter((l) => l === 'current:start')).toHaveLength(1);
+  });
+
+  it('light 답에는 조사를 돌리지 않는다 (한도를 아낀다)', async () => {
+    const { log, release, knowledge } = gated();
+    release();
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [() => ({ answer: '2', claims: [] })] });
+    await ChatSession.start({ ...sessionDeps({ team }), knowledge }).handle('1+1은 얼마야?');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(log).toEqual([]);
   });
 });

@@ -9,15 +9,9 @@ export function isSmallTalk(input: string): boolean {
   return text.length <= SMALL_TALK_CHARS && !ACTION.test(text) && !QUESTION.test(text);
 }
 
-/**
- * 입력이 질문처럼 보이는지. 라우터가 답하기 전에 답변 팀원을 미리 띄울지 정하는 데만 쓴다.
- * 틀려도 정답이 바뀌지 않는다: 질문인데 놓치면 라우터 뒤에 시작해 조금 느릴 뿐이고,
- * 질문이 아닌데 질문으로 보면 호출 하나가 버려진다. 그래서 확실히 시키는 말은 거른다.
- */
-export function looksLikeQuestion(input: string): boolean {
-  const text = input.trim();
-  if (ACTION.test(text)) return false;
-  return QUESTION.test(text) || text.length <= SMALL_TALK_CHARS;
+/** 질문에 얼마나 깊이 답할지. 인사는 라우터가 뭐라 하든 가볍게, 그 밖에는 라우터 판정을 따른다. */
+export function answerDepthOf(routed: 'light' | 'deep', input: string): 'light' | 'deep' {
+  return isSmallTalk(input) ? 'light' : routed;
 }
 
 const PROCEED = /^\s*(그래도|그냥)\s*(진행|해\s?줘|해|할게|실행)/;

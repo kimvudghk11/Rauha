@@ -142,3 +142,24 @@ describe('KnowledgeService', () => {
     expect(store.saved?.basis.label()).toBe('main (d400000) + 작업 트리 변경');
   });
 });
+
+describe('KnowledgeService.stored', () => {
+  it('저장된 지식이 없으면 저장소를 읽지도 조사 팀원을 부르지도 않고 null을 돌려준다', async () => {
+    const { svc, team, store } = service();
+    expect(await svc.stored()).toBeNull();
+    expect(team.calls).toEqual([]);
+    expect(store.saves).toBe(0);
+  });
+
+  it('저장된 지식이 있으면 낡은 영역이 있어도 조사 없이 저장된 그대로 돌려준다', async () => {
+    const { svc, team, reader } = service();
+    await svc.current();
+    const callsAfterBuild = team.calls.length;
+    reader.ref = ref('b2');
+    reader.changed = { paths: ['src/domain/money.ts'] };
+    reader.content.set('src/domain/money.ts', 'changed');
+    const got = await svc.stored();
+    expect(got?.block).toContain('src/domain 메모');
+    expect(team.calls.length).toBe(callsAfterBuild);
+  });
+});

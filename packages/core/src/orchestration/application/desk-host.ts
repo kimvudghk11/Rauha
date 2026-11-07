@@ -1,6 +1,7 @@
 import type { MemberRole } from '../domain/member-role.js';
 import type { ModelTier } from '../domain/team.js';
 import type { ToolKit } from '../domain/tool-kit.js';
+import type { RoleSetting } from './dto/role-settings.dto.js';
 import type { MemberResult } from './ports.js';
 import type { TurnOutcome } from './turn-outcome.js';
 
@@ -11,6 +12,8 @@ export interface MemberOptions {
   readonly canWrite?: (path: string) => boolean;
   /** 역할 기본 모델 대신 쓸 모델(저장소를 나눠 읽는 일은 싼 모델로) */
   readonly tier?: ModelTier;
+  /** 역할 기본 설정 대신 쓸 설정(가벼운 답변) */
+  readonly setting?: RoleSetting;
   /** 진행 줄에 "작업 중…"을 내지 않는다(여러 호출을 묶어 따로 진행을 알릴 때) */
   readonly quiet?: boolean;
   /** 더 붙일 도구 묶음(ToolKits가 요청을 보고 정한다) */

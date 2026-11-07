@@ -5,7 +5,7 @@ import type { AccountBlock } from './ports.js';
 export type TurnOutcome =
   | { readonly kind: 'work'; readonly outcome: RunOutcome }
   /** basis: 답이 읽은 기준(`main (a1b2c3d)`). 저장소 지식이 없으면 null. */
-  | { readonly kind: 'answer'; readonly answer: string; readonly checked: readonly CheckedClaim[]; readonly costUsd: number; readonly durationMs: number; readonly basis: string | null }
+  | { readonly kind: 'answer'; readonly answer: string; readonly checked: readonly CheckedClaim[]; readonly costUsd: number; readonly durationMs: number; readonly basis: string | null; /** light로 답했다: 같은 질문을 deep으로 다시 알아볼 수 있다(`handle(input, [], 'deep')`). */ readonly canGoDeeper?: boolean }
   /** /review: 사용자의 변경을 리뷰어가 본 결과. target null = 커밋 안 한 변경. files가 비면 리뷰어를 부르지 않았다. */
   | { readonly kind: 'review'; readonly target: string | null; readonly files: readonly string[]; readonly checked: readonly CheckedClaim[]; readonly summary: string; readonly durationMs: number }
   /** 설계 대화로 승인받은 설계와 그 작업들의 결과 */

@@ -171,9 +171,10 @@ export const REVIEWER_REPORT_SCHEMA: Record<string, unknown> = {
 export const ROUTE_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['mode', 'refersToPast', 'pastQuery', 'department', 'member'],
+  required: ['mode', 'refersToPast', 'pastQuery', 'department', 'member', 'depth'],
   properties: {
     mode: { enum: ['work', 'question', 'task', 'feature', 'ops', 'debug', 'risk', 'ideate', 'company', 'launch'], description: 'company: 마케팅·사업 모델·디자인·보안·릴리스처럼 회사 부서가 맡는 일(department 필수), launch: 앱·웹을 기획해 오픈하기까지 여러 부서가 이어 쓰는 런칭 계획, ideate: 사업·제품 아이디어를 내거나 무엇을 만들지 구상해 달라는 요청(아직 만들라는 말이 아님), debug: 에러·실패·이상 동작의 원인을 찾아 달라는 요청(고치라는 말이 없음), risk: 바꾸기 전에 영향 범위·깨질 곳·위험을 점검해 달라는 요청, ops: aws·terraform·kubectl 같은 명령으로 클라우드·인프라를 조회하거나 바꾸는 요청(코드 수정 아님), work: 범위가 분명한 작은 코드 수정, feature: 새 기능이나 동작 변경(해석이 갈리거나 여러 파일에 걸침), question: 코드를 바꾸지 않는 질문, task: 코드가 아닌 결과물(문서·보고서·정리 파일)을 만드는 요청' },
+    depth: { enum: ['light', 'deep'], description: 'mode가 question일 때만 의미가 있다. light: 파일을 열지 않아도 답할 수 있는 가벼운 질문(산수, 인사, 일반 상식, 짧은 용어 뜻). deep: 이 저장소의 코드·구조·설정을 읽어야 하는 질문. 그 밖의 mode는 deep' },
     refersToPast: { type: 'boolean', description: '이름 없이 지난 작업을 가리키는지("아까 그 기능", "방금 거")' },
     pastQuery: { ...nullableStr, description: '기억에서 찾을 검색어(코드 이름·기능 단어). 없으면 null' },
     department: { enum: ['planning', 'marketing', 'design', 'quality', 'operations', null], description: 'mode가 company일 때 맡을 부서. 그 밖에는 null' },

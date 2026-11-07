@@ -6,10 +6,10 @@ import { continuable, recallBlock, WorkMemory, type MemoryEntry, type Recall } f
 import { citedPaths, FactCheck, normalizeUrl, type CheckedClaim } from '../domain/fact-check.js';
 import { LearningBook } from '../domain/learning-book.js';
 import type { CompanyEntry } from '../domain/company-book.js';
-import { isSmallTalk, looksLikeQuestion, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
+import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
 import { AnswerDto } from './dto/answer.dto.js';
-import type { MemberRole, RoleSettingsDto } from './dto/role-settings.dto.js';
+import type { MemberRole, RoleSetting, RoleSettingsDto } from './dto/role-settings.dto.js';
 import type { ChatSnapshot } from './dto/chat-snapshot.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
@@ -76,14 +76,6 @@ export interface ChatSessionDeps {
 /** 함께 묻는 다른 저장소가 이 수를 넘으면 그 저장소들의 지식은 미리 만들지 않는다(저장소마다 조사 팀원이 돌아 오래 걸린다). 답변 팀원이 직접 읽는다. */
 const ALSO_KNOWLEDGE_MAX = 3;
 
-/** 라우터가 작업으로 판정해 멈춘 뒤에 뒤늦게 시작하려던 답변. 아무 일도 하지 않은 것으로 돌려준다. */
-const STOPPED: MemberResult = {
-  output: null,
-  error: '멈춘 답변',
-  fetched: [],
-  usage: { model: 'sonnet', durationMs: 0, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' },
-};
-
 /** 여러 저장소에 걸친 질문에서 함께 읽을 다른 저장소 */
 export interface AlsoRepo {
   readonly name: string;
@@ -145,6 +137,8 @@ export class ChatSession {
   private costUsd = 0;
   private readonly calls: Record<ModelTier, number> = { haiku: 0, sonnet: 0, opus: 0 };
   private lastTitle: string | null = null;
+  /** 답한 뒤 배경 조사를 이미 시작했는지 */
+  private surveyed = false;
   private held: HeldRequest | null = null;
   /** 방금 한 질문과 그 답. 코드를 바꾸는 일이 있거나 /clear 하면 비운다. */
   private answered = new Map<string, { answer: string; at: number }>();
@@ -190,12 +184,9 @@ export class ChatSession {
     this.documents = new DocumentDesk({ ...host, titled: (title) => (this.lastTitle = title) }, { today: deps.today, progress: deps.progress, repoName: deps.repoName, folder: () => this.deps.folder });
   }
 
-  /** 매 입력마다 부르는 라우터·답변 팀원은 미리 띄워 둔다(띄우는 데만 2초쯤 걸린다). */
+  /** 팀원을 미리 띄우지 않는다: 쓰이지 않을 호출이 한도를 쓰지 않게, 라우터 판정이 끝난 뒤에만 부른다. */
   static start(deps: ChatSessionDeps): ChatSession {
-    const session = new ChatSession(deps);
-    deps.team.prepare?.(session.callFor('router', ROUTE_SCHEMA));
-    deps.team.prepare?.(session.callFor('answerer', ANSWER_SCHEMA));
-    return session;
+    return new ChatSession(deps);
   }
 
   /** 저장해 둔 대화를 이어 연다(rauha --continue, /update 뒤). 앞 대화와 이어 일할 파일을 그대로 쓴다. */
@@ -213,37 +204,30 @@ export class ChatSession {
   }
 
   /**
-   * 라우터의 판정을 기다리지 않고 답변 팀원도 함께 시작한다. 질문이면 판정 시간만큼 빨리 답하고,
-   * 작업이거나 지난 작업을 골라야 하는 질문이면 미리 시작한 답변은 멈추고 버린다.
+   * 라우터가 입력 종류와 질문 깊이를 판정한 뒤에만 팀원을 부른다(버려지는 호출 없음).
+   * force 'deep': 라우터 없이 같은 질문을 deep으로 다시 답한다("더 깊게 알아볼까요?").
    */
-  async handle(input: string, also: readonly AlsoRepo[] = [], force?: 'design'): Promise<TurnOutcome> {
+  async handle(input: string, also: readonly AlsoRepo[] = [], force?: 'design' | 'deep'): Promise<TurnOutcome> {
     const started = this.deps.now();
     const conversation = this.conversation();
     const heldRequest = this.held;
     this.held = null;
     if (heldRequest !== null && wantsToProceed(input)) return this.rerun(heldRequest, conversation, started);
-    const again = this.repeated(input);
+    const again = force === 'deep' ? null : this.repeated(input);
     if (again !== null) return { kind: 'answer', answer: again, checked: [], costUsd: 0, durationMs: 0, basis: null };
     // /design: 라우터를 거치지 않고 바로 설계부터 한다.
     if (force === 'design') {
       if (also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };
       return this.canDesign() ? this.designs!.run(input, conversation, started) : { kind: 'notice', message: '설계 대화는 터미널 대화 모드에서만 할 수 있어요.' };
     }
-    const early = new AbortController();
-    // 저장소 지식은 답변 팀원이 필요할 때 처음 한 번만 읽는다(처음이면 조사 팀원이 저장소를 훑는다). 작업·인사에는 읽지 않는다.
-    const smallTalk = isSmallTalk(input);
-    let knownRun: Promise<Known | null> | undefined;
-    let othersRun: Promise<AlsoKnown[]> | undefined;
-    const known = () => (knownRun ??= smallTalk ? Promise.resolve(null) : this.knowledgeOf());
-    const others = () => (othersRun ??= smallTalk ? Promise.resolve([]) : Promise.all(also.map(async (r): Promise<AlsoKnown> => ({ name: r.name, root: r.root, known: also.length <= ALSO_KNOWLEDGE_MAX ? await this.knowledgeOf(r.knowledge) : null }))));
-    // 질문처럼 보일 때만 미리 시작한다. 시키는 말에 미리 시작하면 판정이 나는 순간 버려질 호출이 하나 생긴다.
-    const asked = looksLikeQuestion(input) ? Promise.all([known(), others()]).then(([k, o]) => this.askAnswerer(input, null, k, conversation, early.signal, o)) : null;
-    // 라우터를 기다리는 동안 실패해도 처리 안 된 거절로 프로세스가 죽지 않게. 쓰기로 하면 answer()가 await에서 다시 받는다.
-    asked?.catch(() => undefined);
-    const routed = await this.member('router', [conversationBlock(conversation), `<message>\n${input}\n</message>`], ROUTE_SCHEMA, {});
-    const route = RouteDto.read(routed.output);
-    if (routed.blocked || route.mode !== 'question' || route.refersToPast) early.abort();
-    if (routed.blocked) return { kind: 'blocked', ...routed.blocked };
+    let route: Route;
+    if (force === 'deep') {
+      route = RouteDto.deepQuestion();
+    } else {
+      const routed = await this.member('router', [conversationBlock(conversation), `<message>\n${input}\n</message>`], ROUTE_SCHEMA, {});
+      if (routed.blocked) return { kind: 'blocked', ...routed.blocked };
+      route = RouteDto.read(routed.output);
+    }
     if (route.mode === 'task') return this.documents.write(input, conversation, also, started);
     if (route.mode === 'ops') return this.ops(input, conversation, started);
     if (route.mode === 'debug') return this.desk.analyze('debugger', '디버깅', input, conversation, started);
@@ -252,13 +236,17 @@ export class ChatSession {
     if (route.mode === 'ideate') return this.desk.analyze('planner', '기획', input, conversation, started, 'planning');
     if (route.mode === 'risk') return this.desk.analyze('riskchecker', '위험 점검', input, conversation, started);
     const changesCode = route.mode === 'work' || route.mode === 'feature';
-    if (changesCode && also.length > 0) return this.manyRepos(input, conversation, also, await known(), await others(), started);
+    if (changesCode && also.length > 0) return this.manyRepos(input, conversation, also, await this.knowledgeOf(), await this.othersKnown(also, 'deep'), started);
     const past = route.refersToPast ? await this.pickPast(route.pastQuery ?? input, route.mode) : null;
     // 기능 요청은 설계 대화부터. 사용자와 주고받을 화면이 없으면(-p) 작업으로 바로 진행한다.
     if (route.mode === 'feature' && past === null && this.canDesign()) return this.designs!.run(input, conversation, started);
     if (changesCode) return this.work(input, conversation, past);
-    const answered = await this.answer(input, route.refersToPast || asked === null ? this.askAnswerer(input, past, await known(), conversation, undefined, await others()) : asked, started);
+    const depth = answerDepthOf(route.depth, input);
+    const known = await this.knowledgeFor(depth);
+    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth));
+    const answered = await this.answer(input, asked, started, depth);
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
+    if (answered.kind === 'answer' && depth === 'deep') this.surveyInBackground();
     return answered;
   }
 
@@ -403,11 +391,9 @@ export class ChatSession {
     past: Recall | null,
     known: Known | null,
     conversation: string | null,
-    signal?: AbortSignal,
+    depth: 'light' | 'deep',
     others: readonly AlsoKnown[] = [],
   ): Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }> {
-    // 지식을 읽는 사이 라우터가 작업이라고 판정해 이미 멈췄으면 시작하지 않는다("작업 중" 표시가 끌 곳 없이 남는다).
-    if (signal?.aborted === true) return { result: STOPPED, recalls: [], basis: null };
     const recalls = past !== null ? [past] : await this.deps.memory.search(input, CANDIDATES);
     const block = recallBlock(recalls, MEMORY_CHARS);
     const result = await this.member(
@@ -424,13 +410,39 @@ export class ChatSession {
       ],
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
-      { signal, kits: ToolKits.for('answerer', input), dirs: [...others.map((o) => o.root), ...(others.length > 0 && this.deps.folder !== undefined ? [this.deps.folder.root] : [])] },
+      // light는 도구 묶음(브라우저·AWS 설명이 수천 자)을 붙이지 않는다.
+      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), dirs: [...others.map((o) => o.root), ...(others.length > 0 && this.deps.folder !== undefined ? [this.deps.folder.root] : [])] },
     );
     const basis =
       others.length === 0
         ? (known?.basis ?? null)
         : [`${this.deps.repoName ?? '이 저장소'}: ${known?.basis ?? '기준 모름'}`, ...others.map((o) => `${o.name}: ${o.known?.basis ?? '기준 모름'}`)].join(', ');
     return { result, recalls, basis };
+  }
+
+  /**
+   * 질문 깊이에 맞게 읽는 저장소 지식. light는 저장된 것만(없으면 읽지 않고 지식 없이 답한다).
+   * deep은 저장된 것이 있으면 그것을(낡은 영역 조사는 답한 뒤 배경에서), `stored`가 없는 옛 구현이면 `current`로 읽는다.
+   */
+  private async knowledgeFor(depth: 'light' | 'deep', port: KnowledgePort | null | undefined = this.deps.knowledge): Promise<Known | null> {
+    if (port?.stored === undefined) return depth === 'light' ? null : this.knowledgeOf(port);
+    try {
+      const known = await port.stored();
+      return known === null ? null : { block: known.block, basis: known.basis.label() };
+    } catch {
+      return null;
+    }
+  }
+
+  private async othersKnown(also: readonly AlsoRepo[], depth: 'light' | 'deep'): Promise<AlsoKnown[]> {
+    return Promise.all(also.map(async (r): Promise<AlsoKnown> => ({ name: r.name, root: r.root, known: depth === 'light' || also.length > ALSO_KNOWLEDGE_MAX ? null : await this.knowledgeFor('deep', r.knowledge) })));
+  }
+
+  /** 답을 돌려준 뒤 저장소 조사를 배경에서 한다. 세션에서 한 번만, 저장된 지식을 쓰는 구현에서만(한도를 아끼려고 light 답 뒤에는 부르지 않는다). */
+  private surveyInBackground(): void {
+    if (this.surveyed || this.deps.knowledge?.stored === undefined) return;
+    this.surveyed = true;
+    void this.knowledgeOf();
   }
 
   /** 저장소 지식. 없거나(git 아님) 읽다 실패하면 null — 그때는 지식 없이 답한다. */
@@ -443,7 +455,7 @@ export class ChatSession {
     }
   }
 
-  private async answer(input: string, asked: Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }>, started: number): Promise<TurnOutcome> {
+  private async answer(input: string, asked: Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }>, started: number, depth: 'light' | 'deep'): Promise<TurnOutcome> {
     const { result, recalls, basis } = await asked;
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const dto = this.tryRead(() => AnswerDto.from(result.output));
@@ -459,7 +471,7 @@ export class ChatSession {
     const answer = dto?.answer ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.';
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: citedPaths(claims), basis }));
     this.turns.push({ input, result: `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` });
-    return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis };
+    return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light' };
   }
 
   // ── 내 변경 검토 (/review) ───────────────────────────────
@@ -522,12 +534,12 @@ export class ChatSession {
       .join('\n');
   }
 
-  private callFor(role: MemberRole, outputSchema: Record<string, unknown>, canWrite: (path: string) => boolean = () => false, tier?: ModelTier): PreparedCall {
-    return { role, setting: tier === undefined ? this.deps.roles.get(role) : this.deps.roles.forAssignment(role, tier), outputSchema, canWrite };
+  private callFor(role: MemberRole, outputSchema: Record<string, unknown>, canWrite: (path: string) => boolean = () => false, tier?: ModelTier, setting?: RoleSetting): PreparedCall {
+    return { role, setting: setting ?? (tier === undefined ? this.deps.roles.get(role) : this.deps.roles.forAssignment(role, tier)), outputSchema, canWrite };
   }
 
   private async member(role: MemberRole, parts: readonly string[], outputSchema: Record<string, unknown>, options: MemberOptions): Promise<MemberResult> {
-    const call = this.callFor(role, outputSchema, options.canWrite, options.tier);
+    const call = this.callFor(role, outputSchema, options.canWrite, options.tier, options.setting);
     const additionalDirectories = options.dirs ?? [];
     // 질문을 나누고 답하는 건 사용자에게 한 가지 일로 보이므로 누가 하는지 밝히지 않는다.
     if (options.quiet !== true) this.deps.progress.step('작업 중…', role);

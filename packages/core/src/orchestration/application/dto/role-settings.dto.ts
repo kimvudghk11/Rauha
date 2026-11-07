@@ -106,6 +106,16 @@ export class RoleSettingsDto {
     return this.settings[role];
   }
 
+  /**
+   * 가벼운 질문("1+1은 얼마야?", 인사)에 답하는 설정: 싼 모델, 낮은 effort, 적은 턴, 읽기 도구만(웹·명령 없음).
+   * 환경 변수로 답변 팀원 모델을 고정했으면 그 모델을 따른다.
+   */
+  lightAnswerer(): RoleSetting {
+    const base = this.settings.answerer;
+    if (this.pinned.has('answerer')) return base;
+    return { ...base, tier: 'haiku', effort: 'low', maxTurns: 6, maxBudgetUsd: 0.2, tools: ['Read', 'Grep', 'Glob'] };
+  }
+
   /** 상태 머신이 배정한 모델로 부를 때의 설정. 환경 변수로 고정한 역할은 고정 모델을 쓴다. */
   forAssignment(role: MemberRole, tier: ModelTier): RoleSetting {
     const base = this.settings[role];
