@@ -19,6 +19,7 @@ const api: RauhaApi = {
   listAccounts: () => ipcRenderer.invoke(IPC.accountsList),
   pickFolder: () => ipcRenderer.invoke(IPC.folderPick),
   listRepos: () => ipcRenderer.invoke(IPC.reposList),
+  draftRule: (sentence) => ipcRenderer.invoke(IPC.rulesDraft, sentence),
   listRules: () => ipcRenderer.invoke(IPC.rulesList),
   addRule: (rule) => ipcRenderer.invoke(IPC.rulesAdd, rule),
   removeRule: (id) => ipcRenderer.invoke(IPC.rulesRemove, id),

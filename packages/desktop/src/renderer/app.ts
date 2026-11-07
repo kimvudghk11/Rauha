@@ -70,7 +70,7 @@ function show(id: TabId): void {
   if (id === 'chat') screen.replaceChildren(chat.root);
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder() }, pickLayout).root);
-  else if (id === 'rules') screen.replaceChildren(buildRules({ list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
+  else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
   else {
     const soon = el('div', 'soon');
     soon.append(el('b', undefined, tab.label), el('span', undefined, '곧 열려요'));

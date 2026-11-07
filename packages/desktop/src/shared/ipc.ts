@@ -31,6 +31,7 @@ export const IPC = {
   accountsList: 'accounts:list',
   folderPick: 'folder:pick',
   reposList: 'repos:list',
+  rulesDraft: 'rules:draft',
   rulesList: 'rules:list',
   rulesAdd: 'rules:add',
   rulesRemove: 'rules:remove',
@@ -127,6 +128,8 @@ export interface RauhaApi {
   /** 폴더 고르기 창을 연다. 취소하면 null */
   pickFolder(): Promise<string | null>;
   listRepos(): Promise<readonly RepoRow[]>;
+  /** 말로 적은 규칙을 haiku 한 번으로 정리한 초안. 사용자가 확인해야 규칙이 된다. */
+  draftRule(sentence: string): Promise<DraftResult>;
   listRules(): Promise<readonly RuleView[]>;
   /** 규칙을 더한다. 규칙이 안 맞으면 이유를 돌려준다(저장하지 않는다). */
   addRule(rule: RuleView): Promise<RulesResult>;
@@ -170,6 +173,8 @@ export interface RepoRow {
   /** 그중 worktree에서 도는 작업 수(같은 레포에 먼저 도는 일이 있어서 따로 일하는 것) */
   readonly worktrees: number;
 }
+
+export type DraftResult = { readonly ok: true; readonly draft: Omit<RuleView, 'id'> } | { readonly ok: false; readonly error: string };
 
 export type RulesResult = { readonly ok: true; readonly rules: readonly RuleView[] } | { readonly ok: false; readonly error: string };
 

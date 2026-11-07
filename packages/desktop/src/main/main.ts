@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification } from 'electron';
-import { DomainError, discoverRepos, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen } from 'electron';
+import { DomainError, discoverRepos, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
@@ -20,6 +22,7 @@ import { parseTarget, type TargetFolder } from './team/target.js';
 import { teamWork } from './team/team-work.js';
 import { appMenuTemplate, quitWhenAllClosed, windowChrome } from './platform/app-menu.js';
 import { claudeBinaryPath, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
+import { displayKey, parseWindowFile, restoreBounds, type Rect } from './platform/window-state.js';
 import { adoptShellPath } from './platform/shell-path.js';
 import { findTerminalRauha, removeTerminalRauha, type TerminalRauhaFile } from './platform/terminal-rauha.js';
 import { measureTyping } from './measure-typing.js';
@@ -91,6 +94,14 @@ function notifyApproval(jobId: string, headline: string): void {
 
 /** 확인용: 진짜 팀을 조립만 해 본다(팀원을 부르지 않으니 한도를 쓰지 않는다). RAUHA_SMOKE_COMPOSE=1 */
 async function smokeCompose(): Promise<void> {
+  const sentence = process.env['RAUHA_SMOKE_DRAFT'];
+  if (sentence !== undefined) {
+    // 확인용: 규칙 말로 적기 정리를 한 번 돌려 본다(haiku 한 번)
+    const profile = (await profileResolver(home, null))(currentWorkDir());
+    console.log(JSON.stringify(await draftRule(sentence, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable())));
+    app.quit();
+    return;
+  }
   const prompts = await PromptLibrary.load(promptsDir());
   const profileFor = await profileResolver(home, settings.account);
   const controller = new AbortController();
@@ -195,10 +206,29 @@ function askWithNotice(jobId: string, request: Parameters<Approvals['ask']>[1]) 
   return answered;
 }
 
+/** 창 위치·크기는 모니터 구성별로 기억한다(모니터를 뺐다 꽂아도 제자리로). 확인용 실행에서는 쓰지 않는다. */
+const windowFile = join(homedir(), '.rauha', 'desktop', 'windows.json');
+const remembers = (): boolean => process.env['RAUHA_SMOKE_SHOT'] === undefined && process.env['RAUHA_MEASURE_TYPING'] === undefined;
+const workAreas = (): Rect[] => {
+  const primary = screen.getPrimaryDisplay();
+  return [primary, ...screen.getAllDisplays().filter((d) => d.id !== primary.id)].map((d) => d.workArea);
+};
+const screenKey = (): string => displayKey(screen.getAllDisplays().map((d) => d.bounds));
+const readWindows = () => {
+  try {
+    return parseWindowFile(JSON.parse(readFileSync(windowFile, 'utf8')));
+  } catch {
+    return {};
+  }
+};
+
 function open(runner: JobRunner): void {
+  const placed = restoreBounds(remembers() ? (readWindows()[screenKey()] ?? null) : null, workAreas(), { width: 1280, height: 820 });
   window = new BrowserWindow({
-    width: 1280,
-    height: 820,
+    x: placed.x,
+    y: placed.y,
+    width: placed.width,
+    height: placed.height,
     minWidth: 480,
     minHeight: 360,
     backgroundColor: BACKGROUND,
@@ -213,6 +243,25 @@ function open(runner: JobRunner): void {
       sandbox: true,
     },
   });
+  if (placed.maximized) window.maximize();
+  if (remembers()) {
+    let timer: NodeJS.Timeout | undefined;
+    const save = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (window === null || window.isMinimized() || window.isFullScreen()) return;
+        try {
+          const all = { ...readWindows(), [screenKey()]: { ...window.getNormalBounds(), maximized: window.isMaximized() } };
+          mkdirSync(dirname(windowFile), { recursive: true });
+          writeFileSync(windowFile, JSON.stringify(all, null, 2));
+        } catch {
+          /* 기억 못 해도 창은 그대로 쓴다 */
+        }
+      }, 500);
+    };
+    window.on('resize', save);
+    window.on('move', save);
+  }
   window.on('closed', () => (window = null));
   void window.loadFile(join(__dirname, 'renderer', 'index.html'));
   const shot = process.env['RAUHA_SMOKE_SHOT'];
@@ -289,6 +338,19 @@ void app.whenReady().then(async () => {
   });
   const rulesView = () => RuleBookDto.fromEntity(ruleBook).toJSON().rules;
   ipcMain.handle(IPC.rulesList, rulesView);
+  ipcMain.handle(IPC.rulesDraft, async (_e, sentence: unknown) => {
+    if (typeof sentence !== 'string' || sentence.trim() === '') return { ok: false, error: '규칙을 말로 적어 주세요.' };
+    try {
+      const profile = (await profileResolver(home, settings.account))(currentWorkDir());
+      const draft = await draftRule(sentence.trim().slice(0, 500), { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable());
+      // 폴더 이름만 말했으면 작업 폴더 안의 그 폴더 경로로 바꾼다(규칙은 경로로 범위를 가른다)
+      const named = draft.scope === 'folder' && draft.path !== null ? folders().find((f) => f.name.toLowerCase() === draft.path!.toLowerCase()) : undefined;
+      const scope = draft.scope === 'workspace' ? { kind: 'workspace' as const, path: currentWorkDir() } : draft.scope === 'folder' ? { kind: 'folder' as const, path: named?.root ?? draft.path ?? '' } : { kind: 'global' as const };
+      return { ok: true, draft: { text: draft.text, bucket: draft.bucket, scope, tools: draft.tools, includes: draft.includes } };
+    } catch (error) {
+      return { ok: false, error: error instanceof DomainError ? error.message : '규칙을 정리하지 못했어요. 로그인이나 한도를 확인해 주세요.' };
+    }
+  });
   ipcMain.handle(IPC.rulesAdd, async (_e, rule: unknown) => {
     try {
       const next = RuleBookDto.from({ rules: [...rulesView(), rule] }).toEntity();

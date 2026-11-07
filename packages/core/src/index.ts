@@ -130,3 +130,5 @@ export { InfraRiskDto, type InfraRisk, type CostDirection, type Downtime } from 
 export { Rule, RuleBook, type RuleBucket, type RuleScope, type RuleMatch, type RuleVerdict } from './orchestration/domain/rule-book.js';
 export { RuleBookDto } from './orchestration/application/dto/rule-book.dto.js';
 export { FileRuleStore } from './orchestration/infrastructure/file-rule-store.js';
+export { RuleDraftDto, RULE_DRAFT_SCHEMA, type RuleDraft } from './orchestration/application/dto/rule-draft.dto.js';
+export { draftRule } from './orchestration/infrastructure/agent-sdk-rule-parser.js';
