@@ -1300,3 +1300,19 @@ describe('ChatSession — 저장소 조사는 답한 뒤 배경에서', () => {
     expect(log).toEqual([]);
   });
 });
+
+describe('ChatSession — 문서만 고치는 요청', () => {
+  it('라우터가 work라 해도 README만 고치는 요청은 테스트 팀원 없이 문서 팀원이 한다', async () => {
+    const team = new FakeTeam({ router: [route('work')], writer: [() => ({ title: 'README', summary: '추가했어요', files: ['README.md'], claims: [] })] });
+    const loops = new FakeLoops();
+    await session({ team, loops }).handle('README.md 맨 아래에 hello rauha 한 줄을 추가해 줘');
+    expect(loops.runs).toEqual([]);
+    expect(team.calls.map((c) => c.role)).toEqual(['router', 'writer']);
+  });
+
+  it('코드 파일을 고치는 요청은 여전히 작업 루프로 간다', async () => {
+    const loops = new FakeLoops();
+    await session({ team: new FakeTeam({ router: [route('work')] }), loops }).handle('src/money.ts의 add 함수 고쳐줘');
+    expect(loops.runs).toHaveLength(1);
+  });
+});

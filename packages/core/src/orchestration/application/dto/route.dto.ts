@@ -1,3 +1,4 @@
+import { onlyDocuments } from '../../domain/question-hint.js';
 import { Department, type DepartmentId, type DepartmentMemberRole } from '../../domain/department.js';
 
 export interface Route {
@@ -31,7 +32,16 @@ export class RouteDto {
     return { mode: 'question', refersToPast: false, pastQuery: null, department: null, member: null, depth: 'deep' };
   }
 
-  static read(input: unknown): Route {
+  /**
+   * input: 사용자가 한 말. 코드 수정(work·feature)으로 판정됐어도 문서 파일만 가리키면 문서 경로(task)로 돌린다
+   * (haiku 라우터가 "한 줄 추가해줘"를 코드 수정으로 읽어 테스트 팀원이 막히던 문제).
+   */
+  static read(output: unknown, input = ''): Route {
+    const route = RouteDto.parse(output);
+    return (route.mode === 'work' || route.mode === 'feature') && onlyDocuments(input) ? { ...route, mode: 'task', depth: 'deep' } : route;
+  }
+
+  private static parse(input: unknown): Route {
     if (typeof input !== 'object' || input === null) return FALLBACK;
     const o = input as Record<string, unknown>;
     const mode = MODES.find((m) => m === o['mode']);

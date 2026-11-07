@@ -226,7 +226,7 @@ export class ChatSession {
     } else {
       const routed = await this.member('router', [conversationBlock(conversation), `<message>\n${input}\n</message>`], ROUTE_SCHEMA, {});
       if (routed.blocked) return { kind: 'blocked', ...routed.blocked };
-      route = RouteDto.read(routed.output);
+      route = RouteDto.read(routed.output, input);
     }
     if (route.mode === 'task') return this.documents.write(input, conversation, also, started);
     if (route.mode === 'ops') return this.ops(input, conversation, started);

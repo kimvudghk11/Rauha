@@ -25,3 +25,11 @@ export function wantsToProceed(input: string): boolean {
 export function sameQuestionKey(input: string): string {
   return input.trim().replace(/\s+/g, ' ').toLowerCase();
 }
+
+const DOC_WORDS = /\.(md|mdx|txt|rst)\b|readme|changelog|license|\bdocs\/|문서|포트폴리오|이력서/i;
+const CODE_WORDS = /\.(ts|tsx|js|jsx|mjs|cjs|py|java|kt|go|rs|rb|php|c|cpp|cs|swift|sql|sh|css|scss|html|json|ya?ml|toml)\b|함수|클래스|메서드|테스트|코드|버그|컴포넌트|\b(function|class|method|bug|test|code)\b|[A-Za-z]\w*\.[a-z]\w*\(?\s*[가-힣]*(가|이)\s/i;
+
+/** 요청이 문서(마크다운 등)만 가리키고 코드는 가리키지 않는지. 문서와 코드를 함께 말하면 false. */
+export function onlyDocuments(input: string): boolean {
+  return DOC_WORDS.test(input) && !CODE_WORDS.test(input);
+}

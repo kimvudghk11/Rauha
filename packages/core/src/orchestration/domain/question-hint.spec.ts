@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerDepthOf, isSmallTalk, sameQuestionKey, wantsToProceed } from './question-hint.js';
+import { answerDepthOf, isSmallTalk, onlyDocuments, sameQuestionKey, wantsToProceed } from './question-hint.js';
 
 describe('isSmallTalk', () => {
   it('짧은 인사·맞장구는 인사로 본다', () => {
@@ -45,5 +45,13 @@ describe('answerDepthOf', () => {
   it('인사가 아니면 라우터 판정을 따른다', () => {
     expect(answerDepthOf('light', '1+1은 얼마야?')).toBe('light');
     expect(answerDepthOf('deep', '이 함수 어디서 써?')).toBe('deep');
+  });
+});
+
+describe('onlyDocuments', () => {
+  it('문서 파일만 말하면 true, 코드가 섞이면 false', () => {
+    expect(onlyDocuments('README.md 맨 아래에 hello rauha 한 줄을 추가해 줘')).toBe(true);
+    expect(onlyDocuments('src/money.ts 고치고 README.md에도 반영해줘')).toBe(false);
+    expect(onlyDocuments('Money.add가 빼기를 해, 고쳐줘')).toBe(false);
   });
 });

@@ -70,3 +70,29 @@ describe('RouteDto — 질문 깊이', () => {
     expect(RouteDto.read({ mode: 'question', refersToPast: true, pastQuery: 'x', depth: 'light' }).depth).toBe('deep');
   });
 });
+
+describe('RouteDto — 문서만 고치는 요청', () => {
+  const read = (mode: string, input: string) => RouteDto.read({ mode, refersToPast: false, pastQuery: null }, input).mode;
+
+  it('마크다운·문서 파일만 바꾸는 요청은 라우터가 work라 해도 문서 경로(task)로 간다', () => {
+    expect(read('work', 'README.md 맨 아래에 hello rauha 한 줄을 추가해 줘')).toBe('task');
+    expect(read('work', 'docs/guide.md 오타 고쳐줘')).toBe('task');
+    expect(read('feature', 'README에 설치 방법 추가해줘')).toBe('task');
+    expect(read('work', 'CHANGELOG 맨 위에 한 줄 추가해줘')).toBe('task');
+  });
+
+  it('코드 파일을 바꾸는 요청은 여전히 work다', () => {
+    expect(read('work', 'src/money.ts의 add 함수 오타 고쳐줘')).toBe('work');
+    expect(read('work', 'Money.add가 빼기를 해, 고쳐줘')).toBe('work');
+  });
+
+  it('문서와 코드를 함께 고치는 요청은 work다', () => {
+    expect(read('work', 'src/money.ts 고치고 README.md에도 반영해줘')).toBe('work');
+    expect(read('work', 'README.md 예제 코드 고쳐줘')).toBe('work');
+  });
+
+  it('질문이나 다른 종류는 바꾸지 않는다', () => {
+    expect(read('question', 'README.md 뭐야?')).toBe('question');
+    expect(read('debug', 'README.md 왜 안 열려?')).toBe('debug');
+  });
+});
