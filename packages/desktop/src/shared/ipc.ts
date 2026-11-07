@@ -3,6 +3,7 @@ import type { ChangeReview } from './branch-impact.js';
 import type { RuleView } from './rules-form.js';
 import type { FolderKind } from './folder-kind.js';
 import type { RepoStatus } from './git-status.js';
+import type { GitApi } from './git-api.js';
 import type { Settings } from './settings.js';
 import type { InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
@@ -31,6 +32,8 @@ export const IPC = {
   accountsList: 'accounts:list',
   folderPick: 'folder:pick',
   reposList: 'repos:list',
+  /** git 탭: 함수 이름(고정 목록) + 레포 루트 + 인자를 한 채널로 보낸다 */
+  gitCall: 'git:call',
   rulesDraft: 'rules:draft',
   rulesList: 'rules:list',
   rulesAdd: 'rules:add',
@@ -128,6 +131,8 @@ export interface RauhaApi {
   /** 폴더 고르기 창을 연다. 취소하면 null */
   pickFolder(): Promise<string | null>;
   listRepos(): Promise<readonly RepoRow[]>;
+  /** git 탭: 앱이 아는 레포에서만 순수 git 명령을 돌린다(모델 호출 없음) */
+  readonly git: GitApi;
   /** 말로 적은 규칙을 haiku 한 번으로 정리한 초안. 사용자가 확인해야 규칙이 된다. */
   draftRule(sentence: string): Promise<DraftResult>;
   listRules(): Promise<readonly RuleView[]>;

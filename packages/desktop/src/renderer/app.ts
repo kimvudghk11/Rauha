@@ -2,6 +2,7 @@ import type { ApprovalView, BoardView, RauhaApi } from '../shared/ipc.js';
 import { buildChat } from './chat-view.js';
 import { offerTerminalCleanup, runWizard } from './first-run.js';
 import { el, icon } from './dom.js';
+import { buildGit } from './git-view.js';
 import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
 import { buildSettings, limitBar } from './settings-view.js';
@@ -69,6 +70,7 @@ function show(id: TabId): void {
   const tab = TABS.find((t) => t.id === id)!;
   if (id === 'chat') screen.replaceChildren(chat.root);
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
+  else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
   else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder() }, pickLayout).root);
   else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
   else {

@@ -1,7 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
 import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared/ipc.js';
 
+const git = Object.fromEntries(GIT_FUNCTIONS.map((fn) => [fn, (root: string, arg: unknown) => ipcRenderer.invoke(IPC.gitCall, fn, root, arg ?? {})])) as unknown as GitApi;
+
 const api: RauhaApi = {
+  git,
   submit: (text) => ipcRenderer.invoke(IPC.submit, text),
   stop: (id) => ipcRenderer.send(IPC.stop, id),
   goDeeper: (id) => ipcRenderer.invoke(IPC.deeper, id),

@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
 import { DomainError, discoverRepos, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
@@ -13,6 +13,8 @@ import { SettingsStore } from './settings-store.js';
 import { scanWorkFolder } from './workspace/scan.js';
 import { addWorktree, cleanupLeftovers, finishWorktree } from './workspace/git-worktree.js';
 import { WorktreeLedger } from './workspace/worktree-ledger.js';
+import { dispatchGit } from './git/git-dispatch.js';
+import { RepoGate } from './git/repo-gate.js';
 import { reviewChanges } from './team/git-review.js';
 import { Approvals } from './team/approvals.js';
 import { answerFor, approvalView } from './team/approval-view.js';
@@ -336,6 +338,11 @@ void app.whenReady().then(async () => {
     const working = (root: string) => runner.board.jobs.filter((j) => !j.isOver && (jobRoots.get(j.id) === root || ledger.repoOf(j.id) === root)).length;
     return entries.map((e) => ({ name: e.name, root: e.root, relative: e.relative, kind: e.kind, status: e.status, working: working(e.root), worktrees: ledger.worktreeJobs(e.root) }));
   });
+  // git 탭: 앱이 작업 폴더에서 찾은 레포의 루트에서만 git을 돌린다
+  const gitGate = new RepoGate(async () => (await scanWorkFolder(currentWorkDir())).filter((e) => e.kind === 'repo').map((e) => e.root));
+  ipcMain.handle(IPC.gitCall, (_e, fn: unknown, root: unknown, arg: unknown) =>
+    dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => shell.openExternal(url) }, fn, root, arg),
+  );
   const rulesView = () => RuleBookDto.fromEntity(ruleBook).toJSON().rules;
   ipcMain.handle(IPC.rulesList, rulesView);
   ipcMain.handle(IPC.rulesDraft, async (_e, sentence: unknown) => {
