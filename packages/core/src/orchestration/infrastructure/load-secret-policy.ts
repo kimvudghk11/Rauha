@@ -1,9 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { relativeToRoot } from '../../shared/path-pattern.js';
 import { RauhaIgnoreDto } from '../application/dto/rauha-ignore.dto.js';
 import type { SecretPolicy } from '../domain/secret-policy.js';
+
+function realpath(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+}
 
 function git(cwd: string, args: readonly string[]): string | null {
   try {
@@ -18,8 +26,10 @@ function git(cwd: string, args: readonly string[]): string | null {
  * 작업 폴더 기준 경로에 맞도록 루트 → 작업 폴더 경로를 함께 넘긴다. git 저장소가 아니면 작업 폴더를 루트로 본다.
  */
 export function loadSecretPolicy(workDir: string): SecretPolicy {
-  const top = git(workDir, ['rev-parse', '--show-toplevel'])?.trim() || workDir;
-  const base = relativeToRoot(top, workDir) ?? '';
+  // git은 바로가기를 푼 경로를 돌려주므로 작업 폴더도 같은 모양으로 맞춘다(macOS의 /var → /private/var 등).
+  const dir = realpath(workDir);
+  const top = git(dir, ['rev-parse', '--show-toplevel'])?.trim() || dir;
+  const base = relativeToRoot(top, dir) ?? '';
   let text: string | null = null;
   try {
     text = readFileSync(join(top, '.rauhaignore'), 'utf8');

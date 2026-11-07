@@ -1,11 +1,20 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { toPosixPath } from '../../shared/path-pattern.js';
 
 const SKIP = (name: string) => name.startsWith('.') || name === 'node_modules';
 /** 저장소를 찾아 내려가는 깊이. 작업 폴더 바로 아래와 그 아래까지. */
 const MAX_DEPTH = 2;
+
+/** 바로가기(symlink)·8.3 짧은 이름을 풀어 git이 돌려주는 경로와 같은 모양으로 맞춘다(macOS의 /var → /private/var 등). */
+function real(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+}
 
 function toplevel(dir: string): string | null {
   try {
@@ -45,7 +54,7 @@ function childRepos(launchDir: string): string[] {
  */
 export function discoverRepos(launchDir: string): string[] {
   const top = toplevel(launchDir);
-  const atRoot = top !== null && toPosixPath(top).toLowerCase() === toPosixPath(launchDir).toLowerCase();
+  const atRoot = top !== null && toPosixPath(top).toLowerCase() === toPosixPath(real(launchDir)).toLowerCase();
   if (atRoot) return [top];
   const children = childRepos(launchDir);
   if (children.length > 0 || top === null) return children;

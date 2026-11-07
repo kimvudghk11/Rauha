@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 function folder(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'rauha-ws-'));
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'rauha-ws-')));
   dirs.push(dir);
   return dir;
 }
