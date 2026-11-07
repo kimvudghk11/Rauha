@@ -24,6 +24,7 @@ const nameOf = (role: CharacterRole) => spriteFor(role).name;
 export interface ChatActions {
   readonly submit: (text: string) => Promise<JobView | null>;
   readonly stop: (id: string) => void;
+  readonly deeper: (id: string) => Promise<JobView | null>;
   readonly answer: (id: string, choice: ApprovalChoice) => void;
   readonly review: (id: string) => Promise<ChangeReview | null>;
 }
@@ -158,7 +159,19 @@ export function buildChat(actions: ChatActions) {
     av.appendChild(face);
     const body = el('div');
     const text = job.status === 'done' ? (job.result ?? '끝났어요.') : `멈췄어요${job.stopReason !== null ? `: ${job.stopReason}` : ''}`;
-    body.append(el('div', 'who', leadName()), el('div', 'tx', text));
+    const card = el('div', 'tx', text);
+    // 지식 없이 먼저 답한 깊은 답: 그 답 카드 안에 작게 알린다(알림·로그가 아니다)
+    if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));
+    // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
+    if (job.canGoDeeper) {
+      const deeper = el('button', 'btn sec deeper', '더 깊게');
+      deeper.addEventListener('click', () => {
+        deeper.disabled = true;
+        void actions.deeper(job.id);
+      });
+      card.appendChild(deeper);
+    }
+    body.append(el('div', 'who', leadName()), card);
     m.append(av, body);
     msgs.appendChild(m);
     msgs.scrollTop = msgs.scrollHeight;

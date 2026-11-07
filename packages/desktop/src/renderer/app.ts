@@ -82,6 +82,7 @@ function show(id: TabId): void {
 const chat = buildChat({
   submit: (text) => window.rauha.submit(text),
   stop: (id) => window.rauha.stop(id),
+  deeper: (id) => window.rauha.goDeeper(id),
   answer: (id, choice) => window.rauha.answerApproval(id, choice),
   review: (id) => window.rauha.reviewApproval(id),
 });

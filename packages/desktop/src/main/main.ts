@@ -111,7 +111,7 @@ async function startRunner(): Promise<JobRunner> {
         const root = target.folder?.root ?? folders()[0]?.root ?? currentWorkDir();
         jobRoots.set(job.id, root);
         const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: () => ruleBook }, root, io);
-        return { handle: () => session.handle(target.text) };
+        return { handle: (_input, depth) => session.handle(target.text, depth) };
       },
       askUser: (jobId, request) => askWithNotice(jobId, request),
     });
@@ -294,6 +294,15 @@ void app.whenReady().then(async () => {
     const ready = process.env['RAUHA_WORK_DIR'] !== undefined || FAKE || canWork(settings);
     const job = typeof text === 'string' && ready ? runner.submit(text) : null;
     return job === null ? null : boardView(runner.board).jobs.find((j) => j.id === job.id) ?? null;
+  });
+  ipcMain.handle(IPC.deeper, (_e, id: unknown) => {
+    const done = typeof id === 'string' ? runner.board.find(id) : null;
+    if (done === null || !done.resultMeta.canGoDeeper) return null;
+    const next = runner.submit(done.request, { deep: true });
+    if (next === null) return null;
+    const root = jobRoots.get(done.id);
+    if (root !== undefined) jobRoots.set(next.id, root);
+    return boardView(runner.board).jobs.find((j) => j.id === next.id) ?? null;
   });
   ipcMain.on(IPC.stop, (_e, id: unknown) => {
     if (typeof id !== 'string') return;

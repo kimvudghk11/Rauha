@@ -1,5 +1,5 @@
 import type { PermissionAnswer, PermissionAsker, PermissionRequest, ProgressPort, TurnOutcome, UserPort } from '@rauha/core';
-import type { Job, JobWork } from '@rauha/core/jobs';
+import type { Job, JobResultMeta, JobWork } from '@rauha/core/jobs';
 import { describeOutcome } from './describe-outcome.js';
 
 /** 작업 하나가 팀에 닿는 길. 작업마다 따로 만든다(대화 상태를 나눠 갖지 않게). */
@@ -12,7 +12,8 @@ export interface TeamIo {
 }
 
 export interface TeamSession {
-  handle(input: string): Promise<TurnOutcome>;
+  /** depth 'deep': 라우터 없이 같은 질문을 깊게 다시 답한다 */
+  handle(input: string, depth?: 'deep'): Promise<TurnOutcome>;
 }
 
 export interface TeamWorkDeps {
@@ -28,6 +29,13 @@ const quietUser: UserPort = {
   confirmFact: async () => ({ kind: 'unsure' }),
   pickPast: async () => null,
 };
+
+/** 답 카드에 붙일 꼬리표. 지식 없음은 깊게 답했는데도 읽은 저장소 기준(basis)이 없을 때다. */
+export function resultMetaOf(outcome: TurnOutcome): JobResultMeta {
+  if (outcome.kind !== 'answer') return { canGoDeeper: false, knowledgeMissing: false };
+  const canGoDeeper = outcome.canGoDeeper === true;
+  return { canGoDeeper, knowledgeMissing: !canGoDeeper && outcome.basis === null };
+}
 
 /**
  * 작업(Job)을 진짜 팀(ChatSession)에 맡긴다. 작업마다 새 세션이라 동시에 불러도 상태가 섞이지 않는다.
@@ -53,7 +61,7 @@ export function teamWork(deps: TeamWorkDeps): JobWork {
       if (signal.aborted) reject(new Error('멈춤'));
       signal.addEventListener('abort', () => reject(new Error('멈춤')), { once: true });
     });
-    const outcome = await Promise.race([session.handle(job.request), stopped]);
-    report.result(describeOutcome(outcome));
+    const outcome = await Promise.race([session.handle(job.request, job.deep ? 'deep' : undefined), stopped]);
+    report.result(describeOutcome(outcome), resultMetaOf(outcome));
   };
 }

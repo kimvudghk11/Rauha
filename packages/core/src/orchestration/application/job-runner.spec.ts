@@ -171,3 +171,21 @@ describe('JobRunner 보고', () => {
     expect(r.board.find('j1')?.notes.length).toBe(0);
   });
 });
+
+describe('JobRunner 깊게 다시', () => {
+  it('deep으로 넣은 작업은 deep 표시로 시작하고 결과 꼬리표를 받는다', () => {
+    let report!: import('./job-runner.js').JobReport;
+    const r = JobRunner.start({
+      work: (_job, _signal, rep) => {
+        report = rep;
+        return new Promise<void>(() => void 0);
+      },
+      newId: () => 'j1',
+      now: () => '2026-11-08T00:00:00.000Z',
+    });
+    r.submit('질문', { deep: true });
+    expect(r.board.find('j1')?.deep).toBe(true);
+    report.result('답', { canGoDeeper: false, knowledgeMissing: true });
+    expect(r.board.find('j1')?.resultMeta.knowledgeMissing).toBe(true);
+  });
+});

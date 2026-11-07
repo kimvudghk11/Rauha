@@ -1,4 +1,4 @@
-import { Job } from '../domain/job.js';
+import { Job, type JobResultMeta } from '../domain/job.js';
 import type { MemberRole } from '../domain/member-role.js';
 import { JobBoard } from '../domain/job-board.js';
 
@@ -9,7 +9,7 @@ export interface JobReport {
   /** 사용자의 허락·선택을 기다리는 중이면 true, 다시 일하면 false */
   waiting(on: boolean): void;
   /** 팀이 돌려준 결과 글 */
-  result(text: string): void;
+  result(text: string, meta?: JobResultMeta): void;
 }
 
 /** 작업 하나를 실제로 하는 일. 끝나면 resolve, 실패하면 reject. signal이 꺼지면 바로 그만둔다. */
@@ -50,8 +50,8 @@ export class JobRunner {
     return this.current;
   }
 
-  submit(request: string): Job | null {
-    const job = Job.queue({ id: this.deps.newId(), request, at: this.deps.now() });
+  submit(request: string, options: { deep?: boolean } = {}): Job | null {
+    const job = Job.queue({ id: this.deps.newId(), request, at: this.deps.now(), ...(options.deep === true ? { deep: true } : {}) });
     if (job === null) return null;
     this.current = this.current.add(job);
     this.pump();
@@ -105,7 +105,7 @@ export class JobRunner {
     return {
       note: (role, message) => this.update(id, (j) => j.noted(role, message, this.deps.now())),
       waiting: (on) => this.update(id, (j) => (on ? (j.status === 'running' ? j.wait() : j) : j.status === 'waiting' ? j.resume() : j)),
-      result: (text) => this.update(id, (j) => j.withResult(text)),
+      result: (text, meta) => this.update(id, (j) => j.withResult(text, meta)),
     };
   }
 

@@ -6,13 +6,13 @@ import { teamWork, type TeamIo } from './team-work.js';
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const answer = (text: string): TurnOutcome => ({ kind: 'answer', answer: text, checked: [], costUsd: 0, durationMs: 1, basis: null });
 
-function setup(handle: (io: TeamIo, input: string) => Promise<TurnOutcome>, askUser: (id: string) => Promise<PermissionAnswer> = async () => ({ kind: 'allow' })) {
+function setup(handle: (io: TeamIo, input: string, depth?: 'deep') => Promise<TurnOutcome>, askUser: (id: string) => Promise<PermissionAnswer> = async () => ({ kind: 'allow' })) {
   const ios: TeamIo[] = [];
   const runner = JobRunner.start({
     work: teamWork({
       newSession: (io) => {
         ios.push(io);
-        return { handle: (input) => handle(io, input) };
+        return { handle: (input, depth) => handle(io, input, depth) };
       },
       askUser,
     }),
@@ -94,5 +94,26 @@ describe('teamWork', () => {
     await runner.idle();
     expect(runner.board.find('j1')?.status).toBe('stopped');
     expect(runner.board.find('j1')?.stopReason).toBe('로그인 풀림');
+  });
+
+  it('답이 가벼웠으면 "더 깊게" 꼬리표를, 깊은데 저장소 정보가 없었으면 지식 없음 꼬리표를 남긴다', async () => {
+    const light = setup(async () => ({ ...answer('가볍게'), canGoDeeper: true }) as TurnOutcome);
+    light.runner.submit('질문');
+    await light.runner.idle();
+    expect(light.runner.board.find('j1')?.resultMeta).toEqual({ canGoDeeper: true, knowledgeMissing: false });
+
+    const deep = setup(async () => ({ ...answer('깊게'), canGoDeeper: false, basis: null }) as TurnOutcome);
+    deep.runner.submit('질문', { deep: true });
+    await deep.runner.idle();
+    expect(deep.runner.board.find('j1')?.resultMeta).toEqual({ canGoDeeper: false, knowledgeMissing: true });
+  });
+
+  it('깊게 다시 묻는 작업은 세션에 deep을 넘기고, 보통 작업은 넘기지 않는다', async () => {
+    const seen: (string | undefined)[] = [];
+    const { runner } = setup(async (_io, _input, depth) => (seen.push(depth), answer('x')));
+    runner.submit('A');
+    runner.submit('B', { deep: true });
+    await runner.idle();
+    expect(seen).toEqual([undefined, 'deep']);
   });
 });

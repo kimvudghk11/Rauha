@@ -166,9 +166,9 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
   });
   return {
-    handle: async (input) => {
+    handle: async (input, depth) => {
       try {
-        return await session.handle(input);
+        return await session.handle(input, [], depth);
       } finally {
         memory.close();
       }

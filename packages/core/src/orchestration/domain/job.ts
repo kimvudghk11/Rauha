@@ -11,6 +11,12 @@ export interface JobNote {
   readonly at: string;
 }
 
+/** 결과 글에 붙는 꼬리표: 더 깊게 답할 수 있는지, 저장소 정보를 못 읽은 채 답했는지 */
+export interface JobResultMeta {
+  readonly canGoDeeper: boolean;
+  readonly knowledgeMissing: boolean;
+}
+
 /** 작업이 들고 있는 기록 수 상한(오래된 것부터 버린다) */
 export const JOB_NOTE_LIMIT = 200;
 
@@ -25,6 +31,9 @@ interface JobState {
   readonly notes: readonly JobNote[];
   /** 끝났을 때 팀이 돌려준 결과 글 */
   readonly result: string | null;
+  readonly resultMeta: JobResultMeta;
+  /** 같은 질문을 깊게 다시 묻는 작업 */
+  readonly deep: boolean;
 }
 
 /**
@@ -35,10 +44,10 @@ export class Job {
   private constructor(private readonly state: JobState) {}
 
   /** 빈 요청(공백만 있는 요청 포함)은 작업이 되지 않는다. */
-  static queue(p: { id: string; request: string; at: string }): Job | null {
+  static queue(p: { id: string; request: string; at: string; deep?: boolean }): Job | null {
     const request = p.request.trim();
     if (request === '') return null;
-    return new Job({ id: p.id, request, status: 'queued', queuedAt: p.at, endedAt: null, stopReason: null, notes: [], result: null });
+    return new Job({ id: p.id, request, status: 'queued', queuedAt: p.at, endedAt: null, stopReason: null, notes: [], result: null, resultMeta: { canGoDeeper: false, knowledgeMissing: false }, deep: p.deep === true });
   }
 
   get id(): string {
@@ -81,6 +90,14 @@ export class Job {
     return null;
   }
 
+  get deep(): boolean {
+    return this.state.deep;
+  }
+
+  get resultMeta(): JobResultMeta {
+    return this.state.resultMeta;
+  }
+
   get result(): string | null {
     return this.state.result;
   }
@@ -115,8 +132,8 @@ export class Job {
   }
 
   /** 팀이 돌려준 결과 글을 붙인다. 끝난 작업에도 붙일 수 있다(끝나기 직전 결과를 받는 순서가 어긋나도 잃지 않게). */
-  withResult(text: string): Job {
-    return new Job({ ...this.state, result: text });
+  withResult(text: string, meta: JobResultMeta = { canGoDeeper: false, knowledgeMissing: false }): Job {
+    return new Job({ ...this.state, result: text, resultMeta: meta });
   }
 
   /** 이미 끝났거나 멈춘 작업은 그대로 둔다. */

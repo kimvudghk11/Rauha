@@ -46,6 +46,14 @@ describe('jobView', () => {
   });
 });
 
+describe('jobView 더 깊게', () => {
+  it('답의 꼬리표를 화면용으로 담는다', () => {
+    const view = jobView(job().start().withResult('답', { canGoDeeper: true, knowledgeMissing: false }).finish(AT));
+    expect(view).toMatchObject({ canGoDeeper: true, knowledgeMissing: false });
+    expect(jobView(job()).canGoDeeper).toBe(false);
+  });
+});
+
 describe('stepsOf', () => {
   it('나온 단계를 순서대로 쓰고 지금 단계만 now로 표시한다', () => {
     const j = job().start().noted('tester', 'a', AT).noted('implementer', 'b', AT);

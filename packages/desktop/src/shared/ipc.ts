@@ -10,6 +10,8 @@ import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } f
 export const IPC = {
   submit: 'job:submit',
   stop: 'job:stop',
+  /** 같은 질문을 깊게 다시 답해 달라("더 깊게") */
+  deeper: 'job:deeper',
   /** main → 화면: 작업판이 바뀔 때마다 보낸다 */
   board: 'job:board',
   /** 화면 → main: 지금 작업판을 한 번 달라(화면을 새로 열 때) */
@@ -69,6 +71,10 @@ export interface JobView {
   /** 가장 최근 한 줄 */
   readonly lastLine: string | null;
   readonly result: string | null;
+  /** 답 아래 "더 깊게" 버튼을 보일지(가볍게 답한 질문만) */
+  readonly canGoDeeper: boolean;
+  /** 깊게 답했지만 저장소 정보를 아직 못 읽은 채였다 */
+  readonly knowledgeMissing: boolean;
   readonly notes: readonly NoteView[];
 }
 
@@ -101,6 +107,8 @@ export type ApprovalChoice = { readonly kind: 'once' } | { readonly kind: 'job' 
 export interface RauhaApi {
   submit(text: string): Promise<JobView | null>;
   stop(id: string): void;
+  /** 끝난 작업의 질문을 깊게 다시 묻는 새 작업을 만든다 */
+  goDeeper(id: string): Promise<JobView | null>;
   onBoard(listener: (board: BoardView) => void): void;
   boardNow(): Promise<BoardView>;
   onApprovals(listener: (list: readonly ApprovalView[]) => void): void;
@@ -199,6 +207,8 @@ export function jobView(job: Job): JobView {
     steps: stepsOf(job),
     lastLine: job.lastNote?.message ?? null,
     result: job.result,
+    canGoDeeper: job.resultMeta.canGoDeeper,
+    knowledgeMissing: job.resultMeta.knowledgeMissing,
     notes: job.notes.map((n) => ({ role: n.role, roleName: n.role === null ? null : ROLE_INFO[n.role].name, message: n.message, at: n.at })),
   };
 }

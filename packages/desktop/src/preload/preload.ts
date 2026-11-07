@@ -4,6 +4,7 @@ import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared
 const api: RauhaApi = {
   submit: (text) => ipcRenderer.invoke(IPC.submit, text),
   stop: (id) => ipcRenderer.send(IPC.stop, id),
+  goDeeper: (id) => ipcRenderer.invoke(IPC.deeper, id),
   onBoard: (listener) => {
     ipcRenderer.on(IPC.board, (_e, board: BoardView) => listener(board));
   },

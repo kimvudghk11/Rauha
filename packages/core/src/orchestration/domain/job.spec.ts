@@ -117,3 +117,16 @@ describe('Job 기록과 결과', () => {
     expect(job.result).toBeNull();
   });
 });
+
+describe('Job 깊이와 결과 꼬리표', () => {
+  it('깊게 다시 묻는 작업은 deep 표시를 가진다(기본은 아니다)', () => {
+    expect(queued().deep).toBe(false);
+    expect(Job.queue({ id: 'd', request: '다시', at: AT, deep: true })!.deep).toBe(true);
+  });
+
+  it('결과에 더 깊게 가능 여부와 지식 없음 표시를 붙일 수 있다', () => {
+    const job = queued().start().withResult('답', { canGoDeeper: true, knowledgeMissing: false });
+    expect(job.resultMeta).toEqual({ canGoDeeper: true, knowledgeMissing: false });
+    expect(queued().resultMeta).toEqual({ canGoDeeper: false, knowledgeMissing: false });
+  });
+});
