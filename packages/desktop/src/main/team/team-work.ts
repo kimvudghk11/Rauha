@@ -14,6 +14,8 @@ export interface TeamIo {
 export interface TeamSession {
   /** depth 'deep': 라우터 없이 같은 질문을 깊게 다시 답한다 */
   handle(input: string, depth?: 'deep'): Promise<TurnOutcome>;
+  /** 일이 끝난 뒤 결과 글 끝에 붙일 한 줄(예: 결과가 남은 브랜치). 없으면 null */
+  note?(): string | null;
 }
 
 export interface TeamWorkDeps {
@@ -62,6 +64,7 @@ export function teamWork(deps: TeamWorkDeps): JobWork {
       signal.addEventListener('abort', () => reject(new Error('멈춤')), { once: true });
     });
     const outcome = await Promise.race([session.handle(job.request, job.deep ? 'deep' : undefined), stopped]);
-    report.result(describeOutcome(outcome), resultMetaOf(outcome));
+    const note = session.note?.() ?? null;
+    report.result(note === null ? describeOutcome(outcome) : `${describeOutcome(outcome)}\n\n${note}`, resultMetaOf(outcome));
   };
 }

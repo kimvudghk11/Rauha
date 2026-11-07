@@ -116,4 +116,15 @@ describe('teamWork', () => {
     await runner.idle();
     expect(seen).toEqual([undefined, 'deep']);
   });
+
+  it('세션이 끝난 뒤 붙일 한 줄이 있으면 결과 글 끝에 붙인다', async () => {
+    const runner = JobRunner.start({
+      work: teamWork({ newSession: () => ({ handle: async () => answer('답'), note: () => '작업 결과는 브랜치 rauha/job-1에 있어요.' }), askUser: async () => ({ kind: 'allow' }) }),
+      newId: () => 'j1',
+      now: () => '2026-11-08T00:00:00.000Z',
+    });
+    runner.submit('A');
+    await runner.idle();
+    expect(runner.board.find('j1')?.result).toBe('답\n\n작업 결과는 브랜치 rauha/job-1에 있어요.');
+  });
 });

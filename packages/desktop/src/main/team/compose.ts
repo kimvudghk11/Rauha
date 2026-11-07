@@ -95,9 +95,10 @@ export interface ComposeOptions {
  * 폴더 하나에서 일하는 팀 세션을 만든다(조립만 한다). 작업마다 새로 만들어 대화 상태를 나눠 갖지 않는다.
  * 기억·지식·학습 노트는 폴더(저장소) 단위로 파일에 있어 작업끼리 이어진다.
  */
-export function composeSession(options: ComposeOptions, root: string, io: TeamIo): TeamSession {
+export function composeSession(options: ComposeOptions, root: string, io: TeamIo, keyRoot: string = root): TeamSession {
   const { home, prompts } = options;
-  const profile = options.profileFor(root);
+  // keyRoot: 기억·지식·학습·규칙이 매이는 원래 레포 폴더. root는 팀원이 실제로 일하는 폴더(worktree면 임시 폴더)다.
+  const profile = options.profileFor(keyRoot);
   const secrets = loadSecretPolicy(root);
   const roles = RoleSettingsDto.defaults().withEnv({ ...process.env });
   const inner = new AgentSdkTeamMember({
@@ -108,27 +109,27 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     secrets,
     secretFiles: () => listSecretFiles(root, secrets),
     ...(options.claudeExecutable !== undefined ? { claudeExecutable: options.claudeExecutable } : {}),
-    ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, root), alwaysRules: () => options.rules!().alwaysTexts(root).map((t) => `- ${t}`).join('\n') } : {}),
+    ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
   });
   const team = stoppable(inner, io.signal);
   const knowledge = new KnowledgeService({
     reader: new GitRepoReader(root, secrets),
-    store: new FileKnowledgeStore(profile.knowledgeDir(home), root),
+    store: new FileKnowledgeStore(profile.knowledgeDir(home), keyRoot),
     team,
     roles,
     progress: io.progress,
-    repoName: basename(projectRoot(root)),
+    repoName: basename(projectRoot(keyRoot)),
   });
   const runId = randomUUID();
-  const memory = SqliteMemory.open(projectMemoryFile(profile.memoryDir(home), projectRoot(root)));
+  const memory = SqliteMemory.open(projectMemoryFile(profile.memoryDir(home), projectRoot(keyRoot)));
   const session = ChatSession.start({
     knowledge,
-    repoName: basename(root),
+    repoName: basename(keyRoot),
     designer: new DesignService({
       team,
       roles,
       user: { discuss: async () => null, approve: async () => ({ kind: 'cancel' }) },
-      store: new FileDesignStore(profile.designsDir(home), root),
+      store: new FileDesignStore(profile.designsDir(home), keyRoot),
       progress: io.progress,
       today: () => localDate(),
     }),
@@ -160,8 +161,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     now: Date.now,
     newId: () => randomUUID(),
     today: () => localDate(),
-    learning: new FileLearningStore(profile.learningDir(home), root),
-    company: new FileCompanyBook(profile.companyDir(home), root),
+    learning: new FileLearningStore(profile.learningDir(home), keyRoot),
+    company: new FileCompanyBook(profile.companyDir(home), keyRoot),
     budget: () => SessionBudget.fromWindows([options.plan()?.session ?? null, options.plan()?.weekly ?? null]),
     nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
   });

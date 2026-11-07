@@ -33,6 +33,7 @@ export function buildRepos(api: { list: () => Promise<readonly RepoRow[]> }, wor
       const top = el('div', 'rtop');
       top.append(el('b', undefined, `@${r.name}`), el('span', 'chip', KIND_LABEL[r.kind]));
       if (r.working > 0) top.appendChild(el('span', 'chip yellow', `작업 중 ${r.working}`));
+      if (r.worktrees > 0) top.appendChild(el('span', 'chip yellow', `worktree 작업 중 ${r.worktrees}`));
       card.appendChild(top);
       card.appendChild(el('div', 'dim', r.relative === '.' ? r.root : r.relative));
       if (r.status !== null) {

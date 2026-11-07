@@ -164,6 +164,8 @@ export interface RepoRow {
   readonly status: RepoStatus | null;
   /** 지금 이 폴더에서 일하는(끝나지 않은) 작업 수 */
   readonly working: number;
+  /** 그중 worktree에서 도는 작업 수(같은 레포에 먼저 도는 일이 있어서 따로 일하는 것) */
+  readonly worktrees: number;
 }
 
 export type RulesResult = { readonly ok: true; readonly rules: readonly RuleView[] } | { readonly ok: false; readonly error: string };

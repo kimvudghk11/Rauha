@@ -9,6 +9,8 @@ import { boardView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch }
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
 import { scanWorkFolder } from './workspace/scan.js';
+import { addWorktree, cleanupLeftovers, finishWorktree } from './workspace/git-worktree.js';
+import { WorktreeLedger } from './workspace/worktree-ledger.js';
 import { reviewChanges } from './team/git-review.js';
 import { Approvals } from './team/approvals.js';
 import { answerFor, approvalView } from './team/approval-view.js';
@@ -60,6 +62,10 @@ const promptsDir = (): string => resolvePromptsDir(resourceEnv(), process.env['R
 /** Claude Code 실행 파일(SDK의 플랫폼 패키지). 설치본은 asar 밖에서 찾는다. */
 const claudeExecutable = (): string | undefined => claudeBinaryPath(resourceEnv(), process.platform, process.arch) ?? undefined;
 
+/** 같은 레포를 동시에 고치는 일이 서로의 변경을 망치지 않게 자리를 나눠 주는 장부(두 번째 작업부터 worktree) */
+let ledger = WorktreeLedger.empty();
+const worktreeRoot = (): string => join(app.getPath('userData'), 'worktrees');
+
 /** 작업 id → 그 작업이 일하는 레포 폴더(허락 화면의 diff·영향을 그 레포에서 계산한다) */
 const jobRoots = new Map<string, string>();
 
@@ -109,9 +115,29 @@ async function startRunner(): Promise<JobRunner> {
       newSession: (io, job) => {
         const target = parseTarget(job.request, folders());
         const root = target.folder?.root ?? folders()[0]?.root ?? currentWorkDir();
-        jobRoots.set(job.id, root);
-        const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: () => ruleBook }, root, io);
-        return { handle: (_input, depth) => session.handle(target.text, depth) };
+        let note: string | null = null;
+        return {
+          note: () => note,
+          handle: async (_input, depth) => {
+            // 같은 레포에 두 번째로 오는 작업은 자기 worktree에서 일한다(첫 작업은 원래 폴더)
+            const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`));
+            ledger = claim.ledger;
+            const cwd = claim.place.kind === 'worktree' ? claim.place.path : root;
+            jobRoots.set(job.id, cwd);
+            try {
+              if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
+              const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: () => ruleBook }, cwd, io, root);
+              return await session.handle(target.text, depth);
+            } finally {
+              const released = ledger.release(job.id);
+              ledger = released.ledger;
+              if (released.worktree !== null) {
+                const branch = await finishWorktree(root, released.worktree, job.id, job.request).catch(() => null);
+                if (branch !== null) note = `같은 레포에서 다른 일이 함께 돌고 있어서 따로 작업했어요. 고친 내용은 브랜치 ${branch}에 있어요.`;
+              }
+            }
+          },
+        };
       },
       askUser: (jobId, request) => askWithNotice(jobId, request),
     });
@@ -235,6 +261,8 @@ void app.whenReady().then(async () => {
   await adoptShellPath();
   installMenu();
   if (process.env['RAUHA_SMOKE_COMPOSE'] === '1') return smokeCompose();
+  // 앱이 꺼지면서 정리하지 못한 worktree를 치운다(바뀐 내용은 작업 브랜치로 남긴다)
+  await cleanupLeftovers(worktreeRoot()).catch(() => 0);
   settings = await settingsStore.load();
   ruleBook = await ruleStore.load().catch(() => RuleBook.empty());
   const runner = await startRunner();
@@ -256,8 +284,8 @@ void app.whenReady().then(async () => {
   });
   ipcMain.handle(IPC.reposList, async (): Promise<RepoRow[]> => {
     const entries = await scanWorkFolder(currentWorkDir());
-    const working = (root: string) => runner.board.jobs.filter((j) => !j.isOver && jobRoots.get(j.id) === root).length;
-    return entries.map((e) => ({ name: e.name, root: e.root, relative: e.relative, kind: e.kind, status: e.status, working: working(e.root) }));
+    const working = (root: string) => runner.board.jobs.filter((j) => !j.isOver && (jobRoots.get(j.id) === root || ledger.repoOf(j.id) === root)).length;
+    return entries.map((e) => ({ name: e.name, root: e.root, relative: e.relative, kind: e.kind, status: e.status, working: working(e.root), worktrees: ledger.worktreeJobs(e.root) }));
   });
   const rulesView = () => RuleBookDto.fromEntity(ruleBook).toJSON().rules;
   ipcMain.handle(IPC.rulesList, rulesView);
