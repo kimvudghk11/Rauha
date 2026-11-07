@@ -226,6 +226,21 @@
   - 터미널에만 있던 명령은 맞는 덩어리로 옮긴다. `/learn`은 덩어리 3(기록)으로, `/routine`·`/company`·`/review`·`/retry`·`/copy`는 덩어리 4(명령어)로 간다. `/guide`는 덩어리 1의 작업 끝 결과 카드에 넣고, `/update`는 자동 업데이트로 바꾼다.
   - 그래서 덩어리 1과 덩어리 4 사이에는 몇몇 명령을 잠시 못 쓴다.
 
+### 5.12 macOS (회사 노트북이 맥북이다 — 2026-11-08 사용자 알림)
+
+월요일(2026-11-09)에 회사에서 쓰는 기기는 **맥북**이다. 집 Windows PC도 계속 지원하지만 월요일 기준은 macOS다. 4절의 ".exe", "Windows 알림", "PATH 폴더의 rauha.cmd" 같은 Windows 전용 표현은 5.11을 포함해 macOS에서는 아래로 읽는다.
+
+- **직접 실행해 볼 수 없다.** 이 PC에는 Mac이 없다. 그래서 GitHub Actions의 macOS 러너(`.github/workflows/desktop-mac.yml`)에서 빌드·테스트·실행 스모크를 돌려 확인하고, 결과 `.dmg`/`.zip`은 workflow artifact로 받는다(저장소 `kimvudghk11/rauha`, 이 PC에는 `gh`가 없다). 실제 맥북 첫 실행은 사용자가 한다. 막히면 소스로 실행하는 길(`git clone` → `yarn install` → `yarn desktop`)도 사용 안내에 쓴다.
+- **맥에서 꼭 풀 것**
+  1. GUI 앱은 셸의 PATH를 못 받는다(Finder로 열면 `/opt/homebrew/bin`이 없다). 시작할 때 로그인 셸(`$SHELL -ilc`)에서 PATH를 읽어 `git`·`aws`·`gh`·`node`·`claude`를 찾는다.
+  2. 설치본에서 Agent SDK가 부르는 `node`가 없을 수 있다. Electron 자신을 `ELECTRON_RUN_AS_NODE`로 쓰고, SDK 실행 파일은 asar 밖(`asarUnpack`)에 둔다. 프롬프트 폴더도 설치본에 복사한다.
+  3. 서명 없는 앱은 Gatekeeper가 막는다(Apple Silicon은 ad-hoc 서명까지 필요). ad-hoc 서명으로 빌드하고, 사용 안내에 "우클릭 → 열기" 또는 `xattr -dr com.apple.quarantine /Applications/rauha.app`을 쓴다. 회사 보안 소프트웨어(MDM)가 막으면 소스 실행으로 간다.
+  4. 터미널 rauha 지우기: dmg에는 설치 단계가 없으므로 **첫 실행 때** 찾는다. 후보 `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, PATH의 폴더. 내용이 rauha 저장소의 `dist/main.js`를 부르는 `rauha`만 지운다. 데이터는 그대로 둔다.
+  5. 맥 UX: `titleBarStyle: 'hiddenInset'`(신호등 버튼 자리), 앱 메뉴와 단축키는 Cmd(Cmd+Q·W·,), 글꼴 `-apple-system`, 알림은 Electron Notification(처음 한 번 허용), Dock 아이콘은 `.icns`(`build/icon.png`에서 만든다), 문서·데스크톱 폴더 첫 접근 때 맥이 묻는 권한 안내.
+  6. Claude 로그인: macOS는 로그인 정보를 키체인에 둔다. rauha는 토큰을 읽지 않고 `CLAUDE_CONFIG_DIR`만 바꾼다(그대로).
+  7. 칩: arm64와 x64를 모두 만든다(universal 또는 둘 다).
+  8. Windows 전용 코드(PowerShell, `.cmd`, 백슬래시 경로, `where`)는 core·desktop에서 찾아 플랫폼 분기하거나 지운다. `packages/cli`에 몰려 있어 덩어리 1의 cli 정리에서 대부분 사라진다.
+
 ## 6. 빌더에게 맡기는 것
 
 - 화면 라이브러리, 상태 관리, IPC 모양
