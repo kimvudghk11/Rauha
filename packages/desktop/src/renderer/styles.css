@@ -27,7 +27,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .status-right { margin-left: auto; }
 
 /* 채팅 */
-.chat { flex: 1; display: flex; min-width: 0; min-height: 0; padding: 8px; }
 .pane { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .ph { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 11.5px; color: var(--muted); }
 .ph b { color: var(--bright); font-weight: 600; font-size: 12.5px; }
@@ -63,13 +62,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 canvas.sp { image-rendering: pixelated; display: block; }
 
-/* 좁은 창(모니터 반쪽 이하): 탭은 아이콘만, 힌트는 줄인다. 입력창과 상태 줄은 늘 보인다. */
-@media (max-width: 760px) {
-  .app { grid-template-columns: 44px minmax(0, 1fr); }
-  .act button { width: 44px; height: 44px; font-size: 0; }
-  .ph .hint, .composer .hint .more { display: none; }
-  .chat { padding: 4px; }
-}
-@media (max-height: 420px) {
-  .composer .hint { display: none; }
-}
+
+/* 스크롤 막대는 보이지 않게 한다. 휠·터치패드·키보드 스크롤은 그대로 동작한다. */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
