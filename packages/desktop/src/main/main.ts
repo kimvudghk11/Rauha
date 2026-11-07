@@ -4,6 +4,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, IPC } from '../shared/ipc.js';
 import { demoWork } from './demo-work.js';
+import { measureTyping } from './measure-typing.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
 const BACKGROUND = '#1f1f1f';
@@ -46,6 +47,11 @@ function open(): void {
   void window.loadFile(join(__dirname, 'renderer', 'index.html'));
   const shot = process.env['RAUHA_SMOKE_SHOT'];
   if (shot !== undefined) window.webContents.once('did-finish-load', () => void smoke(shot));
+  const typing = process.env['RAUHA_MEASURE_TYPING'];
+  if (typing !== undefined)
+    window.webContents.once('did-finish-load', () =>
+      void measureTyping(window!, typing, () => ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 초안', 'VPC 피어링 정리 문서', '정산 배치 알림'].forEach((t) => runner.submit(t))).then(() => app.quit()),
+    );
 }
 
 /** 확인용: 일 5개를 연달아 넣고 화면을 찍은 뒤 끝낸다(RAUHA_SMOKE_SHOT=찍을 png 경로). */

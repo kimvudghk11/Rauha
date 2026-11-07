@@ -30,6 +30,7 @@ interface Drawn {
   readonly canvas: HTMLCanvasElement;
   readonly sprite: Sprite;
   readonly scale: number;
+  frame: number;
 }
 const drawn: Drawn[] = [];
 
@@ -54,18 +55,40 @@ function character(role: CharacterRole, scale: number): HTMLCanvasElement {
   const canvas = el('canvas', 'sp');
   canvas.width = sprite.frames[0]![0]!.length * scale;
   canvas.height = sprite.frames[0]!.length * scale;
-  const d = { canvas, sprite, scale };
+  const d: Drawn = { canvas, sprite, scale, frame: 0 };
   drawn.push(d);
   paint(d, 0);
   return canvas;
 }
 
+/**
+ * 움직임은 requestAnimationFrame 하나로 모은다. 230ms 걸음마다 한 번만 그리고,
+ * 화면에 안 붙은 캔버스는 목록에서 치우고, 창이 가려지면(rAF가 멈춤) 아무것도 하지 않는다.
+ * 프레임이 안 바뀌었으면 다시 그리지 않는다.
+ */
+const STEP_MS = 230;
+let lastStep = 0;
 let tick = 0;
-setInterval(() => {
-  tick += 1;
-  const blink = tick % 14 === 0;
-  for (const d of drawn) if (d.sprite.frames.length > 1 && d.canvas.isConnected) paint(d, blink ? 1 : 0);
-}, 230);
+function animate(now: number): void {
+  if (now - lastStep >= STEP_MS) {
+    lastStep = now;
+    tick += 1;
+    const frame = tick % 14 === 0 ? 1 : 0;
+    for (let i = drawn.length - 1; i >= 0; i -= 1) {
+      const d = drawn[i]!;
+      if (!d.canvas.isConnected) {
+        drawn.splice(i, 1);
+        continue;
+      }
+      if (d.sprite.frames.length > 1 && d.frame !== frame) {
+        d.frame = frame;
+        paint(d, frame);
+      }
+    }
+  }
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
 
 // ── 탭 ─────────────────────────────────────────────────
 
