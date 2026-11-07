@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { projectKey } from '../../shared/project-key.js';
 import type { MemoryPort } from '../application/memory.port.js';
 import type { MemoryEntry, MemoryNode, MemoryNodeKind, Recall } from '../domain/work-memory.js';
@@ -39,12 +39,12 @@ function ftsQuery(text: string): string | null {
  * 찾은 점이 결정·파일이면 선을 거꾸로 따라 작업으로 올라가고, 맞은 작업들은 최근 것부터 돌려준다.
  */
 export class SqliteMemory implements MemoryPort {
-  private constructor(private readonly db: Database.Database) {}
+  private constructor(private readonly db: DatabaseSync) {}
 
   static open(file: string): SqliteMemory {
     mkdirSync(dirname(file), { recursive: true });
-    const db = new Database(file);
-    db.pragma('journal_mode = WAL');
+    const db = new DatabaseSync(file);
+    db.exec('PRAGMA journal_mode = WAL');
     db.exec(SCHEMA);
     return new SqliteMemory(db);
   }
@@ -57,25 +57,30 @@ export class SqliteMemory implements MemoryPort {
     const node = this.db.prepare('INSERT OR IGNORE INTO nodes (id, kind, text, at) VALUES (?, ?, ?, ?)');
     const text = this.db.prepare('INSERT INTO node_text (id, text) VALUES (?, ?)');
     const edge = this.db.prepare('INSERT OR IGNORE INTO edges (from_id, to_id, kind) VALUES (?, ?, ?)');
-    this.db.transaction(() => {
+    this.db.exec('BEGIN');
+    try {
       for (const n of entry.nodes) {
-        if (node.run(n.id, n.kind, n.text, n.at).changes > 0) text.run(n.id, n.text);
+        if (Number(node.run(n.id, n.kind, n.text, n.at).changes) > 0) text.run(n.id, n.text);
       }
       for (const e of entry.edges) edge.run(e.from, e.to, e.kind);
-    })();
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   async search(text: string, limit: number): Promise<Recall[]> {
     const query = ftsQuery(text);
     if (query === null) return [];
-    const hits = this.db.prepare('SELECT id FROM node_text WHERE node_text MATCH ?').all(query) as { id: string }[];
+    const hits = this.db.prepare('SELECT id FROM node_text WHERE node_text MATCH ?').all(query) as unknown as { id: string }[];
     const heads = new Set<string>();
     for (const { id } of hits) for (const head of this.headsOf(id)) heads.add(head);
     return this.recallsOf([...heads], limit);
   }
 
   async recent(limit: number): Promise<Recall[]> {
-    const rows = this.db.prepare("SELECT id FROM nodes WHERE kind IN ('work', 'question') ORDER BY at DESC LIMIT ?").all(limit) as { id: string }[];
+    const rows = this.db.prepare("SELECT id FROM nodes WHERE kind IN ('work', 'question') ORDER BY at DESC LIMIT ?").all(limit) as unknown as { id: string }[];
     return this.recallsOf(rows.map((r) => r.id), limit);
   }
 
@@ -91,7 +96,7 @@ export class SqliteMemory implements MemoryPort {
           found.add(current);
           continue;
         }
-        const parents = this.db.prepare("SELECT from_id FROM edges WHERE to_id = ? AND kind != 'extends'").all(current) as { from_id: string }[];
+        const parents = this.db.prepare("SELECT from_id FROM edges WHERE to_id = ? AND kind != 'extends'").all(current) as unknown as { from_id: string }[];
         next.push(...parents.map((p) => p.from_id));
       }
       frontier = next;
@@ -112,13 +117,13 @@ export class SqliteMemory implements MemoryPort {
   private neighbors(id: string): MemoryNode[] {
     const children = this.db
       .prepare("SELECT n.id, n.kind, n.text, n.at FROM edges e JOIN nodes n ON n.id = e.to_id WHERE e.from_id = ? AND e.kind != 'extends'")
-      .all(id) as NodeRow[];
+      .all(id) as unknown as NodeRow[];
     const answers = children.filter((c) => c.kind === 'answer');
-    const cited = answers.flatMap((a) => this.db.prepare('SELECT n.id, n.kind, n.text, n.at FROM edges e JOIN nodes n ON n.id = e.to_id WHERE e.from_id = ?').all(a.id) as NodeRow[]);
+    const cited = answers.flatMap((a) => this.db.prepare('SELECT n.id, n.kind, n.text, n.at FROM edges e JOIN nodes n ON n.id = e.to_id WHERE e.from_id = ?').all(a.id) as unknown as NodeRow[]);
     return [...children, ...cited];
   }
 
   private node(id: string): NodeRow | null {
-    return (this.db.prepare('SELECT id, kind, text, at FROM nodes WHERE id = ?').get(id) as NodeRow | undefined) ?? null;
+    return (this.db.prepare('SELECT id, kind, text, at FROM nodes WHERE id = ?').get(id) as unknown as NodeRow | undefined) ?? null;
   }
 }

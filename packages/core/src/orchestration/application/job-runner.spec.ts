@@ -123,3 +123,51 @@ describe('JobRunner', () => {
     expect(r.board.jobs.every((j) => j.isOver)).toBe(true);
   });
 });
+
+describe('JobRunner 보고', () => {
+  type Report = import('./job-runner.js').JobReport;
+  const start = (onChange?: (b: JobBoard) => void) => {
+    const holder: { report: Report | null; finish: () => void } = { report: null, finish: () => undefined };
+    const r = JobRunner.start({
+      work: (_job, _signal, report) => {
+        holder.report = report;
+        return new Promise<void>((resolve) => (holder.finish = resolve));
+      },
+      newId: () => 'j1',
+      now: () => '2026-11-08T00:00:00.000Z',
+      ...(onChange !== undefined ? { onChange } : {}),
+    });
+    r.submit('일');
+    return { r, holder };
+  };
+
+  it('일하는 쪽이 남긴 한 줄과 결과가 작업에 붙고 판이 바뀐 것으로 알린다', () => {
+    const seen: JobBoard[] = [];
+    const { r, holder } = start((b) => seen.push(b));
+    const before = seen.length;
+    holder.report!.note('implementer', '구현 중');
+    holder.report!.result('결과');
+    expect(r.board.find('j1')?.lastNote?.message).toBe('구현 중');
+    expect(r.board.find('j1')?.activeRole).toBe('implementer');
+    expect(r.board.find('j1')?.result).toBe('결과');
+    expect(seen.length).toBe(before + 2);
+  });
+
+  it('허락을 기다리면 기다림 상태가 되고 자리는 그대로 차지하며, 답이 오면 다시 진행한다', () => {
+    const { r, holder } = start();
+    holder.report!.waiting(true);
+    expect(r.board.find('j1')?.status).toBe('waiting');
+    expect(r.board.counts().waiting).toBe(1);
+    holder.report!.waiting(true);
+    holder.report!.waiting(false);
+    expect(r.board.find('j1')?.status).toBe('running');
+  });
+
+  it('끝난 일이 늦게 알려도 아무 일 없다', async () => {
+    const { r, holder } = start();
+    holder.finish();
+    await flush();
+    holder.report!.note('tester', '늦은 알림');
+    expect(r.board.find('j1')?.notes.length).toBe(0);
+  });
+});

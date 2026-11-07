@@ -1,8 +1,19 @@
 import { Job } from '../domain/job.js';
+import type { MemberRole } from '../domain/member-role.js';
 import { JobBoard } from '../domain/job-board.js';
 
+/** 일하는 쪽이 작업판에 알리는 길 */
+export interface JobReport {
+  /** 진행 한 줄. role은 그 팀원이 일을 시작했다는 알림일 때만 */
+  note(role: MemberRole | null, message: string): void;
+  /** 사용자의 허락·선택을 기다리는 중이면 true, 다시 일하면 false */
+  waiting(on: boolean): void;
+  /** 팀이 돌려준 결과 글 */
+  result(text: string): void;
+}
+
 /** 작업 하나를 실제로 하는 일. 끝나면 resolve, 실패하면 reject. signal이 꺼지면 바로 그만둔다. */
-export type JobWork = (job: Job, signal: AbortSignal) => Promise<void>;
+export type JobWork = (job: Job, signal: AbortSignal, report: JobReport) => Promise<void>;
 
 export interface JobRunnerDeps {
   readonly work: JobWork;
@@ -84,10 +95,27 @@ export class JobRunner {
   /** work가 Promise를 돌려주기 전에 바로 던져도 실패로 받는다. */
   private call(job: Job, signal: AbortSignal): Promise<void> {
     try {
-      return this.deps.work(job, signal);
+      return this.deps.work(job, signal, this.reportFor(job.id));
     } catch (error) {
       return Promise.reject(error);
     }
+  }
+
+  private reportFor(id: string): JobReport {
+    return {
+      note: (role, message) => this.update(id, (j) => j.noted(role, message, this.deps.now())),
+      waiting: (on) => this.update(id, (j) => (on ? (j.status === 'running' ? j.wait() : j) : j.status === 'waiting' ? j.resume() : j)),
+      result: (text) => this.update(id, (j) => j.withResult(text)),
+    };
+  }
+
+  private update(id: string, change: (job: Job) => Job): void {
+    const job = this.current.find(id);
+    if (job === null) return;
+    const next = change(job);
+    if (next === job) return;
+    this.current = this.current.replace(next);
+    this.changed();
   }
 
   private settle(id: string, end: (job: Job) => Job): void {

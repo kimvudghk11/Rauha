@@ -85,3 +85,35 @@ describe('Job.holdsSlot · isOver', () => {
     expect(queued().stop('x', LATER).isOver).toBe(true);
   });
 });
+
+describe('Job 기록과 결과', () => {
+  it('팀원이 남긴 한 줄이 쌓이고 가장 최근 줄과 지금 일하는 팀원을 알 수 있다', () => {
+    const job = queued().start().noted('tester', '실패하는 테스트를 쓰는 중', AT).noted(null, '파일 3개 읽음', LATER);
+    expect(job.notes.length).toBe(2);
+    expect(job.lastNote?.message).toBe('파일 3개 읽음');
+    expect(job.activeRole).toBe('tester');
+  });
+
+  it('빈 줄은 남기지 않는다', () => {
+    const job = queued().start();
+    expect(job.noted('tester', '  ', AT)).toBe(job);
+  });
+
+  it('끝난 작업에는 기록을 더하지 않는다', () => {
+    const done = queued().start().finish(LATER);
+    expect(done.noted('tester', '늦은 알림', LATER)).toBe(done);
+  });
+
+  it('기록은 상한까지만 들고 오래된 것부터 버린다', () => {
+    let job = queued().start();
+    for (let i = 0; i < 250; i += 1) job = job.noted(null, `줄 ${i}`, AT);
+    expect(job.notes.length).toBe(200);
+    expect(job.notes[0]!.message).toBe('줄 50');
+  });
+
+  it('결과 글을 붙이면 새 작업이 되고 원래 작업은 그대로다', () => {
+    const job = queued().start();
+    expect(job.withResult('끝났어요').result).toBe('끝났어요');
+    expect(job.result).toBeNull();
+  });
+});
