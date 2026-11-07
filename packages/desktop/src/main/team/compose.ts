@@ -60,10 +60,16 @@ function gitRemote(cwd: string): string | null {
 const definedEnv = (env: NodeJS.ProcessEnv): Record<string, string> => Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => e[1] !== undefined));
 
 /** 폴더 → 계정(프로필). 설정 파일이 없으면 기본 프로필이다. 계정 구분은 CLAUDE_CONFIG_DIR로만 한다. */
-export async function profileResolver(home: string): Promise<(cwd: string) => Profile> {
+export async function profileResolver(home: string, account: string | null = null): Promise<(cwd: string) => Profile> {
   const configPath = process.env['RAUHA_CONFIG'] ?? join(home, '.rauha', 'config.toml');
   const book = (await loadProfileConfig(configPath)).toEntity();
-  return (cwd) => book.resolve({ cwd, home, gitRemote: gitRemote(cwd), flag: null, env: process.env['RAUHA_PROFILE'] ?? null }).profile;
+  return (cwd) => book.resolve({ cwd, home, gitRemote: gitRemote(cwd), flag: account, env: process.env['RAUHA_PROFILE'] ?? null }).profile;
+}
+
+/** 설정 화면에서 고를 수 있는 계정(프로필) 이름들 */
+export async function accountNames(home: string): Promise<string[]> {
+  const configPath = process.env['RAUHA_CONFIG'] ?? join(home, '.rauha', 'config.toml');
+  return (await loadProfileConfig(configPath)).toEntity().names();
 }
 
 /** 팀원 호출에 작업의 멈춤 신호를 이어 붙인다. 미리 띄워 두는 호출(prepare)은 한도를 쓰므로 넘기지 않는다. */

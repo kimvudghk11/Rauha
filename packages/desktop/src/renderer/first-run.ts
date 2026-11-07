@@ -58,3 +58,59 @@ export async function offerTerminalCleanup(): Promise<void> {
   veil.appendChild(box);
   document.body.appendChild(veil);
 }
+
+/**
+ * 첫 실행 마법사: 작업 폴더 고르기 → 그 폴더에서 일해도 되는지 허락 → 계정 고르기 → 정보 저장(건너뛰기, 곧).
+ * 끝나면 설정에 저장하고 resolve한다. 폴더를 고르고 허락하기 전에는 일을 맡길 수 없다.
+ */
+export function runWizard(api: { pickFolder(): Promise<string | null>; accounts(): Promise<{ names: readonly string[] }>; update(patch: { workFolder?: string; folderApproved?: boolean; account?: string | null; firstRunDone?: boolean }): Promise<unknown> }): Promise<void> {
+  return new Promise((resolve) => {
+    const veil = el('div', 'veil');
+    const box = el('div', 'dialog wizard');
+    veil.appendChild(box);
+    document.body.appendChild(veil);
+    let folder: string | null = null;
+
+    const folderStep = () => {
+      const pick = el('button', 'btn primary', '폴더 고르기');
+      const next = el('button', 'btn sec', '다음');
+      next.disabled = true;
+      const shown = el('div', 'dim', '아직 안 골랐어요.');
+      pick.addEventListener('click', async () => {
+        const p = await api.pickFolder();
+        if (p === null) return;
+        folder = p;
+        shown.textContent = p;
+        next.disabled = false;
+      });
+      next.addEventListener('click', approveStep);
+      box.replaceChildren(el('b', undefined, '1/3 · 일할 폴더를 골라요'), el('p', undefined, '레포와 문서 폴더가 들어 있는 폴더 하나를 골라 주세요. rauha가 그 안을 훑어서 레포와 문서 폴더를 알아서 구분해요. 파일 내용은 일을 맡았을 때 필요한 만큼만 읽어요.'), shown, row(pick, next));
+    };
+    const approveStep = () => {
+      const yes = el('button', 'btn primary', '허락해요');
+      const back = el('button', 'btn sec', '다른 폴더 고르기');
+      yes.addEventListener('click', accountStep);
+      back.addEventListener('click', folderStep);
+      box.replaceChildren(el('b', undefined, '2/3 · 이 폴더에서 일해도 될까요?'), el('p', undefined, `${folder ?? ''}\n팀원이 이 안의 파일을 읽고 고칠 수 있어요. 위험한 일(보호 브랜치 push, 운영 인프라 변경 등)은 그때마다 허락을 물어요.`), row(yes, back));
+    };
+    const accountStep = async () => {
+      const { names } = await api.accounts();
+      const select = el('select');
+      select.appendChild(new Option('폴더 규칙에 맡기기(기본)', ''));
+      for (const n of names) select.appendChild(new Option(n, n));
+      const done = el('button', 'btn primary', '시작하기');
+      done.addEventListener('click', async () => {
+        await api.update({ ...(folder !== null ? { workFolder: folder } : {}), folderApproved: true, account: select.value === '' ? null : select.value, firstRunDone: true });
+        veil.remove();
+        resolve();
+      });
+      box.replaceChildren(el('b', undefined, '3/3 · 쓸 Claude 계정'), el('p', undefined, '이미 로그인된 Claude Code 설정 폴더(계정) 중에서 골라요. 토큰은 읽지 않아요. 정보 저장(내 AWS)은 곧 열려요 — 지금은 건너뛰어요.'), select, row(done));
+    };
+    const row = (...children: HTMLElement[]) => {
+      const r = el('div', 'btns');
+      r.append(...children);
+      return r;
+    };
+    folderStep();
+  });
+}

@@ -1,6 +1,9 @@
 import type { ApprovalSummary } from './approval-summary.js';
 import type { ChangeReview } from './branch-impact.js';
 import type { RuleView } from './rules-form.js';
+import type { FolderKind } from './folder-kind.js';
+import type { RepoStatus } from './git-status.js';
+import type { Settings } from './settings.js';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
 /** main ↔ 화면 IPC 채널. 화면은 이 채널로만 main과 이야기한다. */
@@ -19,6 +22,12 @@ export const IPC = {
   /** 화면 → main: 허락 요청 하나의 변경 검토(diff·main/qa 영향)를 git으로 계산해 달라 */
   approvalReview: 'approval:review',
   /** 규칙 탭: 목록 · 더하기 · 지우기 */
+  settingsGet: 'settings:get',
+  settingsUpdate: 'settings:update',
+  usageGet: 'usage:get',
+  accountsList: 'accounts:list',
+  folderPick: 'folder:pick',
+  reposList: 'repos:list',
   rulesList: 'rules:list',
   rulesAdd: 'rules:add',
   rulesRemove: 'rules:remove',
@@ -99,6 +108,14 @@ export interface RauhaApi {
   answerApproval(id: string, choice: ApprovalChoice): void;
   /** 코드 허락의 정리: 바뀐 파일·diff·보호 브랜치별 영향. 레포를 알 수 없으면 null */
   reviewApproval(id: string): Promise<ChangeReview | null>;
+  getSettings(): Promise<Settings>;
+  updateSettings(patch: SettingsPatch): Promise<Settings>;
+  /** 구독 사용률(%)과 초기화 시각. 아직 못 읽었으면 null */
+  getUsage(): Promise<UsageView | null>;
+  listAccounts(): Promise<AccountsView>;
+  /** 폴더 고르기 창을 연다. 취소하면 null */
+  pickFolder(): Promise<string | null>;
+  listRepos(): Promise<readonly RepoRow[]>;
   listRules(): Promise<readonly RuleView[]>;
   /** 규칙을 더한다. 규칙이 안 맞으면 이유를 돌려준다(저장하지 않는다). */
   addRule(rule: RuleView): Promise<RulesResult>;
@@ -109,6 +126,36 @@ export interface RauhaApi {
   readonly platform: string;
   findTerminalRauha(): Promise<readonly TerminalRauhaView[]>;
   removeTerminalRauha(paths: readonly string[]): Promise<readonly string[]>;
+}
+
+export type SettingsPatch = Partial<Omit<Settings, 'notify'>> & { notify?: Partial<Settings['notify']> };
+
+export interface UsageWindowView {
+  readonly percent: number;
+  readonly resetsAt: string | null;
+}
+
+/** 구독 한도. 돈(달러)이 아니라 %로만 보인다. */
+export interface UsageView {
+  readonly session: UsageWindowView | null;
+  readonly weekly: UsageWindowView | null;
+}
+
+export interface AccountsView {
+  readonly names: readonly string[];
+  /** 설정에서 고른 계정(없으면 null = 폴더 규칙) */
+  readonly selected: string | null;
+}
+
+/** 레포 탭 한 줄 */
+export interface RepoRow {
+  readonly name: string;
+  readonly root: string;
+  readonly relative: string;
+  readonly kind: FolderKind;
+  readonly status: RepoStatus | null;
+  /** 지금 이 폴더에서 일하는(끝나지 않은) 작업 수 */
+  readonly working: number;
 }
 
 export type RulesResult = { readonly ok: true; readonly rules: readonly RuleView[] } | { readonly ok: false; readonly error: string };

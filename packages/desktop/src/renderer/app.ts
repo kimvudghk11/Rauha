@@ -1,8 +1,10 @@
 import type { ApprovalView, BoardView, RauhaApi } from '../shared/ipc.js';
 import { buildChat } from './chat-view.js';
-import { offerTerminalCleanup } from './first-run.js';
+import { offerTerminalCleanup, runWizard } from './first-run.js';
 import { el, icon } from './dom.js';
+import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
+import { buildSettings, limitBar } from './settings-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
 import { TABS, type TabId } from './tabs.js';
@@ -66,6 +68,8 @@ function show(id: TabId): void {
   renderTabs();
   const tab = TABS.find((t) => t.id === id)!;
   if (id === 'chat') screen.replaceChildren(chat.root);
+  else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
+  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder() }, pickLayout).root);
   else if (id === 'rules') screen.replaceChildren(buildRules({ list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
   else {
     const soon = el('div', 'soon');
@@ -89,6 +93,7 @@ function pickLayout(next: Layout): void {
     /* 기억 못 해도 괜찮다 */
   }
   chat.layoutButtons(layout, pickLayout);
+  void window.rauha.updateSettings({ layout });
   applyMode();
 }
 chat.layoutButtons(layout, pickLayout);
@@ -124,6 +129,15 @@ function toast(a: ApprovalView): void {
   setTimeout(() => t.remove(), 12000);
 }
 
+/** 아래 상태 줄의 세션·주간 한도 미니 막대(%만, 돈은 없다) */
+async function refreshLimits(): Promise<void> {
+  const usage = await window.rauha.getUsage();
+  const box = document.getElementById('status-usage')!;
+  box.replaceChildren();
+  if (usage === null) return;
+  box.append(limitBar('세션', usage.session), limitBar('주간', usage.weekly));
+}
+
 function renderStatus(view: BoardView): void {
   document.getElementById('status-jobs')!.textContent = statusText(view);
   document.getElementById('status-limit')!.textContent = `동시에 ${view.limit}개까지`;
@@ -154,7 +168,16 @@ void window.rauha.boardNow().then((view) => {
 });
 void window.rauha.approvalsNow().then(onApprovals);
 
-void offerTerminalCleanup();
+void (async () => {
+  const settings = await window.rauha.getSettings();
+  if (settings.layout !== layout) pickLayout(settings.layout);
+  if (!settings.firstRunDone) {
+    await runWizard({ pickFolder: () => window.rauha.pickFolder(), accounts: () => window.rauha.listAccounts(), update: (p) => window.rauha.updateSettings(p) });
+  }
+  await offerTerminalCleanup();
+})();
+void refreshLimits();
+setInterval(() => void refreshLimits(), 30_000);
 applyMode();
 show('chat');
 chat.focus();

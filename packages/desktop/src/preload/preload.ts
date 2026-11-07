@@ -12,6 +12,12 @@ const api: RauhaApi = {
     ipcRenderer.on(IPC.approvals, (_e, list: readonly ApprovalView[]) => listener(list));
   },
   approvalsNow: () => ipcRenderer.invoke(IPC.approvalsNow),
+  getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
+  updateSettings: (patch) => ipcRenderer.invoke(IPC.settingsUpdate, patch),
+  getUsage: () => ipcRenderer.invoke(IPC.usageGet),
+  listAccounts: () => ipcRenderer.invoke(IPC.accountsList),
+  pickFolder: () => ipcRenderer.invoke(IPC.folderPick),
+  listRepos: () => ipcRenderer.invoke(IPC.reposList),
   listRules: () => ipcRenderer.invoke(IPC.rulesList),
   addRule: (rule) => ipcRenderer.invoke(IPC.rulesAdd, rule),
   removeRule: (id) => ipcRenderer.invoke(IPC.rulesRemove, id),

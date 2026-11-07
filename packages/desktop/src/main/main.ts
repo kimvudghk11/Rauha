@@ -2,15 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { app, BrowserWindow, ipcMain, Menu, Notification } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification } from 'electron';
 import { DomainError, discoverRepos, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
-import { boardView, IPC, type ApprovalChoice } from '../shared/ipc.js';
+import { boardView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
+import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
+import { SettingsStore } from './settings-store.js';
+import { scanWorkFolder } from './workspace/scan.js';
 import { reviewChanges } from './team/git-review.js';
-import { DEFAULT_PROTECTED_BRANCHES } from '../shared/approval-summary.js';
 import { Approvals } from './team/approvals.js';
 import { answerFor, approvalView } from './team/approval-view.js';
-import { composeSession, profileResolver } from './team/compose.js';
+import { accountNames, composeSession, profileResolver } from './team/compose.js';
 import { fakeTeam } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { teamWork } from './team/team-work.js';
@@ -25,6 +27,7 @@ const BACKGROUND = '#1f1f1f';
 
 let window: BrowserWindow | null = null;
 let plan: PlanUsage | null = null;
+let limitNotified = false;
 
 /** 사용자 규칙(규칙 탭). 팀원이 도구를 부를 때마다 이 값을 읽으므로 고치면 바로 반영된다. */
 const ruleStore = new FileRuleStore(join(homedir(), '.rauha', 'desktop', 'rules.json'));
@@ -34,12 +37,17 @@ let ruleBook: RuleBook = RuleBook.empty();
 const FAKE = process.env['RAUHA_FAKE_TEAM'] === '1';
 
 const home = homedir();
-const workDir = process.env['RAUHA_WORK_DIR'] ?? process.cwd();
+/** 사용자 설정(작업 폴더·계정·알림·동시 실행 수 …). 시작할 때 파일에서 읽는다. */
+const settingsStore = new SettingsStore(join(homedir(), '.rauha', 'desktop', 'settings.json'));
+let settings: Settings = DEFAULT_SETTINGS;
+
+/** 작업 폴더: 환경 변수(확인용) → 설정에서 고른 폴더 → 실행한 폴더 */
+const currentWorkDir = (): string => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? process.cwd();
 
 /** 일을 맡길 수 있는 폴더들: 작업 폴더 안의 레포. 레포가 없으면 작업 폴더 하나. */
 function folders(): TargetFolder[] {
-  const roots = discoverRepos(workDir);
-  const list = roots.length > 0 ? roots : [workDir];
+  const roots = discoverRepos(currentWorkDir());
+  const list = roots.length > 0 ? roots : [currentWorkDir()];
   return list.map((root) => ({ name: basename(root), root }));
 }
 
@@ -59,13 +67,13 @@ const approvals = new Approvals({
   newId: () => randomUUID(),
   now: () => new Date().toISOString(),
   onChange: (pending) => {
-    window?.webContents.send(IPC.approvals, pending.map((p) => approvalView(p)));
+    window?.webContents.send(IPC.approvals, pending.map((p) => approvalView(p, settings.protectedBranches)));
   },
 });
 
 /** 허락이 새로 오면 Windows 알림으로도 알린다. 누르면 그 작업의 팀 상세(정리 보기)로 간다. */
 function notifyApproval(jobId: string, headline: string): void {
-  if (!Notification.isSupported() || window?.isFocused() === true) return;
+  if (!settings.notify.choice || !Notification.isSupported() || window?.isFocused() === true) return;
   const n = new Notification({ title: '허락이 필요해요', body: headline });
   n.on('click', () => {
     window?.show();
@@ -78,9 +86,9 @@ function notifyApproval(jobId: string, headline: string): void {
 /** 확인용: 진짜 팀을 조립만 해 본다(팀원을 부르지 않으니 한도를 쓰지 않는다). RAUHA_SMOKE_COMPOSE=1 */
 async function smokeCompose(): Promise<void> {
   const prompts = await PromptLibrary.load(promptsDir());
-  const profileFor = await profileResolver(home);
+  const profileFor = await profileResolver(home, settings.account);
   const controller = new AbortController();
-  const root = folders()[0]?.root ?? workDir;
+  const root = folders()[0]?.root ?? currentWorkDir();
   const session = composeSession(
     { home, prompts, profileFor, plan: () => null, claudeExecutable: claudeExecutable() },
     root,
@@ -93,14 +101,14 @@ async function smokeCompose(): Promise<void> {
 async function startRunner(): Promise<JobRunner> {
   let work;
   if (FAKE) {
-    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? workDir), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request) });
+    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? currentWorkDir()), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request) });
   } else {
     const prompts = await PromptLibrary.load(promptsDir());
-    const profileFor = await profileResolver(home);
+    const profileFor = await profileResolver(home, settings.account);
     work = teamWork({
       newSession: (io, job) => {
         const target = parseTarget(job.request, folders());
-        const root = target.folder?.root ?? folders()[0]?.root ?? workDir;
+        const root = target.folder?.root ?? folders()[0]?.root ?? currentWorkDir();
         jobRoots.set(job.id, root);
         const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: () => ruleBook }, root, io);
         return { handle: () => session.handle(target.text) };
@@ -108,26 +116,56 @@ async function startRunner(): Promise<JobRunner> {
       askUser: (jobId, request) => askWithNotice(jobId, request),
     });
     // 한도는 1분마다 읽어 둔다(새 작업을 시작할지 정하는 데 쓴다).
-    const refresh = () => void readPlanUsage({ ...(process.env as Record<string, string>), ...profileFor(workDir).agentEnv(home) }, undefined, claudeExecutable()).then((p) => (plan = p ?? plan));
+    const refresh = () => void readPlanUsage({ ...(process.env as Record<string, string>), ...profileFor(currentWorkDir()).agentEnv(home) }, undefined, claudeExecutable()).then((p) => {
+      plan = p ?? plan;
+      const pct = Math.max(plan?.session?.percent ?? 0, plan?.weekly?.percent ?? 0);
+      if (pct >= 90 && !limitNotified && settings.notify.limit && Notification.isSupported()) {
+        limitNotified = true;
+        new Notification({ title: '한도가 90%에 닿았어요', body: '새 작업을 아껴 쓰는 게 좋아요.' }).show();
+      }
+      if (pct < 90) limitNotified = false;
+    });
     refresh();
     setInterval(refresh, 60_000).unref();
   }
   const runner: JobRunner = JobRunner.start({
     work,
+    limit: settings.concurrency,
     newId: () => randomUUID(),
     now: () => new Date().toISOString(),
     onChange: (board) => {
       window?.webContents.send(IPC.board, boardView(board));
-      for (const job of board.jobs) if (job.isOver) approvals.closeJob(job.id);
+      for (const job of board.jobs) {
+        if (!job.isOver) continue;
+        approvals.closeJob(job.id);
+        if (job.status === 'done' && !doneNotified.has(job.id)) {
+          doneNotified.add(job.id);
+          notifyDone(job.id, job.request);
+        }
+      }
     },
   });
   return runner;
 }
 
+const doneNotified = new Set<string>();
+
+/** 작업이 끝나면(창이 가려져 있을 때만) 알린다. 누르면 그 작업의 팀 상세로 간다. */
+function notifyDone(jobId: string, request: string): void {
+  if (!settings.notify.done || !Notification.isSupported() || window?.isFocused() === true) return;
+  const n = new Notification({ title: '작업이 끝났어요', body: request.length > 60 ? `${request.slice(0, 59)}…` : request });
+  n.on('click', () => {
+    window?.show();
+    window?.focus();
+    window?.webContents.send(IPC.openJob, jobId);
+  });
+  n.show();
+}
+
 function askWithNotice(jobId: string, request: Parameters<Approvals['ask']>[1]) {
   const answered = approvals.ask(jobId, request);
   const pending = approvals.pending().find((p) => p.jobId === jobId && p.request === request);
-  if (pending !== undefined) notifyApproval(jobId, approvalView(pending).summary.headline);
+  if (pending !== undefined) notifyApproval(jobId, approvalView(pending, settings.protectedBranches).summary.headline);
   return answered;
 }
 
@@ -173,8 +211,11 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
   }
   const click = process.env['RAUHA_SMOKE_CLICK'];
   if (click !== undefined) {
-    await window!.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(click)})?.click()`);
-    await new Promise((r) => setTimeout(r, 500));
+    // 여러 번 누르려면 ;; 로 이어 쓴다(예: 첫 실행 확인 창을 닫고 탭을 연다)
+    for (const selector of click.split(';;')) {
+      await window!.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.click()`);
+      await new Promise((r) => setTimeout(r, 400));
+    }
   }
   const image = await window!.webContents.capturePage();
   writeFileSync(path, image.toPNG());
@@ -194,8 +235,30 @@ void app.whenReady().then(async () => {
   await adoptShellPath();
   installMenu();
   if (process.env['RAUHA_SMOKE_COMPOSE'] === '1') return smokeCompose();
+  settings = await settingsStore.load();
   ruleBook = await ruleStore.load().catch(() => RuleBook.empty());
   const runner = await startRunner();
+  ipcMain.handle(IPC.settingsGet, () => (process.env['RAUHA_WORK_DIR'] !== undefined ? { ...settings, workFolder: currentWorkDir(), folderApproved: true, firstRunDone: true } : settings));
+  ipcMain.handle(IPC.settingsUpdate, async (_e, patch: unknown) => {
+    settings = updateSettings(settings, (typeof patch === 'object' && patch !== null ? patch : {}) as SettingsPatch);
+    await settingsStore.save(settings);
+    return settings;
+  });
+  ipcMain.handle(IPC.usageGet, () => (plan === null ? null : { session: plan.session, weekly: plan.weekly }));
+  ipcMain.handle(IPC.accountsList, async () => {
+    // 설정 파일이 깨졌어도 설정 화면은 열려야 한다(계정 목록만 비운다).
+    const names = await accountNames(home).catch(() => []);
+    return { names, selected: settings.account };
+  });
+  ipcMain.handle(IPC.folderPick, async () => {
+    const result = await dialog.showOpenDialog(window ?? undefined!, { properties: ['openDirectory', 'createDirectory'], title: '작업 폴더 고르기' });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+  ipcMain.handle(IPC.reposList, async (): Promise<RepoRow[]> => {
+    const entries = await scanWorkFolder(currentWorkDir());
+    const working = (root: string) => runner.board.jobs.filter((j) => !j.isOver && jobRoots.get(j.id) === root).length;
+    return entries.map((e) => ({ name: e.name, root: e.root, relative: e.relative, kind: e.kind, status: e.status, working: working(e.root) }));
+  });
   const rulesView = () => RuleBookDto.fromEntity(ruleBook).toJSON().rules;
   ipcMain.handle(IPC.rulesList, rulesView);
   ipcMain.handle(IPC.rulesAdd, async (_e, rule: unknown) => {
@@ -227,7 +290,9 @@ void app.whenReady().then(async () => {
     return removeTerminalRauha(terminalFound.filter((f) => wanted.includes(f.path)));
   });
   ipcMain.handle(IPC.submit, (_e, text: unknown) => {
-    const job = typeof text === 'string' ? runner.submit(text) : null;
+    // 폴더를 고르고 허락하기 전에는 일을 받지 않는다(엉뚱한 폴더에서 일하지 않게). 확인용 환경 변수가 있으면 건너뛴다.
+    const ready = process.env['RAUHA_WORK_DIR'] !== undefined || FAKE || canWork(settings);
+    const job = typeof text === 'string' && ready ? runner.submit(text) : null;
     return job === null ? null : boardView(runner.board).jobs.find((j) => j.id === job.id) ?? null;
   });
   ipcMain.on(IPC.stop, (_e, id: unknown) => {
@@ -240,10 +305,10 @@ void app.whenReady().then(async () => {
     const pending = approvals.pending().find((p) => p.id === id);
     const root = pending === undefined ? undefined : jobRoots.get(pending.jobId);
     if (pending === undefined || root === undefined) return null;
-    const summary = approvalView(pending).summary;
-    return reviewChanges(root, DEFAULT_PROTECTED_BRANCHES, summary.protectedBranch);
+    const summary = approvalView(pending, settings.protectedBranches).summary;
+    return reviewChanges(root, settings.protectedBranches, summary.protectedBranch);
   });
-  ipcMain.handle(IPC.approvalsNow, () => approvals.pending().map((p) => approvalView(p)));
+  ipcMain.handle(IPC.approvalsNow, () => approvals.pending().map((p) => approvalView(p, settings.protectedBranches)));
   ipcMain.on(IPC.approvalAnswer, (_e, id: unknown, choice: unknown) => {
     if (typeof id === 'string' && typeof choice === 'object' && choice !== null && 'kind' in choice) approvals.answer(id, answerFor(choice as ApprovalChoice));
   });
