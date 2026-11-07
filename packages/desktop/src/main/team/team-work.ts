@@ -66,5 +66,7 @@ export function teamWork(deps: TeamWorkDeps): JobWork {
     const outcome = await Promise.race([session.handle(job.request, job.deep ? 'deep' : undefined), stopped]);
     const note = session.note?.() ?? null;
     report.result(note === null ? describeOutcome(outcome) : `${describeOutcome(outcome)}\n\n${note}`, resultMetaOf(outcome));
+    // 팀이 일을 끝까지 못 했으면 "끝"이 아니라 "멈춤"으로 보인다(결과 글에 이유가 있다)
+    if (outcome.kind === 'work' && outcome.outcome.status === 'stopped') throw new Error('팀이 일을 마치지 못했어요');
   };
 }

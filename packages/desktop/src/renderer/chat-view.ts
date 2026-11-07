@@ -159,7 +159,7 @@ export function buildChat(actions: ChatActions) {
     paintOnce(face, 'intake', 2, job.status === 'done' ? 'done' : 'stuck');
     av.appendChild(face);
     const body = el('div');
-    const text = job.status === 'done' ? (job.result ?? '끝났어요.') : `멈췄어요${job.stopReason !== null ? `: ${job.stopReason}` : ''}`;
+    const text = job.result ?? (job.status === 'done' ? '끝났어요.' : `멈췄어요${job.stopReason !== null ? `: ${job.stopReason}` : ''}`);
     const card = el('div', 'tx', text);
     // 지식 없이 먼저 답한 깊은 답: 그 답 카드 안에 작게 알린다(알림·로그가 아니다)
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));

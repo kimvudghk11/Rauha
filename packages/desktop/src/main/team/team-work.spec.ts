@@ -127,4 +127,15 @@ describe('teamWork', () => {
     await runner.idle();
     expect(runner.board.find('j1')?.result).toBe('답\n\n작업 결과는 브랜치 rauha/job-1에 있어요.');
   });
+
+  it('팀이 일을 끝까지 못 하고 멈췄으면 작업도 멈춤이고 결과 글은 남는다', async () => {
+    const stopped = { kind: 'work', outcome: { status: 'stopped', title: '고치기', guide: { stopMessage: () => '테스트를 못 만들었어요' }, changedInRun: [], assumptions: [], facts: { unconfirmed: [] } } } as unknown as TurnOutcome;
+    const { runner } = setup(async () => stopped);
+    runner.submit('A');
+    await runner.idle();
+    const job = runner.board.find('j1')!;
+    expect(job.status).toBe('stopped');
+    expect(job.stopReason).toBe('팀이 일을 마치지 못했어요');
+    expect(job.result).toContain('테스트를 못 만들었어요');
+  });
 });
