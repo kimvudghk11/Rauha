@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // 타입 검사 때는 빌드 없이 core 소스를 바로 읽는다(실행 번들은 esbuild가 만든다).
+    "customConditions": ["rauha-source"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "noEmit": true
+  },
+  "include": ["src"]
+}

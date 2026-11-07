@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "rauha": "node packages/cli/dist/main.js",
+    "desktop": "yarn workspace @rauha/desktop start",
     "bench": "node packages/cli/dist/main.js bench"
   },
   "devDependencies": {

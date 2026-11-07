@@ -1,0 +1,23 @@
+{
+  "name": "@rauha/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "rauha desktop: give work to Delfi and watch the team work side by side",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/start.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@rauha/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "electron": "^45.2.3",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}
