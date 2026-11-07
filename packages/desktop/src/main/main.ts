@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
-import { app, BrowserWindow, ipcMain, Notification } from 'electron';
+import { existsSync } from 'node:fs';
+import { app, BrowserWindow, ipcMain, Menu, Notification } from 'electron';
 import { discoverRepos, PromptLibrary, readPlanUsage, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, IPC, type ApprovalChoice } from '../shared/ipc.js';
@@ -11,6 +12,10 @@ import { composeSession, profileResolver } from './team/compose.js';
 import { fakeTeam } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { teamWork } from './team/team-work.js';
+import { appMenuTemplate, quitWhenAllClosed, windowChrome } from './platform/app-menu.js';
+import { claudeBinaryPath, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
+import { adoptShellPath } from './platform/shell-path.js';
+import { findTerminalRauha, removeTerminalRauha, type TerminalRauhaFile } from './platform/terminal-rauha.js';
 import { measureTyping } from './measure-typing.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
@@ -32,10 +37,14 @@ function folders(): TargetFolder[] {
   return list.map((root) => ({ name: basename(root), root }));
 }
 
-/** 프롬프트 폴더: 개발 중엔 저장소의 prompts/, 설치본엔 resources/prompts. */
-function promptsDir(): string {
-  return process.env['RAUHA_PROMPTS_DIR'] ?? (app.isPackaged ? join(process.resourcesPath, 'prompts') : join(app.getAppPath(), '..', '..', 'prompts'));
-}
+/** 설치본(asar 밖 resources)과 개발 실행 양쪽에서 파일을 찾는 데 쓰는 환경 */
+const resourceEnv = (): ResourceEnv => ({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appPath: app.getAppPath(), exists: existsSync });
+
+/** 프롬프트 폴더: 환경 변수 → 설치본 resources/prompts → 개발 저장소의 prompts/. */
+const promptsDir = (): string => resolvePromptsDir(resourceEnv(), process.env['RAUHA_PROMPTS_DIR']);
+
+/** Claude Code 실행 파일(SDK의 플랫폼 패키지). 설치본은 asar 밖에서 찾는다. */
+const claudeExecutable = (): string | undefined => claudeBinaryPath(resourceEnv(), process.platform, process.arch) ?? undefined;
 
 const approvals = new Approvals({
   newId: () => randomUUID(),
@@ -64,7 +73,7 @@ async function smokeCompose(): Promise<void> {
   const controller = new AbortController();
   const root = folders()[0]?.root ?? workDir;
   const session = composeSession(
-    { home, prompts, profileFor, plan: () => null },
+    { home, prompts, profileFor, plan: () => null, claudeExecutable: claudeExecutable() },
     root,
     { progress: { step: () => undefined }, ask: async () => ({ kind: 'deny', note: null }), user: { interactive: false, choose: async () => 0, confirmFact: async () => ({ kind: 'unsure' }), pickPast: async () => null }, signal: controller.signal },
   );
@@ -82,13 +91,13 @@ async function startRunner(): Promise<JobRunner> {
     work = teamWork({
       newSession: (io, job) => {
         const target = parseTarget(job.request, folders());
-        const session = composeSession({ home, prompts, profileFor, plan: () => plan }, target.folder?.root ?? folders()[0]?.root ?? workDir, io);
+        const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable() }, target.folder?.root ?? folders()[0]?.root ?? workDir, io);
         return { handle: () => session.handle(target.text) };
       },
       askUser: (jobId, request) => askWithNotice(jobId, request),
     });
     // 한도는 1분마다 읽어 둔다(새 작업을 시작할지 정하는 데 쓴다).
-    const refresh = () => void readPlanUsage({ ...(process.env as Record<string, string>), ...profileFor(workDir).agentEnv(home) }).then((p) => (plan = p ?? plan));
+    const refresh = () => void readPlanUsage({ ...(process.env as Record<string, string>), ...profileFor(workDir).agentEnv(home) }, undefined, claudeExecutable()).then((p) => (plan = p ?? plan));
     refresh();
     setInterval(refresh, 60_000).unref();
   }
@@ -120,6 +129,7 @@ function open(runner: JobRunner): void {
     backgroundColor: BACKGROUND,
     title: 'rauha',
     icon: join(app.getAppPath(), 'build', 'icon.png'),
+    ...windowChrome(process.platform),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
@@ -161,9 +171,30 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
   app.quit();
 }
 
+let runnerRef: JobRunner | null = null;
+
+function installMenu(): void {
+  const template = appMenuTemplate(process.platform, 'rauha', () => window?.webContents.send(IPC.openTab, 'settings'));
+  Menu.setApplicationMenu(template === null ? null : Menu.buildFromTemplate(template));
+}
+
 void app.whenReady().then(async () => {
+  // Finder·Dock으로 연 앱은 셸 PATH를 못 받는다. 로그인 셸에서 읽어 합친다(Windows는 그대로).
+  await adoptShellPath();
+  installMenu();
   if (process.env['RAUHA_SMOKE_COMPOSE'] === '1') return smokeCompose();
   const runner = await startRunner();
+  runnerRef = runner;
+  let terminalFound: TerminalRauhaFile[] = [];
+  ipcMain.handle(IPC.terminalFind, async () => {
+    terminalFound = await findTerminalRauha({ platform: process.platform, home, pathEnv: process.env['PATH'] ?? '' });
+    return terminalFound.map((f) => ({ path: f.path, entry: f.entry }));
+  });
+  // 방금 찾아서 보여 준 파일 중 사용자가 확인한 것만 지운다(화면이 보낸 임의 경로는 지우지 않는다).
+  ipcMain.handle(IPC.terminalRemove, (_e, paths: unknown) => {
+    const wanted = Array.isArray(paths) ? paths.filter((p): p is string => typeof p === 'string') : [];
+    return removeTerminalRauha(terminalFound.filter((f) => wanted.includes(f.path)));
+  });
   ipcMain.handle(IPC.submit, (_e, text: unknown) => {
     const job = typeof text === 'string' ? runner.submit(text) : null;
     return job === null ? null : boardView(runner.board).jobs.find((j) => j.id === job.id) ?? null;
@@ -180,4 +211,10 @@ void app.whenReady().then(async () => {
   });
   open(runner);
 });
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => {
+  if (quitWhenAllClosed(process.platform)) app.quit();
+});
+// macOS: Dock 아이콘을 눌렀을 때 창이 없으면 다시 연다.
+app.on('activate', () => {
+  if (window === null && runnerRef !== null) open(runnerRef);
+});

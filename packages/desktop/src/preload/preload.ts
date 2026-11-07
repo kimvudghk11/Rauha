@@ -13,6 +13,12 @@ const api: RauhaApi = {
   },
   approvalsNow: () => ipcRenderer.invoke(IPC.approvalsNow),
   answerApproval: (id, choice) => ipcRenderer.send(IPC.approvalAnswer, id, choice),
+  platform: process.platform,
+  onOpenTab: (listener) => {
+    ipcRenderer.on(IPC.openTab, (_e, tab: string) => listener(tab));
+  },
+  findTerminalRauha: () => ipcRenderer.invoke(IPC.terminalFind),
+  removeTerminalRauha: (paths) => ipcRenderer.invoke(IPC.terminalRemove, paths),
   onOpenJob: (listener) => {
     ipcRenderer.on(IPC.openJob, (_e, jobId: string) => listener(jobId));
   },

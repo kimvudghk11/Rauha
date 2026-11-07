@@ -78,6 +78,8 @@ export interface ComposeOptions {
   readonly profileFor: (root: string) => Profile;
   /** 1분마다 읽는 구독 사용률. 아직 못 읽었으면 null */
   readonly plan: () => PlanUsage | null;
+  /** Claude Code 실행 파일(설치본은 asar 밖). 없으면 SDK 기본 */
+  readonly claudeExecutable?: string | undefined;
 }
 
 /**
@@ -96,6 +98,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     ask: io.ask,
     secrets,
     secretFiles: () => listSecretFiles(root, secrets),
+    ...(options.claudeExecutable !== undefined ? { claudeExecutable: options.claudeExecutable } : {}),
   });
   const team = stoppable(inner, io.signal);
   const knowledge = new KnowledgeService({

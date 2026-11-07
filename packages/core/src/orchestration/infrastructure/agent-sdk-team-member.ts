@@ -19,6 +19,8 @@ export interface AgentSdkTeamMemberOptions {
   readonly secrets: SecretPolicy;
   /** 작업 폴더 아래 실제로 있는 비밀 파일. 호출마다 다시 읽는다(작업 중에 생길 수 있어서). */
   readonly secretFiles: () => readonly string[];
+  /** Claude Code 실행 파일 경로. 설치본에서는 asar 밖의 실행 파일을 가리킨다. 없으면 SDK가 자기 방식으로 찾는다. */
+  readonly claudeExecutable?: string;
 }
 
 /** 호출 하나가 쓰는 것들. 미리 띄운 프로세스는 띄울 때 이것까지 정해진다. */
@@ -169,6 +171,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       cwd: this.options.cwd,
       ...((call.additionalDirectories?.length ?? 0) > 0 ? { additionalDirectories: [...call.additionalDirectories!] } : {}),
       env: this.options.env,
+      ...(this.options.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: this.options.claudeExecutable } : {}),
       systemPrompt: this.options.prompts.system(call.role, call.kits ?? []),
       tools: [...call.setting.tools],
       allowedTools: [...call.setting.tools, ...kits.tools],

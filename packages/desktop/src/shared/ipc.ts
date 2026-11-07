@@ -16,6 +16,11 @@ export const IPC = {
   approvalAnswer: 'approval:answer',
   /** main → 화면: 알림을 눌러 그 작업의 팀 상세를 열어 달라 */
   openJob: 'ui:open-job',
+  /** main → 화면: 앱 메뉴(Cmd+,)에서 탭을 열어 달라 */
+  openTab: 'ui:open-tab',
+  /** 화면 → main: 터미널 rauha 실행 파일을 찾는다 / 확인받은 것만 지운다 */
+  terminalFind: 'terminal:find',
+  terminalRemove: 'terminal:remove',
 } as const;
 
 /** 단계 막대 한 칸. 지나온 단계는 done, 지금 단계는 now. */
@@ -85,6 +90,17 @@ export interface RauhaApi {
   approvalsNow(): Promise<readonly ApprovalView[]>;
   answerApproval(id: string, choice: ApprovalChoice): void;
   onOpenJob(listener: (jobId: string) => void): void;
+  onOpenTab(listener: (tab: string) => void): void;
+  /** 실행 중인 OS(darwin·win32·linux). 단축키 표기와 창 모양에 쓴다. */
+  readonly platform: string;
+  findTerminalRauha(): Promise<readonly TerminalRauhaView[]>;
+  removeTerminalRauha(paths: readonly string[]): Promise<readonly string[]>;
+}
+
+/** 첫 실행에서 사용자에게 보여 줄 터미널 rauha 실행 파일 한 줄 */
+export interface TerminalRauhaView {
+  readonly path: string;
+  readonly entry: string;
 }
 
 const CAST_MAX = 3;

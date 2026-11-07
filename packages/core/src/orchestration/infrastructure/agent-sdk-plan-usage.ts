@@ -6,12 +6,12 @@ import { PlanUsageDto, type PlanUsage } from '../application/dto/plan-usage.dto.
  * (재 보니 1.6초, 비용 $0). 구독 토큰은 rauha가 읽지 않고 SDK가 프로필의 CLAUDE_CONFIG_DIR로 처리한다.
  * SDK에서 실험 중인 기능이라 실패하거나 모양이 바뀌면 null을 돌려준다.
  */
-export async function readPlanUsage(env: Record<string, string>, timeoutMs = 15_000): Promise<PlanUsage | null> {
+export async function readPlanUsage(env: Record<string, string>, timeoutMs = 15_000, claudeExecutable?: string): Promise<PlanUsage | null> {
   let release: () => void = () => {};
   const idle = (async function* () {
     await new Promise<void>((resolve) => (release = resolve));
   })();
-  const session = query({ prompt: idle, options: { env, settingSources: [] } });
+  const session = query({ prompt: idle, options: { env, settingSources: [], ...(claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: claudeExecutable } : {}) } });
   let timer: NodeJS.Timeout | undefined;
   try {
     const timeout = new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), timeoutMs)));

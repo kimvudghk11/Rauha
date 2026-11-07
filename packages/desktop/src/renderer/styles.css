@@ -66,3 +66,18 @@ canvas.sp { image-rendering: pixelated; display: block; }
 /* 스크롤 막대는 보이지 않게 한다. 휠·터치패드·키보드 스크롤은 그대로 동작한다. */
 * { scrollbar-width: none; }
 *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* 확인 창(첫 실행 등) */
+.veil { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 20; }
+.dialog { background: var(--card); border: 1px solid var(--border2); border-radius: 8px; padding: 16px 18px; max-width: 480px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 40px #000c; }
+.dialog b { color: var(--bright); font-size: 14px; }
+.dialog p { margin: 0; }
+.dialog ul { margin: 0; padding-left: 18px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); word-break: break-all; }
+.dialog .btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* macOS: 시스템 글꼴, 제목 막대를 숨긴 창이라 맨 위를 끌 수 있게 하고 신호등 버튼 자리를 비운다 */
+:root[data-platform=darwin] body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", system-ui, sans-serif; }
+:root[data-platform=darwin] .act { padding-top: 34px; }
+:root[data-platform=darwin] .act::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: 28px; -webkit-app-region: drag; z-index: 5; pointer-events: auto; }
+:root[data-platform=darwin] .act button, :root[data-platform=darwin] .ph button, :root[data-platform=darwin] .ltoggle { -webkit-app-region: no-drag; }
+:root[data-platform=darwin] .chat { padding-top: 12px; }

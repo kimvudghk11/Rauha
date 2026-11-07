@@ -1,5 +1,6 @@
 import type { ApprovalView, BoardView, RauhaApi } from '../shared/ipc.js';
 import { buildChat } from './chat-view.js';
+import { offerTerminalCleanup } from './first-run.js';
 import { el, icon } from './dom.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
@@ -12,6 +13,7 @@ declare global {
 }
 
 const app = document.querySelector<HTMLElement>('.app')!;
+document.documentElement.dataset['platform'] = window.rauha.platform;
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
@@ -92,6 +94,16 @@ chat.layoutButtons(layout, pickLayout);
 const toasts = el('div', 'toasts');
 document.body.appendChild(toasts);
 const toasted = new Set<string>();
+/** macOS는 알림을 처음 한 번 허용해야 보인다. 안내는 한 번만 붙인다. */
+function notifyHintSeen(): boolean {
+  try {
+    if (localStorage.getItem('rauha.notifyHint') === '1') return true;
+    localStorage.setItem('rauha.notifyHint', '1');
+  } catch {
+    /* 기억 못 하면 매번 보일 뿐이다 */
+  }
+  return false;
+}
 function toast(a: ApprovalView): void {
   if (toasted.has(a.id)) return;
   toasted.add(a.id);
@@ -104,6 +116,7 @@ function toast(a: ApprovalView): void {
     t.remove();
   });
   t.appendChild(go);
+  if (window.rauha.platform === 'darwin' && !notifyHintSeen()) t.appendChild(el('small', 'hint', '알림이 안 보이면 시스템 설정 > 알림에서 rauha를 허용해 주세요.'));
   toasts.appendChild(t);
   setTimeout(() => t.remove(), 12000);
 }
@@ -124,6 +137,10 @@ window.rauha.onBoard((view) => {
   renderStatus(view);
 });
 window.rauha.onApprovals(onApprovals);
+window.rauha.onOpenTab((tab) => {
+  const t = TABS.find((x) => x.id === tab);
+  if (t !== undefined) show(t.id);
+});
 window.rauha.onOpenJob((id) => {
   show('chat');
   chat.open(id);
@@ -134,6 +151,7 @@ void window.rauha.boardNow().then((view) => {
 });
 void window.rauha.approvalsNow().then(onApprovals);
 
+void offerTerminalCleanup();
 applyMode();
 show('chat');
 chat.focus();
