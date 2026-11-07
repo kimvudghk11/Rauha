@@ -57,3 +57,9 @@ input.ginput { width: 100%; }
 .gl.add { background: #17301c; } .gl.add .gs { color: var(--green); }
 .gl.del { background: #3a1d1d; } .gl.del .gs { color: var(--red); }
 .gl input, .gh input, .gf input, .gall input { margin: 0; accent-color: var(--accent); }
+.gtools { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
+.gtools .ginput { flex: 1; }
+.gpanel { overflow: hidden; }
+.gpanel .gf .btn { padding: 1px 8px; font-size: 11px; }
+.gcm { align-items: flex-start; }
+.gconf { flex: 1; min-height: 300px; width: 100%; border: none; border-radius: 0; font-family: var(--mono); font-size: 12px; white-space: pre; resize: none; }

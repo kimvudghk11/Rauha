@@ -3,6 +3,7 @@ import type { RepoRow } from '../shared/ipc.js';
 import { ProtectedBranches } from '../shared/git-guard.js';
 import { el } from './dom.js';
 import { buildChanges } from './git-changes-view.js';
+import { buildBranches, buildConflicts, buildHistory } from './git-lists-view.js';
 import { askDialog, type GitCtx } from './git-common.js';
 import { syncChips } from './git-format.js';
 
@@ -82,7 +83,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   };
 
   const sub = (id: ViewId): SubView => {
-    const found = views[id] ?? (id === 'changes' ? buildChanges(ctx) : extra(ctx)[id]);
+    const found = views[id] ?? (id === 'changes' ? buildChanges(ctx) : id === 'branches' ? buildBranches(ctx) : id === 'history' ? buildHistory(ctx) : buildConflicts(ctx));
     if (found === undefined) {
       const stub = { root: el('div', 'dim pad', '준비 중이에요.'), refresh: async () => {} };
       return (views[id] = stub);
