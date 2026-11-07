@@ -228,9 +228,9 @@
 
 ### 5.12 macOS (회사 노트북이 맥북이다 — 2026-11-08 사용자 알림)
 
-월요일(2026-11-09)에 회사에서 쓰는 기기는 **맥북**이다. 집 Windows PC도 계속 지원하지만 월요일 기준은 macOS다. 4절의 ".exe", "Windows 알림", "PATH 폴더의 rauha.cmd" 같은 Windows 전용 표현은 5.11을 포함해 macOS에서는 아래로 읽는다.
+월요일(2026-11-09)에 회사에서 쓰는 기기는 **맥북**이고 집 기기는 Windows PC다. **macOS와 Windows 둘 다 되어야 한다**(사용자 확인). 둘 중 어느 쪽도 깨지면 안 되고, 모든 변경은 두 OS에서 typecheck·test·실행 스모크가 통과해야 한다. 4절의 ".exe", "Windows 알림", "PATH 폴더의 rauha.cmd" 같은 Windows 전용 표현은 5.11을 포함해 macOS에서는 아래로 읽는다.
 
-- **직접 실행해 볼 수 없다.** 이 PC에는 Mac이 없다. 그래서 GitHub Actions의 macOS 러너(`.github/workflows/desktop-mac.yml`)에서 빌드·테스트·실행 스모크를 돌려 확인하고, 결과 `.dmg`/`.zip`은 workflow artifact로 받는다(저장소 `kimvudghk11/rauha`, 이 PC에는 `gh`가 없다). 실제 맥북 첫 실행은 사용자가 한다. 막히면 소스로 실행하는 길(`git clone` → `yarn install` → `yarn desktop`)도 사용 안내에 쓴다.
+- **직접 실행해 볼 수 없다.** 이 PC에는 Mac이 없다. 그래서 GitHub Actions에서 **macos-latest와 windows-latest 매트릭스**(`.github/workflows/desktop.yml` 하나, 앞선 지시의 `desktop-mac.yml` 대신 이것)로 빌드·테스트·실행 스모크를 돌려 확인하고, 결과 `.dmg`/`.zip`(mac)과 설치 `.exe`(win)는 workflow artifact로 받는다(저장소 `kimvudghk11/rauha`, 이 PC에는 `gh`가 없다). 실제 맥북 첫 실행은 사용자가 한다. 막히면 소스로 실행하는 길(`git clone` → `yarn install` → `yarn desktop`)도 사용 안내에 쓴다.
 - **맥에서 꼭 풀 것**
   1. GUI 앱은 셸의 PATH를 못 받는다(Finder로 열면 `/opt/homebrew/bin`이 없다). 시작할 때 로그인 셸(`$SHELL -ilc`)에서 PATH를 읽어 `git`·`aws`·`gh`·`node`·`claude`를 찾는다.
   2. 설치본에서 Agent SDK가 부르는 `node`가 없을 수 있다. Electron 자신을 `ELECTRON_RUN_AS_NODE`로 쓰고, SDK 실행 파일은 asar 밖(`asarUnpack`)에 둔다. 프롬프트 폴더도 설치본에 복사한다.
