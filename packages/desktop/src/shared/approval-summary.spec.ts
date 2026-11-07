@@ -40,6 +40,13 @@ describe('summarizeRequest', () => {
     expect(s.risks.join(' ')).toContain('어느 환경');
   });
 
+  it('인프라 명령의 프로필과 리전을 읽는다', () => {
+    const s = summarizeRequest(bash('aws ecs update-service --profile company-prod --region ap-northeast-2 --cluster x'));
+    expect(s.profile).toBe('company-prod');
+    expect(s.region).toBe('ap-northeast-2');
+    expect(summarizeRequest(bash('terraform apply')).profile).toBeNull();
+  });
+
   it('DB 마이그레이션은 데이터베이스 종류다', () => {
     expect(summarizeRequest(bash('npx prisma migrate deploy')).kind).toBe('database');
   });

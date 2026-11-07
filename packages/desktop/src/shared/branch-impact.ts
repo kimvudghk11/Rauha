@@ -21,6 +21,27 @@ export interface BranchImpact {
   readonly autoDeploy: AutoDeploy;
 }
 
+/** 허락 화면 코드 정리에 싣는 변경 검토 결과 */
+export interface ChangeReview {
+  /** 지금 브랜치(분리된 HEAD면 null) */
+  readonly branch: string | null;
+  readonly files: readonly ChangedFile[];
+  readonly diff: string;
+  readonly truncated: boolean;
+  readonly impacts: readonly BranchImpact[];
+}
+
+export type DiffLineKind = 'add' | 'del' | 'hunk' | 'meta' | 'ctx';
+
+/** diff 한 줄이 무엇인지(색을 입히는 데 쓴다) */
+export function classifyDiffLine(line: string): DiffLineKind {
+  if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('index ')) return 'meta';
+  if (line.startsWith('@@')) return 'hunk';
+  if (line.startsWith('+')) return 'add';
+  if (line.startsWith('-')) return 'del';
+  return 'ctx';
+}
+
 /** `git diff --numstat` 출력 → 파일 목록 */
 export function parseNumstat(text: string): ChangedFile[] {
   return text

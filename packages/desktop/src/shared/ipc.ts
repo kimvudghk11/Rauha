@@ -1,4 +1,5 @@
 import type { ApprovalSummary } from './approval-summary.js';
+import type { ChangeReview } from './branch-impact.js';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
 /** main ↔ 화면 IPC 채널. 화면은 이 채널로만 main과 이야기한다. */
@@ -14,6 +15,8 @@ export const IPC = {
   approvalsNow: 'approval:list-now',
   /** 화면 → main: 허락 요청에 답한다 */
   approvalAnswer: 'approval:answer',
+  /** 화면 → main: 허락 요청 하나의 변경 검토(diff·main/qa 영향)를 git으로 계산해 달라 */
+  approvalReview: 'approval:review',
   /** main → 화면: 알림을 눌러 그 작업의 팀 상세를 열어 달라 */
   openJob: 'ui:open-job',
   /** main → 화면: 앱 메뉴(Cmd+,)에서 탭을 열어 달라 */
@@ -89,6 +92,8 @@ export interface RauhaApi {
   onApprovals(listener: (list: readonly ApprovalView[]) => void): void;
   approvalsNow(): Promise<readonly ApprovalView[]>;
   answerApproval(id: string, choice: ApprovalChoice): void;
+  /** 코드 허락의 정리: 바뀐 파일·diff·보호 브랜치별 영향. 레포를 알 수 없으면 null */
+  reviewApproval(id: string): Promise<ChangeReview | null>;
   onOpenJob(listener: (jobId: string) => void): void;
   onOpenTab(listener: (tab: string) => void): void;
   /** 실행 중인 OS(darwin·win32·linux). 단축키 표기와 창 모양에 쓴다. */

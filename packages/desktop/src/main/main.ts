@@ -6,6 +6,8 @@ import { app, BrowserWindow, ipcMain, Menu, Notification } from 'electron';
 import { discoverRepos, PromptLibrary, readPlanUsage, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, IPC, type ApprovalChoice } from '../shared/ipc.js';
+import { reviewChanges } from './team/git-review.js';
+import { DEFAULT_PROTECTED_BRANCHES } from '../shared/approval-summary.js';
 import { Approvals } from './team/approvals.js';
 import { answerFor, approvalView } from './team/approval-view.js';
 import { composeSession, profileResolver } from './team/compose.js';
@@ -46,6 +48,9 @@ const promptsDir = (): string => resolvePromptsDir(resourceEnv(), process.env['R
 /** Claude Code 실행 파일(SDK의 플랫폼 패키지). 설치본은 asar 밖에서 찾는다. */
 const claudeExecutable = (): string | undefined => claudeBinaryPath(resourceEnv(), process.platform, process.arch) ?? undefined;
 
+/** 작업 id → 그 작업이 일하는 레포 폴더(허락 화면의 diff·영향을 그 레포에서 계산한다) */
+const jobRoots = new Map<string, string>();
+
 const approvals = new Approvals({
   newId: () => randomUUID(),
   now: () => new Date().toISOString(),
@@ -84,14 +89,16 @@ async function smokeCompose(): Promise<void> {
 async function startRunner(): Promise<JobRunner> {
   let work;
   if (FAKE) {
-    work = teamWork({ newSession: (io, job) => fakeTeam(io, job.request), askUser: (jobId, request) => askWithNotice(jobId, request) });
+    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? workDir), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request) });
   } else {
     const prompts = await PromptLibrary.load(promptsDir());
     const profileFor = await profileResolver(home);
     work = teamWork({
       newSession: (io, job) => {
         const target = parseTarget(job.request, folders());
-        const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable() }, target.folder?.root ?? folders()[0]?.root ?? workDir, io);
+        const root = target.folder?.root ?? folders()[0]?.root ?? workDir;
+        jobRoots.set(job.id, root);
+        const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable() }, root, io);
         return { handle: () => session.handle(target.text) };
       },
       askUser: (jobId, request) => askWithNotice(jobId, request),
@@ -205,6 +212,13 @@ void app.whenReady().then(async () => {
     approvals.closeJob(id);
   });
   ipcMain.handle(IPC.boardNow, () => boardView(runner.board));
+  ipcMain.handle(IPC.approvalReview, async (_e, id: unknown) => {
+    const pending = approvals.pending().find((p) => p.id === id);
+    const root = pending === undefined ? undefined : jobRoots.get(pending.jobId);
+    if (pending === undefined || root === undefined) return null;
+    const summary = approvalView(pending).summary;
+    return reviewChanges(root, DEFAULT_PROTECTED_BRANCHES, summary.protectedBranch);
+  });
   ipcMain.handle(IPC.approvalsNow, () => approvals.pending().map((p) => approvalView(p)));
   ipcMain.on(IPC.approvalAnswer, (_e, id: unknown, choice: unknown) => {
     if (typeof id === 'string' && typeof choice === 'object' && choice !== null && 'kind' in choice) approvals.answer(id, answerFor(choice as ApprovalChoice));

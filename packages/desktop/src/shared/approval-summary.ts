@@ -12,6 +12,9 @@ export interface ApprovalSummary {
   readonly forcePush: boolean;
   /** 인프라 명령이 겨냥하는 환경. 알 수 없으면 null */
   readonly environment: Environment | null;
+  /** 인프라 명령의 --profile · --region 값(없으면 null) */
+  readonly profile: string | null;
+  readonly region: string | null;
   /** 정리 화면에 보일 위험 문장들 */
   readonly risks: readonly string[];
 }
@@ -29,6 +32,12 @@ function protectedIn(command: string, protectedBranches: readonly string[]): str
   return null;
 }
 
+/** `--profile prod` 또는 `--profile=prod` 모양에서 값을 읽는다 */
+function flag(command: string, name: string): string | null {
+  const m = new RegExp(`--${name}[= ](\\S+)`).exec(command);
+  return m?.[1] ?? null;
+}
+
 function environmentOf(command: string): Environment | null {
   if (/\b(prod|production)\b|운영/i.test(command)) return 'prod';
   if (/\b(qa|stg|staging)\b/i.test(command)) return 'qa';
@@ -43,7 +52,7 @@ function environmentOf(command: string): Environment | null {
 export function summarizeRequest(request: { readonly tool: string; readonly detail: string; readonly reason: string }, protectedBranches: readonly string[] = DEFAULT_PROTECTED_BRANCHES): ApprovalSummary {
   const command = request.detail;
   const shell = request.tool === 'Bash' || request.tool === 'PowerShell';
-  const base = { protectedBranch: null, forcePush: false, environment: null, risks: [] as string[] };
+  const base = { protectedBranch: null, forcePush: false, environment: null, profile: null, region: null, risks: [] as string[] };
 
   if (shell && /\bgit\s+push\b/.test(command)) {
     const branch = protectedIn(command, protectedBranches);
@@ -62,7 +71,7 @@ export function summarizeRequest(request: { readonly tool: string; readonly deta
     const risks = [destroys ? '리소스를 지우거나 끊을 수 있어요' : '리소스를 바꿔요'];
     if (environment === 'prod') risks.push('운영(prod) 환경이에요');
     if (environment === null) risks.push('어느 환경인지 명령에서 알 수 없어요');
-    return { ...base, kind: 'infra', headline: environment === 'prod' ? '운영 인프라 변경' : '인프라 변경', environment, risks };
+    return { ...base, kind: 'infra', headline: environment === 'prod' ? '운영 인프라 변경' : '인프라 변경', environment, profile: flag(command, 'profile'), region: flag(command, 'region'), risks };
   }
   if (shell && /\b(psql|mysql|prisma\s+migrate|knex\s+migrate|flyway|liquibase)\b|\b(drop|truncate)\s+table|\bdelete\s+from\b/i.test(command)) {
     return { ...base, kind: 'database', headline: 'DB 쓰기·마이그레이션', risks: ['데이터가 바뀌어요. 되돌리려면 백업이 필요해요'] };

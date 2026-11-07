@@ -2,21 +2,12 @@ import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { autoDeployFor, parseLeftRight, parseNumstat, type BranchImpact, type ChangedFile, type CiFile } from '../../shared/branch-impact.js';
+import { autoDeployFor, parseLeftRight, parseNumstat, type BranchImpact, type ChangedFile, type ChangeReview, type CiFile } from '../../shared/branch-impact.js';
 
 const run = promisify(execFile);
 
 /** 정리 화면에 싣는 diff 글자 수 상한. 넘으면 잘라서 보이고 truncated를 켠다. */
 export const DIFF_LIMIT = 80_000;
-
-export interface ChangeReview {
-  /** 지금 브랜치(분리된 HEAD면 null) */
-  readonly branch: string | null;
-  readonly files: readonly ChangedFile[];
-  readonly diff: string;
-  readonly truncated: boolean;
-  readonly impacts: readonly BranchImpact[];
-}
 
 async function git(root: string, args: readonly string[]): Promise<{ ok: boolean; out: string }> {
   try {

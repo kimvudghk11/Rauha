@@ -1,3 +1,5 @@
+import type { ApprovalSummary } from '../shared/approval-summary.js';
+import { classifyDiffLine, type ChangeReview } from '../shared/branch-impact.js';
 import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared/ipc.js';
 import { CHARACTER_ROLES, leadName, spriteFor, type CharacterRole } from './characters.js';
 import { el } from './dom.js';
@@ -23,6 +25,7 @@ export interface ChatActions {
   readonly submit: (text: string) => Promise<JobView | null>;
   readonly stop: (id: string) => void;
   readonly answer: (id: string, choice: ApprovalChoice) => void;
+  readonly review: (id: string) => Promise<ChangeReview | null>;
 }
 
 interface RoomEl {
@@ -262,6 +265,76 @@ export function buildChat(actions: ChatActions) {
     renderRooms();
   }
 
+  const reviews = new Map<string, Promise<ChangeReview | null>>();
+
+  const yesNo = (v: boolean | null, yes: string, no: string) => (v === null ? '모름' : v ? yes : no);
+  const deployText = (v: 'yes' | 'no' | 'unknown') => (v === 'yes' ? '예' : v === 'no' ? '아니요' : '모름');
+
+  /** 코드 허락의 정리: 보호 브랜치별 영향 표, 바뀐 파일, diff. git으로 계산한 값이다. */
+  function reviewBox(a: ApprovalView): HTMLElement {
+    const box = el('div', 'review', '변경을 확인하는 중…');
+    let pending = reviews.get(a.id);
+    if (pending === undefined) {
+      pending = actions.review(a.id).catch(() => null);
+      reviews.set(a.id, pending);
+    }
+    void pending.then((r) => {
+      box.replaceChildren();
+      if (r === null) {
+        box.textContent = '이 요청의 레포를 알 수 없어 변경을 보여 줄 수 없어요.';
+        return;
+      }
+      const table = el('table', 'impact');
+      const head = el('tr');
+      for (const h of ['브랜치', '앞섬', '뒤처짐', '충돌', '자동 배포']) head.appendChild(el('th', undefined, h));
+      table.appendChild(head);
+      for (const i of r.impacts) {
+        const row = el('tr');
+        const cells = i.exists
+          ? [i.branch, i.ahead === null ? '모름' : `${i.ahead}개`, i.behind === null ? '모름' : `${i.behind}개`, yesNo(i.conflicts, '충돌 있음', '없음'), deployText(i.autoDeploy)]
+          : [i.branch, '브랜치 없음', '', '', deployText(i.autoDeploy)];
+        cells.forEach((c, n) => row.appendChild(el('td', n === 3 && c === '충돌 있음' ? 'bad' : undefined, c)));
+        table.appendChild(row);
+      }
+      box.appendChild(el('div', 'sub', `지금 브랜치: ${r.branch ?? '(분리된 HEAD)'}`));
+      box.appendChild(table);
+      if (r.files.length === 0) {
+        box.appendChild(el('div', 'sub', '바뀐 파일이 없어요.'));
+        return;
+      }
+      const files = el('ul', 'files');
+      for (const f of r.files) files.appendChild(el('li', undefined, `${f.path}  ${f.additions === null ? '' : `+${f.additions} -${f.deletions}`}`));
+      box.appendChild(files);
+      const diff = el('details');
+      diff.appendChild(el('summary', undefined, `diff 보기${r.truncated ? ' (앞부분만)' : ''}`));
+      const pre = el('pre', 'diff');
+      for (const line of r.diff.split('\n')) pre.appendChild(el('div', `dl ${classifyDiffLine(line)}`, line === '' ? ' ' : line));
+      diff.appendChild(pre);
+      box.appendChild(diff);
+    });
+    return box;
+  }
+
+  /** 인프라 허락의 위험도 표. 명령에서 읽을 수 있는 것만 채우고 나머지는 모른다고 쓴다(추측하지 않는다). */
+  function riskTable(s: ApprovalSummary): HTMLElement {
+    const rows: [string, string][] = [
+      ['환경', s.environment ?? '모름'],
+      ['계정·리전', [s.profile, s.region].filter((x) => x !== null).join(' · ') || '모름'],
+      ['영향 범위', '모름'],
+      ['중단 여부', '모름'],
+      ['비용 방향', '모름'],
+      ['되돌리는 데 걸리는 시간', '모름'],
+      ['qa에 먼저 적용했는지', '모름'],
+    ];
+    const table = el('table', 'impact risk');
+    for (const [k, val] of rows) {
+      const tr = el('tr');
+      tr.append(el('th', undefined, k), el('td', val === '모름' ? 'dim' : undefined, val));
+      table.appendChild(tr);
+    }
+    return table;
+  }
+
   function approvalCard(a: ApprovalView): HTMLElement {
     const card = el('div', `approval ${a.summary.kind}`);
     card.appendChild(el('div', 'ah', `허락이 필요해요 · ${a.summary.headline}`));
@@ -281,6 +354,8 @@ export function buildChat(actions: ChatActions) {
       facts.append(el('span', 'chip', `환경: ${a.summary.environment ?? '모름'}`), el('span', 'chip', '비용: 방향만(모름)'));
     }
     if (facts.childElementCount > 0) card.appendChild(facts);
+    if (a.summary.kind === 'code') card.appendChild(reviewBox(a));
+    if (a.summary.kind === 'infra') card.appendChild(riskTable(a.summary));
     const raw = el('details');
     raw.append(el('summary', undefined, '원본 명령'), el('pre', undefined, `${a.tool}: ${a.detail}`));
     card.appendChild(raw);

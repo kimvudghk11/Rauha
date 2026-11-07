@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoDeployFor, parseLeftRight, parseNumstat } from './branch-impact.js';
+import { autoDeployFor, classifyDiffLine, parseLeftRight, parseNumstat } from './branch-impact.js';
 
 describe('parseNumstat', () => {
   it('바뀐 파일마다 추가·삭제 줄 수를 읽는다', () => {
@@ -47,5 +47,17 @@ describe('autoDeployFor', () => {
 
   it('배포와 상관없는 워크플로는 자동 배포로 보지 않는다', () => {
     expect(autoDeployFor('main', [{ path: '.github/workflows/test.yml', text: 'on:\n  push:\n    branches: [main]\nsteps:\n  - run: yarn test' }])).toBe('no');
+  });
+});
+
+describe('classifyDiffLine', () => {
+  it('추가·삭제·구간·머리말·그대로인 줄을 가른다', () => {
+    expect(classifyDiffLine('+const a = 1;')).toBe('add');
+    expect(classifyDiffLine('-const a = 0;')).toBe('del');
+    expect(classifyDiffLine('@@ -1,2 +1,2 @@')).toBe('hunk');
+    expect(classifyDiffLine('+++ b/pay.ts')).toBe('meta');
+    expect(classifyDiffLine('--- a/pay.ts')).toBe('meta');
+    expect(classifyDiffLine('diff --git a/x b/x')).toBe('meta');
+    expect(classifyDiffLine(' 그대로')).toBe('ctx');
   });
 });
