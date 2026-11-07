@@ -10,17 +10,56 @@
 
 - 설계서: [docs/design/claude-team-design.md](docs/design/claude-team-design.md)
 - 개발 규칙: [docs/conventions/ddd-entity-dto.md](docs/conventions/ddd-entity-dto.md)
+- 데스크톱 앱 사용 안내(한 장): [docs/desktop-guide.md](docs/desktop-guide.md)
+
+## 데스크톱 앱 설치 (맥북 · Windows)
+
+터미널 대신 창에서 쓰는 데스크톱 앱이다. 메인 칸에서 일을 맡기면 팀이 각자 팀 방에서 동시에 일하고, 위험한 일만 정리된 화면을 보고 허락한다. macOS(Apple 칩·인텔)와 Windows에서 돈다. 설치 파일에는 서명이 없어서 처음 열 때 한 번 허용해 줘야 한다.
+
+### 1. 설치 파일 받기
+
+GitHub에 로그인하고 이 저장소의 **Actions → desktop**에서 맨 위의 성공(초록) 실행을 열면 아래쪽 **Artifacts**에 설치 파일이 있다(14일 보관, 로그인 필요).
+
+| artifact | 안에 든 것 |
+| --- | --- |
+| `rauha-desktop-macOS` | `.dmg` 둘과 `.zip` 둘: `arm64`는 Apple 칩(M1~), `x64`는 인텔 맥. 내 맥에 맞는 것을 쓴다(Apple 메뉴 → 이 Mac에 관하여). |
+| `rauha-desktop-Windows` | `rauha-Setup-…-x64.exe` |
+
+### 2. 설치
+
+- **macOS**: `.dmg`를 열고 rauha를 Applications로 끌어다 놓는다. 처음 열 때는 서명이 없는 앱이라 그냥 열리지 않을 수 있다. Applications에서 rauha를 **우클릭 → 열기 → 열기**. 그래도 안 열리면 터미널에서 `xattr -dr com.apple.quarantine /Applications/rauha.app`을 한 번 실행한다.
+- **Windows**: `rauha-Setup-…-x64.exe`를 실행한다. "알 수 없는 게시자" 경고가 뜨면 **추가 정보 → 실행**.
+
+### 3. 처음 열면
+
+작업 폴더(레포와 문서 폴더가 들어 있는 상위 폴더)를 고르고, 그 폴더에서 일해도 되는지 허락하고, Claude 계정을 고른다. Claude 로그인이 안 돼 있으면 먼저 터미널에서 `claude`로 로그인한다. 예전 터미널 `rauha`가 설치돼 있으면 찾아서 보여 주고, 확인하면 지운다(기억·대화 기록 같은 데이터는 그대로 둔다).
+
+### 설치 파일이 안 열리면: 소스로 실행
+
+Node.js 22 이상, git, yarn(corepack)이 필요하다.
+
+```bash
+git clone https://github.com/kimvudghk11/rauha.git
+cd rauha
+corepack enable
+yarn install
+yarn build
+yarn desktop
+```
+
+더 자세한 안내는 [docs/desktop-guide.md](docs/desktop-guide.md), 되는 것과 아직 안 되는 것은 [docs/release-checklist.md](docs/release-checklist.md), 설치 파일을 만드는 방법은 [packages/desktop/PACKAGING.md](packages/desktop/PACKAGING.md)에 있다. 맥 설치본은 서버(GitHub Actions)에서 만들어 앱이 뜨는 것까지만 확인했고, 실제 맥북에서의 실행은 아직 확인하지 못했다.
 
 ## 지금 상태
 
 | 패키지 | 내용 | 상태 |
 | --- | --- | --- |
-| `@rauha/core` | 파이프라인 상태 머신(`WorkOrder`), 승격 사다리, 역할별 쓰기 권한, 보고서 DTO, 회사/개인 프로필 판정 | 동작 + 테스트 |
-| `@rauha/cli` | `rauha --help`, `rauha whoami`, `--profile` | 뼈대. 대화 모드는 구현 전 |
+| `@rauha/core` | 파이프라인 상태 머신(`WorkOrder`), 승격 사다리, 역할별 쓰기 권한, 보고서 DTO, 회사/개인 프로필 판정, 작업(Job) 동시 실행 | 동작 + 테스트 |
+| `@rauha/desktop` | Electron 데스크톱 앱: 채팅·팀 방·허락 카드·규칙·레포·설정·git 탭 | 동작 + 테스트(맥 실행은 확인 못 함) |
+| `@rauha/cli` | 터미널 대화 모드(`rauha`) | 동작. 데스크톱으로 옮겨 가는 중이라 아래 설치는 예전 방식 |
 
-## 설치 (새 PC에서 한 번)
+## 터미널 버전 설치 (예전 방식, 새 PC에서 한 번)
 
-Git, Node.js 24 LTS, Yarn(corepack), Claude Code, rauha를 차례로 설치하고 `rauha` 명령을 만든다. 이미 있는 것은 건너뛰므로 여러 번 실행해도 된다.
+데스크톱 앱을 쓰면 이 단계는 필요 없다. Git, Node.js 24 LTS, Yarn(corepack), Claude Code, rauha를 차례로 설치하고 `rauha` 명령을 만든다. 이미 있는 것은 건너뛰므로 여러 번 실행해도 된다.
 
 macOS (터미널):
 
