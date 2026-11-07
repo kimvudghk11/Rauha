@@ -1,0 +1,75 @@
+/* VS Code Dark Modern 토큰. 하늘색(--delfi)은 Delfi 몸에만 쓴다. */
+:root {
+  --bg: #1f1f1f; --side: #181818; --card: #252526; --border: #2b2b2b; --border2: #3c3c3c;
+  --text: #cccccc; --bright: #e7e7e7; --muted: #9d9d9d; --dim: #6e7681; --input: #313131;
+  --accent: #0078d4; --accentfg: #4daafc; --sel: #04395e;
+  --green: #89d185; --yellow: #e2c08d; --red: #f48771; --delfi: #6FBDEB;
+  --mono: Consolas, "Cascadia Code", "D2Coding", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.45 "Segoe UI", "Malgun Gothic", system-ui, sans-serif; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+.app { height: 100vh; display: grid; grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 24px; }
+
+/* 왼쪽 탭 */
+.act { grid-row: 1; background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+.act .spacer { flex: 1; }
+.act button { width: 52px; height: 52px; background: none; border: none; border-left: 2px solid transparent; color: var(--dim); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 9.5px; }
+.act button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.act button:hover { color: var(--text); }
+.act button.on { color: var(--bright); border-left-color: var(--bright); }
+
+.main { grid-row: 1; min-width: 0; min-height: 0; display: flex; }
+
+/* 아래 상태 줄 */
+.status { grid-column: 1 / -1; background: var(--side); border-top: 1px solid var(--border); display: flex; align-items: center; gap: 14px; padding: 0 10px; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.status-right { margin-left: auto; }
+
+/* 채팅 */
+.chat { flex: 1; display: flex; min-width: 0; min-height: 0; padding: 8px; }
+.pane { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ph { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 11.5px; color: var(--muted); }
+.ph b { color: var(--bright); font-weight: 600; font-size: 12.5px; }
+.ph .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msgs { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.empty { margin: auto; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.m { display: flex; gap: 9px; align-items: flex-start; max-width: 92%; }
+.m .av { flex: 0 0 30px; height: 30px; border-radius: 6px; background: #17283a; display: flex; align-items: center; justify-content: center; }
+.m .tx { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; white-space: pre-wrap; word-break: break-word; }
+.m .who { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.m.me { align-self: flex-end; flex-direction: row-reverse; }
+.m.me .tx { background: #0c2a44; border-color: #0e4f7f; color: var(--bright); }
+.hand { margin-top: 6px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border2); background: #1b1b1b; border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+.hand .state { color: var(--muted); }
+.hand .stop { margin-left: auto; background: none; border: 1px solid var(--border2); border-radius: 4px; padding: 1px 8px; font-size: 11px; }
+.hand .stop:hover { border-color: var(--red); color: var(--red); }
+.chip { display: inline-flex; align-items: center; background: var(--input); border: 1px solid var(--border2); border-radius: 10px; padding: 0 7px; font-size: 11px; white-space: nowrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: #555; display: inline-block; }
+.dot.running { background: var(--green); animation: blink 1.2s infinite; }
+.dot.waiting { background: var(--yellow); }
+.dot.queued { background: var(--accentfg); }
+.dot.stopped { background: var(--red); }
+@keyframes blink { 50% { opacity: .35; } }
+
+.composer { border-top: 1px solid var(--border); padding: 10px; }
+.composer textarea { width: 100%; min-height: 40px; max-height: 160px; resize: none; background: var(--input); border: 1px solid var(--accent); border-radius: 5px; padding: 9px 10px; color: var(--text); font: inherit; outline: none; }
+.composer .hint { display: flex; gap: 10px; font-size: 11px; color: var(--dim); margin-top: 6px; white-space: nowrap; overflow: hidden; }
+.kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--border2); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--muted); }
+
+/* 곧 */
+.soon { margin: auto; text-align: center; color: var(--muted); }
+.soon b { display: block; color: var(--bright); font-size: 16px; margin-bottom: 4px; }
+
+canvas.sp { image-rendering: pixelated; display: block; }
+
+/* 좁은 창(모니터 반쪽 이하): 탭은 아이콘만, 힌트는 줄인다. 입력창과 상태 줄은 늘 보인다. */
+@media (max-width: 760px) {
+  .app { grid-template-columns: 44px minmax(0, 1fr); }
+  .act button { width: 44px; height: 44px; font-size: 0; }
+  .ph .hint, .composer .hint .more { display: none; }
+  .chat { padding: 4px; }
+}
+@media (max-height: 420px) {
+  .composer .hint { display: none; }
+}
