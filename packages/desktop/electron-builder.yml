@@ -7,6 +7,7 @@ files:
   - dist/main.cjs
   - dist/preload.cjs
   - dist/renderer/**
+  - build/icon.png
   - package.json
   - "!**/*.map"
 # SDK 실행 파일과 브라우저 MCP는 asar 안에서 실행할 수 없으니 밖(app.asar.unpacked)에 푼다.

@@ -19,3 +19,42 @@
 - 앱은 SDK에 `pathToClaudeCodeExecutable`로 위 경로를 넘긴다. 못 찾으면 SDK 기본 방식으로 찾는다.
 - 맥은 GUI 앱이 셸의 PATH를 못 받으므로 시작할 때 로그인 셸(`$SHELL -ilc`)에서 PATH를 읽어 합친다(`src/main/platform/shell-path.ts`). 설치본에 별도 설정은 필요 없다.
 - 기억 저장소는 `node:sqlite`(Electron 내장 Node)라서 네이티브 모듈 재빌드가 없다.
+
+---
+
+## 패키징 담당: electron-builder 설정과 CI
+
+설정은 `electron-builder.yml`, 스크립트는 `scripts/dist.mjs`(build 후 electron-builder), `scripts/smoke-dist.mjs`(설치본 확인).
+
+- `yarn dist` 지금 OS용 / `yarn dist:mac` / `yarn dist:win` (루트에서도 같은 이름). 결과는 `packages/desktop/release/`(git 제외).
+- mac: dmg + zip, arm64 + x64, ad-hoc 서명(`identity: "-"`), hardenedRuntime 끔. win: NSIS(사용자 단위 설치 가능, 설치 위치 고르기 가능), x64, 서명 없음.
+- 아이콘: `build/icon.png`(1024)에서 `yarn workspace @rauha/desktop icons`로 `build/icon.icns`를 만든다. `build/icon.ico`는 이미 있다.
+- `.yarnrc.yml`의 `supportedArchitectures`로 Agent SDK의 플랫폼별 실행 파일을 mac arm64·x64, win 모두 받는다(한 러너에서 두 칩을 만들기 위함).
+
+## 설치본에서 파일이 있는 곳 (소스 쪽이 읽을 때 기준)
+
+`resources`는 Windows `<설치폴더>/resources`, mac `rauha.app/Contents/Resources`. 코드에서는 `process.resourcesPath`.
+
+| 무엇 | 설치본 위치 |
+| --- | --- |
+| main/preload/화면 번들 | `resources/app.asar` 안 `dist/main.cjs`, `dist/preload.cjs`, `dist/renderer/**` (소스·spec·`.map` 없음) |
+| 팀원 프롬프트 `*.md` | `resources/prompts/` (`main.ts`의 `promptsDir()`가 이미 이 경로를 읽는다) |
+| Agent SDK (JS) | `resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/` (asar 밖) |
+| Agent SDK 실행 파일 | `resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk-<win32\|darwin>-<x64\|arm64>/` (`claude.exe` / `claude`). SDK 패키지의 optionalDependency라 electron-builder가 자동으로 안 담아서 `extraResources`로 SDK 옆에 둔다. 설치본엔 그 칩 것 하나만 들어간다 |
+| 브라우저 MCP | `resources/app.asar.unpacked/node_modules/@playwright/mcp`, `playwright`, `playwright-core` (asar 밖) |
+
+주의할 점(소스 쪽):
+
+- `@rauha/core`는 esbuild가 번들에 합치므로 `devDependencies`다. 런타임에 읽는 SDK·`@playwright/mcp`만 `dependencies`다. 런타임에 새 외부 패키지를 `external`로 추가하면 `dependencies`에도 넣어야 설치본에 들어간다.
+- `browser-mcp.ts`는 `node: process.execPath`로 `@playwright/mcp/cli.js`를 띄운다. 설치본에서 `process.execPath`는 Electron 실행 파일이므로 이 자식 프로세스에는 `ELECTRON_RUN_AS_NODE=1`이 필요하다. 아직 확인하지 않았다(스모크는 가짜 팀이라 이 경로를 타지 않는다).
+- SDK의 `node` 실행도 같은 문제가 있을 수 있다(5.12의 2번).
+
+## CI
+
+`.github/workflows/desktop.yml` — main push와 수동 실행(`workflow_dispatch`), matrix `macos-latest`·`windows-latest`. install(--immutable) → typecheck → test → build → `yarn dist` → `smoke:dist`(파일 배치 확인 + `RAUHA_FAKE_TEAM=1`, `RAUHA_SMOKE_SHOT`로 Electron을 띄워 스크린샷 생성 확인) → artifact 업로드(14일).
+
+artifact 이름: `rauha-desktop-macOS`(dmg 2개 + zip 2개), `rauha-desktop-Windows`(`rauha-Setup-<버전>-x64.exe`), `smoke-shot-<OS>`(스모크 스크린샷). 실행 목록: https://github.com/kimvudghk11/rauha/actions/workflows/desktop.yml
+
+## 확인 못 한 것
+
+(아래는 맨 끝에 최종 결과와 함께 갱신)
