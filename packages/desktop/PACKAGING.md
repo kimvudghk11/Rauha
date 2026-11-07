@@ -57,4 +57,12 @@ artifact 이름: `rauha-desktop-macOS`(dmg 2개 + zip 2개), `rauha-desktop-Wind
 
 ## 확인 못 한 것
 
-(아래는 맨 끝에 최종 결과와 함께 갱신)
+CI 기준(실행 42417327547, macos-latest·windows-latest 둘 다 초록, 2026-11-08): 위 artifact 4개가 올라갔고 설치본 파일 배치 확인과 가짜 팀 Electron 스모크(스크린샷 생성)가 두 OS 모두 통과했다. 실행 주소: https://github.com/kimvudghk11/rauha/actions/runs/42417327547
+
+- 실제 맥북에서 dmg를 열어 설치하고 첫 실행하는 것. Gatekeeper가 ad-hoc 서명 앱을 어떻게 막는지, 회사 보안 소프트웨어(MDM)가 막는지.
+- Apple Silicon 러너에서 만든 x64 dmg·zip은 실행해 보지 못했다(CI는 arm64 러너에서 arm64 앱만 띄운다).
+- 맥 설치본에서 진짜 팀(Claude 로그인 후 일 시키기)과 브라우저 MCP가 도는지. 스모크는 가짜 팀이라 이 경로를 타지 않는다.
+- ad-hoc 서명이 실제로 붙었는지는 CI 로그의 `codesign -dv` 줄로만 볼 수 있다(로그인 없이는 읽지 못해 확인하지 않았다).
+- 알림 권한, 문서·데스크톱 폴더 접근 권한, 첫 실행 때 터미널 rauha 지우기 대화상자 동작.
+- Windows 설치본의 exe 아이콘: `signAndEditExecutable: false`라 exe 파일 자체에는 아이콘이 입혀지지 않는다(창 아이콘은 `build/icon.png`).
+- artifact 용량: macOS 약 960MB(dmg·zip 각 2개), Windows 약 220MB.
