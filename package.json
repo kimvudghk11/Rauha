@@ -17,7 +17,10 @@
     "test:watch": "vitest",
     "rauha": "node packages/cli/dist/main.js",
     "desktop": "yarn workspace @rauha/desktop start",
-    "bench": "node packages/cli/dist/main.js bench"
+    "bench": "node packages/cli/dist/main.js bench",
+    "dist": "yarn workspace @rauha/desktop dist",
+    "dist:mac": "yarn workspace @rauha/desktop dist:mac",
+    "dist:win": "yarn workspace @rauha/desktop dist:win"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

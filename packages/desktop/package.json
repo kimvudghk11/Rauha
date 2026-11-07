@@ -8,16 +8,26 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "node scripts/start.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "icons": "node scripts/make-icns.mjs",
+    "dist": "node scripts/dist.mjs",
+    "dist:mac": "node scripts/dist.mjs --mac",
+    "dist:win": "node scripts/dist.mjs --win",
+    "smoke:dist": "node scripts/smoke-dist.mjs"
   },
   "dependencies": {
-    "@rauha/core": "workspace:^"
+    "@anthropic-ai/claude-agent-sdk": "0.3.296",
+    "@playwright/mcp": "0.0.84"
   },
   "devDependencies": {
+    "@rauha/core": "workspace:^",
     "@types/node": "^22.20.5",
-    "electron": "^45.2.3",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
     "esbuild": "^0.28.2",
+    "png2icons": "^2.0.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
-  }
+  },
+  "author": "rauha"
 }

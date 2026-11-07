@@ -1,0 +1,46 @@
+name: desktop
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn typecheck
+      - run: yarn test
+      - run: yarn build
+      - run: yarn dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # 설치본 파일 배치 확인 + 가짜 팀으로 Electron 실행 스모크(실제 Claude 호출 없음)
+      - run: yarn workspace @rauha/desktop smoke:dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rauha-desktop-${{ runner.os }}
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.zip
+            packages/desktop/release/*-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smoke-shot-${{ runner.os }}
+          path: ${{ runner.temp }}/rauha-smoke.png
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,58 @@
+appId: dev.rauha.desktop
+productName: rauha
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/main.cjs
+  - dist/preload.cjs
+  - dist/renderer/**
+  - package.json
+  - "!**/*.map"
+# SDK 실행 파일과 브라우저 MCP는 asar 안에서 실행할 수 없으니 밖(app.asar.unpacked)에 푼다.
+asarUnpack:
+  - node_modules/@anthropic-ai/**
+  - node_modules/@playwright/**
+  - node_modules/playwright/**
+  - node_modules/playwright-core/**
+# 팀원 프롬프트는 resources/prompts (main.ts의 promptsDir()가 읽는 곳)
+extraResources:
+  - from: ../../prompts
+    to: prompts
+    filter:
+      - "**/*.md"
+mac:
+  files:
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  target:
+    - { target: dmg, arch: [arm64, x64] }
+    - { target: zip, arch: [arm64, x64] }
+  # SDK 실행 파일(플랫폼별 패키지)은 optionalDependency라 자동으로 안 따라온다. SDK 옆 asar 밖에 직접 둔다.
+  extraResources:
+    - from: ../../node_modules/@anthropic-ai/claude-agent-sdk-darwin-${arch}
+      to: app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk-darwin-${arch}
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  # 인증서 없이 ad-hoc 서명: identity를 "-"로 둔다(null이면 서명을 건너뛴다)
+  identity: "-"
+  notarize: false
+dmg:
+  sign: false
+win:
+  files:
+    - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+  icon: build/icon.ico
+  target:
+    - { target: nsis, arch: [x64] }
+  extraResources:
+    - from: ../../node_modules/@anthropic-ai/claude-agent-sdk-win32-${arch}
+      to: app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk-win32-${arch}
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: rauha-Setup-${version}-${arch}.${ext}
+artifactName: rauha-${version}-${os}-${arch}.${ext}
