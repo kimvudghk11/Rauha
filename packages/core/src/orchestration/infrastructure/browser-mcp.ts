@@ -47,6 +47,8 @@ export interface BrowserServerOptions {
   readonly outputDir: string;
   readonly cli: string;
   readonly node: string;
+  /** node 자리의 실행 파일이 Electron이면 true(ELECTRON_RUN_AS_NODE를 켠다) */
+  readonly runAsNode?: boolean;
 }
 
 /**
@@ -58,6 +60,8 @@ export function browserMcpServer(options: BrowserServerOptions): McpStdioServerC
     type: 'stdio',
     command: options.node,
     args: [options.cli, '--headless', '--isolated', '--output-dir', options.outputDir, ...(options.channel !== null ? ['--browser', options.channel] : [])],
+    // Electron 앱에서는 node 자리에 Electron 실행 파일이 들어간다. 이 값이 있어야 창 없이 node처럼 돈다.
+    ...(options.runAsNode === true ? { env: { ELECTRON_RUN_AS_NODE: '1' } } : {}),
   };
 }
 
@@ -65,5 +69,5 @@ export function browserMcpServer(options: BrowserServerOptions): McpStdioServerC
 export function localBrowserServer(env: Record<string, string | undefined>): McpStdioServerConfig {
   const require = createRequire(import.meta.url);
   const cli = join(dirname(require.resolve('@playwright/mcp/package.json')), 'cli.js');
-  return browserMcpServer({ channel: browserChannel(env, process.platform), outputDir: join(tmpdir(), 'rauha-browser'), cli, node: process.execPath });
+  return browserMcpServer({ channel: browserChannel(env, process.platform), outputDir: join(tmpdir(), 'rauha-browser'), cli, node: process.execPath, runAsNode: process.versions['electron'] !== undefined });
 }

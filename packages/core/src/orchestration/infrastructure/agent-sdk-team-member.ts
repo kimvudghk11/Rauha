@@ -21,6 +21,10 @@ export interface AgentSdkTeamMemberOptions {
   readonly secretFiles: () => readonly string[];
   /** Claude Code 실행 파일 경로. 설치본에서는 asar 밖의 실행 파일을 가리킨다. 없으면 SDK가 자기 방식으로 찾는다. */
   readonly claudeExecutable?: string;
+  /** 사용자 규칙 판정(규칙 탭). 호출 때마다 부르므로 규칙을 고치면 바로 반영된다. */
+  readonly rules?: (tool: string, detail: string) => 'allow' | 'ask' | null;
+  /** 사용자의 "항상 지킬 것" 글. 팀원 시스템 프롬프트 끝에 붙는다. 없으면 빈 글. */
+  readonly alwaysRules?: () => string;
 }
 
 /** 호출 하나가 쓰는 것들. 미리 띄운 프로세스는 띄울 때 이것까지 정해진다. */
@@ -163,6 +167,12 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     return () => (files ??= this.options.secretFiles());
   }
 
+  /** 사용자가 정한 "항상 지킬 것"을 시스템 프롬프트 끝에 붙인다(rauha 개발 규칙이 아니라 사용자 규칙이다). */
+  private withAlwaysRules(system: string): string {
+    const rules = this.options.alwaysRules?.() ?? '';
+    return rules === '' ? system : `${system}\n\n<user-rules>\n사용자가 항상 지키라고 정한 규칙입니다.\n${rules}\n</user-rules>`;
+  }
+
   private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session): Options {
     const kits = kitServers(call.kits ?? [], this.options.env);
     return {
@@ -172,7 +182,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       ...((call.additionalDirectories?.length ?? 0) > 0 ? { additionalDirectories: [...call.additionalDirectories!] } : {}),
       env: this.options.env,
       ...(this.options.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: this.options.claudeExecutable } : {}),
-      systemPrompt: this.options.prompts.system(call.role, call.kits ?? []),
+      systemPrompt: this.withAlwaysRules(this.options.prompts.system(call.role, call.kits ?? [])),
       tools: [...call.setting.tools],
       allowedTools: [...call.setting.tools, ...kits.tools],
       // 도구 묶음은 요청이 그쪽을 가리킬 때만 붙인다(도구 설명이 길어서).
@@ -184,7 +194,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       maxBudgetUsd: call.setting.maxBudgetUsd,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
-        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [] })] }],
+        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
         PostToolUse: [{ hooks: [session.fetchLog.hook] }],
       },
       stderr: (data) => {

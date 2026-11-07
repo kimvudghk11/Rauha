@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { app, BrowserWindow, ipcMain, Menu, Notification } from 'electron';
-import { discoverRepos, PromptLibrary, readPlanUsage, type PlanUsage } from '@rauha/core';
+import { DomainError, discoverRepos, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, IPC, type ApprovalChoice } from '../shared/ipc.js';
 import { reviewChanges } from './team/git-review.js';
@@ -25,6 +25,10 @@ const BACKGROUND = '#1f1f1f';
 
 let window: BrowserWindow | null = null;
 let plan: PlanUsage | null = null;
+
+/** 사용자 규칙(규칙 탭). 팀원이 도구를 부를 때마다 이 값을 읽으므로 고치면 바로 반영된다. */
+const ruleStore = new FileRuleStore(join(homedir(), '.rauha', 'desktop', 'rules.json'));
+let ruleBook: RuleBook = RuleBook.empty();
 
 /** 확인용: 실제 Claude를 부르지 않고 가짜 팀으로 돈다(RAUHA_FAKE_TEAM=1). */
 const FAKE = process.env['RAUHA_FAKE_TEAM'] === '1';
@@ -98,7 +102,7 @@ async function startRunner(): Promise<JobRunner> {
         const target = parseTarget(job.request, folders());
         const root = target.folder?.root ?? folders()[0]?.root ?? workDir;
         jobRoots.set(job.id, root);
-        const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable() }, root, io);
+        const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: () => ruleBook }, root, io);
         return { handle: () => session.handle(target.text) };
       },
       askUser: (jobId, request) => askWithNotice(jobId, request),
@@ -190,7 +194,27 @@ void app.whenReady().then(async () => {
   await adoptShellPath();
   installMenu();
   if (process.env['RAUHA_SMOKE_COMPOSE'] === '1') return smokeCompose();
+  ruleBook = await ruleStore.load().catch(() => RuleBook.empty());
   const runner = await startRunner();
+  const rulesView = () => RuleBookDto.fromEntity(ruleBook).toJSON().rules;
+  ipcMain.handle(IPC.rulesList, rulesView);
+  ipcMain.handle(IPC.rulesAdd, async (_e, rule: unknown) => {
+    try {
+      const next = RuleBookDto.from({ rules: [...rulesView(), rule] }).toEntity();
+      await ruleStore.save(next);
+      ruleBook = next;
+      return { ok: true, rules: rulesView() };
+    } catch (error) {
+      return { ok: false, error: error instanceof DomainError ? error.message : '규칙을 저장하지 못했어요.' };
+    }
+  });
+  ipcMain.handle(IPC.rulesRemove, async (_e, id: unknown) => {
+    if (typeof id === 'string') {
+      ruleBook = ruleBook.remove(id);
+      await ruleStore.save(ruleBook);
+    }
+    return rulesView();
+  });
   runnerRef = runner;
   let terminalFound: TerminalRauhaFile[] = [];
   ipcMain.handle(IPC.terminalFind, async () => {

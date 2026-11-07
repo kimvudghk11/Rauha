@@ -32,4 +32,10 @@ describe('browserMcpServer', () => {
     expect(BROWSER_TOOLS).toContain('mcp__browser__browser_snapshot');
     expect(BROWSER_TOOLS.some((t) => /run_code|evaluate|file_upload/.test(t))).toBe(false);
   });
+
+  it('Electron 앱에서는 node 자리 실행 파일이 node처럼 돌도록 환경 변수를 켠다', () => {
+    const server = browserMcpServer({ channel: null, outputDir: '/o', cli: '/c.js', node: '/app/electron', runAsNode: true });
+    expect(server).toMatchObject({ env: { ELECTRON_RUN_AS_NODE: '1' } });
+    expect(browserMcpServer({ channel: null, outputDir: '/o', cli: '/c.js', node: 'node' })).not.toHaveProperty('env');
+  });
 });

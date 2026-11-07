@@ -27,6 +27,7 @@ import {
   type MemberCall,
   type MemberResult,
   type PlanUsage,
+  type RuleBook,
   type Profile,
   type PromptLibrary,
   type TeamMemberPort,
@@ -80,6 +81,8 @@ export interface ComposeOptions {
   readonly plan: () => PlanUsage | null;
   /** Claude Code 실행 파일(설치본은 asar 밖). 없으면 SDK 기본 */
   readonly claudeExecutable?: string | undefined;
+  /** 사용자 규칙 모음(규칙 탭). 부를 때마다 최신 값을 돌려준다. */
+  readonly rules?: (() => RuleBook) | undefined;
 }
 
 /**
@@ -99,6 +102,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     secrets,
     secretFiles: () => listSecretFiles(root, secrets),
     ...(options.claudeExecutable !== undefined ? { claudeExecutable: options.claudeExecutable } : {}),
+    ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, root), alwaysRules: () => options.rules!().alwaysTexts(root).map((t) => `- ${t}`).join('\n') } : {}),
   });
   const team = stoppable(inner, io.signal);
   const knowledge = new KnowledgeService({

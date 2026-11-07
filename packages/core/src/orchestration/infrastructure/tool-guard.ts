@@ -36,6 +36,8 @@ export interface ToolGuardOptions {
   readonly secretFiles: () => readonly string[];
   /** 작업 폴더 밖에서 함께 열어 준 폴더(다른 저장소, 작업 공간 폴더). 그 안의 쓰기는 묻지 않고 그 폴더 기준으로 역할 권한만 본다. */
   readonly extraRoots?: readonly string[];
+  /** 사용자 규칙 판정(규칙 탭). allow = 묻지 않고 진행, ask = 꼭 허락받기, null = 규칙에 안 맞음. 비밀 파일·역할 권한·git push 거절은 규칙보다 앞선다. */
+  readonly rules?: (tool: string, detail: string) => 'allow' | 'ask' | null;
 }
 
 /** 파일 경로를 받는 도구와 그 경로가 든 입력 이름 */
@@ -116,10 +118,13 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
       }
     }
 
-    const verdict = ToolRisk.assess(input.tool_name, toolInput, options.root);
-    if (verdict.decision === 'deny') return decide('deny', verdict.reason ?? '거절된 동작입니다.');
+    const base = ToolRisk.assess(input.tool_name, toolInput, options.root);
+    if (base.decision === 'deny') return decide('deny', base.reason ?? '거절된 동작입니다.');
+    const detail = typeof toolInput['command'] === 'string' ? toolInput['command'] : String(toolInput['file_path'] ?? input.tool_name);
+    const rule = options.rules?.(input.tool_name, detail) ?? null;
+    if (rule === 'allow' && base.decision === 'ask') return decide('allow', '사용자 규칙(묻지 않고 할 것)에 맞는 동작입니다.');
+    const verdict = rule === 'ask' && base.decision !== 'ask' ? { decision: 'ask' as const, reason: '내 규칙(꼭 허락받을 것)에 걸린 동작입니다.' } : base;
     if (verdict.decision === 'ask') {
-      const detail = typeof toolInput['command'] === 'string' ? toolInput['command'] : String(toolInput['file_path'] ?? input.tool_name);
       const key = `${input.tool_name}\n${detail}`;
       if (options.remembered.has(key)) return decide('allow', '사용자가 이번 실행 동안 허락한 동작입니다.');
       const reason = verdict.reason ?? '위험할 수 있는 동작입니다.';

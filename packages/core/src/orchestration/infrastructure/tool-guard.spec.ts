@@ -127,4 +127,41 @@ describe('createToolGuard', () => {
     const { guard } = guardWith([]);
     expect(decision(await guard(input('Bash', { command: 'yarn test' }), 't', opts))).toBeUndefined();
   });
+
+  describe('사용자 규칙', () => {
+    it('묻지 않고 할 것 규칙에 맞는 위험 동작은 묻지 않고 허락한다', async () => {
+      const { guard, asked } = guardWith([], { rules: (_tool, detail) => (detail.includes('terraform apply') ? 'allow' : null) });
+      const out = await guard(input('Bash', { command: 'terraform apply -var env=prod' }), 't1', opts);
+      expect(decision(out)).toBe('allow');
+      expect(asked).toEqual([]);
+    });
+
+    it('꼭 허락받을 것 규칙에 맞으면 평소엔 묻지 않는 동작도 사용자에게 묻는다', async () => {
+      const { guard, asked } = guardWith([{ kind: 'allow' }], { rules: (_tool, detail) => (detail.includes('yarn deploy') ? 'ask' : null) });
+      const out = await guard(input('Bash', { command: 'yarn deploy' }), 't1', opts);
+      expect(asked.length).toBe(1);
+      expect(asked[0]!.reason).toContain('규칙');
+      expect(decision(out)).toBe('allow');
+    });
+
+    it('꼭 허락받을 것에서 거절하면 팀원에게 거절이 간다', async () => {
+      const { guard } = guardWith([{ kind: 'deny', note: '나중에' }], { rules: () => 'ask' });
+      const out = await guard(input('Bash', { command: 'yarn deploy' }), 't1', opts);
+      expect(decision(out)).toBe('deny');
+      expect(output(out)?.permissionDecisionReason).toContain('나중에');
+    });
+
+    it('규칙이 allow여도 비밀 파일과 git push 거절은 그대로다', async () => {
+      const { guard, asked } = guardWith([], { rules: () => 'allow' });
+      expect(decision(await guard(input('Read', { file_path: 'E:/work/app/.env' }), 't1', opts))).toBe('deny');
+      expect(decision(await guard(input('Bash', { command: 'git push origin main' }), 't1', opts))).toBe('deny');
+      expect(asked).toEqual([]);
+    });
+
+    it('규칙에 안 맞으면 기본 위험 규칙대로 간다', async () => {
+      const { guard, asked } = guardWith([{ kind: 'allow' }], { rules: () => null });
+      expect(decision(await guard(input('Bash', { command: 'terraform apply -var env=prod' }), 't1', opts))).toBeDefined();
+      expect(asked.length).toBeLessThanOrEqual(1);
+    });
+  });
 });

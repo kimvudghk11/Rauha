@@ -2,6 +2,7 @@ import type { ApprovalView, BoardView, RauhaApi } from '../shared/ipc.js';
 import { buildChat } from './chat-view.js';
 import { offerTerminalCleanup } from './first-run.js';
 import { el, icon } from './dom.js';
+import { buildRules } from './rules-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
 import { TABS, type TabId } from './tabs.js';
@@ -64,7 +65,8 @@ function show(id: TabId): void {
   current = id;
   renderTabs();
   const tab = TABS.find((t) => t.id === id)!;
-  if (tab.ready) screen.replaceChildren(chat.root);
+  if (id === 'chat') screen.replaceChildren(chat.root);
+  else if (id === 'rules') screen.replaceChildren(buildRules({ list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
   else {
     const soon = el('div', 'soon');
     soon.append(el('b', undefined, tab.label), el('span', undefined, '곧 열려요'));

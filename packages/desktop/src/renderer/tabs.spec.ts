@@ -7,7 +7,7 @@ describe('TABS', () => {
     expect(TABS.filter((t) => t.bottom).map((t) => t.label)).toEqual(['설정']);
   });
 
-  it('지금은 채팅 탭만 열리고 나머지는 곧', () => {
-    expect(TABS.filter((t) => t.ready).map((t) => t.id)).toEqual(['chat']);
+  it('지금은 채팅·규칙 탭만 열리고 나머지는 곧', () => {
+    expect(TABS.filter((t) => t.ready).map((t) => t.id)).toEqual(['chat', 'rules']);
   });
 });
