@@ -1,5 +1,6 @@
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { relativeToRoot } from '../../shared/path-pattern.js';
+import { InfraRiskDto, type InfraRisk } from '../application/dto/infra-risk.dto.js';
 import type { MemberRole } from '../application/dto/role-settings.dto.js';
 import type { SecretPolicy } from '../domain/secret-policy.js';
 import { ToolRisk } from '../domain/tool-risk.js';
@@ -14,6 +15,8 @@ export interface PermissionRequest {
   readonly detail: string;
   /** 왜 위험한지 */
   readonly reason: string;
+  /** 운영 팀원이 명령 설명(description) 끝에 적어 둔 위험도. 없으면 생략 */
+  readonly risk?: InfraRisk;
 }
 
 /** allow-always: 이번 실행 동안 같은 도구·같은 명령은 다시 묻지 않는다. note: 거절하며 팀원에게 전할 말. */
@@ -128,7 +131,8 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
       const key = `${input.tool_name}\n${detail}`;
       if (options.remembered.has(key)) return decide('allow', '사용자가 이번 실행 동안 허락한 동작입니다.');
       const reason = verdict.reason ?? '위험할 수 있는 동작입니다.';
-      const answer = await options.ask({ role: options.role, tool: input.tool_name, detail, reason });
+      const risk = InfraRiskDto.fromNote(toolInput['description']);
+      const answer = await options.ask({ role: options.role, tool: input.tool_name, detail, reason, ...(risk !== null ? { risk } : {}) });
       if (answer.kind === 'allow-always') options.remembered.add(key);
       if (answer.kind !== 'deny') return decide('allow', '사용자가 허락했습니다.');
       const note = answer.note === null ? '' : ` 사용자가 남긴 말: "${answer.note}"`;

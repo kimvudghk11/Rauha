@@ -4,6 +4,7 @@ import type { RuleView } from './rules-form.js';
 import type { FolderKind } from './folder-kind.js';
 import type { RepoStatus } from './git-status.js';
 import type { Settings } from './settings.js';
+import type { InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
 /** main ↔ 화면 IPC 채널. 화면은 이 채널로만 main과 이야기한다. */
@@ -98,6 +99,8 @@ export interface ApprovalView {
   readonly reason: string;
   readonly at: string;
   readonly summary: ApprovalSummary;
+  /** 운영 팀원이 함께 낸 인프라 위험도(없으면 null → 모름) */
+  readonly risk: InfraRisk | null;
 }
 
 /** 허락 화면의 네 버튼 */

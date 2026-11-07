@@ -126,6 +126,7 @@ export type { DesignApproval, DesignPlan, DesignQuestion } from './design/applic
 export { FileDesignStore } from './design/infrastructure/file-design-store.js';
 export type { DesignTaskResult } from './orchestration/application/chat-session.js';
 export type { DesignUserPort, DesignStorePort } from './design/application/ports.js';
+export { InfraRiskDto, type InfraRisk, type CostDirection, type Downtime } from './orchestration/application/dto/infra-risk.dto.js';
 export { Rule, RuleBook, type RuleBucket, type RuleScope, type RuleMatch, type RuleVerdict } from './orchestration/domain/rule-book.js';
 export { RuleBookDto } from './orchestration/application/dto/rule-book.dto.js';
 export { FileRuleStore } from './orchestration/infrastructure/file-rule-store.js';

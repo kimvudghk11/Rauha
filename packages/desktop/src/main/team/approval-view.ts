@@ -31,5 +31,6 @@ export function approvalView(p: PendingApproval, protectedBranches?: readonly st
     reason: p.request.reason,
     at: p.at,
     summary: summarizeRequest(p.request, protectedBranches),
+    risk: p.request.risk ?? null,
   };
 }

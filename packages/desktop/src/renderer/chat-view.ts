@@ -1,3 +1,4 @@
+import type { InfraRisk } from '@rauha/core/jobs';
 import type { ApprovalSummary } from '../shared/approval-summary.js';
 import { classifyDiffLine, type ChangeReview } from '../shared/branch-impact.js';
 import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared/ipc.js';
@@ -329,15 +330,15 @@ export function buildChat(actions: ChatActions) {
   }
 
   /** 인프라 허락의 위험도 표. 명령에서 읽을 수 있는 것만 채우고 나머지는 모른다고 쓴다(추측하지 않는다). */
-  function riskTable(s: ApprovalSummary): HTMLElement {
+  function riskTable(s: ApprovalSummary, risk: InfraRisk | null): HTMLElement {
     const rows: [string, string][] = [
       ['환경', s.environment ?? '모름'],
       ['계정·리전', [s.profile, s.region].filter((x) => x !== null).join(' · ') || '모름'],
-      ['영향 범위', '모름'],
-      ['중단 여부', '모름'],
-      ['비용 방향', '모름'],
-      ['되돌리는 데 걸리는 시간', '모름'],
-      ['qa에 먼저 적용했는지', '모름'],
+      ['영향 범위', risk?.scope ?? '모름'],
+      ['중단 여부', risk?.downtime === 'none' ? '없음' : risk?.downtime === 'brief' ? '잠깐' : risk?.downtime === 'long' ? '오래' : '모름'],
+      ['비용 방향', risk?.cost === 'up' ? '늘어남' : risk?.cost === 'down' ? '줄어듦' : risk?.cost === 'same' ? '같음' : '모름'],
+      ['되돌리는 데 걸리는 시간', risk?.rollback ?? '모름'],
+      ['qa에 먼저 적용했는지', risk?.qaFirst === true ? '예' : risk?.qaFirst === false ? '아니요' : '모름'],
     ];
     const table = el('table', 'impact risk');
     for (const [k, val] of rows) {
@@ -368,7 +369,7 @@ export function buildChat(actions: ChatActions) {
     }
     if (facts.childElementCount > 0) card.appendChild(facts);
     if (a.summary.kind === 'code') card.appendChild(reviewBox(a));
-    if (a.summary.kind === 'infra') card.appendChild(riskTable(a.summary));
+    if (a.summary.kind === 'infra') card.appendChild(riskTable(a.summary, a.risk));
     const raw = el('details');
     raw.append(el('summary', undefined, '원본 명령'), el('pre', undefined, `${a.tool}: ${a.detail}`));
     card.appendChild(raw);

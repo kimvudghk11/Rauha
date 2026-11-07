@@ -128,6 +128,20 @@ describe('createToolGuard', () => {
     expect(decision(await guard(input('Bash', { command: 'yarn test' }), 't', opts))).toBeUndefined();
   });
 
+  describe('인프라 위험도', () => {
+    it('운영 팀원이 명령 설명에 적은 위험도를 허락 요청에 함께 싣는다', async () => {
+      const { guard, asked } = guardWith([{ kind: 'allow' }], { role: 'operator' });
+      await guard(input('Bash', { command: 'terraform apply -var env=prod', description: '운영 적용\nrauha-risk: {"scope":"결제 API","cost":"up"}' }), 't1', opts);
+      expect(asked[0]?.risk).toMatchObject({ scope: '결제 API', cost: 'up' });
+    });
+
+    it('위험도를 안 적었으면 요청에 risk가 없다(화면은 모름으로 보인다)', async () => {
+      const { guard, asked } = guardWith([{ kind: 'allow' }], { role: 'operator' });
+      await guard(input('Bash', { command: 'terraform apply -var env=prod' }), 't1', opts);
+      expect(asked[0]).not.toHaveProperty('risk');
+    });
+  });
+
   describe('사용자 규칙', () => {
     it('묻지 않고 할 것 규칙에 맞는 위험 동작은 묻지 않고 허락한다', async () => {
       const { guard, asked } = guardWith([], { rules: (_tool, detail) => (detail.includes('terraform apply') ? 'allow' : null) });
