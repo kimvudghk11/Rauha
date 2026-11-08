@@ -7,38 +7,85 @@ let n = 0;
 const newId = () => `t${(n += 1)}`;
 
 describe('할 일 저장 모양', () => {
-  it('저장했다 읽어도 같다', () => {
-    const list = TodoList.empty().add({ title: '환불 API', note: '결제 쪽 참고', priority: 'high', due: '2026-12-01', repo: 'api', team: 'dev' }, newId, at);
+  it('저장했다 읽어도 같다(칸·라벨·체크리스트 포함)', () => {
+    const list = TodoList.empty()
+      .addColumn('검토', 'purple', newId)
+      .add({ title: '환불 API', note: '결제 쪽 참고', priority: 'high', due: '2026-12-01', repo: 'api', team: 'dev', labels: [{ name: '버그', color: 'red' }], checklist: [{ id: 'c1', text: '테스트', done: true }] }, newId, at);
     const json = TodoListDto.fromEntity(list).toJSON();
     const back = TodoListDto.from(JSON.parse(JSON.stringify(json))).toEntity();
     expect(TodoListDto.fromEntity(back).toJSON()).toEqual(json);
+    expect(json.version).toBe(2);
+    expect(json.columns).toHaveLength(4);
   });
 
   it('깨진 항목은 건너뛰고 몇 개 건너뛰었는지 알려 준다(나머지는 산다)', () => {
     const ok = TodoListDto.fromEntity(TodoList.empty().add({ title: '살아 있는 일' }, newId, at)).toJSON().items[0]!;
-    const dto = TodoListDto.from({ items: [ok, { id: 'x', title: '' }, 42, null, { ...ok, id: 'y', status: '이상한' }] });
+    const dto = TodoListDto.from({ version: 2, columns: TodoList.empty().columns.items, items: [ok, { id: 'x', title: '' }, 42, null, { ...ok, id: 'y', priority: '이상한' }] });
     expect(dto.toEntity().items.map((t) => t.title)).toEqual(['살아 있는 일']);
     expect(dto.skipped).toBe(4);
   });
 
-  it('파일이 객체가 아니면 빈 모음이다', () => {
+  it('파일이 객체가 아니면 기본 칸의 빈 보드다', () => {
     expect(TodoListDto.from('깨짐').toEntity().items).toEqual([]);
+    expect(TodoListDto.from(null).toEntity().columns.items).toHaveLength(3);
     expect(TodoListDto.from(null).skipped).toBe(0);
   });
 
   it('같은 번호가 두 번 있으면 먼저 나온 것만 쓴다', () => {
     const ok = TodoListDto.fromEntity(TodoList.empty().add({ title: 'a' }, newId, at)).toJSON().items[0]!;
-    expect(TodoListDto.from({ items: [ok, { ...ok, title: '복사본' }] }).toEntity().items.map((t) => t.title)).toEqual(['a']);
+    expect(TodoListDto.from({ version: 2, items: [ok, { ...ok, title: '복사본' }] }).toEntity().items.map((t) => t.title)).toEqual(['a']);
+  });
+
+  it('칸 목록이 깨졌으면 기본 칸으로 열고 건너뛴 것으로 센다(원본을 남기게)', () => {
+    const ok = TodoListDto.fromEntity(TodoList.empty().add({ title: 'a' }, newId, at)).toJSON().items[0]!;
+    const dto = TodoListDto.from({ version: 2, columns: [{ id: 'x' }], items: [ok] });
+    expect(dto.toEntity().columns.items.map((c) => c.id)).toEqual(['todo', 'doing', 'done']);
+    expect(dto.skipped).toBe(1);
+  });
+
+  it('없는 칸에 매인 카드는 첫 칸으로 모인다', () => {
+    const ok = TodoListDto.fromEntity(TodoList.empty().add({ title: 'a' }, newId, at)).toJSON().items[0]!;
+    expect(TodoListDto.from({ version: 2, items: [{ ...ok, columnId: '사라진칸' }] }).toEntity().items[0]!.columnId).toBe('todo');
+  });
+});
+
+describe('옛 파일(세 칸 고정) 읽기', () => {
+  const legacy = {
+    version: 1,
+    items: [
+      { id: 'a', title: '옛 일', note: '메모', status: 'doing', priority: 'high', due: '2026-12-01', repo: 'api', team: 'dev', jobId: 'job-1', createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z', completedAt: null },
+      { id: 'b', title: '끝난 일', note: '', status: 'done', priority: 'normal', due: null, repo: null, team: null, jobId: null, createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z', completedAt: '2026-11-02T00:00:00.000Z' },
+    ],
+  };
+
+  it('상태가 같은 번호의 칸으로 옮겨 가고 다른 값은 그대로다', () => {
+    const board = TodoListDto.from(legacy).toEntity();
+    expect(board.columns.items.map((c) => c.name)).toEqual(['할 일', '진행 중', '완료']);
+    expect(board.get('a')).toMatchObject({ columnId: 'doing', title: '옛 일', priority: 'high', jobId: 'job-1' });
+    expect(board.get('b')).toMatchObject({ columnId: 'done', completedAt: '2026-11-02T00:00:00.000Z' });
+    expect(TodoListDto.from(legacy).skipped).toBe(0);
+  });
+
+  it('모르는 상태의 항목은 건너뛴다', () => {
+    const dto = TodoListDto.from({ items: [{ ...legacy.items[0], status: '??' }] });
+    expect(dto.skipped).toBe(1);
   });
 });
 
 describe('화면에서 온 요청', () => {
-  it('더하기·고치기·옮기기·지우기·맡기기를 알아본다', () => {
+  it('카드 요청(더하기·고치기·옮기기·지우기·맡기기)을 알아본다', () => {
     expect(TodoOpDto.from({ kind: 'add', title: '새 일' }).kind).toBe('add');
     expect(TodoOpDto.from({ kind: 'edit', id: 'a', patch: { title: 'x' } }).kind).toBe('edit');
-    expect(TodoOpDto.from({ kind: 'move', id: 'a', status: 'done' }).kind).toBe('move');
+    expect(TodoOpDto.from({ kind: 'move', id: 'a', columnId: 'done', beforeId: null }).kind).toBe('move');
     expect(TodoOpDto.from({ kind: 'remove', id: 'a' }).kind).toBe('remove');
     expect(TodoOpDto.from({ kind: 'delegate', id: 'a' }).delegateId).toBe('a');
+  });
+
+  it('칸 요청(더하기·고치기·옮기기·지우기)을 알아본다', () => {
+    expect(TodoOpDto.from({ kind: 'column-add', name: '검토' }).kind).toBe('column-add');
+    expect(TodoOpDto.from({ kind: 'column-edit', id: 'todo', patch: { name: '백로그', done: true } }).kind).toBe('column-edit');
+    expect(TodoOpDto.from({ kind: 'column-move', id: 'done', beforeId: 'todo' }).kind).toBe('column-move');
+    expect(TodoOpDto.from({ kind: 'column-remove', id: 'doing', cards: 'merge' }).kind).toBe('column-remove');
   });
 
   it('모르는 종류·번호 없음·값 모양이 틀리면 거절한다', () => {
@@ -46,20 +93,39 @@ describe('화면에서 온 요청', () => {
     expect(() => TodoOpDto.from({ kind: 'remove' })).toThrow(TodoError);
     expect(() => TodoOpDto.from({ kind: 'add', title: 5 })).toThrow(TodoError);
     expect(() => TodoOpDto.from({ kind: 'edit', id: 'a', patch: { priority: 'x' } })).toThrow(TodoError);
+    expect(() => TodoOpDto.from({ kind: 'edit', id: 'a', patch: { labels: 'x' } })).toThrow(TodoError);
+    expect(() => TodoOpDto.from({ kind: 'edit', id: 'a', patch: { labels: [{ name: 'a', color: 'pink' }] } })).toThrow(TodoError);
+    expect(() => TodoOpDto.from({ kind: 'edit', id: 'a', patch: { checklist: [{ id: 'a', text: 'x', done: 'yes' }] } })).toThrow(TodoError);
+    expect(() => TodoOpDto.from({ kind: 'move', id: 'a' })).toThrow(TodoError);
+    expect(() => TodoOpDto.from({ kind: 'move', id: 'a', columnId: 'x', beforeId: 5 })).toThrow(TodoError);
+    expect(() => TodoOpDto.from({ kind: 'column-edit', id: 'a', patch: { done: 'yes' } })).toThrow(TodoError);
+    expect(() => TodoOpDto.from({ kind: 'column-remove', id: 'a' })).toThrow(/카드/);
     expect(() => TodoOpDto.from('x')).toThrow(TodoError);
   });
 
-  it('요청을 모음에 적용한다', () => {
+  it('카드 요청을 보드에 적용한다', () => {
     let list = TodoOpDto.from({ kind: 'add', title: '하나', due: '2026-12-01' }).applyTo(TodoList.empty(), newId, at);
     const id = list.items[0]!.id;
-    list = TodoOpDto.from({ kind: 'edit', id, patch: { due: null, priority: 'low' } }).applyTo(list, newId, at);
+    list = TodoOpDto.from({ kind: 'edit', id, patch: { due: null, priority: 'low', labels: [{ name: '문서', color: 'blue' }], checklist: [{ id: '1', text: '쓰기', done: false }] } }).applyTo(list, newId, at);
     expect(list.items[0]).toMatchObject({ due: null, priority: 'low' });
-    list = TodoOpDto.from({ kind: 'move', id, status: 'done' }).applyTo(list, newId, at);
-    expect(list.items[0]!.status).toBe('done');
+    expect(list.items[0]!.labels).toEqual([{ name: '문서', color: 'blue' }]);
+    list = TodoOpDto.from({ kind: 'move', id, columnId: 'done', beforeId: null }).applyTo(list, newId, at);
+    expect(list.items[0]!.columnId).toBe('done');
     expect(TodoOpDto.from({ kind: 'remove', id }).applyTo(list, newId, at).items).toEqual([]);
   });
 
-  it('맡기기는 모음에 직접 적용하지 않는다(팀에 보낸 뒤에 이어 붙인다)', () => {
+  it('칸 요청을 보드에 적용한다', () => {
+    let list = TodoOpDto.from({ kind: 'column-add', name: '검토', color: 'purple' }).applyTo(TodoList.empty(), newId, at);
+    const id = list.columns.items[3]!.id;
+    list = TodoOpDto.from({ kind: 'column-edit', id, patch: { name: '리뷰', color: 'yellow', done: true, collapsed: true } }).applyTo(list, newId, at);
+    expect(list.columns.get(id)).toMatchObject({ name: '리뷰', color: 'yellow', done: true, collapsed: true });
+    list = TodoOpDto.from({ kind: 'column-move', id, beforeId: 'todo' }).applyTo(list, newId, at);
+    expect(list.columns.items[0]!.id).toBe(id);
+    list = TodoOpDto.from({ kind: 'column-remove', id, cards: 'delete' }).applyTo(list, newId, at);
+    expect(list.columns.items).toHaveLength(3);
+  });
+
+  it('맡기기는 보드에 직접 적용하지 않는다(팀에 보낸 뒤에 이어 붙인다)', () => {
     expect(() => TodoOpDto.from({ kind: 'delegate', id: 'a' }).applyTo(TodoList.empty(), newId, at)).toThrow(TodoError);
   });
 });
@@ -90,5 +156,10 @@ describe('팀에 맡길 글', () => {
 
   it('레포·메모·팀이 없으면 제목만 보낸다', () => {
     expect(TodoDto.requestText(TodoList.empty().add({ title: '문서 정리' }, newId, at).items[0]!)).toBe('문서 정리');
+  });
+
+  it('체크리스트가 있으면 할 일 목록으로 덧붙인다', () => {
+    const list = TodoList.empty().add({ title: '배포', checklist: [{ id: '1', text: '테스트', done: true }, { id: '2', text: '릴리스', done: false }] }, newId, at);
+    expect(TodoDto.requestText(list.items[0]!)).toBe('배포\n- [x] 테스트\n- [ ] 릴리스');
   });
 });

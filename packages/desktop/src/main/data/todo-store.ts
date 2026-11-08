@@ -1,5 +1,6 @@
 import { TodoListDto, type TodoListJson } from '../../shared/todo-dto.js';
 import { TodoList } from '../../shared/todo-list.js';
+import { isLegacyTodoFile } from '../../shared/todo-migrate.js';
 import { JsonFile } from './json-file.js';
 
 /** 할 일 모음을 앱 데이터 폴더의 JSON 파일 하나에 둔다. */
@@ -24,6 +25,11 @@ export class TodoStore implements TodoStorePort {
     }
     const dto = TodoListDto.from(read.value);
     if (dto.skipped > 0) await this.json.keepCopy(this.now());
+    if (isLegacyTodoFile(read.value)) {
+      // 세 칸 고정 파일은 새 구조로 바꿔 쓰기 전에 원본을 todos.json.bak-<시각>으로 남긴다. 복사가 안 되면 바꿔 쓰지 않는다(다음에 다시 시도).
+      const copy = await this.json.keepCopy(this.now(), 'bak');
+      if (copy !== null) await this.json.write(dto.toJSON());
+    }
     return dto.toEntity();
   }
 

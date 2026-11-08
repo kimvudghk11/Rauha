@@ -53,9 +53,8 @@ export class TodoService {
         const list = await this.current();
         const delegateId = op.delegateId;
         if (delegateId === null) return { ok: true, list: await this.commit(op.applyTo(list, this.deps.newId, this.deps.now())), jobId: null };
-        const todo = list.require(delegateId);
-        todo.assertCanDelegate();
-        const job = this.deps.submit(TodoDto.requestText(todo));
+        list.assertCanDelegate(delegateId);
+        const job = this.deps.submit(TodoDto.requestText(list.require(delegateId)));
         if (job === null) throw new TodoError('지금은 팀에 맡길 수 없어요. 작업 폴더를 먼저 골라 주세요.');
         return { ok: true, list: await this.commit(list.attachJob(delegateId, job.id, this.deps.now())), jobId: job.id };
       } catch (error) {

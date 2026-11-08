@@ -52,9 +52,9 @@ export class JsonFile {
     }
   }
 
-  /** 지금 파일을 `<이름>.broken-<시각>`으로 복사해 둔다. 복사할 파일이 없으면 아무 일 없다. */
-  async keepCopy(stamp: string): Promise<string | null> {
-    const to = `${this.file}.broken-${stamp.replace(/[^0-9A-Za-z-]/g, '')}`;
+  /** 지금 파일을 `<이름>.broken-<시각>`(형식을 바꿔 읽기 전의 원본이면 `.bak-<시각>`)으로 복사해 둔다. 복사할 파일이 없으면 아무 일 없다. */
+  async keepCopy(stamp: string, kind: 'broken' | 'bak' = 'broken'): Promise<string | null> {
+    const to = `${this.file}.${kind}-${stamp.replace(/[^0-9A-Za-z-]/g, '')}`;
     try {
       await copyFile(this.file, to);
       return to;

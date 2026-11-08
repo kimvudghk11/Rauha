@@ -1,6 +1,10 @@
 import { TodoListDto, type TodoListJson, type TodoResult } from '../shared/todo-dto.js';
-import { TEAM_CHOICES, TODO_PRIORITIES, TodoList, type Todo, type TodoFilter, type TodoPriority, type TodoSort, type TodoStatus } from '../shared/todo-list.js';
+import { TODO_PRIORITIES, TodoList, type TodoFilter, type TodoPriority, type TodoSort } from '../shared/todo-list.js';
 import { el } from './dom.js';
+import { buildBoard } from './todo-board.js';
+import { buildDetail } from './todo-detail.js';
+import { NO_FILTER, PRIORITY_LABEL, button, select, type TodoCtx } from './todo-parts.js';
+import { buildTable } from './todo-table.js';
 
 export interface TodoViewDeps {
   readonly api: {
@@ -16,293 +20,198 @@ export interface TodoViewDeps {
   openJob(jobId: string): void;
 }
 
-const STATUS_LABEL: Readonly<Record<TodoStatus, string>> = { todo: '할 일', doing: '진행', done: '완료' };
-const COLUMNS: readonly TodoStatus[] = ['todo', 'doing', 'done'];
-const PRIORITY_LABEL: Readonly<Record<TodoPriority, string>> = { high: '높음', normal: '보통', low: '낮음' };
-const SORT_LABEL: Readonly<Record<TodoSort, string>> = { priority: '우선순위순', due: '마감순', created: '최신순' };
+type Mode = 'board' | 'list';
 
-const NO_FILTER: TodoFilter = { status: 'all', priority: 'all', repo: null, team: null, text: '', overdueOnly: false };
+const SORT_LABEL: Readonly<Record<TodoSort, string>> = { manual: '보드 순서', priority: '우선순위순', due: '마감순', created: '최신순' };
+const MODE_KEY = 'rauha.todo.mode';
+/** 상세 패널 너비(data-tabs.css의 .tdetail과 같은 값) */
+const DETAIL_WIDTH = 340;
+/** 칸 하나가 이보다 좁아지면 가로로 늘어놓지 않고 칸 선택 탭으로 보여 준다 */
+const MIN_COLUMN_WIDTH = 170;
+/** 이보다 좁으면 상세 패널이 보드 위를 덮는다 */
+const SIDE_PANEL_MIN = 900;
 
 // 작업이 끝나 할 일이 저절로 바뀔 때 가장 최근에 열린 화면만 갱신한다(탭을 오갈 때마다 새로 만들어지므로).
 let latest: ((list: TodoListJson) => void) | null = null;
 let listening = false;
 
-function field(label: string, control: HTMLElement): HTMLElement {
-  const row = el('label', 'tfield');
-  row.append(el('span', 'tlab', label), control);
-  return row;
-}
-
-function select<T extends string>(options: readonly (readonly [T, string])[], value: T, onChange: (v: T) => void): HTMLSelectElement {
-  const s = el('select');
-  for (const [v, label] of options) {
-    const o = el('option', undefined, label);
-    o.value = v;
-    s.append(o);
+function savedMode(): Mode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'list' ? 'list' : 'board';
+  } catch {
+    return 'board';
   }
-  s.value = value;
-  s.addEventListener('change', () => onChange(s.value as T));
-  return s;
-}
-
-function dueText(todo: Todo, today: string): { text: string; cls: string } | null {
-  if (todo.due === null) return null;
-  if (todo.isOverdue(today)) return { text: `기한 지남 · ${todo.due.slice(5)}`, cls: 'red' };
-  if (todo.status !== 'done' && todo.due === today) return { text: '오늘까지', cls: 'yellow' };
-  return { text: `~ ${todo.due.slice(5)}`, cls: '' };
 }
 
 /**
- * 할 일 탭: 할 일 · 진행 · 완료 세 칸. 더하기·고치기·상태 옮기기·지우기, 우선순위·마감·레포·팀, 정렬·필터, 팀에 맡기기.
- * 규칙은 TodoList(엔티티)가 지키고, 저장은 main이 한다. 화면은 요청을 보내고 돌아온 모음을 그린다.
+ * 할 일 탭: 노션식 칸반. 칸을 자유롭게 두고(이름·색·순서·접기·"완료로 취급") 카드를 끌어서 옮기며, 카드를 누르면 상세 패널에서 고친다.
+ * AI는 선택이다. 카드마다 "팀에 맡기기"가 있지만 안 써도 된다.
+ * 규칙은 TodoList(엔티티)가 지키고, 저장은 main이 한다. 화면은 요청을 보내고 돌아온 보드를 그린다.
  */
 export function buildTodo(deps: TodoViewDeps) {
   const root = el('section', 'todo');
-  let list = TodoList.empty();
+  let board = TodoList.empty();
   let filter: TodoFilter = NO_FILTER;
-  let sort: TodoSort = 'priority';
-  let editing: string | 'new' | null = null;
-  let confirming: string | null = null;
+  let sort: TodoSort = 'manual';
+  let mode: Mode = savedMode();
   let known: readonly string[] = [];
   let loaded = false;
+  let width = 0;
 
-  const head = el('div', 'rhead');
-  const addButton = el('button', 'btn primary', '＋ 새 할 일');
-  head.append(el('b', undefined, '할 일'), el('span', 'hint', '팀에 맡길 일을 모아 두고, 맡기면 진행 칸으로 가요. 메인에서 보낸 일도 "할 일로"로 담을 수 있어요.'), addButton);
-
-  // ── 거르기·정렬 ──
-  const tools = el('div', 'ttools');
-  const search = el('input');
-  search.placeholder = '제목·메모 검색';
-  search.addEventListener('input', () => {
-    filter = { ...filter, text: search.value };
-    renderBoard();
-  });
-  const toolHost = el('div', 'tselects');
-  tools.append(search, toolHost);
-
-  // ── 폼 ──
-  const form = el('form', 'tform pane');
-  form.hidden = true;
-  const formTitle = el('div', 'ph');
-  const fTitle = el('input');
-  fTitle.placeholder = '무엇을 할까요? 예: 환불 API에 멱등키 적용';
-  fTitle.maxLength = 120;
-  const fNote = el('textarea');
-  fNote.rows = 3;
-  fNote.placeholder = '메모(팀에 맡길 때 함께 보내요)';
-  const fPriority = select(TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const), 'normal', () => undefined);
-  const fDue = el('input');
-  fDue.type = 'date';
-  const fRepo = el('select');
-  const fTeam = select([['', '자동(메인이 골라요)'] as const, ...TEAM_CHOICES.map((t) => [t.id, t.label] as const)], '', () => undefined);
-  const fError = el('div', 'err');
-  const save = el('button', 'btn primary', '더하기');
-  save.type = 'submit';
-  const cancel = el('button', 'btn', '취소');
-  cancel.type = 'button';
-  const fRow = el('div', 'trow');
-  fRow.append(save, cancel);
-  const grid = el('div', 'tgrid');
-  grid.append(field('우선순위', fPriority), field('마감일', fDue), field('레포', fRepo), field('맡길 팀', fTeam));
-  const fields = el('div', 'tfields');
-  fields.append(fTitle, fNote, grid, fError, fRow);
-  form.append(formTitle, fields);
-
-  const board = el('div', 'tboard');
-  root.append(head, tools, form, board);
-
-  function repoOptions(selected: string | null): void {
-    const names = [...new Set([...known, ...list.items.map((t) => t.repo).filter((r): r is string => r !== null), ...(selected === null ? [] : [selected])])].sort();
-    fRepo.replaceChildren(...[['', '없음'] as const, ...names.map((n) => [n, n] as const)].map(([v, label]) => Object.assign(el('option', undefined, label), { value: v })));
-    fRepo.value = selected ?? '';
-  }
-
-  function openForm(id: string | 'new' | null): void {
-    editing = id;
-    form.hidden = id === null;
-    if (id === null) return;
-    const todo = id === 'new' ? null : list.get(id);
-    formTitle.replaceChildren(el('b', undefined, todo === null ? '새 할 일' : '할 일 고치기'));
-    save.textContent = todo === null ? '더하기' : '저장';
-    fTitle.value = todo?.title ?? '';
-    fNote.value = todo?.note ?? '';
-    fPriority.value = todo?.priority ?? 'normal';
-    fDue.value = todo?.due ?? '';
-    fTeam.value = todo?.team ?? '';
-    repoOptions(todo?.repo ?? null);
-    fError.textContent = '';
-    form.scrollIntoView({ block: 'nearest' });
-    fTitle.focus();
-  }
-
-  async function send(op: unknown): Promise<TodoResult> {
-    let res: TodoResult;
-    try {
-      res = await deps.api.apply(op);
-    } catch {
-      res = { ok: false, error: '할 일을 저장하지 못했어요. 잠시 뒤에 다시 해 주세요.' };
-    }
-    if (res.ok) {
-      list = TodoListDto.from(res.list).toEntity();
-      renderBoard();
-    }
-    return res;
-  }
-
-  /** 카드 위쪽 안내 줄(맡기기가 막혔을 때 이유 등) */
   const notice = el('div', 'notice');
   notice.hidden = true;
-  root.insertBefore(notice, board);
-  function say(text: string): void {
+  const say = (text: string): void => {
     notice.textContent = text;
     notice.hidden = text === '';
-  }
+  };
 
-  async function act(op: unknown): Promise<void> {
-    say('');
-    const res = await send(op);
-    if (!res.ok) say(res.error);
-    else if (res.jobId !== null) deps.openJob(res.jobId);
-  }
+  const ctx: TodoCtx = {
+    board: () => board,
+    filter: () => filter,
+    today: deps.today,
+    repos: () => [...new Set([...known, ...board.items.map((t) => t.repo).filter((r): r is string => r !== null)])].sort(),
+    act: async (op) => {
+      say('');
+      let res: TodoResult;
+      try {
+        res = await deps.api.apply(op);
+      } catch {
+        res = { ok: false, error: '할 일을 저장하지 못했어요. 잠시 뒤에 다시 해 주세요.' };
+      }
+      if (res.ok) replaceFromMain(res.list);
+      else say(res.error);
+      return res;
+    },
+    open: (id) => {
+      detail.show(id);
+      layout();
+    },
+    openJob: deps.openJob,
+    quickAdd: (columnId) => {
+      if (mode !== 'board') setMode('board');
+      boardView.openAdder(columnId);
+    },
+  };
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const fields = { title: fTitle.value, note: fNote.value, priority: fPriority.value, due: fDue.value === '' ? null : fDue.value, repo: fRepo.value === '' ? null : fRepo.value, team: fTeam.value === '' ? null : fTeam.value };
-    void (async () => {
-      const res = await send(editing === 'new' ? { kind: 'add', ...fields } : { kind: 'edit', id: editing, patch: fields });
-      if (res.ok) openForm(null);
-      else fError.textContent = res.error;
-    })();
+  const boardView = buildBoard(ctx);
+  const table = buildTable(ctx);
+  const detail = buildDetail(ctx, () => {
+    detail.show(null);
+    layout();
   });
-  cancel.addEventListener('click', () => openForm(null));
-  addButton.addEventListener('click', () => openForm('new'));
 
-  function chip(text: string, cls = ''): HTMLElement {
-    return el('span', `chip ${cls}`.trim(), text);
-  }
+  // ── 머리와 도구줄 ──
+  const head = el('div', 'rhead');
+  const modeSeg = el('div', 'seg');
+  const addButton = button('＋ 새 카드', 'btn primary', () => ctx.quickAdd(board.columns.entry().id));
+  head.append(el('b', undefined, '할 일'), el('span', 'hint', '카드를 끌어 칸을 옮기고, 눌러서 고쳐요. AI에 맡기는 건 선택이에요.'), modeSeg, addButton);
 
-  function card(todo: Todo, today: string): HTMLElement {
-    const box = el('div', `item tcard p-${todo.priority}${todo.status === 'done' ? ' done' : ''}`);
-    const top = el('div', 'ttop');
-    const check = el('input');
-    check.type = 'checkbox';
-    check.checked = todo.status === 'done';
-    check.title = todo.status === 'done' ? '다시 열기' : '완료로 표시';
-    check.addEventListener('change', () => void act({ kind: 'move', id: todo.id, status: check.checked ? 'done' : 'todo' }));
-    top.append(check, el('b', 'tt', todo.title));
-    box.append(top);
-
-    const chips = el('div', 'tchips');
-    if (todo.priority !== 'normal') chips.append(chip(`우선순위 ${PRIORITY_LABEL[todo.priority]}`, todo.priority === 'high' ? 'red' : ''));
-    const due = dueText(todo, today);
-    if (due !== null) chips.append(chip(due.text, due.cls));
-    if (todo.repo !== null) chips.append(chip(todo.repo, 'blue'));
-    const team = TEAM_CHOICES.find((t) => t.id === todo.team);
-    if (team !== undefined) chips.append(chip(team.label, 'purple'));
-    if (todo.jobId !== null) chips.append(chip(todo.status === 'doing' ? '팀이 일하는 중' : '팀이 한 일', 'green'));
-    if (chips.childElementCount > 0) box.append(chips);
-    if (todo.note !== '') box.append(el('div', 'tnote', todo.note));
-
-    const buttons = el('div', 'tbtns');
-    const button = (label: string, onClick: () => void, cls = 'btn sm') => {
-      const b = el('button', cls, label);
-      b.type = 'button';
-      b.addEventListener('click', onClick);
-      buttons.append(b);
-    };
-    if (todo.canDelegate()) button('팀에 맡기기', () => void act({ kind: 'delegate', id: todo.id }), 'btn sm');
-    if (todo.status === 'todo') button('시작', () => void act({ kind: 'move', id: todo.id, status: 'doing' }));
-    if (todo.status === 'doing') {
-      if (todo.jobId !== null) button('진행 보기', () => deps.openJob(todo.jobId!));
-      button('완료', () => void act({ kind: 'move', id: todo.id, status: 'done' }));
-      button('할 일로', () => void act({ kind: 'move', id: todo.id, status: 'todo' }));
-    }
-    if (todo.status === 'done') button('다시 열기', () => void act({ kind: 'move', id: todo.id, status: 'todo' }));
-    button('고치기', () => openForm(todo.id));
-    if (confirming === todo.id) {
-      button('정말 지울까요?', () => {
-        confirming = null;
-        void act({ kind: 'remove', id: todo.id });
-      }, 'btn sm danger');
-      button('아니요', () => {
-        confirming = null;
-        renderBoard();
-      });
-    } else {
-      button('지우기', () => {
-        confirming = todo.id;
-        renderBoard();
-      }, 'btn sm danger');
-    }
-    box.append(buttons);
-    return box;
-  }
+  const tools = el('div', 'ttools bar');
+  const search = el('input', 'grow');
+  search.placeholder = '제목·설명·라벨 검색';
+  search.setAttribute('aria-label', '검색');
+  search.addEventListener('input', () => {
+    filter = { ...filter, text: search.value };
+    render();
+  });
+  const toolHost = el('div', 'bar');
+  tools.append(search, toolHost);
 
   function renderTools(): void {
-    const repos = [...new Set([...known, ...list.items.map((t) => t.repo).filter((r): r is string => r !== null)])].sort();
-    const statusSel = select([['all', '상태 전체'], ...COLUMNS.map((s) => [s, STATUS_LABEL[s]] as const)] as readonly (readonly [TodoStatus | 'all', string])[], filter.status, (v) => {
-      filter = { ...filter, status: v };
-      renderBoard();
-    });
-    const prioritySel = select([['all', '우선순위 전체'], ...TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)] as readonly (readonly [TodoPriority | 'all', string])[], filter.priority, (v) => {
-      filter = { ...filter, priority: v };
-      renderBoard();
-    });
-    const repoSel = select([['', '레포 전체'] as const, ...repos.map((r) => [r, r] as const)], filter.repo ?? '', (v) => {
-      filter = { ...filter, repo: v === '' ? null : v };
-      renderBoard();
-    });
-    const teamSel = select([['', '팀 전체'] as const, ...TEAM_CHOICES.map((t) => [t.id, t.label] as const)], filter.team ?? '', (v) => {
-      filter = { ...filter, team: v === '' ? null : v };
-      renderBoard();
-    });
-    const sortSel = select((Object.keys(SORT_LABEL) as TodoSort[]).map((s) => [s, SORT_LABEL[s]] as const), sort, (v) => {
-      sort = v;
-      renderBoard();
-    });
+    const set = (patch: Partial<TodoFilter>): void => {
+      filter = { ...filter, ...patch };
+      render();
+    };
+    const labelSel = select([['', '라벨 전체'] as const, ...board.labels().map((l) => [l.name, l.name] as const)], filter.label ?? '', (v) => set({ label: v === '' ? null : v }), 'sm');
+    const prioritySel = select([['all', '우선순위 전체'], ...TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)] as readonly (readonly [TodoPriority | 'all', string])[], filter.priority, (v) => set({ priority: v }), 'sm');
+    const repoSel = select([['', '레포 전체'] as const, ...ctx.repos().map((r) => [r, r] as const)], filter.repo ?? '', (v) => set({ repo: v === '' ? null : v }), 'sm');
     const late = el('label', 'tg');
     const lateBox = el('input');
     lateBox.type = 'checkbox';
     lateBox.checked = filter.overdueOnly;
-    lateBox.addEventListener('change', () => {
-      filter = { ...filter, overdueOnly: lateBox.checked };
-      renderBoard();
-    });
+    lateBox.addEventListener('change', () => set({ overdueOnly: lateBox.checked }));
     late.append(lateBox, el('span', undefined, '기한 지난 것만'));
-    toolHost.replaceChildren(statusSel, prioritySel, repoSel, teamSel, sortSel, late);
+    const nodes: HTMLElement[] = [labelSel, prioritySel, repoSel, late];
+    if (mode === 'list') {
+      nodes.push(
+        select((Object.keys(SORT_LABEL) as TodoSort[]).map((s) => [s, SORT_LABEL[s]] as const), sort, (v) => {
+          sort = v;
+          render();
+        }, 'sm'),
+      );
+    }
+    const active = filter.label !== null || filter.priority !== 'all' || filter.repo !== null || filter.overdueOnly || filter.text !== '';
+    if (active) {
+      nodes.push(
+        button('필터 지우기', 'link', () => {
+          filter = NO_FILTER;
+          search.value = '';
+          render();
+        }),
+      );
+    }
+    toolHost.replaceChildren(...nodes);
   }
 
-  function renderBoard(): void {
+  function renderMode(): void {
+    modeSeg.replaceChildren();
+    for (const [m, label] of [['board', '보드'], ['list', '목록']] as const) {
+      const b = el('button', m === mode ? 'on' : undefined, label);
+      b.type = 'button';
+      b.addEventListener('click', () => setMode(m));
+      modeSeg.append(b);
+    }
+  }
+
+  function setMode(next: Mode): void {
+    mode = next;
+    try {
+      localStorage.setItem(MODE_KEY, next);
+    } catch {
+      /* 저장할 수 없어도 화면은 그대로 쓴다 */
+    }
+    render();
+  }
+
+  // ── 몸통: 보드/목록 + 상세 패널 ──
+  const body = el('div', 'tbody');
+  const main = el('div', 'tmain');
+  body.append(main, detail.root);
+  root.append(head, tools, notice, body);
+
+  /** 폭에 맞춰 상세 패널이 옆에 붙을지 덮을지, 칸을 가로로 늘어놓을지 탭으로 고를지 정한다 */
+  function layout(): void {
+    const open = detail.current() !== null;
+    const overlay = width > 0 && width < SIDE_PANEL_MIN;
+    body.classList.toggle('overlay', overlay);
+    body.classList.toggle('has-detail', open);
+    const room = width - (open && !overlay ? DETAIL_WIDTH : 0);
+    const columns = board.columns.items.length;
+    boardView.setNarrow(width > 0 && (room < 520 || room / columns < MIN_COLUMN_WIDTH));
+  }
+
+  function render(): void {
+    renderMode();
     renderTools();
-    board.replaceChildren();
+    main.replaceChildren();
     if (!loaded) {
-      board.append(el('div', 'tempty', '불러오는 중…'));
+      main.append(el('div', 'tempty', '불러오는 중…'));
       return;
     }
-    if (list.items.length === 0) {
-      const empty = el('div', 'tempty');
-      empty.append(el('b', undefined, '할 일이 없어요'), el('div', undefined, '＋ 새 할 일로 더하거나, 메인에서 "…할 일에 넣어 줘"라고 해도 돼요.'));
-      board.append(empty);
-      return;
+    if (mode === 'board') {
+      main.append(boardView.root);
+      boardView.render();
+    } else {
+      main.append(table.root);
+      table.render(sort);
     }
-    const today = deps.today();
-    const shown = list.view(filter, sort, today);
-    const counts = list.counts();
-    const columns = COLUMNS.filter((s) => filter.status === 'all' || filter.status === s);
-    for (const status of columns) {
-      const col = el('div', `tcol s-${status}`);
-      const mine = shown.filter((t) => t.status === status);
-      col.append(el('div', 'tch', `${STATUS_LABEL[status]} ${mine.length}${mine.length !== counts[status] ? ` / ${counts[status]}` : ''}`));
-      if (mine.length === 0) col.append(el('div', 'tnone', '없어요'));
-      for (const todo of mine) col.append(card(todo, today));
-      board.append(col);
-    }
+    detail.refresh();
+    layout();
   }
 
   function replaceFromMain(json: TodoListJson): void {
-    list = TodoListDto.from(json).toEntity();
-    renderBoard();
+    board = TodoListDto.from(json).toEntity();
+    render();
   }
 
   latest = replaceFromMain;
@@ -310,8 +219,16 @@ export function buildTodo(deps: TodoViewDeps) {
     listening = true;
     deps.api.onChange((json) => latest?.(json));
   }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver((entries) => {
+      const w = Math.round(entries[0]?.contentRect.width ?? 0);
+      if (w === width) return;
+      width = w;
+      layout();
+    }).observe(body);
+  }
 
-  renderBoard();
+  render();
   void deps.api.get().then(
     (json) => {
       loaded = true;
@@ -320,7 +237,7 @@ export function buildTodo(deps: TodoViewDeps) {
     () => {
       loaded = true;
       say('할 일을 읽지 못했어요.');
-      renderBoard();
+      render();
     },
   );
   void deps.repos().then(

@@ -30,6 +30,7 @@
 .err:empty { display: none; }
 .lbl { color: var(--muted); font-size: var(--fs-sm); }
 .pad { padding: var(--s3) var(--s4); }
+.grow { flex: 1 1 auto; min-width: 0; }
 .tg { display: flex; align-items: center; gap: var(--s1); flex: none; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 
 /* ── 버튼: 기본(보조) · .primary(강조, 한 화면에 한 동작) · .danger(위험) · .ghost(테두리 없음) ──
@@ -132,3 +133,30 @@ button.chip:hover { border-color: var(--accentfg); }
 .steps li.done { color: var(--green); }
 .steps li.active { color: var(--bright); }
 .steps li.failed { color: var(--red); }
+
+/* ── 색 점(칸·라벨 색)과 진행 막대 ── */
+.dot { flex: none; width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--dim); }
+.dot.blue { background: var(--accentfg); }
+.dot.green { background: var(--green); }
+.dot.yellow { background: var(--yellow); }
+.dot.red { background: var(--red); }
+.dot.purple { background: var(--purple); }
+.meter { flex: 1; display: block; height: 4px; min-width: 24px; border-radius: var(--r-pill); background: var(--input); overflow: hidden; }
+.meter > i { display: block; height: 100%; background: var(--green); }
+
+/* ── 팝업 메뉴(.menu > button) ── */
+.menu { position: fixed; z-index: 30; box-sizing: border-box; display: flex; flex-direction: column; min-width: 160px; max-width: 280px; max-height: 70vh; overflow-y: auto; padding: var(--s1); background: var(--card); border: 1px solid var(--border2); border-radius: var(--r-md); box-shadow: 0 6px 24px #0009; }
+.menu > button { display: flex; align-items: center; gap: var(--s2); min-height: var(--h-md); padding: 0 var(--s2); border: none; border-radius: var(--r-sm); background: none; color: var(--text); font: inherit; font-size: var(--fs-sm); text-align: left; white-space: nowrap; cursor: pointer; }
+.menu > button:hover:not(:disabled), .menu > button:focus-visible { background: var(--row-hover); outline: none; }
+.menu > button:disabled { opacity: .45; cursor: default; }
+.menu > button.danger { color: var(--red); }
+.menu > .sep { height: 1px; margin: var(--s1) 0; background: var(--border); }
+.menu > .lbl { padding: var(--s1) var(--s2); }
+
+/* ── 표(.tbl) ── */
+.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.tbl th { position: sticky; top: 0; padding: var(--s2); background: var(--bg); border-bottom: 1px solid var(--border); color: var(--muted); font-size: var(--fs-xs); font-weight: 400; text-align: left; white-space: nowrap; }
+.tbl td { padding: var(--s2); border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tbl tbody tr { cursor: pointer; }
+.tbl tbody tr:hover { background: var(--row-hover); }
+.tbl tbody tr.done td { color: var(--muted); }

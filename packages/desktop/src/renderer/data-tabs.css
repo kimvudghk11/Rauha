@@ -8,35 +8,55 @@
 /* 거르기 줄 */
 .ttools, .rtools { display: flex; gap: 8px; flex: 0 0 auto; flex-wrap: wrap; align-items: center; }
 .ttools > input, .rtools > input { flex: 1 1 200px; }
-.tselects { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.tselects select { max-width: 150px; }
 
-/* 할 일 폼 */
-.tform { flex: 0 0 auto; }
-.tfields { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
-.tgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.tfield { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.tfield .tlab { font-size: 11px; color: var(--muted); }
-.trow { display: flex; gap: 6px; }
-
-/* 보드: 할 일 · 진행 · 완료 */
-.tboard { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
-.tboard:has(.tcol:only-child) { grid-template-columns: minmax(0, 1fr); }
-.tboard:has(.tempty) { display: flex; }
+/* 칸반: 칸이 가로로 늘어서고, 넘치면 스크롤 대신 칸 폭이 줄다가 칸 선택 탭으로 바뀐다(스크롤바는 숨김) */
+.tbody { flex: 1; min-height: 0; display: flex; gap: var(--s2); position: relative; }
+.tmain { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.tboard { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.tcolumns { flex: 1; min-height: 0; display: flex; gap: var(--s2); align-items: stretch; overflow-x: auto; }
+.tcol { flex: 1 1 0; min-width: 0; max-width: 380px; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2); background: var(--well); border: 1px solid var(--border); border-radius: var(--r-md); }
+.tcol.only { flex: 1; max-width: none; }
+.tcol.collapsed { flex: 0 0 44px; max-width: 44px; align-items: center; }
+.tcol.collapsed .tch { flex-direction: column; }
+.tcol.collapsed .tname { writing-mode: vertical-rl; flex: none; }
+.tcol.dragging, .tcard.dragging { opacity: .4; }
+.tcol.drop-on { border-color: var(--accent); }
+.tch { display: flex; align-items: center; gap: var(--s2); min-width: 0; cursor: grab; }
+.tname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bright); }
+.tcards { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s2); }
+.tdrop { flex: none; height: 2px; border-radius: 1px; background: var(--accent); }
+.tcolumns > .tdrop { width: 2px; height: auto; }
+.tnew { flex: 0 0 150px; }
+.tnew input, .tadding input { width: 100%; }
+.ttabs { overflow-x: auto; flex: none; }
+.ttabs [data-col].drop-on { background: var(--sel); }
 .tempty { margin: 40px auto; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
 .tempty b { color: var(--bright); font-size: 15px; }
-.tcol { background: var(--well); border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.tch { color: var(--bright); font-weight: 600; font-size: 12px; padding: 2px 4px; }
 .tnone { color: var(--dim); text-align: center; padding: 10px 0; font-size: 12px; }
-.tcard { border-left: 3px solid var(--border2); display: flex; flex-direction: column; gap: var(--s2); }
+.tcard { border-left: 3px solid var(--border2); display: flex; flex-direction: column; gap: var(--s2); cursor: grab; flex: none; }
+.tcard:focus-visible { outline: 1px solid var(--accent); }
 .tcard.p-high { border-left-color: var(--red); }
 .tcard.p-low { border-left-color: var(--dim); }
 .tcard.done .tt { color: var(--muted); text-decoration: line-through; }
-.ttop { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
+.ttop { display: flex; align-items: flex-start; gap: var(--s2); min-width: 0; }
+.ttop .tt { flex: 1; }
 .tt { color: var(--bright); font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
-.tchips { display: flex; gap: 5px; flex-wrap: wrap; }
+.tchips { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
 .tnote { color: var(--muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 4.4em; overflow: hidden; }
 .tbtns { display: flex; gap: 5px; flex-wrap: wrap; }
+.ttable { flex: 1; min-height: 0; overflow: auto; }
+
+/* 카드 상세 패널: 옆에 붙고, 좁으면 보드 위를 덮는다 */
+.tdetail { flex: 0 0 340px; min-height: 0; overflow: hidden; }
+.tdetail[hidden] { display: none; }
+.tbody.overlay .tdetail { position: absolute; inset: 0; flex: none; z-index: 5; }
+.dtitle { flex: 1; min-width: 0; }
+.dbody { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s3); display: flex; flex-direction: column; gap: var(--s3); }
+.dfield { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.dfield > select, .dfield > textarea { width: 100%; }
+.dlabels, .dcheck { display: flex; flex-direction: column; gap: var(--s2); }
+.dlabel { display: inline-flex; align-items: center; }
+.dfoot { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; padding: var(--s2) var(--s3); border-top: 1px solid var(--border); }
 
 /* 기록 */
 .rtags { display: flex; gap: 5px; flex-wrap: wrap; flex: 0 0 auto; }
@@ -68,17 +88,12 @@
 .rtags.edit { margin-top: 2px; }
 
 /* 폭 단계 */
-.app[data-tier=m] .tboard { gap: 8px; }
 .app[data-tier=xl] .rec { grid-template-columns: minmax(340px, 28%) minmax(0, 1fr); }
-.app[data-tier=s] .tboard, .app[data-tier=xs] .tboard { grid-template-columns: minmax(0, 1fr); }
-.app[data-tier=s] .tgrid, .app[data-tier=xs] .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.app[data-tier=xs] .tgrid { grid-template-columns: minmax(0, 1fr); }
 .app[data-tier=s] .rec, .app[data-tier=xs] .rec { grid-template-columns: minmax(0, 1fr); }
 .app[data-tier=s] .rec.show-detail .rclist, .app[data-tier=xs] .rec.show-detail .rclist { display: none; }
 .app[data-tier=s] .rec:not(.show-detail) .rcdet, .app[data-tier=xs] .rec:not(.show-detail) .rcdet { display: none; }
 .app[data-tier=s] .rback, .app[data-tier=xs] .rback { display: inline-flex; }
 .app[data-tier=xs] .todo, .app[data-tier=xs] .records { padding: 8px; }
-.app[data-tier=xs] .tselects select { max-width: 120px; }
 
 /* 채팅 카드의 "할 일로 담기" */
 .tform[hidden], .rback[hidden] { display: none; }

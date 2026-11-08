@@ -62,7 +62,7 @@ describe('할 일 서비스', () => {
     const res = await t.service.apply({ kind: 'delegate', id });
     expect(res.ok && res.jobId).toBe('job-1');
     expect(t.sent).toEqual(['@infra 인스턴스 늘리기']);
-    expect(t.saved().items[0]).toMatchObject({ status: 'doing', jobId: 'job-1' });
+    expect(t.saved().items[0]).toMatchObject({ columnId: 'doing', jobId: 'job-1' });
   });
 
   it('메인이 받지 못하면 맡기지 않고 할 일은 그대로다', async () => {
@@ -71,7 +71,7 @@ describe('할 일 서비스', () => {
     const id = (await t.service.get()).items[0]!.id;
     const res = await t.service.apply({ kind: 'delegate', id });
     expect(res.ok).toBe(false);
-    expect(t.saved().items[0]!.status).toBe('todo');
+    expect(t.saved().items[0]!.columnId).toBe('todo');
   });
 
   it('이미 맡긴 할 일을 또 맡기면 두 번째 작업을 만들지 않는다', async () => {
@@ -91,7 +91,7 @@ describe('할 일 서비스', () => {
     await t.service.apply({ kind: 'delegate', id });
     await t.service.jobFinished('job-1', 'done');
     await t.service.jobFinished('job-1', 'done');
-    expect(t.saved().items[0]!.status).toBe('done');
+    expect(t.saved().items[0]!.columnId).toBe('done');
     expect(t.pushed).toHaveLength(1);
   });
 
@@ -101,10 +101,23 @@ describe('할 일 서비스', () => {
     expect(t.saved().items).toHaveLength(4);
   });
 
+  it('칸을 더하고 카드를 옮기면 저장되고, 칸 규칙을 어기면 이유를 돌려준다', async () => {
+    const t = setup();
+    await t.service.apply({ kind: 'add', title: 'a' });
+    const added = await t.service.apply({ kind: 'column-add', name: '검토', color: 'purple' });
+    expect(added.ok && added.list.columns).toHaveLength(4);
+    const id = (await t.service.get()).items[0]!.id;
+    const moved = await t.service.apply({ kind: 'move', id, columnId: 'done', beforeId: null });
+    expect(moved.ok && moved.list.items[0]!.columnId).toBe('done');
+    expect(t.saved().items[0]!.columnId).toBe('done');
+    expect(await t.service.apply({ kind: 'column-edit', id: 'todo', patch: { name: ' ' } })).toEqual({ ok: false, error: '칸 이름을 적어 주세요.' });
+    expect((await t.service.apply({ kind: 'move', id, columnId: '없는칸' })).ok).toBe(false);
+  });
+
   it('켤 때 살아 있지 않은 작업에 매인 진행은 할 일로 돌아온다', async () => {
     const seed = TodoList.empty().add({ title: 'a' }, () => 'x', '2026-11-08T00:00:00.000Z').attachJob('x', 'old-job', '2026-11-08T00:00:00.000Z');
     const t = setup({ initial: seed });
     await t.service.releaseOrphans(new Set());
-    expect(t.saved().items[0]).toMatchObject({ status: 'todo', jobId: null });
+    expect(t.saved().items[0]).toMatchObject({ columnId: 'todo', jobId: null });
   });
 });
