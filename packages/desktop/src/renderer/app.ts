@@ -6,6 +6,7 @@ import { buildGit } from './git-view.js';
 import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
 import { buildSettings, limitBar } from './settings-view.js';
+import { createChrome } from './chrome.js';
 import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
@@ -18,7 +19,11 @@ declare global {
 }
 
 const app = document.querySelector<HTMLElement>('.app')!;
-document.documentElement.dataset['platform'] = window.rauha.platform;
+// 확인용: 스크린샷 실행에서만 main이 ?platform=darwin을 붙여 맥 모양을 흉내 낸다(실제 동작에는 영향 없음)
+const platform = new URLSearchParams(location.search).get('platform') ?? window.rauha.platform;
+document.documentElement.dataset['platform'] = platform;
+const chrome = createChrome(document.documentElement, document.getElementById('titlebar-text')!, platform);
+window.rauha.onFullScreen((on) => chrome.setFullScreen(on));
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
@@ -73,7 +78,7 @@ function show(id: TabId): void {
   if (id === 'chat') screen.replaceChildren(chat.root);
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
-  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), updates: { feed: updates, check: () => window.rauha.update.check() } }, pickLayout).root);
+  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), updates: { feed: updates, check: () => window.rauha.update.check() } }, pickLayout).root);
   else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
   else {
     const soon = el('div', 'soon');
@@ -175,9 +180,10 @@ void window.rauha.approvalsNow().then(onApprovals);
 
 void (async () => {
   const settings = await window.rauha.getSettings();
+  chrome.setFolder(settings.workFolder);
   if (settings.layout !== layout) pickLayout(settings.layout);
   if (!settings.firstRunDone) {
-    await runWizard({ pickFolder: () => window.rauha.pickFolder(), accounts: () => window.rauha.listAccounts(), update: (p) => window.rauha.updateSettings(p) });
+    await runWizard({ pickFolder: () => window.rauha.pickFolder(), accounts: () => window.rauha.listAccounts(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)) });
   }
   await offerTerminalCleanup();
 })();

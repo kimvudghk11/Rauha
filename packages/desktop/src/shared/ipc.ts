@@ -43,6 +43,8 @@ export const IPC = {
   openJob: 'ui:open-job',
   /** main → 화면: 앱 메뉴(Cmd+,)에서 탭을 열어 달라 */
   openTab: 'ui:open-tab',
+  /** main → 화면: 전체 화면에 들어가거나 나왔다(맥 신호등이 사라지는 때) */
+  fullScreen: 'ui:fullscreen',
   /** 화면 → main: 터미널 rauha 실행 파일을 찾는다 / 확인받은 것만 지운다 */
   terminalFind: 'terminal:find',
   terminalRemove: 'terminal:remove',
@@ -147,6 +149,7 @@ export interface RauhaApi {
   removeRule(id: string): Promise<readonly RuleView[]>;
   onOpenJob(listener: (jobId: string) => void): void;
   onOpenTab(listener: (tab: string) => void): void;
+  onFullScreen(listener: (on: boolean) => void): void;
   /** 실행 중인 OS(darwin·win32·linux). 단축키 표기와 창 모양에 쓴다. */
   readonly platform: string;
   findTerminalRauha(): Promise<readonly TerminalRauhaView[]>;

@@ -1,4 +1,5 @@
 import type { MenuItemConstructorOptions } from 'electron';
+import { isTahoeOrNewer, titleBarHeight, trafficLightPosition } from '../../shared/title-bar.js';
 
 /** 메뉴에서 앱이 직접 처리하는 항목의 id */
 export const MENU_OPEN_SETTINGS = 'open-settings';
@@ -39,9 +40,9 @@ export function appMenuTemplate(platform: NodeJS.Platform, appName: string, open
   ];
 }
 
-/** 창 테두리 옵션: macOS는 제목 막대를 숨기고 신호등 버튼만 안쪽에 둔다. */
-export function windowChrome(platform: NodeJS.Platform): { titleBarStyle?: 'hiddenInset'; trafficLightPosition?: { x: number; y: number } } {
-  return platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 12 } } : {};
+/** 창 테두리 옵션: macOS는 제목 막대를 숨기고, 화면 안 제목줄(shared/title-bar)의 세로 가운데에 신호등 버튼을 둔다. */
+export function windowChrome(platform: NodeJS.Platform, darwinRelease = ''): { titleBarStyle?: 'hiddenInset'; trafficLightPosition?: { x: number; y: number } } {
+  return platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: trafficLightPosition(titleBarHeight(platform, false), isTahoeOrNewer(darwinRelease)) } : {};
 }
 
 /** 창이 모두 닫히면 앱을 끝낼지. macOS는 Dock에 남겨 둔다(Cmd+Q로 끝낸다). */

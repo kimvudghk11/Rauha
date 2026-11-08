@@ -25,8 +25,11 @@ describe('appMenuTemplate', () => {
 });
 
 describe('플랫폼별 창', () => {
-  it('macOS는 제목 막대를 숨기고 신호등 자리를 둔다', () => {
-    expect(windowChrome('darwin')).toMatchObject({ titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 12 } });
+  it('macOS는 제목 막대를 숨기고 신호등을 화면 제목줄의 세로 가운데에 둔다', () => {
+    const chrome = windowChrome('darwin');
+    expect(chrome.titleBarStyle).toBe('hiddenInset');
+    expect(chrome.trafficLightPosition).toEqual({ x: 10, y: 9 });
+    expect(windowChrome('darwin', '25.1.0').trafficLightPosition).toEqual({ x: 11, y: 10 });
     expect(windowChrome('win32')).toEqual({});
   });
 

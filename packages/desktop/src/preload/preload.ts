@@ -43,6 +43,9 @@ const api: RauhaApi = {
   onOpenTab: (listener) => {
     ipcRenderer.on(IPC.openTab, (_e, tab: string) => listener(tab));
   },
+  onFullScreen: (listener) => {
+    ipcRenderer.on(IPC.fullScreen, (_e, on: boolean) => listener(on));
+  },
   findTerminalRauha: () => ipcRenderer.invoke(IPC.terminalFind),
   removeTerminalRauha: (paths) => ipcRenderer.invoke(IPC.terminalRemove, paths),
   onOpenJob: (listener) => {

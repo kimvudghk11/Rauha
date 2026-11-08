@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { homedir } from 'node:os';
+import { homedir, release } from 'node:os';
 import { basename, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -240,7 +240,7 @@ function open(runner: JobRunner): void {
     backgroundColor: BACKGROUND,
     title: 'rauha',
     icon: join(app.getAppPath(), 'build', 'icon.png'),
-    ...windowChrome(process.platform),
+    ...windowChrome(process.platform, release()),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
@@ -269,7 +269,11 @@ function open(runner: JobRunner): void {
     window.on('move', save);
   }
   window.on('closed', () => (window = null));
-  void window.loadFile(join(__dirname, 'renderer', 'index.html'));
+  // 전체 화면에서는 맥 신호등이 사라지므로 화면의 제목줄도 접는다
+  window.on('enter-full-screen', () => window?.webContents.send(IPC.fullScreen, true));
+  window.on('leave-full-screen', () => window?.webContents.send(IPC.fullScreen, false));
+  const fakePlatform = process.env['RAUHA_SMOKE_SHOT'] !== undefined ? process.env['RAUHA_SMOKE_PLATFORM'] : undefined;
+  void window.loadFile(join(__dirname, 'renderer', 'index.html'), fakePlatform === undefined ? undefined : { query: { platform: fakePlatform } });
   const shot = process.env['RAUHA_SMOKE_SHOT'];
   if (shot !== undefined) window.webContents.once('did-finish-load', () => void smoke(runner, shot));
   const typing = process.env['RAUHA_MEASURE_TYPING'];
