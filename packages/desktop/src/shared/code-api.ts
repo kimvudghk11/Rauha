@@ -13,10 +13,18 @@ export const CODE_IPC = {
   diff: 'code:diff',
   search: 'code:search',
   files: 'code:files',
+  create: 'code:create',
+  rename: 'code:rename',
+  trash: 'code:trash',
+  duplicate: 'code:duplicate',
+  move: 'code:move',
+  inspect: 'code:inspect',
+  reveal: 'code:reveal',
 } as const;
 
 /** 못 하는 까닭. 화면이 문장으로 바꿔 보인다(codeFailText). */
-export type CodeFail = 'bad-path' | 'outside' | 'secret' | 'too-big' | 'binary' | 'encoding' | 'missing' | 'not-file' | 'not-dir' | 'conflict' | 'deleted' | 'read-only' | 'no-folder' | 'error';
+export type CodeFail = 'bad-path' | 'outside' | 'secret' | 'too-big' | 'binary' | 'encoding' | 'missing' | 'not-file' | 'not-dir' | 'conflict' | 'deleted' | 'read-only' | 'no-folder' | 'error'
+  | 'bad-name' | 'exists' | 'protected' | 'too-long' | 'too-many' | 'link' | 'trash-failed' | 'same-folder' | 'into-self';
 
 export interface TreeEntry {
   readonly name: string;
@@ -91,6 +99,15 @@ const FAIL_TEXT: Readonly<Record<CodeFail, string>> = {
   'read-only': '쓰기 권한이 없는 파일이에요.',
   'no-folder': '작업 폴더를 먼저 골라 주세요(설정).',
   error: '파일을 다루지 못했어요.',
+  'bad-name': '쓸 수 없는 이름이에요.',
+  exists: '같은 이름이 이미 있어서 하지 않았어요(덮어쓰지 않아요).',
+  protected: '작업 폴더·레포 루트·node_modules·.git 은 여기서 바꾸지 않아요.',
+  'too-long': '경로가 너무 길어요.',
+  'too-many': '복제하기엔 파일이 너무 많거나 커요.',
+  link: '바로가기(링크)는 복제하지 않아요.',
+  'trash-failed': '휴지통으로 옮기지 못했어요. 파일은 그대로 있어요(영구 삭제는 하지 않아요).',
+  'same-folder': '이미 그 폴더에 있어요.',
+  'into-self': '폴더를 자기 자신 안으로는 옮길 수 없어요.',
 };
 
 export const codeFailText = (reason: CodeFail): string => FAIL_TEXT[reason];
@@ -121,7 +138,66 @@ export type FilesResult = { readonly ok: true; readonly paths: readonly string[]
 
 export type { SearchOptions };
 
-export interface CodeApi2 {
+// ── 3단계: 파일 조작(새로 만들기·이름 바꾸기·복제·옮기기·휴지통·경로) ──
+// 화면은 작업 폴더 기준 상대 경로만 보내고, 실제 조작과 안전 검사는 전부 main이 한다.
+
+export type NodeKind = 'file' | 'dir';
+
+export interface CreateRequest {
+  /** 만들 곳 폴더(''= 작업 폴더) */
+  readonly parent: string;
+  readonly name: string;
+  readonly kind: NodeKind;
+}
+export interface RenameRequest {
+  readonly path: string;
+  readonly name: string;
+}
+export interface PathRequest {
+  readonly path: string;
+}
+export interface DuplicateRequest {
+  readonly path: string;
+  /** 붙여넣을 폴더. 없으면 같은 폴더에 "이름 복사본" */
+  readonly destDir?: string | undefined;
+}
+export interface MoveRequest {
+  readonly path: string;
+  readonly destDir: string;
+}
+
+/** 조작 결과. 성공하면 새 경로(이름 바꾸기·옮기기·복제·새로 만들기), 휴지통은 지운 경로. */
+export type OpResult =
+  | { readonly ok: true; readonly path: string; readonly kind: NodeKind }
+  | { readonly ok: false; readonly reason: CodeFail; readonly detail?: string | undefined };
+
+export type InspectResult =
+  | {
+      readonly ok: true;
+      readonly kind: NodeKind;
+      /** 폴더 안 파일 수(바로가기는 세지 않는다). 너무 많으면 capped */
+      readonly files: number;
+      readonly capped: boolean;
+      readonly link: boolean;
+      readonly secret: boolean;
+      /** 작업 폴더·레포 루트·조작 금지 구역이라 이름 바꾸기·삭제·옮기기를 막는다 */
+      readonly locked: boolean;
+    }
+  | { readonly ok: false; readonly reason: CodeFail };
+
+export interface CodeApi3 {
+  create(req: CreateRequest): Promise<OpResult>;
+  rename(req: RenameRequest): Promise<OpResult>;
+  /** 영구 삭제가 아니라 휴지통으로 보낸다. 휴지통이 안 되면 지우지 않고 까닭을 알린다. */
+  trash(req: PathRequest): Promise<OpResult>;
+  duplicate(req: DuplicateRequest): Promise<OpResult>;
+  move(req: MoveRequest): Promise<OpResult>;
+  inspect(req: PathRequest): Promise<InspectResult>;
+  /** 파일 관리자(탐색기·Finder)에서 보여 준다 */
+  reveal(req: PathRequest): Promise<{ readonly ok: boolean }>;
+}
+
+export interface CodeApi2 extends CodeApi3 {
   /** 작업 폴더 아래 레포들의 바뀐 파일(작업 폴더 기준 경로) */
   changes(): Promise<ChangesResult>;
   /** 한 파일의 저장된 내용이 HEAD와 다른 줄 */

@@ -33,6 +33,8 @@ export interface Resolved {
   readonly real: string;
 }
 
+export type EntryResolution = { readonly ok: true; readonly value: Resolved & { readonly link: boolean; readonly isDir: boolean } } | { readonly ok: false; readonly reason: CodeFail };
+
 export type Resolution = { readonly ok: true; readonly value: Resolved } | { readonly ok: false; readonly reason: CodeFail };
 
 const versionOf = (s: { mtimeMs: number; size: number }): string => `${Math.round(s.mtimeMs)}:${s.size}`;
@@ -97,6 +99,36 @@ export class CodeFiles {
     if (cleanRelative(realRel) === null) return { ok: false, reason: 'bad-path' };
     if (clean !== '' && (this.deps.isSecret(clean) || this.deps.isSecret(realRel))) return { ok: false, reason: 'secret' };
     return { ok: true, value: { rootReal, clean, real } };
+  }
+
+  /**
+   * 파일 조작용: 마지막 이름은 링크여도 따라가지 않고(링크 자체를 다룬다) 그 폴더만 실제 경로로 푼다.
+   * 읽기와 달리 비밀 파일도 통과시킨다(이름 바꾸기·삭제는 허용, 내용은 읽지 않는다). 판단은 부르는 쪽이 한다.
+   */
+  async locateEntry(rawPath: unknown): Promise<EntryResolution> {
+    const clean = cleanRelative(rawPath);
+    if (clean === null) return { ok: false, reason: 'bad-path' };
+    const rootReal = await this.rootReal();
+    if (rootReal === null) return { ok: false, reason: 'no-folder' };
+    if (clean === '') return { ok: true, value: { rootReal, clean, real: rootReal, link: false, isDir: true } };
+    const parts = clean.split('/');
+    let parentReal: string;
+    try {
+      parentReal = await realpath(join(rootReal, ...parts.slice(0, -1)));
+    } catch (e) {
+      return { ok: false, reason: isMissing(e) ? 'missing' : 'error' };
+    }
+    if (!isInside(rootReal, parentReal, this.caseInsensitive)) return { ok: false, reason: 'outside' };
+    const real = join(parentReal, parts[parts.length - 1]!);
+    let info;
+    try {
+      info = await lstat(real);
+    } catch (e) {
+      return { ok: false, reason: isMissing(e) ? 'missing' : 'error' };
+    }
+    const realRel = toSlash(relative(rootReal, real));
+    if (cleanRelative(realRel) === null) return { ok: false, reason: 'bad-path' };
+    return { ok: true, value: { rootReal, clean, real, link: info.isSymbolicLink(), isDir: info.isDirectory() } };
   }
 
   /** 작업 폴더의 실제 경로(없으면 null) */

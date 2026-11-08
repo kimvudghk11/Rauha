@@ -71,6 +71,13 @@ const api: RauhaApi = {
     diff: (path) => ipcRenderer.invoke(CODE_IPC.diff, path),
     search: (options) => ipcRenderer.invoke(CODE_IPC.search, options),
     files: () => ipcRenderer.invoke(CODE_IPC.files),
+    create: (req) => ipcRenderer.invoke(CODE_IPC.create, req),
+    rename: (req) => ipcRenderer.invoke(CODE_IPC.rename, req),
+    trash: (req) => ipcRenderer.invoke(CODE_IPC.trash, req),
+    duplicate: (req) => ipcRenderer.invoke(CODE_IPC.duplicate, req),
+    move: (req) => ipcRenderer.invoke(CODE_IPC.move, req),
+    inspect: (req) => ipcRenderer.invoke(CODE_IPC.inspect, req),
+    reveal: (req) => ipcRenderer.invoke(CODE_IPC.reveal, req),
   },
   terminal: {
     roots: () => ipcRenderer.invoke(TERM_IPC.roots),

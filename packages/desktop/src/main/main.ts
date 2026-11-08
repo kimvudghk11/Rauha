@@ -678,7 +678,7 @@ void app.whenReady().then(async () => {
       return result.canceled || !result.filePath ? null : result.filePath;
     },
   });
-  registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
+  registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
   ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
   ipcMain.handle(IPC.teamGet, () => teamView(team));
   ipcMain.handle(IPC.teamApply, async (_e, op: unknown) => {
