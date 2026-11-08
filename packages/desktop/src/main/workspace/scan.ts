@@ -4,6 +4,7 @@ import { basename, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { classifyFolder, SKIPPED_FOLDERS, type FolderKind } from '../../shared/folder-kind.js';
 import { parseStatus, type RepoStatus } from '../../shared/git-status.js';
+import { mapLimit } from './map-limit.js';
 
 const run = promisify(execFile);
 
@@ -34,48 +35,44 @@ async function repoStatus(root: string): Promise<RepoStatus | null> {
  * 생성물 폴더(node_modules·dist·build …)는 들어가지 않는다. 작업 폴더 자체가 레포여도 아래에 레포가 있으면 그것들을, 없으면 그 하나만 돌려준다.
  */
 export async function scanWorkFolder(base: string, depth: number = SCAN_DEPTH): Promise<FolderEntry[]> {
-  const found: FolderEntry[] = [];
-  const visit = async (dir: string, level: number): Promise<void> => {
+  /** 폴더 읽기를 한꺼번에 몇 개까지, git status를 한꺼번에 몇 개까지 돌릴지 */
+  const READ_LANES = 8;
+  const STATUS_LANES = 6;
+  // 먼저 폴더 구조만 훑고(빠르다), 레포의 git status는 마지막에 모아서 병렬로 돌린다.
+  const visit = async (dir: string, level: number): Promise<FolderEntry[]> => {
     let names: { name: string; isDir: boolean }[];
     try {
       names = (await readdir(dir, { withFileTypes: true })).map((d) => ({ name: d.name, isDir: d.isDirectory() }));
     } catch {
-      return;
+      return [];
     }
     const hasGit = names.some((n) => n.name === '.git');
     const extensions = names.filter((n) => !n.isDir).map((n) => (n.name.includes('.') ? (n.name.split('.').pop() ?? '').toLowerCase() : ''));
     const kind = classifyFolder({ hasGit, extensions });
     const isBase = dir === base;
+    const children = async (): Promise<FolderEntry[]> => {
+      if (level >= depth) return [];
+      const subs = names.filter((n) => n.isDir && !SKIPPED_FOLDERS.has(n.name) && !n.name.startsWith('.'));
+      return (await mapLimit(subs, READ_LANES, (n) => visit(join(dir, n.name), level + 1))).flat();
+    };
     if (kind === 'repo' && isBase) {
       // 작업 폴더 자체에 .git이 있어도(드라이브 루트, 깨진 .git, 홈 폴더 전체를 git으로 관리) 아래에 레포들이 있으면 그것들을 쓴다.
-      const before = found.length;
-      if (level < depth) {
-        for (const n of names) {
-          if (!n.isDir || SKIPPED_FOLDERS.has(n.name) || n.name.startsWith('.')) continue;
-          await visit(join(dir, n.name), level + 1);
-        }
-      }
-      if (found.length > before) return;
-      found.push({ name: basename(dir) || dir, root: dir, relative: '.', kind, status: await repoStatus(dir) });
-      return;
+      const below = await children();
+      if (below.length > 0) return below;
+      return [{ name: basename(dir) || dir, root: dir, relative: '.', kind, status: null }];
     }
     if (kind === 'repo' || (kind === 'docs' && !isBase)) {
-      found.push({ name: basename(dir) || dir, root: dir, relative: relative(base, dir) || '.', kind, status: kind === 'repo' ? await repoStatus(dir) : null });
-      return;
+      return [{ name: basename(dir) || dir, root: dir, relative: relative(base, dir) || '.', kind, status: null }];
     }
-    if (level < depth) {
-      for (const n of names) {
-        if (!n.isDir || SKIPPED_FOLDERS.has(n.name) || n.name.startsWith('.')) continue;
-        await visit(join(dir, n.name), level + 1);
-      }
-    }
-    if (isBase && found.length === 0 && kind === 'docs') found.push({ name: basename(dir) || dir, root: dir, relative: '.', kind, status: null });
+    const below = await children();
+    if (isBase && below.length === 0 && kind === 'docs') return [{ name: basename(dir) || dir, root: dir, relative: '.', kind, status: null }];
+    return below;
   };
   try {
     if (!(await stat(base)).isDirectory()) return [];
   } catch {
     return [];
   }
-  await visit(base, 0);
-  return found;
+  const found = await visit(base, 0);
+  return mapLimit(found, STATUS_LANES, async (e) => (e.kind === 'repo' ? { ...e, status: await repoStatus(e.root) } : e));
 }
