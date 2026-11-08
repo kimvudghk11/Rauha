@@ -48,15 +48,16 @@ function childRepos(launchDir: string): string[] {
 }
 
 /**
- * 작업 공간의 저장소들. 띄운 폴더가 저장소의 루트면 그 저장소 하나. 저장소 밖이거나, 큰 저장소
+ * 작업 공간의 저장소들. 띄운 폴더가 저장소의 루트여도 그 아래에 저장소들이 있으면 그것들(없으면 그 저장소 하나). 저장소 밖이거나, 큰 저장소
  * (홈 폴더 전체를 git으로 관리하는 경우 등) 안의 하위 폴더인데 그 아래에 저장소들이 있으면 그 저장소들.
  * 저장소 안의 하위 폴더이고 아래에 저장소가 없으면 감싸는 저장소 하나.
  */
 export function discoverRepos(launchDir: string): string[] {
   const top = toplevel(launchDir);
   const atRoot = top !== null && toPosixPath(top).toLowerCase() === toPosixPath(real(launchDir)).toLowerCase();
-  if (atRoot) return [top];
   const children = childRepos(launchDir);
+  // 작업 폴더 자체가 저장소여도(드라이브 루트·홈 폴더를 git으로 관리하는 경우 등) 그 아래에 저장소들이 있으면 그것들을 쓴다.
+  if (atRoot) return children.length > 0 ? children : [top];
   if (children.length > 0 || top === null) return children;
   return [top];
 }

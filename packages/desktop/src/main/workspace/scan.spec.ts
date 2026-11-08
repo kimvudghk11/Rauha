@@ -63,6 +63,14 @@ describe('scanWorkFolder', () => {
     expect((await scanWorkFolder(w.root)).map((f) => f.relative)).toEqual(['.']);
   });
 
+  it('작업 폴더에 .git이 있어도 아래에 레포들이 있으면 그것들을 찾는다(드라이브 루트·깨진 .git)', async () => {
+    const w = base();
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: w.root });
+    w.repo('api');
+    w.repo('web');
+    expect((await scanWorkFolder(w.root)).map((f) => f.relative).sort()).toEqual(['api', 'web']);
+  });
+
   it('깊이 제한을 넘는 폴더는 찾지 않고, 없는 폴더는 빈 목록이다', async () => {
     const w = base();
     w.repo('a/b/c/d/deep');

@@ -31,7 +31,7 @@ async function repoStatus(root: string): Promise<RepoStatus | null> {
 
 /**
  * 작업 폴더 아래를 훑어 레포·문서 폴더·기타 폴더를 찾는다. 파일 내용은 읽지 않고 이름과 확장자만 본다.
- * 생성물 폴더(node_modules·dist·build …)는 들어가지 않는다. 작업 폴더 자체가 레포면 그 하나만 돌려준다.
+ * 생성물 폴더(node_modules·dist·build …)는 들어가지 않는다. 작업 폴더 자체가 레포여도 아래에 레포가 있으면 그것들을, 없으면 그 하나만 돌려준다.
  */
 export async function scanWorkFolder(base: string, depth: number = SCAN_DEPTH): Promise<FolderEntry[]> {
   const found: FolderEntry[] = [];
@@ -46,6 +46,19 @@ export async function scanWorkFolder(base: string, depth: number = SCAN_DEPTH): 
     const extensions = names.filter((n) => !n.isDir).map((n) => (n.name.includes('.') ? (n.name.split('.').pop() ?? '').toLowerCase() : ''));
     const kind = classifyFolder({ hasGit, extensions });
     const isBase = dir === base;
+    if (kind === 'repo' && isBase) {
+      // 작업 폴더 자체에 .git이 있어도(드라이브 루트, 깨진 .git, 홈 폴더 전체를 git으로 관리) 아래에 레포들이 있으면 그것들을 쓴다.
+      const before = found.length;
+      if (level < depth) {
+        for (const n of names) {
+          if (!n.isDir || SKIPPED_FOLDERS.has(n.name) || n.name.startsWith('.')) continue;
+          await visit(join(dir, n.name), level + 1);
+        }
+      }
+      if (found.length > before) return;
+      found.push({ name: basename(dir) || dir, root: dir, relative: '.', kind, status: await repoStatus(dir) });
+      return;
+    }
     if (kind === 'repo' || (kind === 'docs' && !isBase)) {
       found.push({ name: basename(dir) || dir, root: dir, relative: relative(base, dir) || '.', kind, status: kind === 'repo' ? await repoStatus(dir) : null });
       return;

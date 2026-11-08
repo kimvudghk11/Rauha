@@ -57,8 +57,14 @@ describe('discoverRepos', () => {
     gitInit(join(home, 'projects', 'api'));
     gitInit(join(home, 'projects', 'web'));
     expect(posix(discoverRepos(join(home, 'projects')))).toEqual(posix([join(home, 'projects', 'api'), join(home, 'projects', 'web')]));
-    // 저장소의 루트에서 띄우면 그 저장소 하나다.
-    expect(posix(discoverRepos(home))).toEqual(posix([home]));
+    // 저장소의 루트에서 띄워도 그 아래에 저장소들이 있으면 그것들이다(작업 폴더가 레포로 오인되지 않는다).
+    expect(posix(discoverRepos(home))).toEqual(posix([join(home, 'projects', 'api'), join(home, 'projects', 'web')]));
+  });
+
+  it('저장소의 루트에서 띄웠고 아래에 다른 저장소가 없으면 그 저장소 하나', () => {
+    const solo = join(folder(), 'solo');
+    gitInit(solo);
+    expect(posix(discoverRepos(solo))).toEqual(posix([solo]));
   });
 
   it('저장소가 없으면 빈 목록', () => {
