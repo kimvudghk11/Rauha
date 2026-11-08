@@ -5,6 +5,8 @@ import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared
 import { CHARACTER_ROLES, leadName, spriteFor, type CharacterRole } from './characters.js';
 import type { Command } from '../shared/command-book.js';
 import { attachSuggest } from './command-suggest.js';
+import { askCard } from './ask-card.js';
+import { needLabel } from '../shared/ask-form.js';
 import { el } from './dom.js';
 import { needsLogin } from '../shared/claude-login.js';
 import { loginCard } from './login-view.js';
@@ -249,8 +251,9 @@ export function buildChat(actions: ChatActions) {
         current = next;
         dot.className = `dot ${next.status}`;
         title.textContent = short(next.request, 28);
-        const need = pend.some((p) => p.jobId === next.id);
-        time.textContent = need ? '허락 필요' : next.status === 'queued' ? '대기' : elapsedText(next.queuedAt, next.endedAt, Date.now());
+        const mineAsks = pend.filter((p) => p.jobId === next.id);
+        const need = mineAsks.length > 0;
+        time.textContent = need ? needLabel(mineAsks) : next.status === 'queued' ? '대기' : elapsedText(next.queuedAt, next.endedAt, Date.now());
         time.className = need ? 'time chip yellow' : 'time';
         bubble.textContent = next.status === 'done' ? '끝!' : next.status === 'stopped' ? '멈췄어요' : (next.lastLine !== null ? short(next.lastLine, 18) : '시작하는 중');
         bubble.classList.toggle('t', next.status === 'running');
@@ -390,6 +393,7 @@ export function buildChat(actions: ChatActions) {
   }
 
   function approvalCard(a: ApprovalView): HTMLElement {
+    if (a.ask !== null) return askCard(a, actions.answer);
     const card = el('div', `approval ${a.summary.kind}`);
     card.appendChild(el('div', 'ah', `허락이 필요해요 · ${a.summary.headline}`));
     card.appendChild(el('div', 'who', `요청한 팀원: ${a.roleName}`));

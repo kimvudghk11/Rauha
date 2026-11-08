@@ -172,3 +172,8 @@
 .acct[data-tone=warn] { border-left-color: #d9a441; }
 .acct-title { font-size: 13px; overflow-wrap: anywhere; }
 .acct-detail { font-size: 11.5px; overflow-wrap: anywhere; }
+
+/* 분석 질문 카드(배치만. 겉모양은 .approval·.item·.chip·.btn 공통 부품) */
+.approval.ask .opts { display: flex; flex-direction: column; gap: var(--s2); }
+.approval.ask .opt { display: flex; flex-direction: column; gap: var(--s1); }
+.approval.ask .opt.rec { border-color: var(--accent); }
