@@ -94,6 +94,7 @@ const api: RauhaApi = {
       ipcRenderer.on(IPC.authState, (_e, view: LoginView) => listener(view));
     },
   },
+  copyDiagnostics: () => ipcRenderer.invoke(IPC.diagnosticsCopy),
   onOpenTab: (listener) => {
     ipcRenderer.on(IPC.openTab, (_e, tab: string) => listener(tab));
   },

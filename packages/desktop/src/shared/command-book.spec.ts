@@ -9,7 +9,7 @@ const draft = (name: string, template = '{{요청}}을 점검해줘', descriptio
 describe('기본 명령', () => {
   it('터미널판 슬래시 명령이 처음부터 모두 들어 있다', () => {
     const names = BUILTIN_COMMANDS.map((c) => c.name);
-    for (const name of ['review', 'design', 'repo', 'learn', 'routine', 'clear', 'status', '설치', '업데이트', '개선', 'usage', 'guide', 'retry', 'queue', 'copy', 'team', 'company', 'help', 'exit']) expect(names).toContain(name);
+    for (const name of ['review', 'design', 'repo', 'learn', 'routine', 'clear', 'status', '설치', '업데이트', '개선', 'usage', 'guide', 'retry', 'queue', 'copy', 'team', 'company', '진단', 'help', 'exit']) expect(names).toContain(name);
   });
 
   it('모든 기본 명령에 이름·설명·무엇을 하는지가 있고 이름은 겹치지 않는다', () => {
@@ -34,6 +34,11 @@ describe('별칭', () => {
     expect(book.resolve('/UPDATE')).toMatchObject({ kind: 'app', action: 'update' });
     expect(book.resolve('/업데이트')).toMatchObject({ kind: 'app', action: 'update' });
     expect(book.resolve('/improve rauha 보안')).toMatchObject({ kind: 'send' });
+  });
+
+  it('/진단과 /diagnose는 같은 앱 동작(진단 정보 복사)이다', () => {
+    expect(book.resolve('/진단')).toMatchObject({ kind: 'app', action: 'diagnose' });
+    expect(book.resolve('/diagnose')).toMatchObject({ kind: 'app', action: 'diagnose' });
   });
 
   it('별칭으로도 자동완성에 나오고, 내 명령 이름이 별칭과 겹치면 막는다', () => {

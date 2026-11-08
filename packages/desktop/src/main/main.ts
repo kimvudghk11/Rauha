@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { homedir, release } from 'node:os';
+import { cpus, homedir, release, userInfo } from 'node:os';
 import { basename, join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
-import { boardView, jobView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
+import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
 import { CommandStore } from './command-store.js';
@@ -37,6 +37,11 @@ import { FileUpdateStore } from './update/update-store.js';
 import { fakeReleases } from './update/fake-releases.js';
 import { createInstaller } from './update/installer.js';
 import { ClaudeLogin } from './auth/claude-login.js';
+import { AppLog } from './diagnostics/app-log.js';
+import { collectSnapshot } from './diagnostics/collect.js';
+import { DiagnosticReport, Redactor } from '../shared/diagnostics.js';
+import type { AccountCheck } from '../shared/account-state.js';
+import type { UpdateView } from '../shared/update-record.js';
 import { UsageService } from './usage/usage-service.js';
 import { registerUsageIpc, toUsageView } from './usage/usage-ipc.js';
 import { USAGE_IPC } from '../shared/usage-api.js';
@@ -64,6 +69,23 @@ const openSafe = async (url: string): Promise<void> => {
 
 let window: BrowserWindow | null = null;
 let limitNotified = false;
+
+/** 앱 오류 로그: 처리 안 된 오류와 화면(renderer)의 콘솔 error를 가려서 최근 200줄 + userData/logs/app.log에 쌓는다. 진단 정보 복사가 쓴다. */
+const userName = (): string => {
+  try {
+    return userInfo().username;
+  } catch {
+    return basename(homedir());
+  }
+};
+const appLog = new AppLog({ dir: join(app.getPath('userData'), 'logs'), now: () => new Date(), redactor: Redactor.of(homedir(), userName()) });
+const errorText = (error: unknown): string => (error instanceof Error ? (error.stack ?? error.message) : String(error));
+// uncaughtExceptionMonitor는 지켜보기만 해서 Electron의 기본 오류 창 동작을 바꾸지 않는다
+process.on('uncaughtExceptionMonitor', (error) => appLog.record('main', errorText(error)));
+process.on('unhandledRejection', (reason) => {
+  appLog.record('main', `처리 안 된 Promise 거절: ${errorText(reason)}`);
+  console.error(reason);
+});
 
 /** 사용자 규칙(규칙 탭). 팀원이 도구를 부를 때마다 이 값을 읽으므로 고치면 바로 반영된다. */
 const ruleStore = new FileRuleStore(join(homedir(), '.rauha', 'desktop', 'rules.json'));
@@ -381,6 +403,11 @@ function open(runner: JobRunner): void {
     window.on('move', save);
   }
   window.on('closed', () => (window = null));
+  window.webContents.on('console-message', (details) => {
+    if (details.level === 'error') appLog.record('renderer', `${details.message} (${basename(details.sourceId)}:${details.lineNumber})`);
+  });
+  window.webContents.on('render-process-gone', (_event, details) => appLog.record('renderer', `화면 프로세스가 끝났어요: ${details.reason} (코드 ${details.exitCode})`));
+  window.webContents.on('did-fail-load', (_event, code, description, url) => appLog.record('renderer', `화면을 못 불러왔어요: ${description} (${code}) ${basename(url)}`));
   // 전체 화면에서는 맥 신호등이 사라지므로 화면의 제목줄도 접는다
   window.on('enter-full-screen', () => window?.webContents.send(IPC.fullScreen, true));
   window.on('leave-full-screen', () => window?.webContents.send(IPC.fullScreen, false));
@@ -393,6 +420,56 @@ function open(runner: JobRunner): void {
     window.webContents.once('did-finish-load', () =>
       void measureTyping(window!, typing, () => ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 초안', 'VPC 피어링 정리 문서', '정산 배치 알림'].forEach((t) => runner.submit(t))).then(() => app.quit()),
     );
+}
+
+let authCheck: (() => Promise<AccountCheck>) | null = null;
+let updateView: (() => UpdateView) | null = null;
+
+/** 진단 정보 복사: 상태를 모아 가린 마크다운을 클립보드에 넣는다. 확인용 실행(창 숨김)에서는 사용자의 클립보드를 건드리지 않는다. */
+async function copyDiagnostics(): Promise<DiagnosticsResult> {
+  try {
+    const work = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null;
+    const executable = (path: string): boolean => {
+      try {
+        accessSync(path, fsConstants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const win = window;
+    const bounds = win?.getBounds();
+    const chrome = windowChrome(process.platform, release());
+    const snapshot = await collectSnapshot({
+      now: () => new Date(),
+      app: { version: app.getVersion(), packaged: app.isPackaged },
+      os: { platform: process.platform, version: process.getSystemVersion(), arch: process.arch, chip: cpus()[0]?.model.trim() ?? null },
+      runtime: { electron: process.versions.electron ?? '', node: process.versions.node, chrome: process.versions.chrome ?? '' },
+      workFolder: work,
+      fs: { exists: existsSync, executable },
+      repoCount: async () => (work === null ? null : (await scanWorkFolder(work)).filter((e) => e.kind === 'repo').length),
+      claudePath: claudeExecutable(),
+      auth: () => (authCheck === null ? Promise.reject(new Error('로그인 확인이 아직 준비되지 않았어요')) : authCheck()),
+      pathEnv: process.env['PATH'] ?? '',
+      env: process.env,
+      tools: ['git', 'aws', 'gh', 'node'],
+      usage: () => {
+        const health = usage.health();
+        return { readAt: health.readAt, failure: health.failure };
+      },
+      update: () => updateView?.() ?? null,
+      logs: () => appLog.lines(),
+      window: () => (bounds === undefined ? null : { width: bounds.width, height: bounds.height, displays: screen.getAllDisplays().length }),
+      mac: () => (process.platform === 'darwin' && win != null ? { titleBarStyle: chrome.titleBarStyle ?? 'default', trafficLight: chrome.trafficLightPosition ?? null, fullScreen: win.isFullScreen() } : null),
+    });
+    const markdown = DiagnosticReport.of(snapshot, Redactor.of(home, userName())).toMarkdown();
+    const copied = remembers();
+    if (copied) clipboard.writeText(markdown);
+    return { ok: true, copied, lines: markdown.split('\n').length, markdown };
+  } catch (error) {
+    appLog.record('main', `진단 정보를 만들지 못했어요: ${errorText(error)}`);
+    return { ok: false, error: '진단 정보를 만들지 못했어요.' };
+  }
 }
 
 /** 확인용: 일 5개(하나는 허락 요청)를 연달아 넣고 화면을 찍은 뒤 끝낸다(RAUHA_SMOKE_SHOT=찍을 png 경로). */
@@ -419,6 +496,13 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
   if (type !== undefined) {
     await window!.webContents.executeJavaScript(`(() => { const i = document.querySelector('.composer textarea'); i.value = ${JSON.stringify(type)}; i.dispatchEvent(new Event('input')); i.focus(); })()`);
     await new Promise((r) => setTimeout(r, 300));
+  }
+  // 확인용: 화면에서 식을 돌려 결과를 글로 찍는다(클릭 뒤 화면은 숨김 창에서 그려지지 않으니 글자로 확인한다). 예: 버튼 누른 뒤 안내 글
+  const evaluate = process.env['RAUHA_SMOKE_EVAL'];
+  if (evaluate !== undefined) {
+    const waitMs = Number(process.env['RAUHA_SMOKE_EVAL_WAIT'] ?? '1500');
+    await new Promise((r) => setTimeout(r, waitMs));
+    console.log('EVAL', JSON.stringify(await window!.webContents.executeJavaScript(evaluate)));
   }
   const image = await window!.webContents.capturePage();
   writeFileSync(path, image.toPNG());
@@ -456,6 +540,7 @@ function startUpdates(): void {
         ? { installer: { run: async (_u: string, _h: string, p: (n: number | null) => void, i: () => void) => { for (const n of [20, 60, 90]) { p(n); await new Promise((r) => setTimeout(r, 400)); } i(); } } }
         : {}),
   });
+  updateView = () => service.view();
   ipcMain.handle(IPC.updateState, () => service.view());
   ipcMain.handle(IPC.updateCheck, () => service.check());
   ipcMain.handle(IPC.updateDownload, () => service.download());
@@ -481,6 +566,7 @@ function startAuth(): void {
     openExternal: (url) => openSafe(url),
     onChange: (view) => window?.webContents.send(IPC.authState, view),
   });
+  authCheck = () => login.check();
   ipcMain.handle(IPC.authStatus, () => login.check());
   ipcMain.handle(IPC.authLogin, () => {
     void login.start();
@@ -635,6 +721,7 @@ void app.whenReady().then(async () => {
     if (typeof id === 'string' && typeof choice === 'object' && choice !== null && 'kind' in choice) approvals.answer(id, answerFor(choice as ApprovalChoice));
   });
   startAuth();
+  ipcMain.handle(IPC.diagnosticsCopy, copyDiagnostics);
   startUpdates();
   open(runner);
 });

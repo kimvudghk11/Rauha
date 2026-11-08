@@ -5,7 +5,7 @@
  */
 
 /** 앱이 직접 하는 동작. 모델을 부르지 않는다. */
-export type AppAction = 'clear' | 'status' | 'usage' | 'guide' | 'retry' | 'queue' | 'copy' | 'update' | 'install' | 'help' | 'close' | 'tab';
+export type AppAction = 'clear' | 'status' | 'usage' | 'guide' | 'retry' | 'queue' | 'copy' | 'update' | 'install' | 'help' | 'close' | 'tab' | 'diagnose';
 
 /** 명령이 하는 일: 팀에 보낼 프롬프트를 만들거나, 앱 동작을 한다. */
 export type CommandAction = { readonly kind: 'prompt'; readonly template: string } | { readonly kind: 'app'; readonly action: AppAction; readonly tab?: string };
@@ -185,6 +185,7 @@ const BUILTIN_DEFS: readonly BuiltinDef[] = [
     description: '점검 → 개선 → 마무리 3단계로 업데이트해요', detail: '업데이트 요청이 오면 쓰는 3단계예요. 1) 공격적 점검(약점·부족한 기능·보안·모의 해킹 관점, 읽기 중심) 2) 그 결과를 근거로 개선 3) 추가 테스트와 마무리. 한 작업으로 올라가 팀 방에서 단계가 보이고, 허락 카드와 규칙(비밀 파일·push 금지)은 그대로 적용돼요.',
     argHelp: { 대상: '레포 이름이나 폴더(한 단어). 예: rauha', 요청: '무엇을 어떻게 개선할지 한 줄' },
   },
+  { name: '진단', aliases: ['diagnose'], group: 'rauha', action: app('diagnose'), description: '문제가 생겼을 때 진단 정보를 복사해요', detail: '앱 버전, 컴퓨터, 로그인·도구 상태, 최근 오류 로그를 한 덩어리로 클립보드에 복사해요. 이메일·홈 경로·키는 가려져요. 문제가 생기면 이걸 개발자에게 붙여 넣어 주세요.' },
   { name: 'help', group: 'rauha', action: app('help'), description: '명령 목록을 보여줘요', detail: '쓸 수 있는 명령과 사용법을 채팅에 보여줘요.' },
   { name: 'exit', group: 'rauha', action: app('close'), description: '창을 닫아요', detail: '이 창을 닫아요. 맥에서는 앱이 계속 떠 있을 수 있어요.' },
 ];

@@ -75,6 +75,8 @@ export const IPC = {
   authLogin: 'auth:login',
   authCancel: 'auth:cancel',
   authState: 'auth:state',
+  /** 진단 정보 복사: main이 상태를 모아 가린 마크다운을 클립보드에 넣는다 */
+  diagnosticsCopy: 'diagnostics:copy',
 } as const;
 
 /** 단계 막대 한 칸. 지나온 단계는 done, 지금 단계는 now. */
@@ -191,7 +193,12 @@ export interface RauhaApi {
   /** 코드 탭 아래 터미널 칸 */
   readonly terminal: TerminalApi;
   readonly auth: AuthApi;
+  /** 진단 정보(가린 마크다운)를 모아 클립보드에 복사한다. 문제가 생겼을 때 개발자에게 붙여 넣으려는 것 */
+  copyDiagnostics(): Promise<DiagnosticsResult>;
 }
+
+/** 진단 정보 복사 결과. copied는 클립보드에 실제로 넣었는지(확인용 실행에서는 넣지 않는다). */
+export type DiagnosticsResult = { readonly ok: true; readonly copied: boolean; readonly lines: number; readonly markdown: string } | { readonly ok: false; readonly error: string };
 
 /** 앱 안 Claude 로그인 API. 로그인할 계정은 main이 설정에서 정한다(화면이 경로를 보내지 않는다). */
 export interface AuthApi {

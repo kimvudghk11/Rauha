@@ -4,6 +4,7 @@ import type { BoardView, JobView, RauhaApi } from '../shared/ipc.js';
 import type { UpdateView } from '../shared/update-record.js';
 import { limitTone } from '../shared/settings.js';
 import { el } from './dom.js';
+import { diagnosticsText } from './diagnostics-text.js';
 
 /** 명령을 실행하는 데 필요한 바깥 세계. app.ts가 채운다. */
 export interface RunnerDeps {
@@ -15,7 +16,7 @@ export interface RunnerDeps {
   readonly openJob: (id: string) => void;
   readonly jobs: () => readonly JobView[];
   readonly board: () => BoardView | null;
-  readonly api: Pick<RauhaApi, 'getUsage' | 'update' | 'platform'>;
+  readonly api: Pick<RauhaApi, 'getUsage' | 'update' | 'platform' | 'copyDiagnostics'>;
 }
 
 const TONE_TEXT = { green: '여유', yellow: '조금 높아요', red: '거의 찼어요' } as const;
@@ -74,6 +75,9 @@ export function createRunner(deps: RunnerDeps) {
         }
         return;
       }
+      case 'diagnose':
+        deps.say(diagnosticsText(await deps.api.copyDiagnostics().catch(() => null)));
+        return;
       case 'install':
       case 'update': {
         const view = action === 'update' ? await deps.api.update.check().catch(() => null) : await deps.api.update.state().catch(() => null);

@@ -1,5 +1,5 @@
 import { limitTone, type Settings } from '../shared/settings.js';
-import type { AccountsView, AuthApi, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
+import type { AccountsView, AuthApi, DiagnosticsResult, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
 import { el } from './dom.js';
 import type { UpdateView } from '../shared/update-record.js';
 import { installStateText } from '../shared/update-install.js';
@@ -7,6 +7,7 @@ import { checkedText } from './update-text.js';
 import type { UpdateFeed } from './update-view.js';
 import { createLoginControl } from './login-view.js';
 import { usageTooltip, type UsageFeed } from './usage-feed.js';
+import { diagnosticsText } from './diagnostics-text.js';
 
 export interface SettingsApi {
   get(): Promise<Settings>;
@@ -22,6 +23,8 @@ export interface SettingsApi {
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown>; install(): Promise<unknown> };
   /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
   team?: { build(): HTMLElement };
+  /** 진단 정보 복사(없으면 도움말 구역을 그리지 않는다) */
+  diagnostics?: () => Promise<DiagnosticsResult>;
 }
 
 /** 초기화 시각을 "오늘 오후 3:20" 같은 짧은 글로(모르면 빈 글) */
@@ -172,6 +175,22 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
 
     if (api.team !== undefined) root.appendChild(section('팀 설정', api.team.build()));
     root.appendChild(section('정보 저장', el('div', 'dim pad', '지금은 기록이 이 컴퓨터에만 저장돼요(기록 탭). 내 AWS(S3)로 요약을 보내는 기능은 나중에 열려요.')));
+    if (api.diagnostics !== undefined) {
+      const run = api.diagnostics;
+      const copy = el('button', 'btn', '진단 정보 복사');
+      const status = el('div', 'hint pad', '문제가 생기면 이 버튼을 누르고, 복사된 글을 개발자에게 붙여 넣어 주세요. 이메일·홈 경로·키는 가려져요. 입력창에 /진단을 쳐도 돼요.');
+      copy.addEventListener('click', () => {
+        copy.disabled = true;
+        status.textContent = '진단 정보를 모으는 중이에요…';
+        void run()
+          .catch(() => null)
+          .then((result) => {
+            status.textContent = diagnosticsText(result);
+            copy.disabled = false;
+          });
+      });
+      root.appendChild(section('도움말', row('앱 상태를 한 덩어리로 복사해요', copy), status));
+    }
   }
 
   void render();
