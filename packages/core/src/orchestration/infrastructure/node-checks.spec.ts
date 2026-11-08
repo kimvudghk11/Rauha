@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { VitestReportDto } from '../application/dto/vitest-report.dto.js';
@@ -174,20 +174,25 @@ describe('NodeProject 관련 테스트 명령', () => {
 });
 
 describe('NodeChecks 검사 묶음 병렬 실행', () => {
-  const slow = 'node -e "setTimeout(()=>{},2500)"';
+  // 각 검사는 시작·끝 시각을 파일에 남긴다. 시간 제한 대신 "모든 검사가 시작한 뒤에야 첫 검사가 끝난다"로 겹침을 가린다(부하와 상관없다).
+  const script = (tag: string) =>
+    `node -e "const f=require('fs');f.appendFileSync('marks.txt','s-${tag}-'+Date.now()+';');setTimeout(()=>f.appendFileSync('marks.txt','e-${tag}-'+Date.now()+';'),1500)"`;
 
   it('tests·typecheck·lint를 차례가 아니라 동시에 돌린다', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rauha-par-'));
     try {
-      writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: slow, typecheck: slow, lint: slow } }));
-      const started = Date.now();
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: script('t'), typecheck: script('y'), lint: script('l') } }));
       const results = await new NodeChecks(dir).runSuite();
       expect(results.map((r) => [r.name, r.status])).toEqual([['tests', 'pass'], ['typecheck', 'pass'], ['lint', 'pass']]);
-      expect(Date.now() - started).toBeLessThan(6500); // 차례로 돌면 7500ms 이상(전체 테스트가 몰려 느려져도 겹쳐 도는지 가린다)
+      const marks = readFileSync(join(dir, 'marks.txt'), 'utf8').split(';').filter((m) => m !== '').map((m) => { const [kind, , at] = m.split('-'); return { kind, at: Number(at) }; });
+      const starts = marks.filter((m) => m.kind === 's').map((m) => m.at);
+      const ends = marks.filter((m) => m.kind === 'e').map((m) => m.at);
+      expect(starts).toHaveLength(3);
+      expect(Math.max(...starts)).toBeLessThan(Math.min(...ends)); // 차례로 돌면 두 번째 검사는 첫 검사가 끝난 뒤에 시작한다
     } finally {
       rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     }
-  }, 30000);
+  }, 60000);
 });
 
 describe('NodeChecks 바뀐 곳 먼저 검사', () => {
