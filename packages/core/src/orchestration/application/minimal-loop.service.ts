@@ -327,9 +327,20 @@ export class MinimalLoopService {
       progress.step('검증 묶음을 실행합니다');
       const locked = await checks.runTests(lockedTests);
       review.passed = locked.passed;
-      const results = [Verification.lockedTests(locked.run, locked.command, locked.digest), ...(await checks.runSuite())];
-      await log.recordChecks(`green-${attempt}`, results);
+      const lockedCheck = Verification.lockedTests(locked.run, locked.command, locked.digest);
+      // 시도마다는 바뀐 곳 관련 검사만, 전체 검사는 통과한 뒤 리뷰로 넘어가기 직전에 한 번만.
+      const quick = await checks.runQuick(changed);
+      let results = [lockedCheck, ...quick.results];
       verdict = Verification.of(results).judge(baseline);
+      if (quick.narrowed) await log.recordChecks(`quick-${attempt}`, results);
+      let confirmed = !quick.narrowed;
+      if (verdict.needsFullConfirmation(quick.narrowed)) {
+        progress.step('리뷰 직전 전체 검사를 실행합니다');
+        results = [lockedCheck, ...(await checks.runSuite())];
+        verdict = Verification.of(results).judge(baseline);
+        confirmed = true;
+      }
+      if (confirmed) await log.recordChecks(`green-${attempt}`, results);
       order.recordGreen(verdict.toTestRun(locked.run), verdict.toFailureNote());
       lastFailure = verdict.failureDetail();
     }

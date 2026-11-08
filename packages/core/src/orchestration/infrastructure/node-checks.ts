@@ -4,7 +4,8 @@ import { readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { asRecord } from '../../shared/validation.js';
-import type { ChecksPort, TestsResult } from '../application/ports.js';
+import type { ChecksPort, QuickChecksResult, TestsResult } from '../application/ports.js';
+import { ChangeScope } from '../domain/change-scope.js';
 import { VitestReportDto } from '../application/dto/vitest-report.dto.js';
 import { TestRun } from '../domain/test-run.js';
 import type { CheckName, CheckResult } from '../domain/verification.js';
@@ -19,6 +20,7 @@ interface PackageJson {
 }
 
 const SCRIPT: Readonly<Record<SuiteCheck, string>> = { tests: 'test', typecheck: 'typecheck', lint: 'lint' };
+const CHECKS: readonly SuiteCheck[] = ['tests', 'typecheck', 'lint'];
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** 대상 Node 프로젝트에서 어떤 명령으로 검사할지. 파일을 읽지 않는 순수 판단만 한다. */
@@ -71,6 +73,13 @@ export class NodeProject {
     if (base === null || !this.usesVitest()) return null;
     const sep = this.packageManager === 'npm' ? ' --' : '';
     return `${base}${sep} --reporter=json ${shellQuote(`--outputFile=${outFile}`)}`;
+  }
+
+  /** 바뀐 소스 파일과 관련된 테스트만 돌리는 명령(vitest일 때만). 관련 테스트가 없어도 실패가 아니다. */
+  relatedTestsCommand(files: readonly string[], outFile: string): string | null {
+    if (!this.usesVitest()) return null;
+    const quoted = files.map(shellQuote).join(' ');
+    return `${this.exec()} vitest related ${quoted} --run --passWithNoTests --reporter=json ${shellQuote(`--outputFile=${outFile}`)}`;
   }
 
   testFilesCommand(files: readonly string[], outFile: string): string {
@@ -168,13 +177,63 @@ export class NodeChecks implements ChecksPort {
     return '';
   }
 
+  /** 검사 셋은 서로 독립이라 동시에 돌린다. 결과 순서는 tests, typecheck, lint로 고정. */
   async runSuite(): Promise<CheckResult[]> {
     const project = await this.project();
-    const results: CheckResult[] = [];
-    for (const name of ['tests', 'typecheck', 'lint'] as const) {
-      results.push(await this.runCheck(project, name));
+    return Promise.all(CHECKS.map((name) => this.runCheck(project, name)));
+  }
+
+  async runQuick(changedFiles: readonly string[]): Promise<QuickChecksResult> {
+    const selection = ChangeScope.of(changedFiles).testSelection();
+    if (selection.kind === 'full') return { results: await this.runSuite(), narrowed: false };
+    const project = await this.project();
+    const rest = Promise.all((['typecheck', 'lint'] as const).map((name) => this.runCheck(project, name)));
+    if (selection.kind === 'none') {
+      const skipped: CheckResult = { name: 'tests', status: 'skip', failures: [], command: null, summary: '바뀐 코드가 없어 건너뜀' };
+      return { results: [skipped, ...(await rest)], narrowed: true };
     }
-    return results;
+    const [related, others] = await Promise.all([this.runRelatedTests(selection.files), rest]);
+    if (related === null) return { results: [await this.runCheck(project, 'tests'), ...others], narrowed: false };
+    return { results: [related, ...others], narrowed: true };
+  }
+
+  /** 패키지마다 관련 테스트를 돌려 합친다. 하나라도 좁힐 수 없으면(vitest 아님) null. */
+  private async runRelatedTests(files: readonly string[]): Promise<CheckResult | null> {
+    const rootFiles = await readdir(this.root);
+    const groups = new Map<string, string[]>();
+    for (const file of files) {
+      const owner = this.ownerOf(file);
+      groups.set(owner, [...(groups.get(owner) ?? []), owner === '' ? file : file.slice(owner.length + 1)]);
+    }
+    const parts: CheckResult[] = [];
+    for (const [owner, inPackage] of groups) {
+      const dir = owner === '' ? this.root : join(this.root, owner);
+      const project = NodeProject.detect(rootFiles, await this.packageJson(dir));
+      const outFile = this.tempFile();
+      const command = project.relatedTestsCommand(inPackage, outFile);
+      if (command === null) return null;
+      const result = await this.exec(command, dir);
+      const report = await this.readVitest(outFile);
+      const run = testsOutcome(report, result.code);
+      const detail = run.isGreen() ? '' : (report?.failureDigest() || NodeProject.failureDetail(result.output));
+      parts.push({
+        name: 'tests',
+        status: run.isGreen() ? 'pass' : 'fail',
+        failures: report !== null ? [...run.failedNames] : [],
+        command: this.display(command, outFile),
+        summary: report !== null ? `관련 테스트 통과 ${run.passed} / 실패 ${run.failed}` : run.isGreen() ? '관련 테스트 통과' : tail(result.output, 1),
+        ...(detail !== '' ? { detail } : {}),
+      });
+    }
+    const failed = parts.filter((p) => p.status === 'fail');
+    return {
+      name: 'tests',
+      status: failed.length > 0 ? 'fail' : 'pass',
+      failures: parts.flatMap((p) => p.failures),
+      command: parts.map((p) => p.command).join(' ; '),
+      summary: parts.map((p) => p.summary).join(' / '),
+      ...(failed.length > 0 ? { detail: failed.map((p) => p.detail ?? '').filter((d) => d !== '').join('\n') } : {}),
+    };
   }
 
   private async runCheck(project: NodeProject, name: SuiteCheck): Promise<CheckResult> {

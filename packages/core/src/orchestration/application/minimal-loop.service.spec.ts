@@ -122,7 +122,16 @@ class FakeChecks implements ChecksPort {
       command: `vitest ${files.join(' ')}`,
     };
   }
+  suiteRuns = 0;
+  quickRuns: (readonly string[])[] = [];
+  /** quick을 주면 바뀐 곳만 좁혀 돌리는 검사기로 동작한다. 안 주면 좁히지 못하고 전체를 돈다. */
+  quick: ((changed: readonly string[]) => CheckResult[]) | null = null;
+  async runQuick(changed: readonly string[]) {
+    this.quickRuns.push(changed);
+    return this.quick === null ? { results: await this.runSuite(), narrowed: false } : { results: this.quick(changed), narrowed: true };
+  }
   async runSuite() {
+    this.suiteRuns += 1;
     return this.suite();
   }
 }
@@ -250,6 +259,43 @@ describe('MinimalLoopService', () => {
     expect(outcome.guide.toMarkdown()).toContain('src/money.ts:3');
     expect(outcome.logDir).toBe('/runs/x');
     expect(log.labels).toEqual(['baseline', 'red-1', 'green-1']);
+  });
+
+  it('구현 시도는 바뀐 곳 관련 검사만 돌리고, 통과하면 리뷰 직전에 전체 검사를 한 번만 돌린다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const checks = new FakeChecks(ws);
+    checks.quick = () => [{ name: 'tests', status: 'pass', failures: [], command: 'vitest related', summary: '관련 테스트 통과' }];
+    const log = new FakeLog();
+    const outcome = await service(ws, team, checks, log).run('Money에 할인 추가');
+    expect(outcome.status).toBe('complete');
+    expect(checks.quickRuns).toEqual([['src/money.ts']]);
+    expect(checks.suiteRuns).toBe(2); // 기준 검사 + 리뷰 직전 전체 검사
+    expect(log.labels).toEqual(['baseline', 'red-1', 'quick-1', 'green-1']);
+  });
+
+  it('좁힌 검사가 실패하면 전체 검사를 돌리지 않고 다시 고친다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const checks = new FakeChecks(ws);
+    checks.quick = () => [{ name: 'tests', status: 'fail', failures: ['cart total'], command: 'vitest related', summary: '실패', detail: 'cart total: boom' }];
+    const log = new FakeLog();
+    await service(ws, team, checks, log).run('Money에 할인 추가');
+    expect(checks.suiteRuns).toBe(1); // 기준 검사뿐
+    expect(log.labels).toEqual(expect.arrayContaining(['quick-1']));
+    expect(log.labels).not.toContain('green-1');
+  });
+
+  it('좁힌 검사는 통과했는데 전체 검사에서 새 실패가 나오면 그 실패로 다시 고친다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement, implement] });
+    let full = 0;
+    const checks = new FakeChecks(ws, () => (full++ === 0 ? [{ name: 'tests', status: 'pass', failures: [], command: 't', summary: '통과' }] : [{ name: 'tests', status: 'fail', failures: ['other'], command: 't', summary: '실패' }]));
+    checks.quick = () => [{ name: 'tests', status: 'pass', failures: [], command: 'vitest related', summary: '통과' }];
+    const log = new FakeLog();
+    await service(ws, team, checks, log).run('Money에 할인 추가');
+    expect(log.labels.slice(0, 5)).toEqual(['baseline', 'red-1', 'quick-1', 'green-1', 'quick-2']);
+    expect(team.calls.filter((c) => c === 'implementer').length).toBeGreaterThanOrEqual(2);
   });
 
   it('다른 rauha가 같은 폴더에서 작업 중이면 팀원을 부르지 않고 알린다', async () => {

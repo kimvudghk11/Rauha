@@ -113,8 +113,16 @@ export interface TestsResult {
   readonly command: string;
 }
 
+/** 바뀐 곳 관련만 좁혀 돌린 검사. narrowed=false면 전체를 돌린 것이라 더 확인할 필요가 없다. */
+export interface QuickChecksResult {
+  readonly results: CheckResult[];
+  readonly narrowed: boolean;
+}
+
 export interface ChecksPort {
   runTests(files: readonly string[]): Promise<TestsResult>;
+  /** 바뀐 파일과 관련된 테스트 + 타입 검사 + 린트를 동시에. 좁힐 수 없으면 전체를 돌린다(narrowed=false). */
+  runQuick(changedFiles: readonly string[]): Promise<QuickChecksResult>;
   /** 전체 테스트·타입 검사·린트. 없는 검사는 status 'skip'. */
   runSuite(): Promise<CheckResult[]>;
 }

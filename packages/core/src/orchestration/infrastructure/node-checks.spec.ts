@@ -158,3 +158,60 @@ describe('NodeChecks 시간 제한', () => {
     }
   }, 30000);
 });
+
+describe('NodeProject 관련 테스트 명령', () => {
+  it('vitest면 바뀐 파일과 관련된 테스트만 JSON reporter로 돌린다(관련 테스트가 없어도 실패가 아니다)', () => {
+    const p = NodeProject.detect(['yarn.lock'], { devDependencies: { vitest: '^3' }, scripts: { test: 'vitest run' } });
+    expect(p.relatedTestsCommand(['src/a.ts', 'src/my b.ts'], 'o.json')).toBe(
+      'yarn exec vitest related src/a.ts "src/my b.ts" --run --passWithNoTests --reporter=json --outputFile=o.json',
+    );
+  });
+
+  it('vitest가 아니면 관련 테스트를 좁힐 수 없어서 명령이 없다', () => {
+    const p = NodeProject.detect(['yarn.lock'], { scripts: { test: 'jest' }, devDependencies: { jest: '^29' } });
+    expect(p.relatedTestsCommand(['src/a.ts'], 'o.json')).toBeNull();
+  });
+});
+
+describe('NodeChecks 검사 묶음 병렬 실행', () => {
+  const slow = 'node -e "setTimeout(()=>{},1500)"';
+
+  it('tests·typecheck·lint를 차례가 아니라 동시에 돌린다', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rauha-par-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: slow, typecheck: slow, lint: slow } }));
+      const started = Date.now();
+      const results = await new NodeChecks(dir).runSuite();
+      expect(results.map((r) => [r.name, r.status])).toEqual([['tests', 'pass'], ['typecheck', 'pass'], ['lint', 'pass']]);
+      expect(Date.now() - started).toBeLessThan(4200); // 차례로 돌면 4500ms 이상
+    } finally {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    }
+  }, 30000);
+});
+
+describe('NodeChecks 바뀐 곳 먼저 검사', () => {
+  it('설정 파일이 바뀌었거나 vitest가 아니면 좁히지 못하고 전체 검사를 돌린다', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rauha-quick-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node -e "process.exit(0)"' } }));
+      const checks = new NodeChecks(dir);
+      expect((await checks.runQuick(['package.json'])).narrowed).toBe(false);
+      expect((await checks.runQuick(['src/a.js'])).narrowed).toBe(false); // vitest 아님
+    } finally {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    }
+  }, 30000);
+
+  it('문서만 바뀌었으면 테스트는 건너뛰고(좁힘), 타입 검사·린트는 그대로 돌린다', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rauha-quick-'));
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node -e "process.exit(1)"', lint: 'node -e "process.exit(0)"' } }));
+      const quick = await new NodeChecks(dir).runQuick(['README.md']);
+      expect(quick.narrowed).toBe(true);
+      expect(quick.results.map((r) => [r.name, r.status])).toEqual([['tests', 'skip'], ['typecheck', 'skip'], ['lint', 'pass']]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    }
+  }, 30000);
+});
