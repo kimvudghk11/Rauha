@@ -179,6 +179,12 @@ export class RoleSettingsDto {
     return { ...base, tier: 'haiku', effort: 'low', maxTurns: 6, maxBudgetUsd: 0.2, tools: ['Read', 'Grep', 'Glob'] };
   }
 
+  /** 분석의 설계·계획 호출: 설계 팀원을 effort high로. 환경 변수로 고정한 역할은 고정한 그대로. */
+  forBlueprint(tier: ModelTier): RoleSetting {
+    const base = this.forAssignment('designer', tier);
+    return this.pinned.has('designer') ? base : { ...base, effort: 'high' };
+  }
+
   /** 상태 머신이 배정한 모델로 부를 때의 설정. 환경 변수로 고정한 역할은 고정 모델을 쓴다. */
   forAssignment(role: MemberRole, tier: ModelTier): RoleSetting {
     const base = this.of(role);

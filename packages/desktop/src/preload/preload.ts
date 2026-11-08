@@ -3,6 +3,7 @@ import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
 import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { DATA_IPC } from '../shared/data-api.js';
+import { BLOG_IPC } from '../shared/blog-dto.js';
 import { CODE_IPC } from '../shared/code-api.js';
 import { TERM_IPC, type TermEvent } from '../shared/terminal-api.js';
 import { exposeUsageBridge } from './usage-bridge.js';
@@ -55,6 +56,11 @@ const api: RauhaApi = {
     onChange: (listener) => {
       ipcRenderer.on(DATA_IPC.recordsChanged, (_e, book) => listener(book));
     },
+  },
+  blog: {
+    context: () => ipcRenderer.invoke(BLOG_IPC.context),
+    draft: (request) => ipcRenderer.invoke(BLOG_IPC.draft, request),
+    save: (request) => ipcRenderer.invoke(BLOG_IPC.save, request),
   },
   code: {
     tree: (path) => ipcRenderer.invoke(CODE_IPC.tree, path),

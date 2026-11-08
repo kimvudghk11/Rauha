@@ -113,6 +113,21 @@ describe('RoleSettingsDto — 가벼운 답변', () => {
   });
 });
 
+describe('RoleSettingsDto — 분석의 설계·계획', () => {
+  it('기본은 sonnet이고 effort를 high로 올린다', () => {
+    expect(RoleSettingsDto.defaults().forBlueprint('sonnet')).toMatchObject({ tier: 'sonnet', effort: 'high' });
+  });
+
+  it('큰 변경이면 opus로 올릴 수 있다', () => {
+    expect(RoleSettingsDto.defaults().forBlueprint('opus').tier).toBe('opus');
+  });
+
+  it('환경 변수로 설계 팀원을 고정했으면 그 모델과 effort를 따른다', () => {
+    const pinned = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_DESIGNER: 'haiku:low' });
+    expect(pinned.forBlueprint('opus')).toMatchObject({ tier: 'haiku', effort: 'low' });
+  });
+});
+
 describe('팀 설정(withOverrides)', () => {
   const plain = RoleSettingsDto.defaults();
 

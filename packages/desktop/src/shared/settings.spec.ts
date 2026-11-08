@@ -9,6 +9,13 @@ describe('parseSettings', () => {
   });
 
 
+  it('블로그에서 가릴 회사 이름은 글자만 남기고 공백·겹침을 없앤다', () => {
+    expect(DEFAULT_SETTINGS.blogNames).toEqual([]);
+    expect(parseSettings({ blogNames: [' Acme ', 'Acme', '', 3, '브릿지'] }).blogNames).toEqual(['Acme', '브릿지']);
+    expect(parseSettings({ blogNames: 'Acme' }).blogNames).toEqual([]);
+    expect(parseSettings({ blogNames: Array.from({ length: 80 }, (_, i) => `n${i}`) }).blogNames).toHaveLength(50);
+  });
+
   it('모양이 틀린 입력은 기본값이다', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('글')).toEqual(DEFAULT_SETTINGS);

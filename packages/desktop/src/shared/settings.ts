@@ -28,6 +28,8 @@ export interface Settings {
   readonly firstRunDone: boolean;
   /** GitHub에서 새 버전이 있는지 자동으로 확인할지(기본 켬) */
   readonly autoUpdateCheck: boolean;
+  /** 블로그 글에서 일반 이름으로 바꿀 회사·서비스 이름(공개하면 안 되는 이름) */
+  readonly blogNames: readonly string[];
 }
 
 export const CONCURRENCY_MIN = 1;
@@ -44,10 +46,16 @@ export const DEFAULT_SETTINGS: Settings = {
   notify: { choice: true, done: true, limit: true, step: false },
   firstRunDone: false,
   autoUpdateCheck: true,
+  blogNames: [],
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const bool = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback);
+export const BLOG_NAMES_MAX = 50;
+const BLOG_NAME_LIMIT = 60;
+/** 회사·서비스 이름 목록: 글자만, 공백 지우기, 겹침 없애기, 50개·이름당 60자까지 */
+const names = (v: unknown): string[] =>
+  Array.isArray(v) ? [...new Set(v.filter((n): n is string => typeof n === 'string').map((n) => n.trim().slice(0, BLOG_NAME_LIMIT)).filter((n) => n !== ''))].slice(0, BLOG_NAMES_MAX) : [];
 const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
 
 /**
@@ -74,6 +82,7 @@ export function parseSettings(input: unknown): Settings {
     },
     firstRunDone: bool(input['firstRunDone'], false),
     autoUpdateCheck: bool(input['autoUpdateCheck'], true),
+    blogNames: names(input['blogNames']),
   };
 }
 

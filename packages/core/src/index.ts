@@ -139,3 +139,4 @@ export { DefaultRulesDto, type DefaultRuleView, type DefaultRulesJson } from './
 export { FileRuleStore } from './orchestration/infrastructure/file-rule-store.js';
 export { RuleDraftDto, RULE_DRAFT_SCHEMA, type RuleDraft } from './orchestration/application/dto/rule-draft.dto.js';
 export { draftRule } from './orchestration/infrastructure/agent-sdk-rule-parser.js';
+export { draftBlog, BLOG_NOTE_LIMIT, type BlogTone, type BlogQuery } from './orchestration/infrastructure/agent-sdk-blog-draft.js';

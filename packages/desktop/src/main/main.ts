@@ -5,7 +5,7 @@ import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
-import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
+import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
@@ -49,6 +49,7 @@ import { READ_EVERY_MS } from '../shared/usage-freshness.js';
 import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
+import { registerBlogIpc } from './blog/blog-ipc.js';
 import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
@@ -109,6 +110,9 @@ let settings: Settings = DEFAULT_SETTINGS;
 
 /** 작업 폴더: 환경 변수(확인용) → 설정에서 고른 폴더 → 실행한 폴더 */
 const currentWorkDir = (): string => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? process.cwd();
+
+/** 확인용 실행(RAUHA_FAKE_TEAM)에서 모델 대신 돌려주는 블로그 초안 */
+const FAKE_BLOG_DRAFT = (tone: string): string => `# 가짜 초안\n\n(${tone}) 모델을 부르지 않고 만든 글이에요.`;
 
 /** 일을 맡길 수 있는 폴더들: 작업 폴더 안의 레포. 레포가 없으면 작업 폴더 하나. */
 function folders(): TargetFolder[] {
@@ -628,6 +632,20 @@ void app.whenReady().then(async () => {
   ipcMain.handle(DATA_IPC.todoApply, (_e, op: unknown) => todoService.apply(op));
   ipcMain.handle(DATA_IPC.recordsGet, () => recordService.get());
   ipcMain.handle(DATA_IPC.recordsApply, (_e, op: unknown) => recordService.apply(op));
+  registerBlogIpc(ipcMain, {
+    folderNames: () => folders().map((f) => f.name),
+    companyNames: () => settings.blogNames,
+    draft: async (note, tone) => {
+      // 확인용 실행(RAUHA_FAKE_TEAM)에서는 모델을 부르지 않는다
+      if (process.env['RAUHA_FAKE_TEAM'] !== undefined) return FAKE_BLOG_DRAFT(tone);
+      const profile = (await profileResolver(home, settings.account))(currentWorkDir());
+      return draftBlog(note, tone, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable());
+    },
+    pickPath: async (fileName) => {
+      const result = await dialog.showSaveDialog(window ?? undefined!, { title: '블로그 글 저장', defaultPath: join(app.getPath('documents'), fileName), filters: [{ name: 'Markdown', extensions: ['md'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });
+      return result.canceled || !result.filePath ? null : result.filePath;
+    },
+  });
   registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
   ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
   ipcMain.handle(IPC.teamGet, () => teamView(team));

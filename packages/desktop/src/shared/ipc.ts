@@ -9,6 +9,7 @@ import type { Effort, MemberDefaults, MemberSetting, Tier, TeamSettingsJson } fr
 import type { CommandBookJson } from './command-dto.js';
 import type { UpdateView } from './update-record.js';
 import type { RecordsApi, TodoApi } from './data-api.js';
+import type { BlogApi } from './blog-dto.js';
 import type { CodeApi } from './code-api.js';
 import type { TerminalApi } from './terminal-api.js';
 import type { LoginView } from './claude-login.js';
@@ -188,6 +189,8 @@ export interface RauhaApi {
   readonly update: UpdateApi;
   readonly todo: TodoApi;
   readonly records: RecordsApi;
+  /** 기록 탭의 블로그 글: 가림 이름 받기·초안 쓰기(모델 한 번)·.md 저장 */
+  readonly blog: BlogApi;
   /** 코드 탭: 파일 탐색·읽기·저장(main이 한다) */
   readonly code: CodeApi;
   /** 코드 탭 아래 터미널 칸 */
