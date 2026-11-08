@@ -250,6 +250,8 @@ function open(runner: JobRunner): void {
     height: placed.height,
     minWidth: 480,
     minHeight: 360,
+    // 자동 확인 실행(스모크·측정)은 창을 화면에 띄우지 않는다: 사용자가 쓰는 모니터를 가리지 않게
+    show: remembers(),
     backgroundColor: BACKGROUND,
     title: 'Rauha',
     icon: join(app.getAppPath(), 'build', 'icon.png'),
