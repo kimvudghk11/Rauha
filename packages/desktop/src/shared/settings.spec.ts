@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { canWork, DEFAULT_SETTINGS, limitTone, parseSettings, updateSettings } from './settings.js';
 
 describe('parseSettings', () => {
+  it('새 버전 자동 확인은 기본으로 켜져 있고 글자 같은 값은 기본으로 돌린다', () => {
+    expect(DEFAULT_SETTINGS.autoUpdateCheck).toBe(true);
+    expect(parseSettings({ autoUpdateCheck: false }).autoUpdateCheck).toBe(false);
+    expect(parseSettings({ autoUpdateCheck: 'no' }).autoUpdateCheck).toBe(true);
+  });
+
+
   it('모양이 틀린 입력은 기본값이다', () => {
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings('글')).toEqual(DEFAULT_SETTINGS);

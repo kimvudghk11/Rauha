@@ -26,6 +26,8 @@ export interface Settings {
   readonly notify: NotifySettings;
   /** 첫 실행 안내를 마쳤는지 */
   readonly firstRunDone: boolean;
+  /** GitHub에서 새 버전이 있는지 자동으로 확인할지(기본 켬) */
+  readonly autoUpdateCheck: boolean;
 }
 
 export const CONCURRENCY_MIN = 1;
@@ -41,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   protectedBranches: DEFAULT_PROTECTED_BRANCHES,
   notify: { choice: true, done: true, limit: true, step: false },
   firstRunDone: false,
+  autoUpdateCheck: true,
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -70,6 +73,7 @@ export function parseSettings(input: unknown): Settings {
       step: bool(n['step'], DEFAULT_SETTINGS.notify.step),
     },
     firstRunDone: bool(input['firstRunDone'], false),
+    autoUpdateCheck: bool(input['autoUpdateCheck'], true),
   };
 }
 
