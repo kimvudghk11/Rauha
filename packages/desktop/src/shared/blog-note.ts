@@ -92,8 +92,23 @@ const sentences = (text: string): string[] =>
     .map((s) => s.trim())
     .filter((s) => s !== '' && s !== '모름' && !s.startsWith('…'));
 
+const ENDINGS: readonly (readonly [RegExp, string])[] = [
+  [/찾아\s?줘$/u, '찾기'],
+  [/고쳐\s?줘$/u, '고치기'],
+  [/만들어\s?줘$/u, '만들기'],
+  [/알려\s?줘$/u, '알아보기'],
+  [/(?:해\s?줘|해\s?주세요|부탁해?)$/u, ''],
+  [/줘$/u, ''],
+];
+
 const shortRequest = (request: string): string => {
-  const base = request.replace(/\s*(?:해\s?줘|해\s?주세요|줘|부탁해?|좀)\s*[.!?]*$/u, '').trim();
+  let base = request.replace(/[.!?\s]+$/u, '').trim();
+  for (const [re, to] of ENDINGS) {
+    if (re.test(base)) {
+      base = base.replace(re, to).trim();
+      break;
+    }
+  }
   return base.length > 40 ? `${base.slice(0, 39)}…` : base;
 };
 

@@ -1,5 +1,6 @@
 import { RecordBook, RECORD_TAGS, type RecordEntry, type RecordFilter, type RecordTag } from '../shared/record-book.js';
 import { decisionLabel, durationText, RecordBookDto, RecordDto, type RecordBookJson, type RecordResult } from '../shared/record-dto.js';
+import { buildBlogPanel, type BlogPanelDeps } from './blog-view.js';
 import { el } from './dom.js';
 
 export interface RecordsViewDeps {
@@ -12,6 +13,8 @@ export interface RecordsViewDeps {
   now(): number;
   /** 글을 클립보드에 복사한다. 못 하면 false */
   copy(text: string): Promise<boolean>;
+  /** 블로그 글(정리 노트·초안·저장). 없으면 블로그 단추를 숨긴다 */
+  readonly blog?: Pick<BlogPanelDeps, 'api' | 'names'>;
 }
 
 const NO_FILTER: RecordFilter = { text: '', tag: null, status: 'all', repo: null, divergedOnly: false, since: null };
@@ -57,6 +60,12 @@ export function buildRecords(deps: RecordsViewDeps) {
   let period = 'all';
   let selected: string | null = null;
   let confirming: string | null = null;
+  /** 블로그 글로 묶으려고 체크한 기록 */
+  const picked = new Set<string>();
+  /** 블로그 글 패널로 정리 중인 기록 번호들. null이면 일반 상세 */
+  let blogIds: string[] | null = null;
+  /** 열어 둔 블로그 패널. 새 기록이 들어와 목록이 다시 그려져도 쓰던 글·체크를 잃지 않게 그대로 둔다 */
+  let blogPanel: { readonly key: string; readonly node: HTMLElement } | null = null;
   let loaded = false;
 
   const head = el('div', 'rhead');
@@ -153,15 +162,65 @@ export function buildRecords(deps: RecordsViewDeps) {
   function renderList(): void {
     renderTools();
     const shown = book.view(filter);
-    body.classList.toggle('show-detail', selected !== null && shown.some((e) => e.id === selected));
+    body.classList.toggle('show-detail', blogIds !== null || (selected !== null && shown.some((e) => e.id === selected)));
+    for (const id of [...picked]) if (!book.has(id)) picked.delete(id);
     list.replaceChildren(el('div', 'ph', `기록 ${shown.length}${shown.length !== book.entries.length ? ` / ${book.entries.length}` : ''}`));
+    if (deps.blog !== undefined && book.entries.length > 0) list.append(pickBar(shown));
     if (!loaded) list.append(el('div', 'rnone', '불러오는 중…'));
     else if (book.entries.length === 0) list.append(el('div', 'rnone', '기록이 아직 없어요. 팀이 작업을 끝내면 요약이 여기에 쌓여요.'));
     else if (shown.length === 0) list.append(el('div', 'rnone', '조건에 맞는 기록이 없어요.'));
     const items = el('div', 'ritems');
-    for (const e of shown) items.append(item(e));
+    for (const e of shown) items.append(deps.blog === undefined ? item(e) : pickRow(e));
     list.append(items);
     renderDetail();
+  }
+
+  /** 선택 목록 위 작업줄: 고른 기록으로 블로그 글 만들기 */
+  function pickBar(shown: readonly RecordEntry[]): HTMLElement {
+    const bar = el('div', 'bar bg-pickbar');
+    const count = el('span', 'dim', picked.size === 0 ? '체크한 기록으로 블로그 글을 만들 수 있어요' : `체크한 기록 ${picked.size}개`);
+    const make = el('button', 'btn sm primary', '블로그 글');
+    make.type = 'button';
+    make.disabled = picked.size === 0;
+    make.addEventListener('click', () => openBlog([...picked]));
+    const all = el('button', 'btn sm', '보이는 것 모두 체크');
+    all.type = 'button';
+    all.addEventListener('click', () => {
+      for (const e of shown) picked.add(e.id);
+      renderList();
+    });
+    const none = el('button', 'btn sm', '체크 풀기');
+    none.type = 'button';
+    none.disabled = picked.size === 0;
+    none.addEventListener('click', () => {
+      picked.clear();
+      renderList();
+    });
+    bar.append(count, make, all, none);
+    return bar;
+  }
+
+  function openBlog(ids: string[]): void {
+    blogIds = ids.filter((id) => book.has(id));
+    blogPanel = null;
+    renderList();
+    detail.scrollTop = 0;
+  }
+
+  /** 목록 한 줄: 블로그 글로 묶을 체크 칸 + 기록 */
+  function pickRow(e: RecordEntry): HTMLElement {
+    const row = el('div', 'bg-pickrow');
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = picked.has(e.id);
+    box.title = '블로그 글로 묶기';
+    box.addEventListener('change', () => {
+      if (box.checked) picked.add(e.id);
+      else picked.delete(e.id);
+      renderList();
+    });
+    row.append(box, item(e));
+    return row;
   }
 
   function item(e: RecordEntry): HTMLElement {
@@ -176,6 +235,8 @@ export function buildRecords(deps: RecordsViewDeps) {
     b.append(chips);
     b.addEventListener('click', () => {
       selected = e.id;
+      blogIds = null;
+      blogPanel = null;
       confirming = null;
       renderList();
       detail.scrollTop = 0;
@@ -206,6 +267,22 @@ export function buildRecords(deps: RecordsViewDeps) {
 
   function renderDetail(): void {
     detail.replaceChildren();
+    if (blogIds !== null && deps.blog !== undefined) {
+      const chosen = blogIds.map((id) => book.get(id)).filter((e): e is RecordEntry => e !== null);
+      const key = blogIds.join(',');
+      if (blogPanel === null || blogPanel.key !== key) {
+        blogPanel = {
+          key,
+          node: buildBlogPanel({ ...deps.blog, copy: deps.copy }, chosen, () => {
+            blogIds = null;
+            blogPanel = null;
+            renderList();
+          }),
+        };
+      }
+      detail.append(blogPanel.node);
+      return;
+    }
     const e = selected === null ? null : book.get(selected);
     if (e === null) {
       const empty = el('div', 'rnone', book.entries.length === 0 ? '' : '왼쪽에서 기록을 고르면 자세한 내용이 보여요.');
@@ -293,6 +370,12 @@ export function buildRecords(deps: RecordsViewDeps) {
     copy.type = 'button';
     copy.addEventListener('click', () => void deps.copy(RecordDto.toMarkdown(e, whenText)).then((ok) => say(ok ? '마크다운으로 복사했어요.' : '복사하지 못했어요.')));
     actions.append(copy);
+    if (deps.blog !== undefined) {
+      const blog = el('button', 'btn', '블로그 글');
+      blog.type = 'button';
+      blog.addEventListener('click', () => openBlog([e.id]));
+      actions.append(blog);
+    }
     if (confirming === e.id) {
       const yes = el('button', 'btn danger', '정말 지울까요?');
       yes.type = 'button';

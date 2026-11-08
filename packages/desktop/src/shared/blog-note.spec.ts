@@ -73,6 +73,7 @@ describe('블로그 정리 노트', () => {
     expect(new Set(note.titles()).size).toBe(3);
     expect(new Set(note.tags()).size).toBe(3);
     expect(note.titles()[0]).not.toContain('찾아줘');
+    expect(note.titles()[0]).toBe('결제 서버 타임아웃 원인 찾기, 원인부터 해결까지');
   });
 
   it('비밀 파일은 바뀐 파일 목록에도 이름이 나오지 않는다', () => {
