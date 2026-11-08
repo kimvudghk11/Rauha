@@ -124,12 +124,17 @@ export class BugNote {
 
   /** 채팅 입력칸·할 일 카드에 넣을 수정 요청 글 */
   asRequest(): string {
-    const lines = [`[답답한 점] ${this.p.title}`];
-    if (this.p.memo !== '') lines.push(this.p.memo);
-    const where = [this.p.screen !== '' ? `${this.p.screen} 화면` : '', this.p.appVersion !== '' ? `v${this.p.appVersion}` : '', this.p.os].filter((s) => s !== '');
-    if (where.length > 0) lines.push(`(${where.join(' · ')})`);
-    return lines.join('\n');
+    return requestTextOf(this.p);
   }
+}
+
+/** 메모 한 건을 수정 요청 글로: 제목, 메모, 어디서(화면·버전·OS). 화면의 JSON 메모도 같은 글을 만든다 */
+export function requestTextOf(note: Pick<BugNoteProps, 'title' | 'memo' | 'screen' | 'appVersion' | 'os'>): string {
+  const lines: string[] = [`[답답한 점] ${note.title}`];
+  if (note.memo !== '') lines.push(note.memo);
+  const where = [note.screen !== '' ? `${note.screen} 화면` : '', note.appVersion !== '' ? `v${note.appVersion}` : '', note.os].filter((w) => w !== '');
+  if (where.length > 0) lines.push(`(${where.join(' · ')})`);
+  return lines.join('\n');
 }
 
 /** 메모 모음. 새로 적은 것이 위에 온다. */

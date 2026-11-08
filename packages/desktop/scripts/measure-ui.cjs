@@ -188,6 +188,12 @@ const SCENES = [
   ['code-rename-exists', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'F2'), WARNOK, typeInto('.tree-edit input', 'README.md')]],
   ['code-create', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), '.code-tools .btn:nth-child(1)', WARNOK, typeInto('.tree-edit input', 'new file.ts')]],
   ['code-delete-confirm', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'Delete'), WARNOK]],
+  // 답답한 점 적기 창: 열기 · 적어 둔 뒤 목록 · 올리기 전 가린 미리보기 · 지우기 확인 · 해결 목록
+  ['bug-dialog', 'chat', [q('.bug-open')]],
+  ['bug-saved', 'chat', [q('.bug-open'), typeInto('.bug-title', '악메상사 결제 화면에서 저장 버튼이 안 눌려요'), typeInto('.bug-memo-input', '담당 kim@acme-corp.com 에게 물었더니 서버 10.1.2.3 문제라고 해요. 한참 길게 적어도 줄이 넘치지 않아야 해요 '.repeat(2)), byText('.bugs .btn', '적어 두기')]],
+  ['bug-preview', 'chat', [q('.bug-open'), typeInto('.bug-title', '악메상사 결제 화면에서 저장 버튼이 안 눌려요'), typeInto('.bug-memo-input', '담당 kim@acme-corp.com 서버 10.1.2.3'), byText('.bugs .btn', '적어 두기'), byText('.bugs .btn', '내 AWS로 올리기')]],
+  ['bug-delete-ask', 'chat', [q('.bug-open'), typeInto('.bug-title', '지울 메모'), byText('.bugs .btn', '적어 두기'), '.bugs .btn.danger']],
+  ['bug-done', 'chat', [q('.bug-open'), typeInto('.bug-title', '해결할 메모'), byText('.bugs .btn', '적어 두기'), byText('.bugs .btn', '해결'), byText('.bugs .tab', '해결')]],
   ['commands', 'commands', [byText('button', '자세히')]],
   ['rules', 'rules', []],
   ['settings', 'settings', [byText('button', '자세히')]],
@@ -276,7 +282,7 @@ async function run(win) {
     }
     if (process.env.MEASURE_PROBE) await ev(process.env.MEASURE_PROBE);
     const work = sandbox();
-    await ev(`window.rauha.updateSettings({ workFolder: ${JSON.stringify(work)}, folderApproved: true, firstRunDone: true })`);
+    await ev(`window.rauha.updateSettings({ workFolder: ${JSON.stringify(work)}, folderApproved: true, firstRunDone: true, awsProfile: 'test-profile', awsBucket: 'example-bucket', awsRegion: 'ap-northeast-2', awsAccount: '000000000000' })`);
     for (const t of ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림']) await ev(`window.rauha.submit(${JSON.stringify(t)})`);
     await sleep(4800);
     for (const [name, tab, clicks] of SCENES) {

@@ -567,6 +567,13 @@ export function buildChat(actions: ChatActions) {
     },
     open,
     focus: () => input.focus(),
+    /** 입력칸에 글을 채워 넣는다(보내지는 않는다). 이미 적은 글이 있으면 뒤에 이어 붙인다. */
+    fill(text: string): void {
+      input.value = input.value.trim() === '' ? text : `${input.value.trimEnd()}
+${text}`;
+      input.dispatchEvent(new Event('input'));
+      input.focus();
+    },
     /** 이름 표시용: 역할 이름 */
     roleName: nameOf,
   };

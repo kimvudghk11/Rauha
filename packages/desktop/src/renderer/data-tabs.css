@@ -110,3 +110,14 @@
 
 /* 채팅 카드의 "할 일로 담기" */
 .tform[hidden] { display: none; }
+
+/* ── 답답한 점 적기(창) ── */
+.dialog.bugs { width: min(640px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 32px); overflow-y: auto; }
+.bugs .bug-form { display: flex; flex-direction: column; gap: var(--s2); }
+.bugs .bug-form > * { width: 100%; }
+.bugs .bug-list { display: flex; flex-direction: column; gap: var(--s2); max-height: 38vh; overflow-y: auto; min-width: 0; }
+.bugs .bug-item { display: flex; flex-direction: column; gap: var(--s1); }
+.bugs .bug-name { color: var(--bright); font-weight: 600; overflow-wrap: anywhere; }
+.bugs .bug-memo { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-sm); }
+.bugs .bug-meta { overflow-wrap: anywhere; }
+.bugs .bug-sync { padding-top: var(--s2); border-top: 1px solid var(--border); }

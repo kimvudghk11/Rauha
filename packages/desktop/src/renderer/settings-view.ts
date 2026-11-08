@@ -8,6 +8,7 @@ import type { UpdateFeed } from './update-view.js';
 import { createLoginControl } from './login-view.js';
 import { usageTooltip, type UsageFeed } from './usage-feed.js';
 import { diagnosticsText } from './diagnostics-text.js';
+import { syncBlockReason } from '../shared/bug-sync.js';
 
 export interface SettingsApi {
   get(): Promise<Settings>;
@@ -182,6 +183,28 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     root.appendChild(section('분석', row('분석 단계 쓰기(조사 → 방향 비교 → 설계·계획)', flow), el('div', 'hint pad', '원인·위험·방법을 분석해 달라는 요청에서만 써요. 끄면 분석은 팀원 한 번 호출이고 질문 카드도 나오지 않아요. 다음 요청부터 적용돼요.')));
 
     if (api.team !== undefined) root.appendChild(section('팀 설정', api.team.build()));
+    // 내 AWS: 답답한 점 메모를 올리고 받는 곳. 키는 받지도 저장하지도 않고, 터미널에서 등록한 프로필 이름만 적는다.
+    const awsField = (key: 'awsProfile' | 'awsBucket' | 'awsRegion' | 'awsAccount', label: string, placeholder: string): HTMLElement => {
+      const input = el('input');
+      input.placeholder = placeholder;
+      input.value = s[key] ?? '';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      input.addEventListener('change', () => void api.update({ [key]: input.value.trim() === '' ? null : input.value.trim() }).then(render));
+      return row(label, input);
+    };
+    const awsHint = syncBlockReason({ profile: s.awsProfile, bucket: s.awsBucket, region: s.awsRegion, account: s.awsAccount });
+    root.appendChild(
+      section(
+        '내 AWS (답답한 점 올리기)',
+        awsField('awsProfile', '프로필 이름', '예: rauha-personal'),
+        awsField('awsBucket', '버킷', '예: example-bucket'),
+        awsField('awsRegion', '리전', '예: ap-northeast-2'),
+        awsField('awsAccount', '개인 계정 번호(12자리)', '000000000000'),
+        el('div', awsHint === null ? 'hint pad' : 'err pad', awsHint ?? '준비됐어요. 올리거나 받기 직전에 실제 계정이 이 번호와 같은지 확인하고, 다르면 멈춰요.'),
+        el('div', 'hint pad', 'AWS 키는 앱에 적지 않아요. 터미널에서 aws configure --profile 이름 으로 등록한 프로필 이름만 적어요. 프로필 이름을 적기 전에는 올리기·받기가 꺼져 있어요.'),
+      ),
+    );
     root.appendChild(section('정보 저장', el('div', 'dim pad', '지금은 기록이 이 컴퓨터에만 저장돼요(기록 탭). 내 AWS(S3)로 요약을 보내는 기능은 나중에 열려요.')));
     if (api.diagnostics !== undefined) {
       const run = api.diagnostics;
