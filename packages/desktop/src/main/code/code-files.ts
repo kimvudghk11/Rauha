@@ -33,7 +33,7 @@ export interface Resolved {
   readonly real: string;
 }
 
-export type EntryResolution = { readonly ok: true; readonly value: Resolved & { readonly link: boolean; readonly isDir: boolean } } | { readonly ok: false; readonly reason: CodeFail };
+export type EntryResolution = { readonly ok: true; readonly value: Resolved & { readonly link: boolean; readonly isDir: boolean; readonly isFile: boolean; /** 작업 폴더 기준 실제 경로(링크·짧은 이름을 다 푼 이름). 보호·비밀 판정은 이것도 함께 본다. */ readonly realRel: string } } | { readonly ok: false; readonly reason: CodeFail };
 
 export type Resolution = { readonly ok: true; readonly value: Resolved } | { readonly ok: false; readonly reason: CodeFail };
 
@@ -110,7 +110,7 @@ export class CodeFiles {
     if (clean === null) return { ok: false, reason: 'bad-path' };
     const rootReal = await this.rootReal();
     if (rootReal === null) return { ok: false, reason: 'no-folder' };
-    if (clean === '') return { ok: true, value: { rootReal, clean, real: rootReal, link: false, isDir: true } };
+    if (clean === '') return { ok: true, value: { rootReal, clean, real: rootReal, link: false, isDir: true, isFile: false, realRel: '' } };
     const parts = clean.split('/');
     let parentReal: string;
     try {
@@ -119,16 +119,29 @@ export class CodeFiles {
       return { ok: false, reason: isMissing(e) ? 'missing' : 'error' };
     }
     if (!isInside(rootReal, parentReal, this.caseInsensitive)) return { ok: false, reason: 'outside' };
-    const real = join(parentReal, parts[parts.length - 1]!);
+    let real = join(parentReal, parts[parts.length - 1]!);
     let info;
     try {
       info = await lstat(real);
     } catch (e) {
       return { ok: false, reason: isMissing(e) ? 'missing' : 'error' };
     }
+    let name = parts[parts.length - 1]!;
+    if (!info.isSymbolicLink()) {
+      // 마지막 이름도 실제 이름으로 바로잡는다: Windows는 짧은 이름(GIT~1)·대체 데이터 스트림(.git::$INDEX_ALLOCATION)·대소문자 다른 이름으로
+      // 같은 파일을 열 수 있어서, 요청한 글자만으로는 .git·node_modules·비밀 파일을 알아볼 수 없다.
+      try {
+        real = await realpath(real);
+      } catch (e) {
+        return { ok: false, reason: isMissing(e) ? 'missing' : 'error' };
+      }
+      const sameDir = dirname(real) === parentReal || (this.caseInsensitive && dirname(real).toLowerCase() === parentReal.toLowerCase());
+      if (!sameDir || !isInside(rootReal, real, this.caseInsensitive)) return { ok: false, reason: 'outside' };
+      name = basename(real);
+    }
     const realRel = toSlash(relative(rootReal, real));
     if (cleanRelative(realRel) === null) return { ok: false, reason: 'bad-path' };
-    return { ok: true, value: { rootReal, clean, real, link: info.isSymbolicLink(), isDir: info.isDirectory() } };
+    return { ok: true, value: { rootReal, clean: [...parts.slice(0, -1), name].join('/'), real, link: info.isSymbolicLink(), isDir: info.isDirectory(), isFile: info.isFile(), realRel } };
   }
 
   /** 작업 폴더의 실제 경로(없으면 null) */

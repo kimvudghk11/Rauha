@@ -64,13 +64,18 @@ export class FileOps {
   }
 
   /** 바꾸거나 지울 대상: 링크는 링크 자체를 다루고, 막힌 대상(루트·레포·node_modules)은 거절한다 */
-  private async target(raw: string): Promise<{ ok: false; reason: CodeFail; detail?: string } | { ok: true; clean: string; real: string; rootReal: string; link: boolean; isDir: boolean }> {
+  private async target(raw: string): Promise<{ ok: false; reason: CodeFail; detail?: string } | { ok: true; clean: string; real: string; rootReal: string; realRel: string; link: boolean; isDir: boolean }> {
     const r = await this.deps.files.locateEntry(raw);
     if (!r.ok) return fail(r.reason);
-    const { clean, real, rootReal, link, isDir } = r.value;
+    const { clean, real, rootReal, realRel, link, isDir } = r.value;
     if (clean === '' || inProtectedZone(clean) || inProtectedZone(toSlash(relative(rootReal, real)))) return fail('protected');
     if (isDir && !link && (await this.isRepoRoot(real))) return fail('protected');
-    return { ok: true, clean, real, rootReal, link, isDir };
+    return { ok: true, clean, real, rootReal, realRel, link, isDir };
+  }
+
+  /** 비밀 파일인지: 요청한 이름과 링크·짧은 이름을 다 푼 실제 이름 둘 다 본다 */
+  private isSecret(clean: string, realRel: string): boolean {
+    return this.deps.files.isSecretPath(clean) || this.deps.files.isSecretPath(realRel);
   }
 
   private async isRepoRoot(real: string): Promise<boolean> {
@@ -141,7 +146,7 @@ export class FileOps {
     const next = joinPath(parentOf(t.clean), name);
     const abs = join(parentReal, name);
     if (this.tooLong(next, abs)) return fail('too-long');
-    if (this.deps.files.isSecretPath(t.clean) && !this.deps.files.isSecretPath(next)) return fail('secret');
+    if (this.isSecret(t.clean, t.realRel) && !this.deps.files.isSecretPath(next)) return fail('secret');
     const caseOnly = name.toLowerCase() === old.toLowerCase();
     if (!(caseOnly && this.ci) && (await lstat(abs).then(() => true, () => false))) return fail('exists');
     try {
@@ -167,7 +172,7 @@ export class FileOps {
     if (!plan.ok) return plan.reason === 'exists' ? fail('exists') : plan.reason === 'protected' ? fail('protected') : fail(plan.reason);
     const abs = join(dest.real, nameOf(t.clean));
     if (this.tooLong(plan.target, abs)) return fail('too-long');
-    if (this.deps.files.isSecretPath(t.clean) && !this.deps.files.isSecretPath(plan.target)) return fail('secret');
+    if (this.isSecret(t.clean, t.realRel) && !this.deps.files.isSecretPath(plan.target)) return fail('secret');
     try {
       await access(join(t.real, '..'), constants.W_OK);
       if (await lstat(abs).then(() => true, () => false)) return fail('exists');
@@ -185,14 +190,16 @@ export class FileOps {
     const r = await this.deps.files.locateEntry(path);
     if (!r.ok) return fail(r.reason);
     const src = r.value;
-    if (src.clean === '' || inProtectedZone(src.clean)) return fail('protected');
+    if (src.clean === '' || inProtectedZone(src.clean) || inProtectedZone(src.realRel)) return fail('protected');
     if (src.link) return fail('link');
-    if (!src.isDir && this.deps.files.isSecretPath(src.clean)) return fail('secret');
+    // 일반 파일과 폴더만 복제한다(이름 붙은 파이프·장치 파일은 읽다가 멈춘다)
+    if (!src.isDir && !src.isFile) return fail('link');
+    if (!src.isDir && this.isSecret(src.clean, src.realRel)) return fail('secret');
     const dest = await this.folder(destDir ?? parentOf(src.clean));
     if (!dest.ok) return dest;
     if (src.isDir && isInside(src.real, dest.real, this.pathCi)) return fail('into-self');
     if (src.isDir) {
-      const scan = await this.scanForCopy(src.real, src.clean);
+      const scan = await this.scanForCopy(src.real, src.clean, src.realRel);
       if (!scan.ok) return scan;
     }
     const sameFolder = dest.clean === parentOf(src.clean);
@@ -220,20 +227,24 @@ export class FileOps {
   }
 
   /** 복제해도 되는 폴더인지: 링크·.git·node_modules·비밀 파일이 없고 너무 크지 않아야 한다 */
-  private async scanForCopy(real: string, clean: string): Promise<{ ok: true } | { ok: false; reason: CodeFail; detail?: string }> {
+  private async scanForCopy(real: string, clean: string, realRel: string): Promise<{ ok: true } | { ok: false; reason: CodeFail; detail?: string }> {
     let files = 0;
+    let entries = 0;
     let bytes = 0;
-    const walk = async (dir: string, rel: string): Promise<{ ok: false; reason: CodeFail } | null> => {
+    const walk = async (dir: string, rel: string, realPath: string): Promise<{ ok: false; reason: CodeFail } | null> => {
       for (const d of await readdir(dir, { withFileTypes: true })) {
         if (d.isSymbolicLink()) return { ok: false, reason: 'link' };
         const lower = d.name.toLowerCase();
         if (lower === '.git' || lower === 'node_modules') return { ok: false, reason: 'protected' };
         const childRel = `${rel}/${d.name}`;
+        const childReal = `${realPath}/${d.name}`;
+        // 폴더도 개수에 넣는다(빈 폴더만 수십만 개인 폴더가 복제를 붙들지 못하게)
+        if (++entries > MAX_COPY_FILES) return { ok: false, reason: 'too-many' };
         if (d.isDirectory()) {
-          const inner = await walk(join(dir, d.name), childRel);
+          const inner = await walk(join(dir, d.name), childRel, childReal);
           if (inner !== null) return inner;
         } else if (d.isFile()) {
-          if (this.deps.files.isSecretPath(childRel)) return { ok: false, reason: 'secret' };
+          if (this.isSecret(childRel, childReal)) return { ok: false, reason: 'secret' };
           files++;
           bytes += (await stat(join(dir, d.name))).size;
           if (files > MAX_COPY_FILES || bytes > MAX_COPY_BYTES) return { ok: false, reason: 'too-many' };
@@ -242,7 +253,7 @@ export class FileOps {
       return null;
     };
     try {
-      return (await walk(real, clean)) ?? { ok: true };
+      return (await walk(real, clean, realRel)) ?? { ok: true };
     } catch (e) {
       return errorFail(e);
     }
@@ -285,20 +296,25 @@ export class FileOps {
     const locked = clean === '' || inProtectedZone(clean) || inProtectedZone(toSlash(relative(rootReal, real))) || (isDir && !link && (await this.isRepoRoot(real)));
     let files = isDir ? 0 : 1;
     let capped = false;
+    let dirs = 0;
     if (isDir && !link) {
       const walk = async (dir: string): Promise<void> => {
         for (const d of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
-          if (files >= MAX_COUNT) {
+          if (files + dirs >= MAX_COUNT) {
             capped = true;
             return;
           }
-          if (d.isDirectory()) await walk(join(dir, d.name));
+          if (d.isDirectory()) {
+            dirs++;
+            await walk(join(dir, d.name));
+            if (capped) return;
+          }
           else if (d.isFile()) files++;
         }
       };
       await walk(real);
     }
-    return { ok: true, kind: isDir ? 'dir' : 'file', files, capped, link, secret: !isDir && this.deps.files.isSecretPath(clean), locked };
+    return { ok: true, kind: isDir ? 'dir' : 'file', files, capped, link, secret: !isDir && this.isSecret(clean, r.value.realRel), locked };
   }
 
   async reveal(input: PathRequest): Promise<{ ok: boolean }> {

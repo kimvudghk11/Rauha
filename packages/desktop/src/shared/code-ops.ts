@@ -20,7 +20,7 @@ export const MAX_NAME_BYTES = 255;
 export const MAX_REL_PATH = 240;
 
 const BAD_CHARS = /[\\/:*?"<>|\u0000-\u001f]/;
-const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+const RESERVED = /^(con|prn|aux|nul|conin\$|conout\$|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])(\..*)?$/i;
 
 const fold = (s: string, ci: boolean): string => (ci ? s.toLowerCase() : s);
 
@@ -77,7 +77,8 @@ export const tooLongPath = (rel: string): boolean => rel.length > MAX_REL_PATH;
 
 /** node_modules·.git 안(또는 그 자체)은 조작하지 않는다 */
 export function inProtectedZone(path: string): boolean {
-  return path.split('/').some((p) => ['node_modules', '.git'].includes(p.toLowerCase()));
+  // 끝의 점·공백과 대체 데이터 스트림("node_modules::$INDEX_ALLOCATION")은 같은 폴더를 가리킨다
+  return path.split('/').some((p) => ['node_modules', '.git'].includes(p.replace(/:.*$/s, '').replace(/[. ]+$/, '').toLowerCase()));
 }
 
 /** 작업 폴더의 절대 경로와 상대 경로를 그 PC의 구분자로 합친다(복사용) */

@@ -170,3 +170,17 @@ describe('팀이 쓰고 있는 레포 경고', () => {
     expect(workingRepoFor('a.ts', [{ name: 'me', relative: '.', working: 1, worktrees: 0 }])?.name).toBe('me');
   });
 });
+
+describe('보호 구역 이름 우회', () => {
+  it('대체 데이터 스트림 이름과 끝 점·공백도 같은 보호 구역으로 본다', () => {
+    expect(inProtectedZone('app/node_modules::$INDEX_ALLOCATION')).toBe(true);
+    expect(inProtectedZone('app/.git::$INDEX_ALLOCATION/hooks')).toBe(true);
+    expect(inProtectedZone('app/node_modules./x')).toBe(true);
+    expect(inProtectedZone('app/node_modules /x')).toBe(true);
+    expect(inProtectedZone('app/node_modules_old/x')).toBe(false);
+  });
+  it('CONIN$·COM¹ 같은 예약 장치 이름도 쓸 수 없는 이름이다', () => {
+    for (const n of ['CONIN$', 'conout$.txt', 'COM²', 'LPT³.log']) expect(checkName(n, { siblings: [], caseInsensitive: true }).ok, n).toBe(false);
+    expect(checkName('console.ts', { siblings: [], caseInsensitive: true }).ok).toBe(true);
+  });
+});

@@ -74,3 +74,21 @@ describe('작업 폴더 안인지 판정', () => {
     expect(isInside('C:\\w\\Proj', 'D:\\w\\Proj\\a.ts', true)).toBe(false);
   });
 });
+
+describe('Windows 이름 우회 막기', () => {
+  it('Windows에서는 대체 데이터 스트림(콜론)이 든 이름을 받지 않는다', () => {
+    expect(cleanRelative('a/.git::$INDEX_ALLOCATION', true)).toBeNull();
+    expect(cleanRelative('a/file.txt:hidden', true)).toBeNull();
+    expect(cleanRelative('a/.env::$DATA', true)).toBeNull();
+  });
+  it('Windows에서는 CON·NUL 같은 예약 장치 이름을 받지 않는다(확장자·끝 점이 붙어도)', () => {
+    for (const n of ['CON', 'nul', 'a/Aux.txt', 'COM1', 'lpt9.log', 'con.', 'COM¹', 'CONIN$']) expect(cleanRelative(n, true), n).toBeNull();
+    expect(cleanRelative('console.ts', true)).toBe('console.ts');
+    expect(cleanRelative('communism', true)).toBe('communism');
+  });
+  it('다른 OS에서는 콜론이 든 이름도 평범한 이름이지만 .git으로 이어지는 스트림 이름은 막는다', () => {
+    expect(cleanRelative('a/b:c', false)).toBe('a/b:c');
+    expect(cleanRelative('a/CON', false)).toBe('a/CON');
+    expect(cleanRelative('a/.git::$INDEX_ALLOCATION', false)).toBeNull();
+  });
+});
