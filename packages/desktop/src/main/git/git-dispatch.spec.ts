@@ -148,6 +148,19 @@ describe('git 탭 main (임시 저장소)', () => {
     expect(list.map((b) => b.name).sort()).toEqual(['feature/x', 'main']);
   });
 
+  it('브랜치마다 마지막 커밋을 한 사람 이름을 주고, 작업 트리 목록은 메인 폴더를 먼저 준다', async () => {
+    const r = newRepo();
+    write(r, 'a.txt', 'a');
+    commitAll(r);
+    const list = await data<{ name: string; author: string }[]>(r, 'branches');
+    expect(list[0]!.author).not.toBe('');
+    const wts = await data<{ branch: string | null; main: boolean; changed: number }[]>(r, 'worktrees');
+    expect(wts).toHaveLength(1);
+    expect(wts[0]).toMatchObject({ branch: 'main', main: true, changed: 0 });
+    write(r, 'b.txt', 'x');
+    expect((await data<{ changed: number }[]>(r, 'worktrees'))[0]!.changed).toBe(1);
+  });
+
   it('브랜치 이름이 옵션처럼 보이면 git에 넘기지 않는다', async () => {
     const r = newRepo();
     write(r, 'a', 'a');

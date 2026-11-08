@@ -2,12 +2,13 @@ import type { FileChangeView } from './git-changes.js';
 import type { Hunk, PatchMode, Selection } from './git-diff.js';
 import type { ConventionsView } from './git-conventions-view.js';
 import type { BranchView, LogRow } from './git-lists.js';
+import type { WorktreeView } from './git-worktrees.js';
 
 /** git 탭이 main에 부를 수 있는 함수 이름. 이 목록에 없는 이름은 main이 받지 않는다. */
 export const GIT_FUNCTIONS = [
   'overview', 'diff', 'stage', 'unstage', 'stageSelection', 'discard', 'commit',
   'branches', 'createBranch', 'switchBranch', 'merge', 'deleteBranch', 'fetch', 'pull', 'push',
-  'conventions', 'undoCommit', 'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr',
+  'conventions', 'undoCommit', 'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr', 'worktrees',
 ] as const;
 export type GitFn = (typeof GIT_FUNCTIONS)[number];
 
@@ -61,6 +62,7 @@ export interface GitCalls {
   discard: [{ paths: readonly string[] }, Done];
   commit: [{ subject: string; body: string }, Done];
   branches: [void, readonly BranchView[]];
+  worktrees: [void, readonly WorktreeView[]];
   createBranch: [{ name: string; base?: string; checkout?: boolean }, Done];
   switchBranch: [{ name: string }, Done];
   merge: [{ name: string } & ConfirmArg, Done];

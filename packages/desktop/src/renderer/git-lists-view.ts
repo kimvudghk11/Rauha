@@ -34,16 +34,17 @@ export function buildBranches(ctx: GitCtx) {
   function draw(): void {
     list.replaceChildren();
     const q = filter.value.trim().toLowerCase();
-    for (const remote of [false, true]) {
+    for (const remote of [false]) {
       const rows = sortBranchesRecent(all.filter((b) => b.remote === remote && b.name.toLowerCase().includes(q)));
       if (rows.length === 0) continue;
-      list.appendChild(el('div', 'gall', remote ? `원격 ${rows.length}` : `로컬 ${rows.length} · 최근 커밋 순`));
+      list.appendChild(el('div', 'gall', `내 브랜치 ${rows.length} · 최근 커밋 순`));
       for (const b of rows) {
         const row = el('div', `gf row-item${b.current ? ' on' : ''}`);
         const name = el('span', 'gname');
         name.append(el('b', 'mono', b.name));
         row.appendChild(name);
         if (b.current) row.appendChild(el('span', 'chip', '현재'));
+        if (b.author !== '') row.appendChild(el('span', 'gbauthor', b.author));
         if (b.team) row.appendChild(el('span', 'chip purple', '팀 작업'));
         if (ctx.isProtected(b.name)) {
           const lock = el('span', 'chip red');

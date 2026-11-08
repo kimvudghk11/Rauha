@@ -29,6 +29,7 @@ export type TodoOp =
   | { readonly kind: 'move'; readonly id: string; readonly columnId: string; readonly beforeId: string | null }
   | { readonly kind: 'remove'; readonly id: string }
   | { readonly kind: 'delegate'; readonly id: string }
+  | { readonly kind: 'label-remove'; readonly name: string }
   | { readonly kind: 'column-add'; readonly name: string; readonly color: ColumnColor }
   | { readonly kind: 'column-edit'; readonly id: string; readonly patch: ColumnPatch }
   | { readonly kind: 'column-move'; readonly id: string; readonly beforeId: string | null }
@@ -222,6 +223,8 @@ export class TodoOpDto {
         return new TodoOpDto({ kind, id: id() });
       case 'delegate':
         return new TodoOpDto({ kind, id: id() });
+      case 'label-remove':
+        return new TodoOpDto({ kind, name: text(input['name'], '라벨 이름') });
       case 'column-add':
         return new TodoOpDto({ kind, name: text(input['name'], '칸 이름'), color: input['color'] === undefined ? 'gray' : color(input['color']) });
       case 'column-edit':
@@ -259,6 +262,8 @@ export class TodoOpDto {
         return board.move(op.id, op.columnId, op.beforeId, at);
       case 'remove':
         return board.remove(op.id);
+      case 'label-remove':
+        return board.removeLabel(op.name, at);
       case 'delegate':
         throw new TodoError('맡기기는 팀에 보낸 뒤에 이어 붙여요.');
       case 'column-add':

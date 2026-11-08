@@ -21,7 +21,7 @@ let closeOpen: (() => void) | null = null;
 /** 브랜치 고르기 팝업: 검색, 현재 브랜치 맨 위, 최근 순, 로컬/원격 구분, ↑↓, 보호 브랜치 자물쇠, 맨 아래에 새 브랜치 */
 export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (prefill: string) => void): Promise<void> {
   closeOpen?.();
-  const all = (await ctx.call('branches', undefined as never)) ?? [];
+  const all = ((await ctx.call('branches', undefined as never)) ?? []).filter((b) => !b.remote);
   const menu = el('div', 'menu gbm');
   menu.setAttribute('role', 'menu');
   const search = el('input', 'sm');
@@ -50,6 +50,7 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
       lock.setAttribute('aria-label', '보호 브랜치');
       row.append(lock);
     }
+    if (b.author !== '') row.append(el('span', 'gbauthor', b.author));
     const t = trackBadgeEl(b);
     if (t !== null) row.append(t);
     row.addEventListener('click', async () => {
@@ -65,9 +66,7 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
     const q = search.value.trim().toLowerCase();
     const hit = all.filter((b) => b.name.toLowerCase().includes(q));
     const local = sortBranchesRecent(hit.filter((b) => !b.remote));
-    const remote = sortBranchesRecent(hit.filter((b) => b.remote));
-    if (local.length > 0) menu.append(el('div', 'lbl', `로컬 · 최근 커밋 순 (${local.length})`), ...local.map(item));
-    if (remote.length > 0) menu.append(el('div', 'lbl', `원격 (${remote.length})`), ...remote.map(item));
+    if (local.length > 0) menu.append(el('div', 'lbl', `내 브랜치 · 최근 커밋 순 (${local.length})`), ...local.map(item));
     if (hit.length === 0) menu.append(el('div', 'lbl', '맞는 브랜치가 없어요.'));
     menu.append(el('div', 'sep'));
     const add = el('button');
@@ -100,9 +99,9 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
  */
 export async function openNewBranchDialog(ctx: GitCtx, prefill = ''): Promise<void> {
   const [list, conv] = await Promise.all([ctx.call('branches', undefined as never), ctx.conventions()]);
-  const all = list ?? [];
+  const all = (list ?? []).filter((b) => !b.remote);
   const local = all.filter((b) => !b.remote).map((b) => b.name);
-  const remotes = all.filter((b) => b.remote).map((b) => b.name);
+  const remotes: string[] = (list ?? []).filter((b) => b.remote).map((b) => b.name);
   const veil = el('div', 'veil');
   const box = el('div', 'dialog gnew');
   box.setAttribute('role', 'dialog');

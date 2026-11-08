@@ -5,6 +5,7 @@ import { ChangeSet } from '../../shared/git-changes.js';
 import { FileDiff, type PatchMode, type Selection } from '../../shared/git-diff.js';
 import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath } from '../../shared/git-guard.js';
 import { BRANCH_FORMAT, branchView, LOG_FORMAT, LOG_LIMIT, parseBranches, parseLog } from '../../shared/git-lists.js';
+import { parseWorktrees, type WorktreeView } from '../../shared/git-worktrees.js';
 import { knownGitError, pullDoneMessage } from '../../shared/git-toolbar.js';
 import { assertPlainFile } from './safe-file.js';
 import { GitFailure, mustGit, runGit } from './git-run.js';
@@ -147,6 +148,20 @@ export class GitRepo {
     await this.git(['commit', '-q', '-m', title, ...(body.trim() === '' ? [] : ['-m', body.trim()])]);
     const hash = (await this.git(['rev-parse', 'HEAD'])).trim();
     return ok(`커밋했어요 ${hash.slice(0, 7)}  ${title}`, { hash });
+  }
+
+  /** 이 레포의 작업 트리(메인 폴더와 worktree)와 각 폴더의 변경 파일 수·마지막 커밋 */
+  async worktrees(): Promise<WorktreeView[]> {
+    const rows = parseWorktrees(await this.git(['worktree', 'list', '--porcelain']));
+    return Promise.all(
+      rows.slice(0, 30).map(async (w) => {
+        const st = w.prunable ? null : await runGit(w.path, ['status', '--porcelain']);
+        const lg = w.prunable ? null : await runGit(w.path, ['log', '-1', '--format=%an%x1f%at%x1f%s']);
+        const [author = '', at = '0', subject = ''] = lg !== null && lg.code === 0 ? lg.stdout.trim().split(String.fromCharCode(31)) : [];
+        const changed = st !== null && st.code === 0 ? st.stdout.split('\n').filter((l) => l.trim() !== '').length : 0;
+        return { ...w, changed, author, at: Number(at) || 0, subject };
+      }),
+    );
   }
 
   async branches() {

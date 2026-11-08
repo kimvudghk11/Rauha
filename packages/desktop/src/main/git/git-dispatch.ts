@@ -52,6 +52,7 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       discard: () => repo.discard(strs(a['paths'])),
       commit: () => repo.commit(str(a['subject']), typeof a['body'] === 'string' ? a['body'] : ''),
       branches: () => repo.branches(),
+      worktrees: () => repo.worktrees(),
       createBranch: () => repo.createBranch(str(a['name']), typeof a['base'] === 'string' ? a['base'] : undefined, a['checkout'] !== false),
       switchBranch: () => repo.switchBranch(str(a['name'])),
       merge: () => repo.merge(str(a['name']), confirm),

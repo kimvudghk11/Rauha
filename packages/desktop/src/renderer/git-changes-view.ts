@@ -4,6 +4,7 @@ import type { FileChangeView } from '../shared/git-changes.js';
 import { el } from './dom.js';
 import { type GitCtx, renderDiff } from './git-common.js';
 import { gitIcon } from './git-icons.js';
+import { buildWorktreeGraph } from './git-worktree-graph.js';
 import { commitBlockReason, stageSummary, subjectState, SUBJECT_LIMIT } from '../shared/git-toolbar.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
 
@@ -142,8 +143,10 @@ export function buildChanges(ctx: GitCtx) {
     return box;
   }
 
+  const wt = buildWorktreeGraph(ctx);
+
   function renderList(): void {
-    side.replaceChildren();
+    side.replaceChildren(wt.root);
     const files = view?.files ?? [];
     const list = el('div', 'gfiles');
     const stagedCount = files.filter((f) => f.staged).length;
@@ -243,6 +246,7 @@ export function buildChanges(ctx: GitCtx) {
     if (f !== undefined && diffSide === 'unstaged' && !f.unstaged) diffSide = 'staged';
     if (f !== undefined && diffSide === 'staged' && !f.staged) diffSide = 'unstaged';
     renderList();
+    void wt.refresh();
     await renderMain();
     await ctx.changed();
   }

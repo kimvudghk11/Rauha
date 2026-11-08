@@ -303,6 +303,13 @@ export class TodoList {
     return this.replace(id, (t) => t.withFields(patch, at));
   }
 
+  /** 이름이 같은 라벨을 모든 카드에서 뺀다(대소문자 구분 없음). 카드는 그대로 남는다. */
+  removeLabel(name: string, at: string): TodoList {
+    const key = name.trim().toLowerCase();
+    if (key === '') throw new TodoError('지울 라벨 이름이 없어요.');
+    return this.withItems(this.items.map((t) => (t.labels.some((l) => l.name.toLowerCase() === key) ? t.withFields({ labels: t.labels.filter((l) => l.name.toLowerCase() !== key) }, at) : t)));
+  }
+
   /** 카드를 columnId 칸의 beforeId 카드 앞(null이면 맨 아래)으로 옮긴다. 칸 안에서 순서만 바꿔도 된다. */
   move(id: string, columnId: string, beforeId: string | null, at: string): TodoList {
     this.require(id);

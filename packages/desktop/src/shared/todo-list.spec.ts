@@ -61,6 +61,15 @@ describe('카드 더하기', () => {
 });
 
 describe('라벨과 체크리스트', () => {
+  it('라벨을 지우면 모든 카드에서 빠지고(대소문자 무시) 카드는 남는다', () => {
+    let list = add(TodoList.empty(), 'a', { labels: [{ name: 'Bug', color: 'red' }, { name: 'ui', color: 'blue' }] });
+    list = add(list, 'b', { labels: [{ name: 'bug', color: 'red' }] });
+    const next = list.removeLabel(' BUG ', at);
+    expect(next.items.map((t) => t.labels.map((l) => l.name))).toEqual([['ui'], []]);
+    expect(next.labels().map((l) => l.name)).toEqual(['ui']);
+    expect(() => list.removeLabel('  ', at)).toThrow(TodoError);
+  });
+
   it('라벨은 이름·색을 가지고, 앞뒤 공백을 지우며, 같은 이름(대소문자 무시)은 한 번만 쓴다', () => {
     const list = add(TodoList.empty(), 'a', { labels: [{ name: ' 버그 ', color: 'red' }] });
     expect(list.items[0]!.labels).toEqual([{ name: '버그', color: 'red' }]);

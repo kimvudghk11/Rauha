@@ -136,7 +136,14 @@ export function buildDetail(ctx: TodoCtx, onClose: () => void): DetailView {
         const pick = el('button', `chip ${k.color === 'gray' ? '' : k.color}`.trim(), `+ ${k.name}`);
         pick.type = 'button';
         pick.addEventListener('click', () => setLabels([...labels, k]));
-        picks.append(pick);
+        const del = button('×', 'link', () =>
+          confirmDialog('라벨을 지울까요?', `"${k.name}" 라벨이 모든 카드에서 빠져요. 카드는 그대로 남아요.`, [{ label: '지우기', cls: 'btn danger', pick: () => void ctx.act({ kind: 'label-remove', name: k.name }) }]),
+        );
+        del.title = '이 라벨을 모든 카드에서 지우기';
+        del.setAttribute('aria-label', `${k.name} 라벨 모두 지우기`);
+        const unit = el('span', 'dlabel');
+        unit.append(pick, del);
+        picks.append(unit);
       }
       const add = el('div', 'bar');
       add.append(labelInput, labelColor, button('추가', 'btn sm', addLabel));
