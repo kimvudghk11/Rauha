@@ -1,6 +1,6 @@
 {
   "name": "@rauha/desktop",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "rauha desktop: give work to Delfi and watch the team work side by side",
   "type": "module",
