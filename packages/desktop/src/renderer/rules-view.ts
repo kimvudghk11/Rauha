@@ -23,7 +23,7 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
   const talk = el('div', 'ruletalk pane');
   const sentence = el('textarea');
   sentence.rows = 2;
-  sentence.placeholder = '말로 적어요  예: bridge-backend에서는 git push는 늘 먼저 물어봐 줘';
+  sentence.placeholder = '말로 적어요  예: api-server에서는 git push는 늘 먼저 물어봐 줘';
   const draftBtn = el('button', 'btn sec', '정리하기');
   const draftNote = el('div', 'hint');
   talk.append(el('div', 'ph', '말로 적기'), sentence, el('div', 'row', ''), draftNote);

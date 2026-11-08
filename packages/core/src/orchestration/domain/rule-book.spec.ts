@@ -26,10 +26,10 @@ describe('Rule.appliesIn', () => {
   });
 
   it('폴더 규칙은 그 폴더와 그 아래에서만 적용되고 이름만 비슷한 폴더는 아니다', () => {
-    const r = rule({ scope: { kind: 'folder', path: 'C:\\work\\bridge-backend' } });
-    expect(r.appliesIn('c:/work/bridge-backend')).toBe(true);
-    expect(r.appliesIn('C:/work/bridge-backend/src')).toBe(true);
-    expect(r.appliesIn('C:/work/bridge-backend-old')).toBe(false);
+    const r = rule({ scope: { kind: 'folder', path: 'C:\\work\\api-server' } });
+    expect(r.appliesIn('c:/work/api-server')).toBe(true);
+    expect(r.appliesIn('C:/work/api-server/src')).toBe(true);
+    expect(r.appliesIn('C:/work/api-server-old')).toBe(false);
     expect(r.appliesIn('C:/work/docs')).toBe(false);
   });
 });

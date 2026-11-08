@@ -38,3 +38,8 @@ Thumbs.db
 
 .superpowers/
 packages/desktop/release/
+
+# 개인 작업 메모와 벤치 폴더(공개하지 않는다)
+docs/next-todo.md
+rauha-bench/
+.rauha-bench/

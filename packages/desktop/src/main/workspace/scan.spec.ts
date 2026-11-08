@@ -29,7 +29,7 @@ function base() {
 describe('scanWorkFolder', () => {
   it('레포와 문서 폴더와 기타를 가르고 상태를 붙인다', async () => {
     const w = base();
-    const a = w.repo('bridge-backend');
+    const a = w.repo('api-server');
     writeFileSync(join(a, 'x.ts'), 'x');
     w.repo('web');
     w.file('docs/기획.md');
@@ -37,8 +37,8 @@ describe('scanWorkFolder', () => {
     w.file('docs/표.docx');
     w.file('assets/logo.png');
     const found = await scanWorkFolder(w.root);
-    expect(found.map((f) => [f.name, f.kind]).sort()).toEqual([['bridge-backend', 'repo'], ['docs', 'docs'], ['web', 'repo']]);
-    expect(found.find((f) => f.name === 'bridge-backend')!.status).toMatchObject({ branch: 'main', changed: 1 });
+    expect(found.map((f) => [f.name, f.kind]).sort()).toEqual([['api-server', 'repo'], ['docs', 'docs'], ['web', 'repo']]);
+    expect(found.find((f) => f.name === 'api-server')!.status).toMatchObject({ branch: 'main', changed: 1 });
     expect(found.find((f) => f.name === 'docs')!.status).toBeNull();
   });
 

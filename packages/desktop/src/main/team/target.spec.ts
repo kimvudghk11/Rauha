@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { parseTarget } from './target.js';
 
 const folders = [
-  { name: 'bridge-backend', root: 'C:/work/bridge-backend' },
+  { name: 'api-server', root: 'C:/work/api-server' },
   { name: 'docs', root: 'C:/work/docs' },
 ];
 
 describe('parseTarget', () => {
   it('앞에 @폴더이름을 적으면 그 폴더가 대상이고 요청 글에서는 뺀다', () => {
-    const p = parseTarget('@bridge-backend 결제 타임아웃 원인 찾아줘', folders);
-    expect(p.folder?.root).toBe('C:/work/bridge-backend');
+    const p = parseTarget('@api-server 결제 타임아웃 원인 찾아줘', folders);
+    expect(p.folder?.root).toBe('C:/work/api-server');
     expect(p.text).toBe('결제 타임아웃 원인 찾아줘');
   });
 

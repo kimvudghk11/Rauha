@@ -4,7 +4,7 @@
 
 ## 모델과 호출
 
-- 모델: `stability.stable-image-ultra-v1:1` (글자만으로 그리기). 리전 `us-west-2`, AWS 프로필 `default`(aws configure). 같은 계정의 zzenddo-plugin도 같은 리전·Stability 모델을 쓴다.
+- 모델: `stability.stable-image-ultra-v1:1` (글자만으로 그리기). 리전 `us-west-2`, AWS 프로필 `default`(aws configure). 같은 계정의 다른 프로젝트도 같은 리전·Stability 모델을 쓴다.
 - 호출: `aws bedrock-runtime invoke-model --model-id stability.stable-image-ultra-v1:1 --body fileb://요청.json --cli-binary-format raw-in-base64-out --region us-west-2 --profile default 응답.json`
 - 요청 본문: `{ "prompt": ..., "negative_prompt": ..., "aspect_ratio": "1:1", "output_format": "png" }`. 응답의 `images[0]`이 base64 PNG.
 - 비용: 한 장에 몇십 센트가 아니라 대략 0.14달러 안팎으로 보고 있다(제 추정, 청구서로 확인하지 않음). 마음에 드는 그림이 안 나와 다시 뽑을 때 쌓인다.

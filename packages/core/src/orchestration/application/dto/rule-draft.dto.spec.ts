@@ -19,7 +19,7 @@ describe('RuleDraftDto', () => {
   });
 
   it('폴더 범위는 폴더 이름을 담고, 모르면 거절한다(넓은 규칙이 되지 않게)', () => {
-    expect(RuleDraftDto.from({ text: 'a', bucket: 'ask', scope: 'folder', path: 'bridge-backend', includes: ['git push'] })).toMatchObject({ scope: 'folder', path: 'bridge-backend' });
+    expect(RuleDraftDto.from({ text: 'a', bucket: 'ask', scope: 'folder', path: 'api-server', includes: ['git push'] })).toMatchObject({ scope: 'folder', path: 'api-server' });
     expect(() => RuleDraftDto.from({ text: 'a', bucket: 'ask', scope: 'folder', path: '', includes: ['git push'] })).toThrow(/어느 폴더/);
   });
 

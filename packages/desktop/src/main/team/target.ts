@@ -15,7 +15,7 @@ export interface ParsedRequest {
 
 const MENTION = /^@([^\s@]+)\s*/;
 
-/** "@bridge-backend 결제 원인 찾아줘"처럼 앞에 @폴더이름을 적으면 대상 폴더를 정한다. 이름은 대소문자를 가리지 않는다. */
+/** "@api-server 결제 원인 찾아줘"처럼 앞에 @폴더이름을 적으면 대상 폴더를 정한다. 이름은 대소문자를 가리지 않는다. */
 export function parseTarget(request: string, folders: readonly TargetFolder[]): ParsedRequest {
   const trimmed = request.trim();
   const m = MENTION.exec(trimmed);
