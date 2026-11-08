@@ -11,7 +11,7 @@ export function bannerText(view: UpdateView): string {
 /** 설정 화면의 확인 상태 한 줄. time은 마지막 확인 시각을 사람이 읽는 글로 바꾼 것 */
 export function checkedText(view: UpdateView, time: string): string {
   if (view.checking) return '확인하는 중…';
-  if (view.failed) return '지금은 확인하지 못했어요';
+  if (view.failed) return view.failReason === null ? '지금은 확인하지 못했어요' : `확인하지 못했어요: ${view.failReason}`;
   if (view.checkedAt === null) return '아직 확인하지 않았어요';
-  return `마지막 확인 ${time} · ${view.newer ? `새 버전 v${view.latest ?? ''}` : '최신 버전이에요'}`;
+  return `마지막 확인 ${time} · ${view.newer ? `새 버전 v${view.latest ?? ''}가 있어요` : `최신 버전이에요 (v${view.current})`}`;
 }

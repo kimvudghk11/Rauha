@@ -1,5 +1,6 @@
 import { AppVersion, isAllowedDownload, pickAsset, pickLatestRelease, shouldShowBanner } from './app-update.js';
 import { IDLE_INSTALL, type InstallState } from './update-install.js';
+import type { AttemptOutcome } from './update-attempt.js';
 
 /** 화면에 보내는 업데이트 상태(바깥 표시용) */
 export interface UpdateView {
@@ -15,9 +16,13 @@ export interface UpdateView {
   readonly checking: boolean;
   /** 방금 확인이 실패했는지(조용한 한 줄 안내용) */
   readonly failed: boolean;
+  /** 확인이 실패한 이유 한 줄(실패하지 않았으면 null) */
+  readonly failReason: string | null;
   /** 앱 안에서 바로 내려받아 설치할 수 있는지(설치본이고 이 컴퓨터용 파일이 있을 때) */
   readonly canInstall: boolean;
   readonly install: InstallState;
+  /** 지난 설치 시도의 결과(다시 켜진 뒤 한 번 알린다). 없으면 null */
+  readonly attempt: AttemptOutcome | null;
 }
 
 export interface CheckFinding {
@@ -72,7 +77,7 @@ export class UpdateRecord {
     return isAllowedDownload(this.download) ? this.download : null;
   }
 
-  toView(current: AppVersion, flags: { checking?: boolean; failed?: boolean; canInstall?: boolean; install?: InstallState } = {}): UpdateView {
+  toView(current: AppVersion, flags: { checking?: boolean; failed?: boolean; failReason?: string | null; canInstall?: boolean; install?: InstallState; attempt?: AttemptOutcome | null } = {}): UpdateView {
     return {
       current: current.toString(),
       checkedAt: this.checkedAt,
@@ -82,8 +87,10 @@ export class UpdateRecord {
       hasDownload: this.downloadUrl() !== null,
       checking: flags.checking ?? false,
       failed: flags.failed ?? false,
+      failReason: flags.failed === true ? flags.failReason ?? null : null,
       canInstall: (flags.canInstall ?? false) && this.downloadUrl() !== null,
       install: flags.install ?? IDLE_INSTALL,
+      attempt: flags.attempt ?? null,
     };
   }
 }
@@ -94,4 +101,20 @@ export function findUpdate(releases: unknown, platform: string, arch: string): C
   if (latest === null) return null;
   const asset = pickAsset(latest.assets, platform, arch);
   return { latest: latest.version, downloadUrl: asset?.url ?? null, downloadSha256: asset?.sha256 ?? null };
+}
+
+export type CheckFailureKind = 'timeout' | 'network' | 'http' | 'parse';
+
+/** 확인이 실패한 이유 한 줄 */
+export function checkFailureText(kind: CheckFailureKind, status?: number): string {
+  switch (kind) {
+    case 'timeout':
+      return '서버가 10초 안에 답하지 않았어요';
+    case 'network':
+      return '인터넷에 연결되어 있지 않거나 GitHub에 닿지 못했어요';
+    case 'http':
+      return status === 403 || status === 429 ? 'GitHub가 요청이 너무 많다고 잠시 막았어요. 조금 뒤에 다시 해 주세요' : `GitHub가 오류(${status ?? '?'})를 줬어요`;
+    case 'parse':
+      return '받은 답을 읽지 못했어요';
+  }
 }

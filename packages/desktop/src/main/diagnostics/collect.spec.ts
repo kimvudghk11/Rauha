@@ -35,7 +35,7 @@ function deps(patch: Partial<CollectDeps> = {}): CollectDeps {
     env: {},
     tools: ['git', 'aws', 'gh', 'node'],
     usage: () => ({ readAt: Date.parse('2026-11-09T01:00:00.000Z'), failure: null }),
-    update: () => ({ current: '0.1.4', checkedAt: '2026-11-09T00:59:00.000Z', latest: '0.1.5', newer: true, showBanner: true, hasDownload: true, checking: false, failed: false, canInstall: true, install: { phase: 'idle', percent: null } }),
+    update: () => ({ current: '0.1.4', checkedAt: '2026-11-09T00:59:00.000Z', latest: '0.1.5', newer: true, showBanner: true, hasDownload: true, checking: false, failed: false, failReason: null, canInstall: true, install: { phase: 'idle', percent: null }, attempt: null }),
     logs: () => [],
     window: () => ({ width: 1280, height: 820, displays: 1 }),
     mac: () => ({ titleBarStyle: 'hiddenInset', trafficLight: { x: 14, y: 12 }, fullScreen: false }),

@@ -72,6 +72,7 @@ export const IPC = {
   updateDownload: 'update:download',
   updateDismiss: 'update:dismiss',
   updateInstall: 'update:install',
+  updateCancel: 'update:cancel',
   /** Claude 로그인: 상태 읽기 · 로그인 시작 · 취소 · (main → 화면) 진행 상태 푸시 */
   authStatus: 'auth:status',
   authLogin: 'auth:login',
@@ -236,6 +237,8 @@ export interface UpdateApi {
   dismiss(): Promise<UpdateView>;
   /** 앱 안에서 내려받아 설치하고 다시 켠다(설치본에서만). 시작하지 못하면 false */
   install(): Promise<boolean>;
+  /** 모달의 취소·닫기: 내려받는 중이면 멈추고 받은 파일을 지운다. 실패 화면·지난 시도 알림이면 치운다. 설치 단계에서는 아무것도 안 한다. */
+  cancel(): Promise<UpdateView>;
   onState(listener: (view: UpdateView) => void): void;
 }
 

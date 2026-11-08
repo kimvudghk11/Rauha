@@ -2,7 +2,7 @@ import { limitTone, type Settings } from '../shared/settings.js';
 import type { AccountsView, AuthApi, DiagnosticsResult, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
 import { el } from './dom.js';
 import type { UpdateView } from '../shared/update-record.js';
-import { installStateText } from '../shared/update-install.js';
+import { installStateText, isInstallBusy } from '../shared/update-install.js';
 import { checkedText } from './update-text.js';
 import type { UpdateFeed } from './update-view.js';
 import { createLoginControl } from './login-view.js';
@@ -139,11 +139,12 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       const paint = (view: UpdateView | null): void => {
         version.textContent = `현재 버전 ${view?.current ?? ''}`;
         button.disabled = view?.checking === true;
-        const busy = view?.install.phase === 'downloading' || view?.install.phase === 'installing';
+        const busy = view !== null && isInstallBusy(view.install);
         installNow.hidden = !(view?.canInstall === true && view.newer);
         installNow.disabled = busy;
         installNow.textContent = busy && view !== null ? installStateText(view.install) : '지금 업데이트';
-        status.textContent = view === null ? '' : checkedText(view, resetText(view.checkedAt));
+        status.replaceChildren(...(view?.checking === true ? [el('span', 'spinner')] : []), view === null ? '' : checkedText(view, resetText(view.checkedAt)));
+        status.classList.toggle('err', view?.failed === true);
       };
       paint(feed.current());
       unsubscribe = feed.subscribe(paint);

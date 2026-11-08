@@ -34,7 +34,8 @@ import { findTerminalRauha, removeTerminalRauha, type TerminalRauhaFile } from '
 import { AppVersion } from '../shared/app-update.js';
 import { UpdateService, type FetchLike } from './update/update-service.js';
 import { FileUpdateStore } from './update/update-store.js';
-import { fakeReleases } from './update/fake-releases.js';
+import { fakeInstaller, fakeReleases } from './update/fake-releases.js';
+import { canWriteDir, FileAttemptStore } from './update/update-files.js';
 import { createInstaller } from './update/installer.js';
 import { ClaudeLogin } from './auth/claude-login.js';
 import { AppLog } from './diagnostics/app-log.js';
@@ -535,6 +536,7 @@ function startUpdates(): void {
   if (current === null) return;
   const fakeUpdate = process.env['RAUHA_FAKE_UPDATE'] === '1';
   const fake: FetchLike = async () => ({ ok: true, json: async () => fakeReleases() });
+  const attempts = new FileAttemptStore(join(app.getPath('userData'), 'update-attempt.json'), join(app.getPath('userData'), 'update-swap.result'));
   const service = new UpdateService({
     fetch: fakeUpdate ? fake : (url, init) => fetch(url, init),
     // 확인용 가짜 응답은 진짜 기록 파일을 건드리지 않는다
@@ -546,11 +548,31 @@ function startUpdates(): void {
     enabled: () => settings.autoUpdateCheck,
     openExternal: (url) => openSafe(url),
     onChange: (view) => window?.webContents.send(IPC.updateState, view),
+    attempts,
     // 앱 안 설치는 설치본에서만(개발 실행은 앱 파일이 electron이라 덮어쓰면 안 된다). 확인용 가짜 응답일 때도 막는다.
     ...(app.isPackaged && !fakeUpdate && (process.platform === 'win32' || process.platform === 'darwin')
-      ? { installer: createInstaller({ platform: process.platform, execPath: process.execPath, pid: process.pid, tempDir: app.getPath('temp'), fetch: (url) => fetch(url), quit: () => app.quit() }) }
+      ? {
+          installer: createInstaller({
+            platform: process.platform,
+            execPath: process.execPath,
+            pid: process.pid,
+            tempDir: app.getPath('temp'),
+            home: homedir(),
+            canWrite: canWriteDir,
+            logPath: join(app.getPath('userData'), 'logs', 'update-swap.log'),
+            resultPath: join(app.getPath('userData'), 'update-swap.result'),
+            attempts,
+            now: () => new Date(),
+            fetch: (url, signal) => fetch(url, { signal }),
+            // 앱이 안 닫히면 설치 스크립트가 60초 기다리다 실패하니, 10초 안에 안 닫히면 강제로 끝낸다
+            quit: () => {
+              app.quit();
+              setTimeout(() => app.exit(0), 10_000);
+            },
+          }),
+        }
       : fakeUpdate && process.env['RAUHA_FAKE_INSTALL'] === '1'
-        ? { installer: { run: async (_u: string, _h: string, p: (n: number | null) => void, i: () => void) => { for (const n of [20, 60, 90]) { p(n); await new Promise((r) => setTimeout(r, 400)); } i(); } } }
+        ? { installer: fakeInstaller(process.env['RAUHA_FAKE_INSTALL_FAIL'] === '1', Number(process.env['RAUHA_FAKE_INSTALL_STEP_MS'] ?? '400')) }
         : {}),
   });
   updateView = () => service.view();
@@ -559,6 +581,7 @@ function startUpdates(): void {
   ipcMain.handle(IPC.updateDownload, () => service.download());
   ipcMain.handle(IPC.updateDismiss, () => service.dismiss());
   ipcMain.handle(IPC.updateInstall, () => service.installNow());
+  ipcMain.handle(IPC.updateCancel, () => service.cancel());
   void service.init().then(() => {
     setTimeout(() => void service.autoCheck(), UPDATE_FIRST_MS);
     setInterval(() => void service.autoCheck(), UPDATE_EVERY_MS);

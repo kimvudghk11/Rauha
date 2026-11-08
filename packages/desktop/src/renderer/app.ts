@@ -40,7 +40,7 @@ const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
 const code = buildCode({ api: window.rauha.code, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot) });
-const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform);
+const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
 
 // ── 배치 선택(A/B)은 이 PC에 기억한다. 저장소가 막혀 있어도 화면은 그대로 돈다. ──
