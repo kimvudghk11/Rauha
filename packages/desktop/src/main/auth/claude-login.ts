@@ -24,6 +24,14 @@ const cleanEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
 };
 
 /**
+ * 로그인 자식이 스스로 브라우저를 열지 않게 한다. 주소는 앱이 한 번만 열기 때문에(BROWSER가 먹지 않아도 앱이 여는 한 번은 그대로다).
+ * 먹으면 창이 한 번, 안 먹으면 두 번이 될 수 있어 따로 한 번 더 막는 장치("이미 열었음")도 둔다.
+ */
+export function quietBrowserEnv(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
+  return { ...env, BROWSER: platform === 'win32' ? 'cmd.exe /d /c exit' : 'true' };
+}
+
+/**
  * 앱 안 Claude 로그인. 앱에 들어 있는 실행 파일을 계정의 CLAUDE_CONFIG_DIR로 `auth login` 하고,
  * 출력에 나온 https 주소를 브라우저로 연다. 끝나면 `auth status`로 로그인 상태를 다시 읽는다.
  * 한 번에 하나만 돈다. 토큰 파일은 읽지도 옮기지도 않는다.
@@ -122,7 +130,7 @@ export class ClaudeLogin {
       };
       let child: ChildProcess;
       try {
-        child = this.spawn(exe, ['auth', 'login'], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        child = this.spawn(exe, ['auth', 'login'], { env: quietBrowserEnv(env), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
       } catch {
         return end(this.fail({ kind: 'no-executable' }));
       }

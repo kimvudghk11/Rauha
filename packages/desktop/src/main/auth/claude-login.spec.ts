@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
-import { ClaudeLogin } from './claude-login.js';
+import { ClaudeLogin, quietBrowserEnv } from './claude-login.js';
 import type { LoginView } from '../../shared/claude-login.js';
 
 interface Script {
@@ -172,5 +172,12 @@ describe('ClaudeLogin', () => {
     const f = fake({});
     const login = new ClaudeLogin({ executable: () => '/x/claude', env: async () => Promise.reject(new Error('config.toml이 깨졌어요')), openExternal: async () => undefined, onChange: () => undefined, spawn: f.spawn });
     expect((await login.check()).state).toEqual({ kind: 'unknown', reason: '계정 설정을 읽지 못했어요: config.toml이 깨졌어요' });
+  });
+});
+
+describe('로그인 창이 두 번 뜨지 않게', () => {
+  it('로그인 자식이 스스로 브라우저를 열지 않도록 BROWSER를 비워 준다', () => {
+    expect(quietBrowserEnv({ A: '1' }, 'darwin')).toEqual({ A: '1', BROWSER: 'true' });
+    expect(quietBrowserEnv({}, 'win32')['BROWSER']).toContain('exit');
   });
 });

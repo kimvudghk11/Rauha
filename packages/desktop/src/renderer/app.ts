@@ -19,10 +19,13 @@ import { CommandBookDto } from '../shared/command-dto.js';
 import { buildSettings, limitBar } from './settings-view.js';
 import { createUsageFeed, usageTooltip } from './usage-feed.js';
 import { createChrome } from './chrome.js';
+import { installClickGuard } from './click-guard.js';
 import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
 import { TABS, type TabId } from './tabs.js';
+
+installClickGuard();
 
 declare global {
   interface Window {
