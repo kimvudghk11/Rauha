@@ -5,6 +5,7 @@ import { ChangeSet } from '../../shared/git-changes.js';
 import { FileDiff, type PatchMode, type Selection } from '../../shared/git-diff.js';
 import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath } from '../../shared/git-guard.js';
 import { BRANCH_FORMAT, branchView, LOG_FORMAT, LOG_LIMIT, parseBranches, parseLog } from '../../shared/git-lists.js';
+import { assertPlainFile } from './safe-file.js';
 import { GitFailure, mustGit, runGit } from './git-run.js';
 
 const ok = (message: string, extra: Partial<Done> = {}): Done => ({ message, ...extra });
@@ -202,16 +203,21 @@ export class GitRepo {
   }
 
   async readConflict(path: string): Promise<{ text: string }> {
-    return { text: await readFile(join(this.root, await this.assertConflict(path)), 'utf8') };
+    const file = join(this.root, await this.assertConflict(path));
+    await assertPlainFile(file);
+    return { text: await readFile(file, 'utf8') };
   }
 
   async writeConflict(path: string, text: string): Promise<Done> {
-    await writeFile(join(this.root, await this.assertConflict(path)), text, 'utf8');
+    const file = join(this.root, await this.assertConflict(path));
+    await assertPlainFile(file);
+    await writeFile(file, text, 'utf8');
     return ok('저장했어요. 확인하고 "해결됨"을 눌러 주세요.');
   }
 
   async markResolved(path: string): Promise<Done> {
     const p = await this.assertConflict(path);
+    await assertPlainFile(join(this.root, p));
     if (/^(<{7}|>{7}) /m.test(await readFile(join(this.root, p), 'utf8'))) throw new GitFailure('BLOCKED', '충돌 표시(<<<<<<<)가 아직 남아 있어요.');
     await this.git(['add', '--', p]);
     return ok(`${p}: 해결됨으로 표시했어요.`);

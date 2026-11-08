@@ -232,3 +232,15 @@ describe('기록 모음', () => {
     expect(overflow.map((e) => e.id)).toEqual(['e1', 'e0']);
   });
 });
+
+describe('기록의 비밀 가리기 보강', () => {
+  it('Google·Stripe·npm·GitLab 키 모양도 가린다', () => {
+    const keys = ['AIzaSyA1234567890abcdefghijklmnopqrstuv', 'sk_live_51Habcdefghijklmnop', 'rk_test_abcdefghijklmnopqrstu', 'npm_abcdefghijklmnopqrstuvwxyz0123456789', 'glpat-abcdefghij1234567890'];
+    for (const k of keys) expect(scrub(`값 ${k} 끝`), k).not.toContain(k);
+  });
+
+  it('git 커밋 번호나 평범한 단어는 가리지 않는다', () => {
+    expect(scrub('커밋 3521bbbf4a5d6c7e8f90123456789abcdef01234 확인')).toContain('3521bbbf4a5d6c7e8f90123456789abcdef01234');
+    expect(scrub('npm run build 성공')).toBe('npm run build 성공');
+  });
+});
