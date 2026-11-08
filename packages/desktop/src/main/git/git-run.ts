@@ -20,13 +20,14 @@ export class GitFailure extends Error {
 
 /**
  * git을 셸 없이(execFile, 인자 배열) 돌린다. 종료 코드가 0이 아니어도 던지지 않고 돌려준다(diff --no-index는 1이 정상).
+ * 폴더 설정의 core.fsmonitor 는 status 때마다 프로그램을 돌리므로 끈다.
  * 비밀번호 창이 뜨지 않게 GIT_TERMINAL_PROMPT=0, 한글 경로가 깨지지 않게 core.quotepath=false.
  */
 export function runGit(root: string, args: readonly string[], input?: string): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       'git',
-      ['-c', 'core.quotepath=false', ...args],
+      ['-c', 'core.quotepath=false', '-c', 'core.fsmonitor=false', ...args],
       { cwd: root, windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_MERGE_AUTOEDIT: 'no' } },
       (error, stdout, stderr) => {
         const e = error as (NodeJS.ErrnoException & { code?: number | string }) | null;

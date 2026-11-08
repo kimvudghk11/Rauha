@@ -8,6 +8,7 @@ import { BRANCH_FORMAT, branchView, LOG_FORMAT, LOG_LIMIT, parseBranches, parseL
 import { parseWorktrees, type WorktreeView } from '../../shared/git-worktrees.js';
 import { knownGitError, pullDoneMessage } from '../../shared/git-toolbar.js';
 import { assertPlainFile } from './safe-file.js';
+import { belongsToRepo } from './worktree-owner.js';
 import { GitFailure, mustGit, runGit } from './git-run.js';
 
 const ok = (message: string, extra: Partial<Done> = {}): Done => ({ message, ...extra });
@@ -153,10 +154,13 @@ export class GitRepo {
   /** 이 레포의 작업 트리(메인 폴더와 worktree)와 각 폴더의 변경 파일 수·마지막 커밋 */
   async worktrees(): Promise<WorktreeView[]> {
     const rows = parseWorktrees(await this.git(['worktree', 'list', '--porcelain']));
+    const common = resolve(this.root, (await this.git(['rev-parse', '--git-common-dir'])).trim());
     return Promise.all(
       rows.slice(0, 30).map(async (w) => {
-        const st = w.prunable ? null : await runGit(w.path, ['status', '--porcelain']);
-        const lg = w.prunable ? null : await runGit(w.path, ['log', '-1', '--format=%an%x1f%at%x1f%s']);
+        // 이 레포의 폴더가 아니면 그 폴더에서 git을 돌리지 않는다(그 폴더의 설정이 프로그램을 돌릴 수 있다)
+        const skip = w.prunable || !(await belongsToRepo(w.path, common));
+        const st = skip ? null : await runGit(w.path, ['status', '--porcelain']);
+        const lg = skip ? null : await runGit(w.path, ['log', '-1', '--format=%an%x1f%at%x1f%s']);
         const [author = '', at = '0', subject = ''] = lg !== null && lg.code === 0 ? lg.stdout.trim().split(String.fromCharCode(31)) : [];
         const changed = st !== null && st.code === 0 ? st.stdout.split('\n').filter((l) => l.trim() !== '').length : 0;
         return { ...w, changed, author, at: Number(at) || 0, subject };

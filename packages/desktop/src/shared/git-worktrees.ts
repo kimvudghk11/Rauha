@@ -45,3 +45,10 @@ export interface WorktreeView extends WorktreeRow {
   readonly at: number;
   readonly subject: string;
 }
+
+/** 연결된 worktree 폴더의 `.git` 파일("gitdir: 경로")이 가리키는 곳. 그런 모양이 아니면 null. */
+export function gitdirOf(dotGitFile: string): string | null {
+  const first = dotGitFile.split(/\r?\n/)[0] ?? '';
+  const m = /^gitdir:[ \t]*(.+?)[ \t]*$/.exec(first);
+  return m?.[1] ?? null;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseWorktrees, worktreeName } from './git-worktrees.js';
+import { gitdirOf, parseWorktrees, worktreeName } from './git-worktrees.js';
 
 describe('parseWorktrees', () => {
   const text = ['worktree /w/app', 'HEAD 1234567890abcdef', 'branch refs/heads/main', '', 'worktree /w/wt/job1', 'HEAD abcdef1234567890', 'branch refs/heads/feature/a', 'locked reason', '', 'worktree /w/wt/old', 'HEAD 0000000aaaa', 'detached', 'prunable gone', ''].join('\n');
@@ -17,5 +17,16 @@ describe('parseWorktrees', () => {
   });
   it('폴더 이름은 경로 마지막 칸이다', () => {
     expect(worktreeName(['C:', 'w', 'wt', 'job1', ''].join(String.fromCharCode(92)))).toBe('job1');
+  });
+});
+
+describe('gitdirOf', () => {
+  it('.git 파일 첫 줄의 gitdir 경로를 읽는다', () => {
+    expect(gitdirOf('gitdir: /r/.git/worktrees/x\n')).toBe('/r/.git/worktrees/x');
+    expect(gitdirOf('gitdir:C:/r/.git/worktrees/x\r\n')).toBe('C:/r/.git/worktrees/x');
+  });
+  it('gitdir 줄이 아니면 null이다(일반 파일·빈 파일)', () => {
+    expect(gitdirOf('')).toBeNull();
+    expect(gitdirOf('hello\ngitdir: /x')).toBeNull();
   });
 });
