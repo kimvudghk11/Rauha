@@ -27,6 +27,10 @@ import { claudeBinaryPath, promptsDir as resolvePromptsDir, type ResourceEnv } f
 import { displayKey, parseWindowFile, restoreBounds, type Rect } from './platform/window-state.js';
 import { adoptShellPath } from './platform/shell-path.js';
 import { findTerminalRauha, removeTerminalRauha, type TerminalRauhaFile } from './platform/terminal-rauha.js';
+import { AppVersion } from '../shared/app-update.js';
+import { UpdateService, type FetchLike } from './update/update-service.js';
+import { FileUpdateStore } from './update/update-store.js';
+import { fakeReleases } from './update/fake-releases.js';
 import { measureTyping } from './measure-typing.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
@@ -302,6 +306,38 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
 
 let runnerRef: JobRunner | null = null;
 
+const UPDATE_FIRST_MS = 5_000;
+const UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
+
+/** 새 버전 알림: 시작 5초 뒤 한 번, 이후 6시간마다 확인한다. 자동 설치는 없다(내려받기는 브라우저로). */
+function startUpdates(): void {
+  if (process.env['RAUHA_SMOKE_COMPOSE'] === '1' || process.env['RAUHA_MEASURE_TYPING'] !== undefined) return;
+  const current = AppVersion.parse(app.getVersion());
+  if (current === null) return;
+  const fakeUpdate = process.env['RAUHA_FAKE_UPDATE'] === '1';
+  const fake: FetchLike = async () => ({ ok: true, json: async () => fakeReleases() });
+  const service = new UpdateService({
+    fetch: fakeUpdate ? fake : (url, init) => fetch(url, init),
+    // 확인용 가짜 응답은 진짜 기록 파일을 건드리지 않는다
+    store: fakeUpdate ? { load: async () => null, save: async () => undefined } : new FileUpdateStore(join(app.getPath('userData'), 'update.json')),
+    current,
+    platform: process.platform,
+    arch: process.arch,
+    now: () => new Date(),
+    enabled: () => settings.autoUpdateCheck,
+    openExternal: (url) => shell.openExternal(url),
+    onChange: (view) => window?.webContents.send(IPC.updateState, view),
+  });
+  ipcMain.handle(IPC.updateState, () => service.view());
+  ipcMain.handle(IPC.updateCheck, () => service.check());
+  ipcMain.handle(IPC.updateDownload, () => service.download());
+  ipcMain.handle(IPC.updateDismiss, () => service.dismiss());
+  void service.init().then(() => {
+    setTimeout(() => void service.autoCheck(), UPDATE_FIRST_MS);
+    setInterval(() => void service.autoCheck(), UPDATE_EVERY_MS);
+  });
+}
+
 function installMenu(): void {
   const template = appMenuTemplate(process.platform, 'rauha', () => window?.webContents.send(IPC.openTab, 'settings'));
   Menu.setApplicationMenu(template === null ? null : Menu.buildFromTemplate(template));
@@ -418,6 +454,7 @@ void app.whenReady().then(async () => {
   ipcMain.on(IPC.approvalAnswer, (_e, id: unknown, choice: unknown) => {
     if (typeof id === 'string' && typeof choice === 'object' && choice !== null && 'kind' in choice) approvals.answer(id, answerFor(choice as ApprovalChoice));
   });
+  startUpdates();
   open(runner);
 });
 app.on('window-all-closed', () => {

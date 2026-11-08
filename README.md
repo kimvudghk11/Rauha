@@ -11,6 +11,7 @@
 - 설계서: [docs/design/claude-team-design.md](docs/design/claude-team-design.md)
 - 개발 규칙: [docs/conventions/ddd-entity-dto.md](docs/conventions/ddd-entity-dto.md)
 - 데스크톱 앱 사용 안내(한 장): [docs/desktop-guide.md](docs/desktop-guide.md)
+- 새 버전 알림: 앱이 GitHub 릴리스를 보고 새 버전이 있으면 위쪽에 알려 주고 내 컴퓨터용 설치 파일을 바로 내려받게 한다(자동 설치는 없음) — [안내](docs/desktop-guide.md)
 - **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-Setup-0.1.1-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-x64.dmg) — 설치 방법은 아래 "데스크톱 앱 설치"
 
 ## 데스크톱 앱 설치 (맥북 · Windows)

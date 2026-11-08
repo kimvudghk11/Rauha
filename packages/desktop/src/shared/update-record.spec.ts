@@ -18,7 +18,7 @@ describe('UpdateRecord', () => {
 
   it('나중에를 누르면 그 버전은 배너를 숨기고 확인 결과는 남는다', () => {
     const view = found().dismiss().toView(cur);
-    expect(view).toMatchObject({ latest: '0.1.2', showBanner: false });
+    expect(view).toMatchObject({ latest: '0.1.2', newer: true, showBanner: false });
   });
 
   it('나중에를 누른 뒤 더 높은 버전이 나오면 배너가 다시 보인다', () => {

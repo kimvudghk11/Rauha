@@ -5,6 +5,7 @@ import type { FolderKind } from './folder-kind.js';
 import type { RepoStatus } from './git-status.js';
 import type { GitApi } from './git-api.js';
 import type { Settings } from './settings.js';
+import type { UpdateView } from './update-record.js';
 import type { InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
@@ -45,6 +46,11 @@ export const IPC = {
   /** 화면 → main: 터미널 rauha 실행 파일을 찾는다 / 확인받은 것만 지운다 */
   terminalFind: 'terminal:find',
   terminalRemove: 'terminal:remove',
+  /** 새 버전 알림: 상태 읽기(main → 화면 푸시도 같은 이름) · 지금 확인 · 내려받기 열기 · 나중에 */
+  updateState: 'update:state',
+  updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateDismiss: 'update:dismiss',
 } as const;
 
 /** 단계 막대 한 칸. 지나온 단계는 done, 지금 단계는 now. */
@@ -145,6 +151,17 @@ export interface RauhaApi {
   readonly platform: string;
   findTerminalRauha(): Promise<readonly TerminalRauhaView[]>;
   removeTerminalRauha(paths: readonly string[]): Promise<readonly string[]>;
+  readonly update: UpdateApi;
+}
+
+/** 새 버전 알림 API. 내려받을 주소는 화면이 보내지 않는다(main이 검증한 것만 연다). */
+export interface UpdateApi {
+  state(): Promise<UpdateView>;
+  check(): Promise<UpdateView>;
+  /** 브라우저로 설치 파일 내려받기를 연다. 열 주소가 없으면 false */
+  download(): Promise<boolean>;
+  dismiss(): Promise<UpdateView>;
+  onState(listener: (view: UpdateView) => void): void;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'notify'>> & { notify?: Partial<Settings['notify']> };

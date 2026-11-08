@@ -6,6 +6,7 @@ import { buildGit } from './git-view.js';
 import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
 import { buildSettings, limitBar } from './settings-view.js';
+import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
 import { TABS, type TabId } from './tabs.js';
@@ -21,6 +22,7 @@ document.documentElement.dataset['platform'] = window.rauha.platform;
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
+const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform);
 
 // ── 배치 선택(A/B)은 이 PC에 기억한다. 저장소가 막혀 있어도 화면은 그대로 돈다. ──
 const readLayout = (): Layout => {
@@ -71,7 +73,7 @@ function show(id: TabId): void {
   if (id === 'chat') screen.replaceChildren(chat.root);
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
-  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder() }, pickLayout).root);
+  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), updates: { feed: updates, check: () => window.rauha.update.check() } }, pickLayout).root);
   else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
   else {
     const soon = el('div', 'soon');

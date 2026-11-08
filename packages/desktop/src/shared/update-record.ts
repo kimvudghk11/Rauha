@@ -6,6 +6,8 @@ export interface UpdateView {
   /** 마지막으로 확인에 성공한 시각(ISO). 아직 없으면 null */
   readonly checkedAt: string | null;
   readonly latest: string | null;
+  /** 지금 버전보다 높은 버전이 알려져 있는지(나중에로 미뤘어도 true) */
+  readonly newer: boolean;
   readonly showBanner: boolean;
   /** 이 컴퓨터에 맞는 설치 파일이 있는지 */
   readonly hasDownload: boolean;
@@ -69,6 +71,7 @@ export class UpdateRecord {
       current: current.toString(),
       checkedAt: this.checkedAt,
       latest: this.latest?.toString() ?? null,
+      newer: this.latest !== null && this.latest.isNewerThan(current),
       showBanner: shouldShowBanner(current, this.latest, this.dismissed),
       hasDownload: this.downloadUrl() !== null,
       checking: flags.checking ?? false,

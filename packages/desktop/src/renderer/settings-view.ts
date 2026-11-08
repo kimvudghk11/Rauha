@@ -1,6 +1,9 @@
 import { limitTone, type Settings } from '../shared/settings.js';
 import type { AccountsView, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
 import { el } from './dom.js';
+import type { UpdateView } from '../shared/update-record.js';
+import { checkedText } from './update-text.js';
+import type { UpdateFeed } from './update-view.js';
 
 export interface SettingsApi {
   get(): Promise<Settings>;
@@ -8,6 +11,8 @@ export interface SettingsApi {
   usage(): Promise<UsageView | null>;
   accounts(): Promise<AccountsView>;
   pickFolder(): Promise<string | null>;
+  /** 새 버전 알림(없으면 그 구역을 그리지 않는다) */
+  updates?: { readonly feed: UpdateFeed; check(): Promise<unknown> };
 }
 
 /** 초기화 시각을 "오늘 오후 3:20" 같은 짧은 글로(모르면 빈 글) */
@@ -52,7 +57,11 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     return r;
   };
 
+  let unsubscribe: (() => void) | null = null;
+
   async function render(): Promise<void> {
+    unsubscribe?.();
+    unsubscribe = null;
     const [s, usage, accounts] = await Promise.all([api.get(), api.usage(), api.accounts()]).catch((error: unknown) => {
       root.replaceChildren(el('div', 'err pad', `설정을 불러오지 못했어요: ${error instanceof Error ? error.message : String(error)}`));
       return [null, null, null] as const;
@@ -87,6 +96,29 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       return row(label, box);
     });
     root.appendChild(section('알림', ...notify));
+
+    // 새 버전: 현재 버전 · 확인 · 마지막 확인 · 자동 확인
+    if (api.updates !== undefined) {
+      const { feed, check } = api.updates;
+      const version = el('span', 'lbl');
+      const button = el('button', 'btn sec', '업데이트 확인');
+      button.addEventListener('click', () => void check());
+      const status = el('div', 'dim pad');
+      const auto = el('input');
+      auto.type = 'checkbox';
+      auto.checked = s.autoUpdateCheck;
+      auto.addEventListener('change', () => void api.update({ autoUpdateCheck: auto.checked }));
+      const head = el('div', 'srow');
+      head.append(version, button);
+      const paint = (view: UpdateView | null): void => {
+        version.textContent = `현재 버전 ${view?.current ?? ''}`;
+        button.disabled = view?.checking === true;
+        status.textContent = view === null ? '' : checkedText(view, resetText(view.checkedAt));
+      };
+      paint(feed.current());
+      unsubscribe = feed.subscribe(paint);
+      root.appendChild(section('새 버전', head, status, row('자동으로 확인(6시간마다)', auto)));
+    }
 
     // 화면
     const layout = el('select');
