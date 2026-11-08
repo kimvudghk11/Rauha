@@ -169,7 +169,7 @@
 .dialog select { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 4px 8px; font: inherit; }
 .dialog .btn:disabled { opacity: .5; cursor: default; }
 
-@media (max-width: 720px) { .toasts { left: 8px; right: 8px; bottom: auto; top: 44px; } .toast { max-width: none; } }
+@media (max-width: 720px) { .toasts { left: 60px; right: 8px; bottom: auto; top: calc(var(--titlebar-h, 0px) + 44px); } .toast { max-width: none; } }
 
 .m .tx .kn { margin-top: 6px; font-size: 11px; color: var(--muted); }
 .m .tx .deeper { margin-top: 6px; display: block; }
