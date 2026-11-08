@@ -4,7 +4,7 @@ import { InstallFailure } from '../../shared/update-install.js';
 export function fakeReleases(): unknown {
   const base = 'https://github.com/kimvudghk11/rauha/releases/download/v9.9.9/';
   const names = ['rauha-9.9.9-mac-arm64.dmg', 'rauha-9.9.9-mac-x64.dmg', 'rauha-Setup-9.9.9-x64.exe'];
-  return [{ tag_name: 'v9.9.9', draft: false, prerelease: false, html_url: 'https://github.com/kimvudghk11/rauha/releases/tag/v9.9.9', assets: names.map((name) => ({ name, browser_download_url: base + name })) }];
+  return [{ tag_name: 'v9.9.9', draft: false, prerelease: false, html_url: 'https://github.com/kimvudghk11/rauha/releases/tag/v9.9.9', assets: names.map((name) => ({ name, browser_download_url: base + name, digest: `sha256:${'a'.repeat(64)}` })) }];
 }
 
 /**
