@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { failureReason, loggedInText, loginText, loginUrlFrom, needsLogin, parseLoginStatus } from './claude-login.js';
+import { failureReason, loginText, loginUrlFrom, needsLogin, parseLoginStatus } from './claude-login.js';
 
 describe('parseLoginStatus', () => {
   it('claude auth status의 JSON에서 로그인 여부만 읽는다', () => {
@@ -82,13 +82,5 @@ describe('loginText', () => {
     expect(loginText({ state: 'success', message: null })).toBe('로그인됐어요.');
     expect(loginText({ state: 'failed', message: '시간이 지났어요.' })).toBe('로그인하지 못했어요: 시간이 지났어요.');
     expect(loginText({ state: 'cancelled', message: null })).toBe('로그인을 취소했어요.');
-  });
-});
-
-describe('loggedInText', () => {
-  it('로그인 여부를 말로 바꾼다(모르면 모른다고 한다)', () => {
-    expect(loggedInText(true)).toBe('로그인되어 있어요');
-    expect(loggedInText(false)).toBe('로그인되어 있지 않아요');
-    expect(loggedInText(null)).toBe('로그인 상태를 확인하지 못했어요');
   });
 });

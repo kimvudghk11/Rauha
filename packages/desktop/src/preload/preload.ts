@@ -87,7 +87,7 @@ const api: RauhaApi = {
     },
   },
   auth: {
-    status: () => ipcRenderer.invoke(IPC.authStatus),
+    check: () => ipcRenderer.invoke(IPC.authStatus),
     login: () => ipcRenderer.invoke(IPC.authLogin),
     cancel: () => ipcRenderer.send(IPC.authCancel),
     onState: (listener) => {

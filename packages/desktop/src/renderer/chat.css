@@ -186,3 +186,10 @@
 .login-text { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; min-width: 0; }
 .login-text.err { color: var(--red); }
 .dialog .login { margin-top: 2px; }
+.acct { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border-left: 3px solid var(--border2); border-radius: 3px; background: var(--input); min-width: 0; }
+.acct[data-tone=ok] { border-left-color: #3fb27f; }
+.acct[data-tone=off] { border-left-color: var(--red); }
+.acct[data-tone=warn] { border-left-color: #d9a441; }
+.acct-title { font-size: 13px; overflow-wrap: anywhere; }
+.acct-detail { font-size: 11.5px; overflow-wrap: anywhere; }
+.login-row .btn.sec { padding: 1px 8px; font-size: 11.5px; }

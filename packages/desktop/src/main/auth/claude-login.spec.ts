@@ -46,7 +46,7 @@ function setup(scripts: Parameters<typeof fake>[0], extra: { executable?: string
   const views: LoginView[] = [];
   const login = new ClaudeLogin({
     executable: () => ('executable' in extra ? extra.executable : '/Applications/rauha.app/claude'),
-    env: async () => ({ PATH: '', CLAUDE_CONFIG_DIR: '/home/kim/.claude-work', ELECTRON_RUN_AS_NODE: '1' }),
+    env: async () => ({ PATH: '', HOME: '/home/kim', CLAUDE_CONFIG_DIR: '/home/kim/.claude-work', ELECTRON_RUN_AS_NODE: '1' }),
     openExternal: async (url) => void opened.push(url),
     onChange: (v) => views.push(v),
     spawn: f.spawn,
@@ -148,5 +148,29 @@ describe('ClaudeLogin', () => {
     expect(await setup({ status: { error: true } }).login.status()).toBeNull();
     expect(await setup({ status: { hang: true } }).login.status()).toBeNull();
     expect(await setup({}, { executable: undefined }).login.status()).toBeNull();
+  });
+
+  it('계정 상태: 로그인됨이면 누구인지와 계정 폴더(홈은 ~)를 함께 준다', async () => {
+    const s = setup({ status: { stdout: '{"loggedIn": true, "email": "a@b.com"}' } });
+    expect(await s.login.check()).toEqual({ state: { kind: 'signed-in', who: 'a@b.com', detail: null }, configDir: '~/.claude-work' });
+  });
+
+  it('계정 상태: 종료 코드 1로 끝나도 loggedIn false를 말했으면 로그인 안 됨이다', async () => {
+    const s = setup({ status: { stdout: '{"loggedIn": false}', code: 1 } });
+    expect((await s.login.check()).state).toEqual({ kind: 'signed-out' });
+  });
+
+  it('계정 상태: 답이 없거나 깨졌으면 로그인 안 됨이 아니라 이유가 달린 확인 못 함이다', async () => {
+    expect((await setup({ status: { hang: true } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('답하지 않았어요') });
+    expect((await setup({ status: { error: true } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('띄우지 못했어요') });
+    expect((await setup({ status: { stdout: 'garbage' } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: 'Claude의 답을 읽지 못했어요.' });
+    expect((await setup({ status: { stderr: 'boom', code: 3 } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: 'Claude가 오류로 끝났어요(종료 코드 3): boom' });
+    expect((await setup({}, { executable: undefined }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('실행 파일을 찾지 못했어요') });
+  });
+
+  it('계정 상태: 계정 설정을 읽다 실패하면 그 이유를 말한다', async () => {
+    const f = fake({});
+    const login = new ClaudeLogin({ executable: () => '/x/claude', env: async () => Promise.reject(new Error('config.toml이 깨졌어요')), openExternal: async () => undefined, onChange: () => undefined, spawn: f.spawn });
+    expect((await login.check()).state).toEqual({ kind: 'unknown', reason: '계정 설정을 읽지 못했어요: config.toml이 깨졌어요' });
   });
 });

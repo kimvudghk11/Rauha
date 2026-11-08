@@ -481,7 +481,7 @@ function startAuth(): void {
     openExternal: (url) => openSafe(url),
     onChange: (view) => window?.webContents.send(IPC.authState, view),
   });
-  ipcMain.handle(IPC.authStatus, () => login.status());
+  ipcMain.handle(IPC.authStatus, () => login.check());
   ipcMain.handle(IPC.authLogin, () => {
     void login.start();
     return login.view();

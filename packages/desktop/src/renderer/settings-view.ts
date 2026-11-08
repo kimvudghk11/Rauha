@@ -99,7 +99,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       unsubscribeUsage = stop;
     }
     const login = api.auth === undefined ? [] : [createLoginControl(api.auth, { onSuccess: () => void api.usage().then(() => undefined) }).root];
-    root.appendChild(section('계정·한도', row('계정', account), ...login, limits, el('div', 'hint pad', '계정 하나는 Claude Code 설정 폴더 하나예요. 로그인은 브라우저에서 하고, 토큰은 읽지 않아요.')));
+    root.appendChild(section('계정·한도', ...login, row('쓸 계정', account), limits, el('div', 'hint pad', '계정 하나는 Claude Code 설정 폴더 하나예요. 로그인은 브라우저에서 하고, 토큰은 읽지 않아요.')));
 
     // 작업 폴더
     const change = el('button', 'btn sec', '바꾸기');

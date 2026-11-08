@@ -1,5 +1,6 @@
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
-import { failureReason, loginUrlFrom, parseLoginStatus, type LoginFailure, type LoginView } from '../../shared/claude-login.js';
+import { accountFromStatus, shortPath, unknownBecause, type AccountCheck, type AccountState } from '../../shared/account-state.js';
+import { failureReason, loginUrlFrom, type LoginFailure, type LoginView } from '../../shared/claude-login.js';
 
 export interface ClaudeLoginDeps {
   /** 앱에 들어 있는 Claude Code 실행 파일(없으면 undefined). PATH의 claude는 쓰지 않는다(맥 Finder 실행에는 PATH가 없다). */
@@ -43,31 +44,55 @@ export class ClaudeLogin {
 
   /** 지금 계정이 로그인돼 있는지. 모르면 null(실행 파일이 없거나 시간이 걸릴 때). */
   async status(): Promise<boolean | null> {
+    const { state } = await this.check();
+    return state.kind === 'signed-in' ? true : state.kind === 'signed-out' ? false : null;
+  }
+
+  /** 계정 구역에 보일 상태: 누구로 로그인됨 / 로그인 안 됨 / 확인 못 함(이유 한 줄). 읽지 못한 것을 "로그인 안 됨"으로 말하지 않는다. */
+  async check(): Promise<AccountCheck> {
     const exe = this.deps.executable();
-    if (exe === undefined) return null;
-    const env = cleanEnv(await this.deps.env());
+    if (exe === undefined) return { state: unknownBecause({ kind: 'no-executable' }), configDir: null };
+    let env: NodeJS.ProcessEnv;
+    try {
+      env = cleanEnv(await this.deps.env());
+    } catch (error) {
+      return { state: unknownBecause({ kind: 'config', message: error instanceof Error ? error.message : String(error) }), configDir: null };
+    }
+    const dir = env['CLAUDE_CONFIG_DIR'];
+    const configDir = dir === undefined ? null : shortPath(dir, env['HOME'] ?? env['USERPROFILE'] ?? null);
+    return { state: await this.readStatus(exe, env), configDir };
+  }
+
+  private readStatus(exe: string, env: NodeJS.ProcessEnv): Promise<AccountState> {
+    const timeoutMs = this.deps.statusTimeoutMs ?? STATUS_TIMEOUT_MS;
     return new Promise((resolve) => {
       let out = '';
+      let err = '';
       let done = false;
       let child: ChildProcess;
-      const finish = (value: boolean | null) => {
+      const finish = (value: AccountState) => {
         if (done) return;
         done = true;
         clearTimeout(timer);
         resolve(value);
       };
       try {
-        child = this.spawn(exe, ['auth', 'status'], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
-      } catch {
-        return resolve(null);
+        child = this.spawn(exe, ['auth', 'status'], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch (error) {
+        return resolve(unknownBecause({ kind: 'spawn', message: error instanceof Error ? error.message : String(error) }));
       }
       const timer = setTimeout(() => {
         child.kill();
-        finish(null);
-      }, this.deps.statusTimeoutMs ?? STATUS_TIMEOUT_MS);
+        finish(unknownBecause({ kind: 'timeout', seconds: Math.max(1, Math.round(timeoutMs / 1000)) }));
+      }, timeoutMs);
       child.stdout?.on('data', (d: Buffer) => (out += d.toString()));
-      child.on('error', () => finish(null));
-      child.on('close', () => finish(parseLoginStatus(out)));
+      child.stderr?.on('data', (d: Buffer) => (err += d.toString()));
+      child.on('error', (error) => finish(unknownBecause({ kind: 'spawn', message: error.message })));
+      child.on('close', (code) => {
+        const state = accountFromStatus(out);
+        // 출력이 비었는데 오류로 끝났으면 읽을 수 없는 답이 아니라 종료 코드와 마지막 오류 줄을 이유로 든다
+        finish(state.kind === 'unknown' && out.trim() === '' && code !== 0 ? unknownBecause({ kind: 'exit', code: code ?? 1, stderr: err }) : state);
+      });
     });
   }
 

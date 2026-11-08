@@ -59,9 +59,6 @@ export function failureReason(failure: LoginFailure): string {
   }
 }
 
-/** 로그인 여부 → 계정 구역에 보일 글. 모르면(null) 모른다고 말한다. */
-export const loggedInText = (loggedIn: boolean | null): string => (loggedIn === null ? '로그인 상태를 확인하지 못했어요' : loggedIn ? '로그인되어 있어요' : '로그인되어 있지 않아요');
-
 /** 상태 → 화면 글 한 줄(idle은 빈 글). */
 export function loginText(view: LoginView): string {
   switch (view.state) {

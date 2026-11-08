@@ -12,6 +12,7 @@ import type { RecordsApi, TodoApi } from './data-api.js';
 import type { CodeApi } from './code-api.js';
 import type { TerminalApi } from './terminal-api.js';
 import type { LoginView } from './claude-login.js';
+import type { AccountCheck } from './account-state.js';
 import type { DefaultRuleView, DefaultVariant, InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
@@ -194,8 +195,8 @@ export interface RauhaApi {
 
 /** 앱 안 Claude 로그인 API. 로그인할 계정은 main이 설정에서 정한다(화면이 경로를 보내지 않는다). */
 export interface AuthApi {
-  /** 지금 계정이 로그인돼 있는지. 모르면 null */
-  status(): Promise<boolean | null>;
+  /** 지금 계정의 로그인 상태: 누구로 로그인됨 / 로그인 안 됨 / 확인 못 함(이유). 토큰은 다루지 않는다. */
+  check(): Promise<AccountCheck>;
   /** 로그인을 시작한다(브라우저가 열린다). 바로 지금 상태를 돌려주고, 끝나면 onState로 알린다. */
   login(): Promise<LoginView>;
   cancel(): void;
