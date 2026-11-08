@@ -3,18 +3,15 @@
 .bg-head { display: flex; flex-direction: column; gap: var(--s1); }
 .bg-head b { color: var(--bright); font-size: var(--fs-lg); }
 .bg-options { flex-wrap: wrap; }
-.bg-back { display: inline-flex; align-self: flex-start; }
+.bg .rdbar { margin-top: 0; }
 .bg-snips { display: flex; flex-direction: column; gap: var(--s2); margin-bottom: var(--s1); }
 .bg-snip { display: flex; flex-direction: column; gap: var(--s1); }
 .bg-snip textarea { width: 100%; }
 .bg-pre { margin: 0; padding: var(--s2) var(--s3); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; font-family: inherit; font-size: var(--fs-sm); color: var(--text); }
 .bg-changes { display: flex; flex-direction: column; gap: var(--s1); }
 .bg-chg { align-items: center; }
+.bg-chg .end { margin-left: auto; }
 .bg-from { color: var(--yellow); overflow-wrap: anywhere; }
 .bg-to { color: var(--green); overflow-wrap: anywhere; }
 .bg-draft { display: flex; flex-direction: column; gap: var(--s2); }
 .bg-card { display: flex; flex-direction: column; gap: var(--s2); }
-.bg-pickbar { flex-wrap: wrap; padding: var(--s1) var(--s2); border-bottom: 1px solid var(--border); }
-.bg-pickrow { display: flex; align-items: stretch; min-width: 0; }
-.bg-pickrow > input { flex: none; align-self: center; margin: 0 var(--s1) 0 var(--s2); }
-.bg-pickrow > .ri { flex: 1; min-width: 0; }

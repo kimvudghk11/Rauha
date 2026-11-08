@@ -13,6 +13,15 @@ const PATHS = {
   plus: 'M12 5v14 M5 12h14',
   undo: 'M9 14l-4-4 4-4 M5 10h9a5 5 0 0 1 0 10h-3',
   external: 'M14 4h6v6 M20 4l-9 9 M18 14v5H5V6h5',
+  /** 기록 탭 */
+  copy: 'M9 9h11v11H9z M5 15V4h11',
+  trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13',
+  back: 'M15 6l-6 6 6 6',
+  doc: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 13h7 M9 17h7',
+  close: 'M6 6l12 12 M18 6L6 18',
+  save: 'M5 4h12l3 3v13H5z M8 4v5h8V4 M8 20v-7h8v7',
+  check: 'M5 12l5 5 9-10',
+  edit: 'M4 20l4-1 11-11-3-3L5 16z',
 } as const;
 
 export type GitIcon = keyof typeof PATHS;

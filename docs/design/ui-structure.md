@@ -74,15 +74,37 @@ section.todo
  └─ .tboard  .tcol 3개(.tch 머리 · .tcard(.ttop input[checkbox] .tt · .tchips .chip · .tnote · .tbtns .btn))
 ```
 
-### 기록 (`records-view.ts`, `data-tabs.css`)
+### 기록 (`records-view.ts`, `blog-view.ts`, `record-parts.ts`, `data-tabs.css`, `blog.css`)
 
 ```
 section.records
- ├─ .rhead · .rtools(input) · .rtags(.rtag 버튼 = 칩 모양 필터) · .btn.sec 「보이는 기록 복사」
+ ├─ .rhead · .rtools(.rsearch[input + × 검색어 지우기] · select 3 · label.tg · .btn 보이는 기록 복사[.end]) · .rtags.bar(칩 + .btn.ghost.sm 필터 지우기[.end, 조건이 있을 때만])
  └─ .rec (2열; s·xs는 목록/상세 전환)
-      ├─ .rclist.pane  .ritems > button.ri(.rt .rm .chip)
-      └─ .rcdet.pane   .rback · .rtitle · .rsec(.rsect .rtext .rrow .rfiles) · .tchips · .tbtns[.btn.primary 마크다운으로 복사 · .btn.sec 메모 저장 · .btn.sec.danger 기록 지우기 → .btn.danger 정말 지울까요? / .btn.sec 아니요]
+      ├─ .rclist.pane  .ph · .rpick(.bar[3개 선택 · 전체 선택 · 선택 해제] .bar[블로그 글 · 복사 · 삭제[.end]]) · .ritems > .rpickrow[data-id](input[checkbox] · button.ri(.rt · .tchips[끝남/멈춤 · 태그 ≤2 · +N] · .rm 시각·걸린 시간·레포))
+      └─ .rcdet.pane   .rdbar(sticky: ← 목록 · 블로그 글[.end] · 복사[primary] · 지우기[danger]) · .rtitle · .tchips · .rsec(태그: button.chip.purple + ▾ → .menu) …
+ 블로그 패널 .bg   .rdbar(← 기록으로 · 정리 노트 복사[.end] · .md로 저장 · 초안 쓰기[primary]) · .bg-head · .bar 길이·어투(.seg) · 가릴 이름 · 코드 조각 · 정리 노트 · 바뀐 목록(되돌리기) · 초안 카드
+ 지우기 확인은 앱 공통 확인 창(git-common askDialog: .veil > .dialog, 취소 / 지우기 .btn.danger)
 ```
+
+#### 기록 탭 점검 (2026-11-08, 고치기 전 → 고친 뒤)
+
+측정기(`measure-ui.cjs`)의 기록 장면 11개(목록·상세·체크·체크+상세·지우기 확인·체크 지우기 확인·범위 선택·태그 메뉴·검색 결과·검색 없음·블로그 패널·초안 확인)를 폭 4단계에서 쟀다. 위 항목은 고치기 전, 끝에 "→"가 있는 것은 고친 방법이다.
+
+1. 상세의 복사·블로그 글·지우기가 **맨 아래** 있어 메모까지 내려가야 보인다 → 위쪽에 고정된 한 줄(`.rdbar`, sticky).
+2. 같은 화면에 강조(파랑) 버튼이 둘(목록의 「블로그 글」 + 상세의 「마크다운으로 복사」) → `primaryRecordAction()`이 하나만 정함(상세가 열려 있으면 복사, 블로그 패널이면 초안 쓰기, 아무것도 안 열렸고 체크가 있으면 블로그 글). 측정기가 강조 버튼 2개 이상을 위반으로 센다.
+3. 도구줄: select 3개와 체크칸·복사 버튼이 줄바꿈될 때 정렬이 어긋남(체크 글이 select 밑으로 떨어짐), 검색칸에 지우기(×) 없음 → `.tselects`를 `display: contents`로 풀어 한 줄 흐름, 검색칸에 × 추가, 복사 버튼은 오른쪽 끝(`.end`).
+4. 필터 칩 줄에 지금 조건이 걸렸는지·한 번에 지우는 법이 없음 → 조건이 있으면 「필터 지우기」(`activeFilterKeys`), 빈 결과 화면에도 같은 버튼.
+5. 선택 작업줄이 "체크한 기록으로 블로그 글을 만들 수 있어요" 한 문장 + 단추 3개가 한 줄에 눌려 있고 선택 수가 없음 → "3개 선택"을 앞에, 전체 선택·선택 해제, 둘째 줄에 블로그 글·복사·삭제(위험, 오른쪽 끝). 필터에 가려진 선택은 "3개 선택 (2개는 지금 안 보여요)". Shift+클릭 범위 선택(`rangeBetween`).
+6. 지우기 확인이 단추 자리에서 글자만 바뀜("정말 지울까요?"/"아니요")이라 무엇을 몇 개 지우는지 모름 → 앱 공통 확인 창: "기록 N개를 지울까요?", 제목들(앞 3개 + 외 N개), "이 컴퓨터에서 지워져요. 되돌릴 수 없어요.", 취소(먼저 선택) / 지우기 danger.
+7. 목록 행에 상태 칩 없음(멈춤만), 걸린 시간 없음, 태그가 많으면 줄이 길어짐 → 끝남/멈춤 칩이 늘 첫 칸, 태그는 2개 + "+N", 둘째 줄에 `시각 · 걸린 시간 · 레포`(숫자 같은 폭).
+8. 키보드: 위아래 이동·Enter·Esc 없음, 행이 전부 Tab 정지점 → 한 줄만 Tab 정지점(roving), ↑↓·Home·End로 초점 이동, Enter(버튼 기본 동작)로 열기, x로 체크, Esc로 되돌아가기(검색칸에서는 검색어 지우기).
+9. 태그 칩이 눌러서 바꿀 수 있다는 힌트가 없음 → 칩에 작은 ▾, 누르면 체크가 있는 메뉴(`.menu`).
+10. 복사·저장 결과가 위쪽 경고 줄에 뜸(복사 성공도 경고색) → 성공은 잠깐 뜨는 알림("복사했어요", `.toast.flash`), 실패·오류만 경고 줄. 빈 상태·로딩(스피너)·검색 없음 문구 정리.
+11. 상세 제목이 길면 길게 늘어남 → 3줄까지 말줄임(전체는 툴팁). 위쪽 단추 줄은 제목과 따로라 밀리지 않음.
+12. 블로그 패널: 복사·저장·초안 쓰기가 긴 글 맨 아래 → 같은 고정 줄(`.rdbar`)로 올림. 초안 확인 카드가 뜨면 위쪽 「초안 쓰기」는 보조로 물러남(강조 하나). 「되돌리기」에 아이콘, 코드 조각 「지우기」는 위험 색.
+13. (측정기 자체) 숨긴 창에서 `requestAnimationFrame`이 멈춰 폭 720 장면이 폭 1100 배치로 재졌다 → `setBackgroundThrottling(false)`. 앞 장면의 확인 창·메뉴가 다음 장면에 남던 것도 장면 사이에 치움. 측정기가 기록·할 일 파일을 내 실제 `~/.rauha/desktop`이 아니라 임시 폴더에 둠(이전에는 시험 기록이 실제 기록에 쌓였다).
+
+결과: 폭 1700·1100·720·600 모두 규칙 위반 0건(버튼 높이 28/24, 위쪽 단추 줄 줄바꿈 0, 선택 작업줄 줄바꿈 0, 강조 버튼 1개 이하, 아이콘만 있는 버튼의 툴팁·접근성 이름 있음, 글자 잘린 버튼 0, 가로 넘침 0).
 
 ### 레포 (`repos-view.ts`)
 

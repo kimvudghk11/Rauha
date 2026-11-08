@@ -3,7 +3,9 @@ import { BLOG_LENGTHS, MAX_SNIPPETS, type BlogLength } from '../shared/blog-note
 import { blogPreview } from '../shared/blog-preview.js';
 import { snippetAllowed, type RedactChange, type RedactContext } from '../shared/blog-redact.js';
 import type { RecordEntry } from '../shared/record-book.js';
+import { copiedText } from '../shared/record-ui.js';
 import { el } from './dom.js';
+import { actionButton, flash } from './record-parts.js';
 
 export interface BlogPanelDeps {
   readonly api: BlogApi;
@@ -67,9 +69,9 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
     notice.hidden = text === '';
   };
 
-  const back = el('button', 'btn rback bg-back', '← 기록으로');
-  back.type = 'button';
-  back.addEventListener('click', onBack);
+  /** 위쪽 한 줄(스크롤해도 고정): 되돌아가기 · 복사 · 저장 · 초안 쓰기(강조) */
+  const bar = el('div', 'bar rdbar');
+  const back = actionButton({ label: '기록으로', icon: 'back', title: '기록으로 돌아가기 (Esc)', onClick: onBack });
 
   const head = el('div', 'bg-head');
   head.append(el('b', undefined, '블로그 글'), el('span', 'hint', `기록 ${entries.length}개로 정리해요. 모델은 부르지 않아요. 공개해도 되게 이름·주소·키는 일반 이름으로 바꿔요.`));
@@ -105,9 +107,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   const namesBox = el('textarea');
   namesBox.rows = 2;
   namesBox.placeholder = '가릴 회사·서비스 이름을 한 줄에 하나씩 (예: 우리회사)';
-  const namesSave = el('button', 'btn', '이름 저장');
-  namesSave.type = 'button';
-  namesSave.addEventListener('click', () => {
+  const namesSave = actionButton({ label: '이름 저장', icon: 'save', onClick: () => {
     void deps.names.set(namesFromText(namesBox.value)).then(
       (saved) => {
         ctx = { ...ctx, companyNames: saved };
@@ -117,18 +117,20 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       },
       () => say('이름을 저장하지 못했어요.'),
     );
-  });
+  } });
   const namesSec = section('가릴 이름', namesBox, el('div', 'btns', ''), el('div', 'hint', '작업 폴더의 레포·폴더 이름은 자동으로 가려요. 회사·서비스 이름은 여기에 적어 두세요(설정에 저장돼요).'));
   namesSec.querySelector('.btns')?.append(namesSave);
 
   // 코드 조각: 내가 붙여 넣고 체크한 것만 글에 들어간다
   const snipList = el('div', 'bg-snips');
-  const snipAdd = el('button', 'btn', '코드 조각 추가');
-  snipAdd.type = 'button';
-  snipAdd.addEventListener('click', () => {
-    if (snippets.length >= MAX_SNIPPETS) return say(`코드 조각은 ${MAX_SNIPPETS}개까지 넣어요.`);
-    snippets.push({ text: '', on: false });
-    renderSnippets();
+  const snipAdd = actionButton({
+    label: '코드 조각 추가',
+    icon: 'plus',
+    onClick: () => {
+      if (snippets.length >= MAX_SNIPPETS) return say(`코드 조각은 ${MAX_SNIPPETS}개까지 넣어요.`);
+      snippets.push({ text: '', on: false });
+      renderSnippets();
+    },
   });
   const snipSec = section('코드 조각 (선택)', snipList, snipAdd, el('div', 'hint', '기록에는 코드가 없어요. 글에 넣고 싶은 조각을 붙여 넣고 "글에 넣기"를 체크한 것만 들어가요. 비밀 파일 이름이나 .env 모양이면 막아요.'));
 
@@ -157,16 +159,21 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
         refresh();
       });
       tg.append(box, el('span', undefined, '글에 넣기'));
-      const del = el('button', 'btn sm', '지우기');
-      del.type = 'button';
-      del.addEventListener('click', () => {
-        snippets.splice(i, 1);
-        renderSnippets();
-        refresh();
+      const del = actionButton({
+        label: '지우기',
+        icon: 'trash',
+        kind: 'danger',
+        small: true,
+        onClick: () => {
+          snippets.splice(i, 1);
+          renderSnippets();
+          refresh();
+        },
       });
-      const bar = el('div', 'bar');
-      bar.append(tg, del);
-      row.append(area, warn, bar);
+      del.classList.add('end');
+      const line = el('div', 'bar');
+      line.append(tg, del);
+      row.append(area, warn, line);
       snipList.append(row);
     });
   }
@@ -176,36 +183,44 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   const pre = el('pre', 'bg-pre');
   const changeList = el('div', 'bg-changes');
   const empty = el('div', 'rnone', '글감이 없어요. 기록을 하나 이상 골라 주세요.');
-  const actions = el('div', 'btns');
-  const copyBtn = el('button', 'btn', '정리 노트 복사');
-  copyBtn.type = 'button';
-  const saveBtn = el('button', 'btn', '.md로 저장');
-  saveBtn.type = 'button';
-  const draftBtn = el('button', 'btn primary', '초안 쓰기');
-  draftBtn.type = 'button';
-  actions.append(copyBtn, saveBtn, draftBtn);
+  const copyBtn = actionButton({ label: '정리 노트 복사', icon: 'copy', title: '공개용으로 가린 정리 노트를 복사해요', onClick: () => void deps.copy(preview().markdown).then((ok) => done(ok)) });
+  copyBtn.classList.add('end');
+  const saveBtn = actionButton({ label: '.md로 저장', icon: 'save', title: '정리 노트를 .md 파일로 저장해요', onClick: () => void save(preview().markdown, preview().title, [...keep]) });
+  const draftBtn = actionButton({
+    label: '초안 쓰기',
+    icon: 'edit',
+    kind: 'primary',
+    title: '문서 팀원이 정리 노트로 초안을 써요(누르면 한 번 더 물어봐요)',
+    onClick: () => {
+      if (draft.kind === 'running') return;
+      draft = { kind: 'confirm' };
+      renderDraft();
+    },
+  });
+  bar.append(back, copyBtn, saveBtn, draftBtn);
   const draftBox = el('div', 'bg-draft');
   const body = el('div', 'bg-body');
-  body.append(section('제목 후보', titleRow), section('태그 후보', tagRow), section('정리 노트 (공개용으로 가린 글)', pre), section('바뀐 목록', changeList), actions, draftBox);
-  root.append(back, head, notice, options, namesSec, snipSec, empty, body);
+  body.append(section('제목 후보', titleRow), section('태그 후보', tagRow), section('정리 노트 (공개용으로 가린 글)', pre), section('바뀐 목록', changeList), draftBox);
+  root.append(bar, head, notice, options, namesSec, snipSec, empty, body);
 
   const state = () => ({ length, titleIndex, keep: [...keep], snippets: snippets.filter((s) => s.on && s.text.trim() !== '').map((s) => s.text) });
   const preview = () => blogPreview(entries, ctx, state());
 
-  copyBtn.addEventListener('click', () => void deps.copy(preview().markdown).then((ok) => say(ok ? '정리 노트를 복사했어요.' : '복사하지 못했어요.')));
-  saveBtn.addEventListener('click', () => void save(preview().markdown, preview().title, [...keep]));
-  draftBtn.addEventListener('click', () => {
-    if (draft.kind === 'running') return;
-    draft = { kind: 'confirm' };
-    renderDraft();
-  });
+  /** 복사 결과: 됐으면 잠깐 뜨는 알림, 안 됐으면 줄로 */
+  function done(ok: boolean): void {
+    if (ok) {
+      say('');
+      flash(copiedText(1, true), root);
+    } else say(copiedText(1, false));
+  }
 
   async function save(markdown: string, title: string, keepList: readonly string[]): Promise<void> {
     say('');
     try {
       const res = await deps.api.save({ markdown, title, keep: keepList });
       if (!res.ok) say(res.error);
-      else say(res.saved ? `${res.name ?? '파일'} 로 저장했어요.` : '저장을 취소했어요.');
+      else if (res.saved) flash(`${res.name ?? '파일'} 로 저장했어요`, root);
+      else say('저장을 취소했어요.');
     } catch {
       say('파일을 저장하지 못했어요.');
     }
@@ -227,42 +242,44 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
 
   function renderDraft(): void {
     draftBox.replaceChildren();
+    // 강조(파랑)는 한 번에 하나: 확인 카드나 쓰는 중에는 위쪽 "초안 쓰기"가 보조로 물러난다
+    draftBtn.classList.toggle('primary', draft.kind === 'idle' || draft.kind === 'done' || draft.kind === 'error');
+    draftBtn.disabled = !ready || draft.kind === 'running';
     if (draft.kind === 'idle') return;
     const card = el('div', 'item bg-card');
     if (draft.kind === 'confirm') {
       card.append(el('b', undefined, '모델을 한 번 부릅니다'), el('div', 'hint', `문서 팀원(잉크)이 위 정리 노트(가린 글)만 읽고 ${tone === 'plain' ? '담백한' : '친근한'} 어투로 초안을 써요. 가장 가벼운 모델로 한 번만 부르고, 파일은 만들지 않아요. 구독 한도를 조금 써요.`));
-      const go = el('button', 'btn primary', '초안 쓰기 시작');
-      go.type = 'button';
-      go.addEventListener('click', () => void runDraft());
-      const no = el('button', 'btn', '취소');
-      no.type = 'button';
-      no.addEventListener('click', () => {
-        draft = { kind: 'idle' };
-        renderDraft();
+      const go = actionButton({ label: '초안 쓰기 시작', icon: 'edit', kind: 'primary', onClick: () => void runDraft() });
+      const no = actionButton({
+        label: '취소',
+        onClick: () => {
+          draft = { kind: 'idle' };
+          renderDraft();
+        },
       });
       const row = el('div', 'btns');
       row.append(go, no);
       card.append(row);
     } else if (draft.kind === 'running') {
-      card.append(el('div', 'dim', '잉크가 초안을 쓰는 중이에요…'));
+      const wait = el('div', 'dim');
+      wait.append(el('span', 'spinner'), document.createTextNode('잉크가 초안을 쓰는 중이에요…'));
+      card.append(wait);
     } else if (draft.kind === 'error') {
       card.append(el('div', 'err', draft.message));
-      const again = el('button', 'btn', '다시 시도');
-      again.type = 'button';
-      again.addEventListener('click', () => {
-        draft = { kind: 'confirm' };
-        renderDraft();
+      const again = actionButton({
+        label: '다시 시도',
+        icon: 'fetch',
+        onClick: () => {
+          draft = { kind: 'confirm' };
+          renderDraft();
+        },
       });
       card.append(again);
     } else {
       const text = draft.text;
       card.append(el('b', undefined, '초안'), Object.assign(el('pre', 'bg-pre'), { textContent: text }));
-      const copy = el('button', 'btn', '초안 복사');
-      copy.type = 'button';
-      copy.addEventListener('click', () => void deps.copy(text).then((ok) => say(ok ? '초안을 복사했어요.' : '복사하지 못했어요.')));
-      const savemd = el('button', 'btn', '초안 .md로 저장');
-      savemd.type = 'button';
-      savemd.addEventListener('click', () => void save(text, text.split('\n').find((l) => l.trim() !== '') ?? '', draftKeep));
+      const copy = actionButton({ label: '초안 복사', icon: 'copy', onClick: () => void deps.copy(text).then((ok) => done(ok)) });
+      const savemd = actionButton({ label: '초안 .md로 저장', icon: 'save', onClick: () => void save(text, text.split('\n').find((l) => l.trim() !== '') ?? '', draftKeep) });
       const row = el('div', 'btns');
       row.append(copy, savemd);
       card.append(row, el('div', 'hint', '모델이 쓴 글이라 사실과 다른 곳이 있을 수 있어요. 올리기 전에 꼭 읽어 보고 고치세요.'));
@@ -280,13 +297,18 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       const row = el('div', `rrow bg-chg${c.kept ? ' hl' : ''}`);
       row.append(el('span', 'chip', KIND_LABEL[c.kind]), el('span', 'bg-from', c.original), el('span', 'dim', '→'), el('span', 'bg-to', c.kept ? '(되돌림: 그대로 둠)' : c.replacement), el('span', 'faint', `${c.count}번`));
       if (c.revertible) {
-        const b = el('button', 'btn sm', c.kept ? '다시 가리기' : '되돌리기');
-        b.type = 'button';
-        b.addEventListener('click', () => {
-          if (c.kept) keep.delete(c.original);
-          else keep.add(c.original);
-          refresh();
+        const b = actionButton({
+          label: c.kept ? '다시 가리기' : '되돌리기',
+          icon: c.kept ? undefined : 'undo',
+          small: true,
+          title: c.kept ? '이 값을 다시 가려요' : '이 값을 가리지 않고 그대로 둬요',
+          onClick: () => {
+            if (c.kept) keep.delete(c.original);
+            else keep.add(c.original);
+            refresh();
+          },
         });
+        b.classList.add('end');
         row.append(b);
       } else row.append(el('span', 'faint', '항상 가려요'));
       changeList.append(row);
@@ -315,7 +337,8 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
     body.hidden = !p.hasMaterial;
     options.hidden = !p.hasMaterial;
     if (!p.hasMaterial) return;
-    for (const b of [copyBtn, saveBtn, draftBtn]) b.disabled = !ready;
+    for (const b of [copyBtn, saveBtn]) b.disabled = !ready;
+    draftBtn.disabled = !ready || draft.kind === 'running';
     if (!ready) {
       pre.textContent = '가릴 이름을 불러오는 중…';
       return;

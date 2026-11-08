@@ -8,6 +8,8 @@ const path = require('node:path');
 
 process.env.RAUHA_FAKE_TEAM = '1';
 app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-')));
+// 기록·할 일 파일도 임시 폴더에 둔다(내 실제 기록에 시험 기록이 쌓이지 않게)
+process.env.RAUHA_DATA_DIR = process.env.RAUHA_DATA_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-data-'));
 BrowserWindow.prototype.show = function () {};
 BrowserWindow.prototype.showInactive = function () {};
 
@@ -38,7 +40,17 @@ const MEASURE = `(() => {
   const clipped = (n) => { for (let e = n.parentElement; e && e !== document.body; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o !== 'visible') return true; } return false; };
   for (const n of document.querySelectorAll('.main *')) { const r = n.getBoundingClientRect(); if (r.width > 0 && r.right > window.innerWidth + 1 && !clipped(n)) over.push(trail(n)); if (over.length > 8) break; }
   const gt = document.querySelector('.gtool'); const tool = gt ? { sw: gt.scrollWidth, cw: gt.clientWidth, tops: [...gt.querySelectorAll('.gbranch, .gsync .btn')].filter((n) => n.getBoundingClientRect().width > 0).map((n) => Math.round(n.getBoundingClientRect().top)) } : null;
-  const cm = document.querySelector('.cm-content'); return { tool, cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
+  const topsOf = (sel) => [...document.querySelectorAll(sel)].filter((n) => n.getBoundingClientRect().width > 0).map((n) => Math.round(n.getBoundingClientRect().top));
+  const rd = document.querySelector('.records .rdbar');
+  const rec = document.querySelector('.records') ? {
+    bar: rd ? { sw: rd.scrollWidth, cw: rd.clientWidth, tops: topsOf('.records .rdbar > .btn') } : null,
+    pickTops: topsOf('.records .rpick > .bar:nth-child(2) > .btn'), pickSw: (document.querySelector('.records .rpick') || {}).scrollWidth || 0, pickCw: (document.querySelector('.records .rpick') || {}).clientWidth || 0,
+    primaries: [...document.querySelectorAll('.records .btn.primary')].filter((n) => n.getBoundingClientRect().width > 0).map((n) => n.textContent.trim()),
+    iconOnly: [...document.querySelectorAll('.records .btn.icon')].filter((n) => !n.title || !n.getAttribute('aria-label')).length,
+    clippedBtn: [...document.querySelectorAll('.records .btn')].filter((n) => n.getBoundingClientRect().width > 0 && n.scrollWidth > n.clientWidth + 1).map((n) => n.textContent.trim()),
+    rows: [...document.querySelectorAll('.records .ri')].slice(0, 3).map((n) => n.scrollWidth > n.clientWidth + 1), tier: document.querySelector('.app')?.dataset.tier, cols: getComputedStyle(document.querySelector('.records .rec')).gridTemplateColumns, cls: document.querySelector('.records .rec').className,
+  } : null;
+  const cm = document.querySelector('.cm-content'); return { tool, rec, cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
 })()`;
 
 app.on('browser-window-created', (_e, win) => {
@@ -131,6 +143,16 @@ const SCENES = [
   ['todo-form', 'todo', [byText('button', '새 할 일')]],
   ['records', 'records', []],
   ['records-detail', 'records', ['.ri']],
+  ['records-picked', 'records', [`(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`]],
+  ['records-picked-detail', 'records', ['.ri', `(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`]],
+  ['records-delete-ask', 'records', ['.ri', byText('.rdbar .btn', '지우기')]],
+  ['records-picked-delete-ask', 'records', [`(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`, byText('.rpick .btn', '삭제')]],
+  ['records-range', 'records', [`(() => { const b = document.querySelectorAll('.rpickrow input'); b[0].click(); })()`, `(() => { const b = document.querySelectorAll('.rpickrow input'); b[2].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true })); })()`]],
+  ['records-tag-menu', 'records', ['.ri', '.rtags .chip.purple']],
+  ['records-filtered', 'records', [typeInto('.rsearch input', '결제')]],
+  ['records-empty-filter', 'records', [typeInto('.rsearch input', '없는검색어xyz')]],
+  ['records-blog', 'records', ['.ri', byText('.rdbar .btn', '블로그 글')]],
+  ['records-blog-draft', 'records', ['.ri', byText('.rdbar .btn', '블로그 글'), byText('.rdbar .btn', '초안 쓰기')]],
   ['repos', 'repos', []],
   ['git-changes', 'git', [pickRepo('app-one')]],
   ['git-branches', 'git', [pickRepo('app-one'), byText('.tabs .tab', '브랜치')]],
@@ -163,6 +185,15 @@ function check(results) {
       if (s.tool.sw > s.tool.cw + 1) bad.push(where + ' git 툴바가 넘쳐요 ' + s.tool.sw + '>' + s.tool.cw);
       if (s.tool.tops.length > 1 && Math.max(...s.tool.tops) - Math.min(...s.tool.tops) > 6) bad.push(where + ' git 툴바가 줄바꿈돼요 ' + s.tool.tops.join(','));
     }
+    if (s.rec) {
+      const rc = s.rec;
+      if (rc.bar && (rc.bar.sw > rc.bar.cw + 1 || (rc.bar.tops.length > 1 && Math.max(...rc.bar.tops) - Math.min(...rc.bar.tops) > 6))) bad.push(where + ' 기록 위쪽 단추 줄이 넘치거나 줄바꿈돼요 ' + rc.bar.tops.join(',') + ' ' + rc.bar.sw + '>' + rc.bar.cw);
+      if (rc.pickTops.length > 1 && Math.max(...rc.pickTops) - Math.min(...rc.pickTops) > 6) bad.push(where + ' 선택 작업줄 단추가 줄바꿈돼요 ' + rc.pickTops.join(','));
+      if (rc.pickSw > rc.pickCw + 1) bad.push(where + ' 선택 작업줄이 넘쳐요');
+      if (rc.primaries.length > 1) bad.push(where + ' 강조 버튼이 둘 이상 ' + rc.primaries.join(' / '));
+      if (rc.iconOnly > 0) bad.push(where + ' 아이콘만 있는 버튼에 툴팁·접근성 이름이 없어요 ' + rc.iconOnly + '개');
+      if (rc.clippedBtn.length > 0) bad.push(where + ' 글자가 잘린 버튼 ' + rc.clippedBtn.join(','));
+    }
     for (const r of s.rows) {
       if (r.cls.split(' ').includes('sbadge') && !r.cls.includes('faint') && (parseFloat(r.fs) < 12 || parseInt(r.fw, 10) < 700)) bad.push(where + ' 방향 배지는 12px 이상 굵게여야 해요 ' + r.fs + '/' + r.fw + ' "' + r.text + '"');
       const id = r.tag + '.' + r.cls.replace(/ /g, '.') + ' "' + r.text + '"';
@@ -189,6 +220,7 @@ function check(results) {
 
 async function run(win) {
   const wc = win.webContents;
+  wc.setBackgroundThrottling(false); // 숨긴 창에서도 화면 갱신(requestAnimationFrame)이 멈추지 않게
   const consoleErrors = [];
   wc.on('console-message', (e) => { const m = e.message ?? ''; if ((e.level === 'error' || e.level === 3 || /Content Security Policy/.test(m))) consoleErrors.push(m.slice(0, 300) + ' @' + (e.sourceId || '') + ':' + (e.lineNumber || '')); });
   const ev = (js) => wc.executeJavaScript(js);
@@ -230,6 +262,7 @@ async function run(win) {
       if (!TABS.includes(tab) || (SCENE_FILTER && !SCENE_FILTER.includes(name))) continue;
       for (const width of WIDTHS) {
         await resize(width);
+        await ev("document.querySelectorAll('.veil, .menu').forEach((n) => n.remove())"); // 앞 장면의 확인 창·메뉴가 남지 않게
         await ev(`document.querySelectorAll('#tabs button')[${TAB[tab]}].click()`);
         await sleep(1200);
         for (const c of clicks) {
