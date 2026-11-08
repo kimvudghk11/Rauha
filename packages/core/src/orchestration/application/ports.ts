@@ -1,3 +1,4 @@
+import type { AnalysisUserPort } from '../../analysis/application/ports.js';
 import type { DesignApproval, DesignPlan, DesignQuestion } from '../../design/application/ports.js';
 import type { LearningBook } from '../domain/learning-book.js';
 import type { CompanyBook } from '../domain/company-book.js';
@@ -152,6 +153,8 @@ export interface UserPort {
   discuss?(question: DesignQuestion): Promise<string | null>;
   /** 설계 대화: 설계안을 보여 주고 승인·고칠 점·그만두기를 고르게 한다. */
   approve?(plan: DesignPlan): Promise<DesignApproval>;
+  /** 분석: 방향을 고르게 하고 계획을 승인받는다. 없으면 분석은 방향 비교까지만 하고 멈춘다(사용자가 고르기 전에는 설계로 가지 않는다). */
+  readonly analysis?: AnalysisUserPort;
 }
 
 /** 기억에서 찾은 지난 작업 후보 */

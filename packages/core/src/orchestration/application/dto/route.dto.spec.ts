@@ -96,3 +96,31 @@ describe('RouteDto — 문서만 고치는 요청', () => {
     expect(read('debug', 'README.md 왜 안 열려?')).toBe('debug');
   });
 });
+
+describe('RouteDto — 분석 범위(reach)', () => {
+  it('debug와 risk에서만 분석 범위를 읽는다', () => {
+    expect(RouteDto.read({ mode: 'debug', reach: 'compare' }).reach).toBe('compare');
+    expect(RouteDto.read({ mode: 'risk', reach: 'plan' }).reach).toBe('plan');
+    expect(RouteDto.read({ mode: 'question', reach: 'plan' }).reach).toBeNull();
+    expect(RouteDto.read({ mode: 'work', reach: 'plan' }).reach).toBeNull();
+  });
+
+  it('범위를 못 읽으면 없음이다 (옛 출력과 호환, 그때는 요청 글에서 어림한다)', () => {
+    expect(RouteDto.read({ mode: 'debug' }).reach).toBeNull();
+    expect(RouteDto.read({ mode: 'debug', reach: 'everything' }).reach).toBeNull();
+  });
+
+  it('라우터 프롬프트는 분석 범위와 "단순 수정은 debug가 아니다"를 설명한다', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const { PromptLibrary } = await import('../../infrastructure/prompt-library.js');
+    const text = await readFile(`${PromptLibrary.defaultDir()}router.md`, 'utf8');
+    expect(text).toContain('reach');
+    for (const value of ['investigate', 'compare', 'plan']) expect(text).toContain(`"${value}"`);
+    expect(text).toContain('stays "work" and is never "debug"');
+  });
+
+  it('라우터 출력 형식(schema)에 reach가 필수 칸으로 들어 있다', async () => {
+    const { ROUTE_SCHEMA } = await import('./schemas.js');
+    expect((ROUTE_SCHEMA as { required: string[] }).required).toContain('reach');
+  });
+});

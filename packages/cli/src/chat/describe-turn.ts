@@ -60,6 +60,11 @@ export function describeTurn(turn: TurnOutcome, view: MascotView | null): Printa
         '',
       ];
     }
+    case 'analysis': {
+      // 터미널에는 방향을 고르는 카드가 없어서 방향 비교까지만 하고 문서 위치를 알린다. 데스크톱 앱에서는 카드로 고른다.
+      const worked = turn.implemented === null ? [] : describeTurn({ kind: 'work', outcome: turn.implemented }, view);
+      return ['', ...turn.summary.split('\n').map((line) => (line === '' ? '' : `  ${titled(line, view)}`)), `  ${formatElapsed(turn.durationMs)}`, '', ...worked];
+    }
     case 'review': {
       if (turn.files.length === 0) return ['', '  검토할 변경이 없어요.', ''];
       // 답과 같은 규칙: 근거를 확인하지 못한 지적은 목록에 넣지 않고 개수만 알린다.

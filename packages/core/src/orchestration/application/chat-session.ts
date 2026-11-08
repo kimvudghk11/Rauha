@@ -1,3 +1,5 @@
+import type { AnalysisPort } from '../../analysis/application/ports.js';
+import { AnalysisReach } from '../../analysis/domain/analysis-reach.js';
 import type { DesignPort } from '../../design/application/design.service.js';
 import { DesignDocDto } from '../../design/application/dto/design.dto.js';
 import type { KnowledgePort } from '../../knowledge/application/ports.js';
@@ -47,7 +49,8 @@ export interface ChatSessionDeps {
   /** 요청 하나를 돌릴 최소 루프. carried = 세션 중 rauha가 남긴 파일(그 위에서 이어 일함). */
   readonly newLoop: (carried: ReadonlyMap<string, string>) => { run(request: string, context: RunContextBlocks): Promise<RunOutcome> };
   readonly team: TeamMemberPort;
-  readonly workspace: Pick<WorkspacePort, 'readFile' | 'reviewChanges'>;
+  /** snapshot이 있으면 분석 문서를 세션이 남긴 파일(carried)로 등록해, 승인한 계획의 구현이 새 파일 때문에 거절되지 않게 한다. */
+  readonly workspace: Pick<WorkspacePort, 'readFile' | 'reviewChanges'> & Partial<Pick<WorkspacePort, 'snapshot'>>;
   readonly memory: MemoryPort;
   readonly user: UserPort;
   readonly progress: ProgressPort;
@@ -63,6 +66,8 @@ export interface ChatSessionDeps {
   readonly repoName?: string;
   /** 작업 공간 폴더(rauha를 띄운 폴더)와 그 안의 저장소들. 저장소가 둘 이상이면 답변·문서 팀원에게 알려 폴더 위치를 잘못 말하지 않게 한다. */
   readonly folder?: { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
+  /** 분석 흐름(조사 → 방향 비교 → 설계·계획 → 승인하면 구현). 없으면 디버깅·위험 점검은 지금처럼 팀원 한 번 호출이다. */
+  readonly analyst?: AnalysisPort | undefined;
   /** 설계 대화. 없거나 사용자와 주고받을 화면이 없으면 기능 요청도 바로 작업으로 진행한다. */
   readonly designer?: DesignPort | undefined;
   /** 구독 한도를 얼마나 썼는지. 빠듯하면 부서장이 sonnet으로, 위험하면 큰 요청을 미룬다. 없으면 넉넉하다고 본다. */
@@ -230,11 +235,11 @@ export class ChatSession {
     }
     if (route.mode === 'task') return this.documents.write(input, conversation, also, started);
     if (route.mode === 'ops') return this.ops(input, conversation, started);
-    if (route.mode === 'debug') return this.desk.analyze('debugger', '디버깅', input, conversation, started);
+    if (route.mode === 'debug') return this.analysis('debugger', '디버깅', route, input, conversation, also, started);
     if (route.mode === 'company') return (route.member === null ? this.hold(input, route) : null) ?? this.desk.company(input, conversation, route, started);
     if (route.mode === 'launch') return this.hold(input, route) ?? this.desk.launch(input, conversation, started);
     if (route.mode === 'ideate') return this.desk.analyze('planner', '기획', input, conversation, started, 'planning');
-    if (route.mode === 'risk') return this.desk.analyze('riskchecker', '위험 점검', input, conversation, started);
+    if (route.mode === 'risk') return this.analysis('riskchecker', '위험 점검', route, input, conversation, also, started);
     const changesCode = route.mode === 'work' || route.mode === 'feature';
     if (changesCode && also.length > 0) return this.manyRepos(input, conversation, also, await this.knowledgeOf(), await this.othersKnown(also, 'deep'), started);
     const past = route.refersToPast ? await this.pickPast(route.pastQuery ?? input, route.mode) : null;
@@ -322,6 +327,64 @@ export class ChatSession {
     const outcome = await this.repos.run(input, conversation, runners, blocks, started);
     this.turns.push({ input, result: outcome.kind === 'repos' ? `여러 저장소 작업: ${outcome.repos.map((r) => `${r.repo} ${r.status}`).join(', ')}` : outcome.kind });
     return outcome;
+  }
+
+  // ── 분석 흐름 ─────────────────────────────────────────────
+
+  /**
+   * 원인·위험 분석. 분석 흐름이 켜져 있고 요청이 분석·조사·비교를 청한 말이면 단계별 흐름(조사 → 방향 비교 → 설계·계획)을 탄다.
+   * 아니면 지금처럼 팀원 한 번 호출이다. 사용자가 계획을 승인하면 그 계획이 그대로 작업 루프의 설계 블록이 된다.
+   */
+  private async analysis(role: 'debugger' | 'riskchecker', label: string, route: Route, input: string, conversation: string | null, also: readonly AlsoRepo[], started: number): Promise<TurnOutcome> {
+    const analyst = this.deps.analyst;
+    if (analyst === undefined || !AnalysisReach.requested(input)) return this.desk.analyze(role, label, input, conversation, started);
+    const known = await this.knowledgeFor('light');
+    const recalls = await this.deps.memory.search(input, CANDIDATES);
+    const memory = recallBlock(recalls, MEMORY_CHARS);
+    const result = await analyst.run({
+      request: input,
+      role,
+      reach: route.reach,
+      routedFeature: false,
+      repos: 1 + also.length,
+      repo: this.deps.repoName ?? '이 저장소',
+      knowledge: null,
+      memory: memory !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${memory}\n</memory>` : null,
+      conversation,
+      workspace: this.workspaceBlock(),
+      basis: known?.basis ?? null,
+    });
+    for (const c of result.cost) {
+      this.costUsd += c.costUsd;
+      this.calls[c.tier] += c.calls;
+    }
+    await this.carryDocument(result.path);
+    await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer: result.summary, citedFiles: result.run.investigation?.evidencePaths() ?? [], basis: known?.basis ?? null }));
+    this.turns.push({ input, result: `분석: ${result.summary.slice(0, KEPT_RESULT_CHARS)}` });
+    const worked = result.brief === null ? null : await this.work(result.brief.request, null, null, result.brief.block);
+    const choice = result.run.choice;
+    return {
+      kind: 'analysis',
+      title: input.slice(0, 60),
+      path: result.path,
+      summary: result.summary,
+      stopped: result.run.stopped !== null,
+      choice: choice === null ? null : { recommended: choice.recommended, chosen: choice.chosen, reason: choice.reason, diverged: choice.divergedFromAi() },
+      implemented: worked?.kind === 'work' ? worked.outcome : null,
+      durationMs: this.deps.now() - started,
+    };
+  }
+
+  /** 방금 쓴 분석 문서를 세션이 남긴 파일로 등록한다(작업 루프가 "커밋 안 한 모르는 파일"이라며 거절하지 않게). */
+  private async carryDocument(path: string | null): Promise<void> {
+    const snapshot = this.deps.workspace.snapshot;
+    if (path === null || snapshot === undefined) return;
+    try {
+      const value = (await snapshot.call(this.deps.workspace)).files.get(path);
+      if (value !== undefined) this.carried.set(path, value);
+    } catch {
+      // 못 읽으면 등록하지 않는다. 구현은 "커밋 안 한 변경이 있다"는 안내로 멈출 수 있다.
+    }
   }
 
   // ── 설계 대화 ─────────────────────────────────────────────

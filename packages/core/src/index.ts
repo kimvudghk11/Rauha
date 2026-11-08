@@ -140,3 +140,10 @@ export { FileRuleStore } from './orchestration/infrastructure/file-rule-store.js
 export { RuleDraftDto, RULE_DRAFT_SCHEMA, type RuleDraft } from './orchestration/application/dto/rule-draft.dto.js';
 export { draftRule } from './orchestration/infrastructure/agent-sdk-rule-parser.js';
 export { draftBlog, BLOG_NOTE_LIMIT, type BlogTone, type BlogQuery } from './orchestration/infrastructure/agent-sdk-blog-draft.js';
+
+// analysis
+export { AnalysisService, ASK_WAIT_MS, type AnalysisServiceDeps } from './analysis/application/analysis.service.js';
+export type { AnalysisDocsPort, AnalysisInput, AnalysisPort, AnalysisResult, AnalysisUserPort, ApprovalCard, ApprovalReply, AskTimer, DirectionCard, DirectionReply } from './analysis/application/ports.js';
+export type { DirectionAnswer, DirectionOption } from './analysis/domain/direction.js';
+export { FileAnalysisDocs, realAskTimer } from './analysis/infrastructure/file-analysis-docs.js';
+export type { AnalysisChoice } from './orchestration/application/turn-outcome.js';

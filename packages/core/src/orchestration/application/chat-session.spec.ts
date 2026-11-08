@@ -8,6 +8,12 @@ import type { CheckedClaim } from '../domain/fact-check.js';
 import { LearningBook } from '../domain/learning-book.js';
 import { CompanyBook } from '../domain/company-book.js';
 import { SessionBudget } from '../domain/session-budget.js';
+import type { AnalysisInput, AnalysisPort, AnalysisResult } from '../../analysis/application/ports.js';
+import { AnalysisReach } from '../../analysis/domain/analysis-reach.js';
+import { AnalysisRun } from '../../analysis/domain/analysis-run.js';
+import { Blueprint } from '../../analysis/domain/blueprint.js';
+import { DirectionSet } from '../../analysis/domain/direction.js';
+import { Investigation } from '../../analysis/domain/investigation.js';
 import { ChatSession, type RunContextBlocks } from './chat-session.js';
 import { RoleSettingsDto, type MemberRole } from './dto/role-settings.dto.js';
 import type { RunOutcome } from './minimal-loop.service.js';
@@ -134,7 +140,7 @@ class FakeLoops {
   });
 }
 
-const route = (mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch', refersToPast = false, pastQuery: string | null = null, extra: { department?: string; member?: string | null; depth?: 'light' | 'deep' } = {}) => () => ({ mode, refersToPast, pastQuery, ...extra });
+const route = (mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch', refersToPast = false, pastQuery: string | null = null, extra: { department?: string; member?: string | null; depth?: 'light' | 'deep'; reach?: 'investigate' | 'compare' | 'plan' } = {}) => () => ({ mode, refersToPast, pastQuery, ...extra });
 
 type SessionParts = { team: FakeTeam; loops?: FakeLoops; memory?: FakeMemory; user?: UserPort; files?: Record<string, string>; steps?: string[]; changes?: FileChange[]; budget?: SessionBudget; company?: CompanyBookPort; learning?: LearningPort };
 
@@ -1314,5 +1320,133 @@ describe('ChatSession — 문서만 고치는 요청', () => {
     const loops = new FakeLoops();
     await session({ team: new FakeTeam({ router: [route('work')] }), loops }).handle('src/money.ts의 add 함수 고쳐줘');
     expect(loops.runs).toHaveLength(1);
+  });
+});
+
+// ── 분석 흐름 (조사 → 방향 비교 → 설계·계획 → 승인하면 구현) ──────────
+
+function finishedRun(input: { approve: boolean; pick?: string }): AnalysisRun {
+  const run = AnalysisRun.start({ id: 'run-1', request: '결제가 왜 두 번 깎여?', reach: AnalysisReach.of('plan', ''), date: '2026-10-25' });
+  run.recordInvestigation(Investigation.of({ symptom: '두 번 깎인다', facts: [{ text: '재시도', evidence: 'src/pay.ts:3' }], causes: [], unknowns: [] }));
+  run.offerDirections(
+    DirectionSet.of(
+      [
+        { id: 'a', title: '멱등 키', summary: 's', pros: [], cons: [], risk: 'r', reversibility: 'easy', touches: [] },
+        { id: 'b', title: '락', summary: 's', pros: [], cons: [], risk: 'r', reversibility: 'medium', touches: [] },
+      ],
+      'a',
+      '쉽다',
+    ),
+  );
+  run.choose({ kind: 'pick', id: input.pick ?? 'a' });
+  run.recordBlueprint(Blueprint.of({ goal: '한 번만 결제', nonGoals: [], changes: [{ where: 'src', what: 'x' }], flow: [], edgeCases: [], rejected: [], testStrategy: 't', steps: [{ title: '키', testFirst: '두 번이어도 한 번', files: ['src/pay.ts'], verify: 'yarn test' }], risks: [] }));
+  if (input.approve) {
+    run.approve();
+    run.markImplemented();
+  } else run.stop('user');
+  return run;
+}
+
+class FakeAnalyst implements AnalysisPort {
+  readonly inputs: AnalysisInput[] = [];
+  constructor(private readonly result: (input: AnalysisInput) => AnalysisResult) {}
+  async run(input: AnalysisInput): Promise<AnalysisResult> {
+    this.inputs.push(input);
+    return this.result(input);
+  }
+}
+
+const analysisResult = (run: AnalysisRun, over: Partial<AnalysisResult> = {}): AnalysisResult => ({
+  run,
+  path: 'docs/analysis/2026-10-25-결제.md',
+  docProblem: null,
+  cost: [{ tier: 'sonnet', calls: 3, costUsd: 0.03 }],
+  brief: run.wasImplemented ? { request: '한 번만 결제\n- 1단계 키: 두 번이어도 한 번', block: '<design title="결제">계획</design>' } : null,
+  summary: '분석: 결제가 왜 두 번 깎여?\n문서: docs/analysis/2026-10-25-결제.md',
+  ...over,
+});
+
+describe('ChatSession — 분석 흐름', () => {
+  it('debug이고 분석을 청한 말이면 분석 흐름을 타고 기존 한 번 호출 분석 팀원은 부르지 않는다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const team = new FakeTeam({ router: [route('debug', false, null, { reach: 'compare' })], debugger: [() => ({ answer: '옛 길', files: [] })] });
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), analyst }).handle('결제가 왜 두 번 깎여?');
+    expect(turn.kind).toBe('analysis');
+    expect(team.calls.map((c) => c.role)).toEqual(['router']);
+    expect(analyst.inputs[0]).toMatchObject({ role: 'debugger', reach: 'compare', repo: expect.any(String) });
+  });
+
+  it('risk는 위험 점검 팀원이 맡도록 분석 흐름에 넘긴다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const team = new FakeTeam({ router: [route('risk')] });
+    await ChatSession.start({ ...sessionDeps({ team }), analyst }).handle('이 변경 위험한 거 없는지 분석해줘');
+    expect(analyst.inputs[0]!.role).toBe('riskchecker');
+  });
+
+  it('분석 낱말이 없는 debug는 지금처럼 팀원 한 번 호출로 간다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const team = new FakeTeam({ router: [route('debug')], debugger: [() => ({ answer: '원인', files: [] })] });
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), analyst }).handle('테스트 깨졌어 고쳐줘');
+    expect(turn.kind).toBe('answer');
+    expect(analyst.inputs).toEqual([]);
+  });
+
+  it('분석 팀이 없으면(설정에서 껐으면) 분석을 청해도 지금처럼 한 번 호출이다', async () => {
+    const team = new FakeTeam({ router: [route('debug')], debugger: [() => ({ answer: '원인', files: [] })] });
+    const turn = await session({ team }).handle('결제가 왜 두 번 깎여?');
+    expect(turn.kind).toBe('answer');
+  });
+
+  it('단순 수정 요청(work)과 질문은 분석 낱말이 있어도 분석 흐름을 타지 않는다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('work'), route('question', false, null, { depth: 'light' })], answerer: [() => ({ answer: '네', claims: [] })] });
+    const chat = ChatSession.start({ ...sessionDeps({ team, loops }), analyst });
+    await chat.handle('Money.add가 왜 빼기를 해? 고쳐줘');
+    await chat.handle('분석이 뭐야?');
+    expect(analyst.inputs).toEqual([]);
+    expect(loops.runs).toHaveLength(1);
+  });
+
+  it('분석에 든 호출 수는 세션 호출 수에 합쳐진다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const chat = ChatSession.start({ ...sessionDeps({ team: new FakeTeam({ router: [route('debug')] }) }), analyst });
+    await chat.handle('결제가 왜 두 번 깎여?');
+    expect(chat.usage().calls.sonnet).toBe(3);
+  });
+
+  it('승인되면 계획이 그대로 작업 루프의 설계 블록이 되고, 사용자가 고른 방향이 결과에 담긴다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: true, pick: 'b' })));
+    const loops = new FakeLoops();
+    const turn = await ChatSession.start({ ...sessionDeps({ team: new FakeTeam({ router: [route('debug')] }), loops }), analyst }).handle('결제가 왜 두 번 깎여? 분석하고 계획까지');
+    expect(loops.runs).toHaveLength(1);
+    expect(loops.runs[0]!.context.design).toBe('<design title="결제">계획</design>');
+    expect(loops.runs[0]!.request).toContain('한 번만 결제');
+    expect(turn).toMatchObject({ kind: 'analysis', stopped: false, choice: { recommended: '멱등 키', chosen: '락', diverged: true } });
+    expect(turn.kind === 'analysis' && turn.implemented !== null).toBe(true);
+  });
+
+  it('승인하지 않으면 작업 루프를 돌리지 않는다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const loops = new FakeLoops();
+    const turn = await ChatSession.start({ ...sessionDeps({ team: new FakeTeam({ router: [route('debug')] }), loops }), analyst }).handle('결제가 왜 두 번 깎여?');
+    expect(loops.runs).toEqual([]);
+    expect(turn).toMatchObject({ kind: 'analysis', stopped: true, implemented: null });
+  });
+
+  it('쓴 분석 문서를 세션이 남긴 파일로 등록해 승인한 구현이 새 파일 때문에 거절되지 않는다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: true })));
+    const loops = new FakeLoops();
+    const deps = sessionDeps({ team: new FakeTeam({ router: [route('debug')] }), loops });
+    const workspace = { ...deps.workspace, snapshot: async () => ({ files: new Map([['docs/analysis/2026-10-25-결제.md', 'added:h9']]) }) };
+    await ChatSession.start({ ...deps, workspace, analyst }).handle('결제가 왜 두 번 깎여?');
+    expect(loops.runs[0]!.carried.get('docs/analysis/2026-10-25-결제.md')).toBe('added:h9');
+  });
+
+  it('분석 결과는 기억에 남아 다음 질문이 그 분석을 찾을 수 있다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const memory = new FakeMemory();
+    await ChatSession.start({ ...sessionDeps({ team: new FakeTeam({ router: [route('debug')] }), memory }), analyst }).handle('결제가 왜 두 번 깎여?');
+    expect([...memory.nodes.values()].some((n) => n.text.includes('분석: 결제가 왜 두 번 깎여?'))).toBe(true);
   });
 });

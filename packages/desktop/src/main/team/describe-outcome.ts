@@ -26,6 +26,8 @@ export function describeOutcome(turn: TurnOutcome): string {
       const verified = turn.checked.filter((c) => !c.isGuess);
       return [`변경 ${turn.files.length}개 파일을 검토했어요.`, turn.summary, ...(verified.length > 0 ? verified.map((c) => `- ${c.text}`) : ['근거가 확인된 문제는 없어요.'])].filter((l) => l !== '').join('\n');
     }
+    case 'analysis':
+      return [turn.summary, ...(turn.implemented === null ? [] : [describeOutcome({ kind: 'work', outcome: turn.implemented })])].join('\n\n');
     case 'design':
       return [`설계 "${turn.title}"를 마쳤어요.`, ...turn.tasks.map((t) => `- ${t.title}`)].join('\n');
     case 'repos':
