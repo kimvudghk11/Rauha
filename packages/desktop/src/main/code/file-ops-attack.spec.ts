@@ -116,6 +116,33 @@ describe.skipIf(!win)('Windows 이름 우회', () => {
   });
 });
 
+describe('입력 모양·특수 파일', () => {
+  it.skipIf(win)('이름 붙은 파이프(FIFO)를 읽으려 해도 멈추지 않고 파일이 아니라고 답한다', async () => {
+    execFileSync('mkfifo', [join(work, 'pipe')]);
+    const files = new CodeFiles({ root: () => work, isSecret: () => false });
+    expect(await files.read('pipe')).toMatchObject({ ok: false, reason: 'not-file' });
+  }, 10_000);
+
+  it('상태를 묻는 경로 이름이 __proto__ 여도 다른 경로의 답을 망가뜨리지 않는다', async () => {
+    const files = new CodeFiles({ root: () => work, isSecret: () => false });
+    const out = await files.stat(['__proto__', 'plain.txt', 'constructor']);
+    expect(Object.keys(out).sort()).toEqual(['__proto__', 'constructor', 'plain.txt']);
+    expect(out['plain.txt']).not.toBeNull();
+    expect(out['__proto__']).toBeNull();
+  });
+
+  it('요청 값이 배열·객체·숫자로 와도 던지지 않고 거절한다', async () => {
+    const ops = make();
+    for (const bad of [null, 5, 'x', [], [{ path: 'a' }], { path: ['plain.txt'] }, { path: { toString: () => 'plain.txt' } }, { path: 'a'.repeat(5000), name: 'b' }]) {
+      expect((await ops.rename(bad as never)).ok).toBe(false);
+      expect((await ops.trash(bad as never)).ok).toBe(false);
+      expect((await ops.duplicate(bad as never)).ok).toBe(false);
+      expect((await ops.move(bad as never)).ok).toBe(false);
+    }
+    expect(await exists(join(work, 'plain.txt'))).toBe(true);
+  });
+});
+
 describe('링크 너머 비밀·부피', () => {
   it('바로가기 폴더를 거쳐도 실제 위치가 비밀 폴더면 파일을 복제하지 못한다', async () => {
     await symlink(join(work, 'private'), join(work, 'lnk'), 'junction');

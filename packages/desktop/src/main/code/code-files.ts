@@ -215,6 +215,8 @@ export class CodeFiles {
     if (clean === '') return { ok: false, reason: 'not-file' };
     let handle;
     try {
+      // 열기 전에 먼저 본다: 이름 붙은 파이프(FIFO)는 열기만 해도 쓰는 쪽이 나타날 때까지 멈춘다
+      if (!(await stat(real)).isFile()) return { ok: false, reason: 'not-file' };
       handle = await open(real, 'r');
     } catch {
       return { ok: false, reason: 'error' };
@@ -293,7 +295,8 @@ export class CodeFiles {
 
   /** 열어 둔 파일들의 지금 version. 없어졌거나 못 읽으면 null. */
   async stat(rawPaths: unknown): Promise<StatResult> {
-    const out: Record<string, string | null> = {};
+    // 키가 "__proto__" 같은 이름이어도 평범한 항목으로 담기게 프로토타입이 없는 객체를 쓴다
+    const out: Record<string, string | null> = Object.create(null) as Record<string, string | null>;
     if (!Array.isArray(rawPaths)) return out;
     for (const p of rawPaths.slice(0, MAX_STAT_PATHS)) {
       if (typeof p !== 'string') continue;
