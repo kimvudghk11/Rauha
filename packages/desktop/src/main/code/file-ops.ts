@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, copyFile, lstat, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, copyFile, lstat, mkdir, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import type { CodeFail, CreateRequest, DuplicateRequest, InspectResult, MoveRequest, NodeKind, OpResult, PathRequest, RenameRequest } from '../../shared/code-api.js';
 import { checkName, copyName, inProtectedZone, joinPath, nameOf, parentOf, planMove, tooLongPath } from '../../shared/code-ops.js';
@@ -75,7 +75,11 @@ export class FileOps {
 
   private async isRepoRoot(real: string): Promise<boolean> {
     const fold = (p: string): string => (this.pathCi ? p.toLowerCase() : p);
-    if ((await this.deps.protectedRoots()).some((root) => fold(root) === fold(real))) return true;
+    // 찾아 둔 루트도 링크를 푼 실제 경로로 맞춰 비교한다(macOS /var→/private/var, Windows 짧은 경로)
+    for (const root of await this.deps.protectedRoots()) {
+      const actual = await realpath(root).catch(() => root);
+      if (fold(actual) === fold(real)) return true;
+    }
     return lstat(join(real, '.git')).then(
       () => true,
       () => false,

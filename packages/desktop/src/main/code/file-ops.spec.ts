@@ -6,6 +6,7 @@ import { CodeFiles } from './code-files.js';
 import { FileOps } from './file-ops.js';
 
 let base = '';
+let alias = '';
 let work = '';
 let outside = '';
 let trashDir = '';
@@ -38,7 +39,10 @@ const exists = (p: string): Promise<boolean> =>
 
 beforeEach(async () => {
   base = await mkdtemp(join(tmpdir(), 'rauha-ops-'));
-  work = join(base, 'work');
+  // 임시 폴더를 링크로 한 번 감싼다: 작업 폴더·찾은 레포 루트가 링크 낀 경로여도 실제 경로와 같게 비교되어야 한다(macOS /var, Windows 짧은 경로)
+  alias = `${base}-alias`;
+  await symlink(base, alias, 'junction');
+  work = join(alias, 'work');
   outside = join(base, 'outside');
   trashDir = join(base, 'trash');
   trashed = [];
@@ -58,6 +62,7 @@ beforeEach(async () => {
   await writeFile(join(work, 'app', 'node_modules', 'x', 'i.js'), 'x');
 });
 afterEach(async () => {
+  await rm(alias, { force: true, recursive: false }).catch(() => undefined);
   await rm(base, { recursive: true, force: true });
 });
 
