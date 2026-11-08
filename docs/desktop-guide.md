@@ -4,17 +4,18 @@
 
 ## 1. 설치
 
-설치 파일은 GitHub Actions 최신 성공 실행의 결과물(artifact)에서 받아요. 목록: https://github.com/kimvudghk11/rauha/actions/workflows/desktop.yml — 가장 위의 초록색 실행을 열고 아래 "Artifacts"에서 받아요. 파일 배치와 빌드 방법은 `packages/desktop/PACKAGING.md`에 있어요.
+설치 파일은 GitHub Releases에서 로그인 없이 받아요: https://github.com/kimvudghk11/rauha/releases (README의 "바로 내려받기" 링크도 같아요). 파일 배치와 빌드 방법은 `packages/desktop/PACKAGING.md`에 있어요.
 
 **맥북(macOS)**
-1. `rauha-desktop-macOS`를 받아 풀면 `.dmg`가 둘(Apple 칩용 arm64, 인텔용 x64)이에요. 내 맥에 맞는 것을 열어요(Apple 메뉴 → 이 Mac에 관하여에서 칩을 볼 수 있어요).
+1. `rauha-…-mac-arm64.dmg`(Apple 칩, M1 이상)나 `rauha-…-mac-x64.dmg`(인텔) 중 내 맥에 맞는 것을 받아 열어요(Apple 메뉴 → 이 Mac에 관하여에서 칩을 볼 수 있어요).
 2. 열리는 창에서 rauha 아이콘을 Applications 폴더로 끌어다 놓아요.
-3. 처음 열 때는 서명이 없는 앱이라 그냥 열리지 않을 수 있어요. Applications에서 rauha를 **우클릭 → 열기 → 열기**를 눌러요.
-4. 그래도 안 열리면 터미널에서 한 줄을 실행해요: `xattr -dr com.apple.quarantine /Applications/rauha.app`
-5. 회사 보안 소프트웨어가 막으면 아래 "소스로 실행하기"로 가요.
+3. 처음 열면 **"Apple은 rauha에 … 악성 코드가 없음을 확인할 수 없습니다"** 경고가 떠요. 서명이 없는 앱이라 나오는 정상 경고예요(고장이 아니에요). 아래 둘 중 하나로 열어요.
+   - **터미널 한 줄(가장 빠름)**: `xattr -dr com.apple.quarantine /Applications/rauha.app` 을 실행하고 앱을 다시 열어요.
+   - **시스템 설정**: 앱을 한 번 열어 경고에서 **완료**를 눌러요. 그다음 시스템 설정 → 개인정보 보호 및 보안 → 아래쪽 "rauha가 차단되었습니다" 옆 **그래도 열기** → 암호나 Touch ID → **열기**. macOS 15(Sequoia)부터는 예전의 "우클릭 → 열기"가 통하지 않아요.
+4. 회사 보안 소프트웨어가 막으면 아래 "소스로 실행하기"로 가요.
 
 **Windows**
-`rauha-desktop-Windows`를 받아 풀고 `rauha-Setup-…-x64.exe`를 실행해요. 서명이 없어서 "알 수 없는 게시자" 경고가 뜨면 "추가 정보 → 실행"을 눌러요.
+`rauha-Setup-…-x64.exe`를 받아 실행해요. 서명이 없어서 "알 수 없는 게시자" 경고가 뜨면 "추가 정보 → 실행"을 눌러요.
 
 ## 2. 처음 열면
 
