@@ -28,7 +28,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 /* 채팅 */
 .pane { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.ph { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 11.5px; color: var(--muted); }
+.ph { box-sizing: border-box; display: flex; align-items: center; gap: var(--s2); min-height: 40px; padding: var(--s1) var(--s3); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); color: var(--muted); }
 .ph b { color: var(--bright); font-weight: 600; font-size: 12.5px; }
 .ph .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msgs { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -39,10 +39,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .m .who { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
 .m.me { align-self: flex-end; flex-direction: row-reverse; }
 .m.me .tx { background: #0c2a44; border-color: #0e4f7f; color: var(--bright); }
-.hand { margin-top: 6px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border2); background: #1b1b1b; border-radius: 6px; padding: 5px 8px; font-size: 12px; }
+.hand { margin-top: 6px; display: flex; align-items: center; gap: var(--s2); border: 1px solid var(--border2); background: var(--well); border-radius: var(--r-md); padding: var(--s1) var(--s2); font-size: var(--fs-sm); }
 .hand .state { color: var(--muted); }
-.hand .stop { margin-left: auto; background: none; border: 1px solid var(--border2); border-radius: 4px; padding: 1px 8px; font-size: 11px; }
-.hand .stop:hover { border-color: var(--red); color: var(--red); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: #555; display: inline-block; }
 .dot.running { background: var(--green); animation: blink 1.2s infinite; }
 .dot.waiting { background: var(--yellow); }
@@ -68,11 +66,11 @@ canvas.sp { image-rendering: pixelated; display: block; }
 
 /* 확인 창(첫 실행 등) */
 .veil { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 20; }
-.dialog { background: var(--card); border: 1px solid var(--border2); border-radius: 8px; padding: 16px 18px; max-width: 480px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 40px #000c; }
+.dialog { background: var(--card); border: 1px solid var(--border2); border-radius: var(--r-lg); padding: var(--s4); max-width: 480px; display: flex; flex-direction: column; gap: var(--s2); box-shadow: 0 10px 40px #000c; }
 .dialog b { color: var(--bright); font-size: 14px; }
 .dialog p { margin: 0; }
 .dialog ul { margin: 0; padding-left: 18px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); word-break: break-all; }
-.dialog .btns { display: flex; gap: 8px; justify-content: flex-end; }
+.dialog .btns { justify-content: flex-end; }
 
 /* 제목줄: 맥에서만 보인다(--titlebar-h는 shared/title-bar의 높이를 app.ts가 넣는다). 전체가 끌기 영역이고 신호등은 OS가 그 위 왼쪽에 그린다. */
 .titlebar { display: none; grid-row: 1; grid-column: 1 / -1; background: var(--side); border-bottom: 1px solid var(--border); align-items: center; justify-content: center; padding: 0 var(--traffic-edge, 84px); min-width: 0; overflow: hidden; -webkit-app-region: drag; user-select: none; }

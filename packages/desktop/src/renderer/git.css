@@ -34,7 +34,7 @@ textarea.ginput, input.ginput { width: 100%; }
 .gl .gs { flex: 0 0 14px; color: var(--dim); }
 .gl .gt { flex: 1; padding-right: 16px; }
 .gl.add { background: #17301c; } .gl.add .gs { color: var(--green); }
-.gl.del { background: #3a1d1d; } .gl.del .gs { color: var(--red); }
+.gl.del { background: var(--danger-bg); } .gl.del .gs { color: var(--red); }
 .gl input, .gh input, .gf input, .gall input { margin: 0; accent-color: var(--accent); }
 .gtools { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
 .gtools .ginput { flex: 1; }

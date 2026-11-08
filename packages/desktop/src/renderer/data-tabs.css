@@ -6,7 +6,7 @@
 .todo input:focus, .todo select:focus, .todo textarea:focus, .records input:focus, .records select:focus, .records textarea:focus { border-color: var(--accent); }
 .todo input[type=checkbox], .records input[type=checkbox] { padding: 0; accent-color: var(--accent); }
 .todo textarea, .records textarea { resize: none; width: 100%; }
-.tnotice { background: #2f2a1e; border: 1px solid #5b4d2e; color: var(--yellow); border-radius: 4px; padding: 5px 9px; flex: 0 0 auto; }
+.tnotice { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--yellow); border-radius: 4px; padding: 5px 9px; flex: 0 0 auto; }
 .tnotice[hidden] { display: none; }
 .err { color: var(--red); font-size: 12px; }
 .err:empty { display: none; }
@@ -33,7 +33,7 @@
 .tboard:has(.tempty) { display: flex; }
 .tempty { margin: 40px auto; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
 .tempty b { color: var(--bright); font-size: 15px; }
-.tcol { background: #1b1b1b; border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tcol { background: var(--well); border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .tch { color: var(--bright); font-weight: 600; font-size: 12px; padding: 2px 4px; }
 .tnone { color: var(--dim); text-align: center; padding: 10px 0; font-size: 12px; }
 .tcard { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--border2); border-radius: 6px; padding: 7px 9px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
@@ -70,7 +70,7 @@
 .rtext.pre { white-space: pre-wrap; }
 .rdir, .rapp { display: flex; flex-direction: column; gap: 4px; }
 .rrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; min-width: 0; overflow-wrap: anywhere; }
-.rrow.hl { border-color: #5b4d2e; background: #2f2a1e; }
+.rrow.hl { border-color: var(--warn-border); background: var(--warn-bg); }
 .rrow .rl { color: var(--muted); flex: 0 0 56px; }
 .rfiles { display: flex; flex-direction: column; gap: 2px; }
 .rfile { font-family: var(--mono); font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
@@ -93,7 +93,4 @@
 .app[data-tier=xs] .tselects select { max-width: 120px; }
 
 /* 채팅 카드의 "할 일로 담기" */
-.hand .keep { background: none; border: none; color: var(--muted); font-size: 11.5px; padding: 0 4px; }
-.hand .keep:hover:not(:disabled) { color: var(--accentfg); }
-.hand .keep:disabled { color: var(--green); cursor: default; }
 .tform[hidden], .rback[hidden] { display: none; }

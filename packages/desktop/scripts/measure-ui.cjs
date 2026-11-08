@@ -100,6 +100,7 @@ const TAB = { chat: 0, code: 1, todo: 2, records: 3, repos: 4, git: 5, commands:
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
+  ['chat-approval', 'chat', [byText('.room', '허락')]],
   ['code', 'code', []],
   ['code-file', 'code', ['.tree-row:not(.heavy)', '.tree-row:not(.heavy):nth-child(3)']],
   ['code-term', 'code', ['.code-termbtn']],

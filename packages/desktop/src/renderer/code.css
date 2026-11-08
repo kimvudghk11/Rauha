@@ -13,7 +13,7 @@
 
 .tree { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
 .tree-row { display: flex; align-items: center; gap: 4px; width: 100%; height: 22px; padding-right: 8px; background: none; border: none; text-align: left; color: var(--text); font-size: 13px; white-space: nowrap; }
-.tree-row:hover { background: #2a2d2e; }
+.tree-row:hover { background: var(--row-hover); }
 .tree-row.on { background: var(--sel); color: var(--bright); }
 .tree-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .tree-chev { flex: 0 0 12px; color: var(--muted); font-size: 11px; text-align: center; }
@@ -91,7 +91,7 @@
 .cs-path .dim { color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .cs-count { margin-left: auto; flex: none; background: var(--input); border-radius: 8px; padding: 0 6px; font-size: 10.5px; color: var(--muted); }
 .cs-hit { display: flex; gap: 8px; width: 100%; background: none; border: none; text-align: left; padding: 1px 10px 1px 18px; font-size: 12px; color: var(--text); font-family: var(--mono); }
-.cs-hit:hover { background: #2a2d2e; }
+.cs-hit:hover { background: var(--row-hover); }
 .cs-line { flex: none; min-width: 26px; text-align: right; color: var(--dim); }
 .cs-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
 .cs-text mark { background: #ea5c0055; color: var(--bright); border-radius: 2px; }

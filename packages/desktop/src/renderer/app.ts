@@ -180,7 +180,7 @@ function toast(a: ApprovalView): void {
   toasted.add(a.id);
   const t = el('div', 'toast');
   t.append(el('b', undefined, '허락이 필요해요'), el('span', undefined, `${a.roleName} · ${a.summary.headline}`));
-  const go = el('button', 'btn primary', '정리 보기');
+  const go = el('button', 'btn sm primary', '정리 보기');
   go.addEventListener('click', () => {
     show('chat');
     chat.open(a.jobId);

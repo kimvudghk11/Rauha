@@ -63,7 +63,7 @@ export function buildChat(actions: ChatActions) {
   const head = el('div', 'ph');
   const headFace = el('canvas', 'sp');
   paintOnce(headFace, 'intake', 2);
-  const layoutToggle = el('div', 'ltoggle');
+  const layoutToggle = el('div', 'seg ltoggle');
   head.append(headFace, el('b', undefined, '메인'), el('span', 'hint', `${leadName()}에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.`), layoutToggle);
   const msgs = el('div', 'msgs');
   const empty = el('div', 'empty');
@@ -152,13 +152,13 @@ export function buildChat(actions: ChatActions) {
     const dot = el('span', 'dot');
     const line = el('span', 'handline', short(job.request, 40));
     const state = el('span', 'state');
-    const go = el('button', 'go', '진행 보기 →');
+    const go = el('button', 'link go', '진행 보기 →');
     go.addEventListener('click', () => open(job.id));
-    const stop = el('button', 'stop', '멈추기');
+    const stop = el('button', 'btn sm danger', '멈추기');
     stop.addEventListener('click', () => actions.stop(job.id));
     hand.append(dot, line, state, go);
     if (actions.saveTodo !== undefined) {
-      const keep = el('button', 'keep', '할 일로 담기');
+      const keep = el('button', 'link keep', '할 일로 담기');
       keep.title = '이 일을 할 일 탭에 담아 둬요';
       keep.addEventListener('click', () => {
         keep.disabled = true;
@@ -205,7 +205,7 @@ export function buildChat(actions: ChatActions) {
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));
     // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
     if (job.canGoDeeper) {
-      const deeper = el('button', 'btn deeper', '더 깊게');
+      const deeper = el('button', 'btn sm deeper', '더 깊게');
       deeper.addEventListener('click', () => {
         deeper.disabled = true;
         void actions.deeper(job.id);
@@ -293,7 +293,7 @@ export function buildChat(actions: ChatActions) {
   function renderStrip(visible: readonly JobView[]): void {
     strip.replaceChildren();
     for (const job of visible) {
-      const chip = el('button', 'stripchip');
+      const chip = el('button', 'chip stripchip');
       const dot = el('span', `dot ${job.status}`);
       const face = el('canvas', 'sp');
       paintOnce(face, (job.cast[0] && isRole(job.cast[0]) ? job.cast[0] : 'intake') as CharacterRole, 1, characterStateOf(job) === 'rest' ? 'idle' : 'idle');
@@ -449,9 +449,9 @@ export function buildChat(actions: ChatActions) {
     actionsBox.append(back, stop);
     ph.append(el('span', `dot ${job.status}`), cast, el('b', undefined, short(job.request, 40)), actionsBox);
 
-    const tabs = el('div', 'dtabs');
+    const tabs = el('div', 'tabs dtabs');
     for (const [id, label] of [['summary', '정리'], ['log', '원본 로그']] as const) {
-      const b = el('button', detailTab === id ? 'on' : '', label);
+      const b = el('button', detailTab === id ? 'tab sm on' : 'tab sm', label);
       b.addEventListener('click', () => {
         detailTab = id;
         renderDetail();

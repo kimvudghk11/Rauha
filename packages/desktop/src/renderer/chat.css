@@ -28,9 +28,7 @@
 @media (max-height: 420px) { .composer .hint { display: none; } .stage { height: 44px; } }
 
 /* 머리의 배치 토글 */
-.ltoggle { margin-left: auto; display: flex; border: 1px solid var(--border2); border-radius: 4px; overflow: hidden; flex: 0 0 auto; }
-.ltoggle button { background: none; border: none; padding: 1px 9px; font-size: 11px; color: var(--muted); }
-.ltoggle button.on { background: var(--sel); color: var(--bright); }
+.ltoggle { margin-left: auto; }
 
 /* 팀 방 */
 .room { flex: 0 0 auto; cursor: pointer; min-width: 0; transition: border-color .15s; overflow: hidden; }
@@ -51,20 +49,17 @@
 
 /* 메인 칸 카드 */
 .cast { display: inline-flex; gap: 3px; align-items: flex-end; }
-.hand .go { margin-left: auto; background: none; border: none; color: var(--accentfg); font-size: 11.5px; padding: 0 4px; }
-.hand .stop { margin-left: 0; }
+.hand .go { margin-left: auto; }
 .hand .handline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .hand .state { white-space: nowrap; }
 
 /* 아주 좁을 때 맨 위 띠 */
-.stripchip { display: inline-flex; align-items: center; gap: 5px; background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 2px 8px; font-size: 11px; white-space: nowrap; }
+.stripchip { gap: 5px; }
 
 /* 팀 상세 */
 .detail .pane { min-height: 0; overflow: hidden; }
 .detail .ph .right { margin-left: auto; display: flex; gap: 6px; }
-.dtabs { display: flex; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--border); }
-.dtabs button { background: none; border: none; border-bottom: 2px solid transparent; padding: 5px 10px; color: var(--muted); }
-.dtabs button.on { color: var(--bright); border-bottom-color: var(--accentfg); }
+.dtabs { padding: 0 var(--s2); }
 .dbody { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .dbody.term { font-family: var(--mono); font-size: 12px; gap: 2px; }
 .dbody .c { color: var(--accentfg); }
@@ -85,18 +80,16 @@
 .app[data-mode=side] .dside .tl, .app[data-mode=xl] .dside .tl { flex-direction: row; flex-wrap: wrap; gap: 14px; }
 
 /* 허락 카드(정리 보기) */
-.approval { border: 1px solid #5b4d2e; background: #231f16; border-radius: 6px; padding: 9px 11px; display: flex; flex-direction: column; gap: 6px; }
+.approval { border: 1px solid var(--warn-border); background: var(--warn-bg); border-radius: var(--r-md); padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
 .approval .ah { color: var(--yellow); font-weight: 600; }
 .approval ul { margin: 0; padding-left: 18px; }
 .approval .facts { display: flex; gap: 6px; flex-wrap: wrap; }
 .approval pre { margin: 4px 0 0; font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; word-break: break-all; color: var(--muted); }
 .approval summary { cursor: pointer; color: var(--muted); font-size: 11.5px; }
-.approval .note { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; padding: 4px 8px; color: var(--text); font: inherit; outline: none; }
-.approval .btns { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* 알림 토스트 */
 .toasts { position: fixed; right: 14px; bottom: 34px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
-.toast { background: var(--card); border: 1px solid #5b4d2e; border-radius: 8px; padding: 9px 12px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 6px 24px #0009; max-width: 300px; }
+.toast { background: var(--card); border: 1px solid var(--warn-border); border-radius: var(--r-lg); padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s1); box-shadow: 0 6px 24px #0009; max-width: 300px; }
 .toast b { color: var(--yellow); }
 
 /* 허락 정리: 영향 표, 파일, diff */
@@ -107,7 +100,7 @@
 .impact td.bad { color: var(--red); }
 .impact td.dim { color: var(--dim); }
 .files { margin: 0; padding-left: 18px; font-family: var(--mono); font-size: 11.5px; }
-.diff { max-height: 260px; overflow: auto; margin: 4px 0 0; padding: 6px 0; background: #1b1b1b; border: 1px solid var(--border); border-radius: 4px; font-family: var(--mono); font-size: 11.5px; white-space: pre; }
+.diff { max-height: 260px; overflow: auto; margin: 4px 0 0; padding: 6px 0; background: var(--well); border: 1px solid var(--border); border-radius: 4px; font-family: var(--mono); font-size: 11.5px; white-space: pre; }
 .dl { padding: 0 8px; }
 .dl.add { background: #12261a; color: var(--green); }
 .dl.del { background: #2a1717; color: var(--red); }
@@ -118,11 +111,8 @@
 .rules { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 12px; min-width: 0; min-height: 0; overflow: auto; }
 .rhead { display: flex; align-items: baseline; gap: 10px; }
 .rhead b { color: var(--bright); font-size: 16px; }
-.hint.pad, .dim.pad { padding: 4px 10px; }
 .ruleform { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
 .ruleform .row { display: flex; gap: 6px; flex-wrap: wrap; }
-.ruleform input, .ruleform select { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 4px 8px; font: inherit; outline: none; min-width: 0; }
-.ruleform input:focus, .ruleform select:focus { border-color: var(--accent); }
 .ruleform .row:first-child input { flex: 1; }
 .ruleform .row:nth-child(2) input { flex: 1 1 160px; }
 .ruleform .err { color: var(--red); font-size: 12px; min-height: 0; }
@@ -138,7 +128,7 @@
 .pane.sec { flex: 0 0 auto; padding-bottom: 8px; }
 .srow { display: flex; align-items: center; gap: 12px; padding: 5px 12px; }
 .srow .lbl { flex: 1; color: var(--text); }
-.srow select, .srow input[type=number], .srow input:not([type]) { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 3px 8px; font: inherit; outline: none; min-width: 120px; }
+.srow select, .srow input[type=number], .srow input:not([type]) { min-width: 120px; }
 .limits { display: flex; flex-direction: column; gap: 6px; padding: 4px 12px; }
 .limit { display: flex; align-items: center; gap: 8px; }
 .limit .lbl { width: 108px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
@@ -161,18 +151,13 @@
 .repo .bad { color: var(--yellow); }
 .dialog.wizard { max-width: 520px; }
 .dialog.wizard p { white-space: pre-wrap; }
-.dialog select { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 4px 8px; font: inherit; }
-.dialog .btn:disabled { opacity: .5; cursor: default; }
 
 @media (max-width: 720px) { .toasts { left: 60px; right: 8px; bottom: auto; top: calc(var(--titlebar-h, 0px) + 44px); } .toast { max-width: none; } }
 
 .m .tx .kn { margin-top: 6px; font-size: 11px; color: var(--muted); }
-.m .tx .deeper { margin-top: 6px; display: block; }
-.m .tx .deeper:disabled { opacity: .5; cursor: default; }
+.m .tx .deeper { margin-top: 6px; display: flex; width: fit-content; }
 
 .ruletalk { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
-.ruletalk textarea { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 6px 8px; font: inherit; resize: none; outline: none; }
-.ruletalk textarea:focus { border-color: var(--accent); }
 
 /* Claude 로그인 칸(설정·첫 실행·오류 카드) */
 .login { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 0 0 2px; }
@@ -187,4 +172,3 @@
 .acct[data-tone=warn] { border-left-color: #d9a441; }
 .acct-title { font-size: 13px; overflow-wrap: anywhere; }
 .acct-detail { font-size: 11.5px; overflow-wrap: anywhere; }
-.login-row .btn { padding: 1px 8px; font-size: 11.5px; }
