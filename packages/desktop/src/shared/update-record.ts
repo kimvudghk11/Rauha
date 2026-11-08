@@ -1,4 +1,5 @@
 import { AppVersion, isAllowedDownload, pickAsset, pickLatestRelease, shouldShowBanner } from './app-update.js';
+import { IDLE_INSTALL, type InstallState } from './update-install.js';
 
 /** 화면에 보내는 업데이트 상태(바깥 표시용) */
 export interface UpdateView {
@@ -14,11 +15,16 @@ export interface UpdateView {
   readonly checking: boolean;
   /** 방금 확인이 실패했는지(조용한 한 줄 안내용) */
   readonly failed: boolean;
+  /** 앱 안에서 바로 내려받아 설치할 수 있는지(설치본이고 이 컴퓨터용 파일이 있을 때) */
+  readonly canInstall: boolean;
+  readonly install: InstallState;
 }
 
 export interface CheckFinding {
   readonly latest: AppVersion | null;
   readonly downloadUrl: string | null;
+  /** 설치 파일의 SHA-256(릴리스가 알려 준 것). 없으면 null */
+  readonly downloadSha256?: string | null;
 }
 
 /** 마지막 확인 결과와 "나중에" 기록. 앱 데이터에 저장해 재시작해도 배너가 이어진다. */
@@ -66,7 +72,7 @@ export class UpdateRecord {
     return isAllowedDownload(this.download) ? this.download : null;
   }
 
-  toView(current: AppVersion, flags: { checking?: boolean; failed?: boolean } = {}): UpdateView {
+  toView(current: AppVersion, flags: { checking?: boolean; failed?: boolean; canInstall?: boolean; install?: InstallState } = {}): UpdateView {
     return {
       current: current.toString(),
       checkedAt: this.checkedAt,
@@ -76,6 +82,8 @@ export class UpdateRecord {
       hasDownload: this.downloadUrl() !== null,
       checking: flags.checking ?? false,
       failed: flags.failed ?? false,
+      canInstall: (flags.canInstall ?? false) && this.downloadUrl() !== null,
+      install: flags.install ?? IDLE_INSTALL,
     };
   }
 }
@@ -84,5 +92,6 @@ export class UpdateRecord {
 export function findUpdate(releases: unknown, platform: string, arch: string): CheckFinding | null {
   const latest = pickLatestRelease(releases);
   if (latest === null) return null;
-  return { latest: latest.version, downloadUrl: pickAsset(latest.assets, platform, arch)?.url ?? null };
+  const asset = pickAsset(latest.assets, platform, arch);
+  return { latest: latest.version, downloadUrl: asset?.url ?? null, downloadSha256: asset?.sha256 ?? null };
 }

@@ -1,6 +1,7 @@
 import type { UpdateApi } from '../shared/ipc.js';
 import type { UpdateView } from '../shared/update-record.js';
 import { el } from './dom.js';
+import { installStateText } from '../shared/update-install.js';
 import { bannerText, MAC_INSTALL_NOTE } from './update-text.js';
 
 const XATTR = 'xattr -dr com.apple.quarantine /Applications/rauha.app';
@@ -20,16 +21,25 @@ export function createUpdateFeed(api: UpdateApi, banner: HTMLElement, platform: 
     const msg = el('span', 'msg', bannerText(view));
     msg.title = msg.textContent ?? '';
     bar.appendChild(msg);
-    if (view.hasDownload) {
-      const get = el('button', 'btn primary', '내려받기');
+    const busy = view.install.phase === 'downloading' || view.install.phase === 'installing';
+    if (view.canInstall) {
+      const now = el('button', 'btn primary', busy ? installStateText(view.install) : '지금 업데이트');
+      now.disabled = busy;
+      now.addEventListener('click', () => void api.install());
+      bar.appendChild(now);
+    }
+    if (view.install.phase === 'failed') bar.appendChild(el('span', 'dim', installStateText(view.install)));
+    if (view.hasDownload && !busy) {
+      const get = el('button', view.canInstall ? 'btn' : 'btn primary', view.canInstall ? '브라우저로 받기' : '내려받기');
       get.addEventListener('click', () => void api.download());
       bar.appendChild(get);
     }
     const later = el('button', 'btn', '나중에');
+    later.disabled = busy;
     later.addEventListener('click', () => void api.dismiss());
     bar.appendChild(later);
     banner.replaceChildren(bar);
-    if (platform === 'darwin' && view.hasDownload) {
+    if (platform === 'darwin' && view.hasDownload && !view.canInstall) {
       const note = el('div', 'update-note');
       const [before] = MAC_INSTALL_NOTE.split(XATTR);
       note.append(before ?? '', el('code', undefined, XATTR));

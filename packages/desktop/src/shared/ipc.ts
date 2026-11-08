@@ -67,6 +67,7 @@ export const IPC = {
   updateCheck: 'update:check',
   updateDownload: 'update:download',
   updateDismiss: 'update:dismiss',
+  updateInstall: 'update:install',
   /** Claude 로그인: 상태 읽기 · 로그인 시작 · 취소 · (main → 화면) 진행 상태 푸시 */
   authStatus: 'auth:status',
   authLogin: 'auth:login',
@@ -205,6 +206,8 @@ export interface UpdateApi {
   /** 브라우저로 설치 파일 내려받기를 연다. 열 주소가 없으면 false */
   download(): Promise<boolean>;
   dismiss(): Promise<UpdateView>;
+  /** 앱 안에서 내려받아 설치하고 다시 켠다(설치본에서만). 시작하지 못하면 false */
+  install(): Promise<boolean>;
   onState(listener: (view: UpdateView) => void): void;
 }
 

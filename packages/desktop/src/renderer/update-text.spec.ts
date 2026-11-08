@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { UpdateView } from '../shared/update-record.js';
 import { bannerText, checkedText, MAC_INSTALL_NOTE } from './update-text.js';
 
-const view = (over: Partial<UpdateView> = {}): UpdateView => ({ current: '0.1.1', checkedAt: null, latest: '0.1.2', newer: true, showBanner: true, hasDownload: true, checking: false, failed: false, ...over });
+const view = (over: Partial<UpdateView> = {}): UpdateView => ({ current: '0.1.1', checkedAt: null, latest: '0.1.2', newer: true, showBanner: true, hasDownload: true, checking: false, failed: false, canInstall: false, install: { phase: 'idle', percent: null }, ...over });
 
 describe('bannerText', () => {
   it('새 버전을 v 붙여 알린다', () => {

@@ -35,6 +35,7 @@ import { AppVersion } from '../shared/app-update.js';
 import { UpdateService, type FetchLike } from './update/update-service.js';
 import { FileUpdateStore } from './update/update-store.js';
 import { fakeReleases } from './update/fake-releases.js';
+import { createInstaller } from './update/installer.js';
 import { ClaudeLogin } from './auth/claude-login.js';
 import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
@@ -326,6 +327,8 @@ function open(runner: JobRunner): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // 자동 확인 실행은 창이 숨겨져 있어도 화면이 계속 그려지게 한다
+      backgroundThrottling: remembers(),
     },
   });
   if (placed.maximized) window.maximize();
@@ -428,11 +431,18 @@ function startUpdates(): void {
     enabled: () => settings.autoUpdateCheck,
     openExternal: (url) => openSafe(url),
     onChange: (view) => window?.webContents.send(IPC.updateState, view),
+    // 앱 안 설치는 설치본에서만(개발 실행은 앱 파일이 electron이라 덮어쓰면 안 된다). 확인용 가짜 응답일 때도 막는다.
+    ...(app.isPackaged && !fakeUpdate && (process.platform === 'win32' || process.platform === 'darwin')
+      ? { installer: createInstaller({ platform: process.platform, execPath: process.execPath, pid: process.pid, tempDir: app.getPath('temp'), fetch: (url) => fetch(url), quit: () => app.quit() }) }
+      : fakeUpdate && process.env['RAUHA_FAKE_INSTALL'] === '1'
+        ? { installer: { run: async (_u: string, _h: string, p: (n: number | null) => void, i: () => void) => { for (const n of [20, 60, 90]) { p(n); await new Promise((r) => setTimeout(r, 400)); } i(); } } }
+        : {}),
   });
   ipcMain.handle(IPC.updateState, () => service.view());
   ipcMain.handle(IPC.updateCheck, () => service.check());
   ipcMain.handle(IPC.updateDownload, () => service.download());
   ipcMain.handle(IPC.updateDismiss, () => service.dismiss());
+  ipcMain.handle(IPC.updateInstall, () => service.installNow());
   void service.init().then(() => {
     setTimeout(() => void service.autoCheck(), UPDATE_FIRST_MS);
     setInterval(() => void service.autoCheck(), UPDATE_EVERY_MS);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AppVersion, DOWNLOAD_PREFIX, isAllowedDownload, pickAsset, pickLatestRelease, shouldShowBanner } from './app-update.js';
 
 const v = (s: string): AppVersion => AppVersion.parse(s)!;
-const asset = (name: string) => ({ name, url: `${DOWNLOAD_PREFIX}v0.1.2/${name}` });
+const asset = (name: string) => ({ name, url: `${DOWNLOAD_PREFIX}v0.1.2/${name}`, sha256: null });
 const rawAsset = (name: string) => ({ name, browser_download_url: `${DOWNLOAD_PREFIX}v0.1.2/${name}` });
 const release = (tag: string, extra: Record<string, unknown> = {}) => ({ tag_name: tag, html_url: `https://github.com/kimvudghk11/rauha/releases/tag/${tag}`, draft: false, prerelease: false, assets: [], ...extra });
 
@@ -89,7 +89,7 @@ describe('pickAsset', () => {
   });
 
   it('내려받기 주소 검증을 통과하지 못하는 asset은 고르지 않는다', () => {
-    const bad = [{ name: 'rauha-0.1.2-mac-arm64.dmg', url: 'https://evil.example/rauha-0.1.2-mac-arm64.dmg' }];
+    const bad = [{ name: 'rauha-0.1.2-mac-arm64.dmg', url: 'https://evil.example/rauha-0.1.2-mac-arm64.dmg', sha256: null }];
     expect(pickAsset(bad, 'darwin', 'arm64')).toBeNull();
   });
 });

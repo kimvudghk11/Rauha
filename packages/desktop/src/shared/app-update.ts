@@ -68,6 +68,8 @@ export function isAllowedDownload(url: unknown): url is string {
 export interface ReleaseAsset {
   readonly name: string;
   readonly url: string;
+  /** GitHub가 알려 주는 파일의 SHA-256(소문자 16진수 64자). 없으면 null */
+  readonly sha256: string | null;
 }
 
 export interface ReleaseInfo {
@@ -78,10 +80,16 @@ export interface ReleaseInfo {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** "sha256:<64자 16진수>" 모양만 인정한다 */
+export function readDigest(raw: unknown): string | null {
+  const m = typeof raw === 'string' ? /^sha256:([0-9a-f]{64})$/i.exec(raw) : null;
+  return m === null ? null : (m[1] ?? '').toLowerCase();
+}
+
 function readAssets(raw: unknown): ReleaseAsset[] {
   if (!Array.isArray(raw)) return [];
   const out: ReleaseAsset[] = [];
-  for (const a of raw) if (isObject(a) && typeof a['name'] === 'string' && typeof a['browser_download_url'] === 'string') out.push({ name: a['name'], url: a['browser_download_url'] });
+  for (const a of raw) if (isObject(a) && typeof a['name'] === 'string' && typeof a['browser_download_url'] === 'string') out.push({ name: a['name'], url: a['browser_download_url'], sha256: readDigest(a['digest']) });
   return out;
 }
 

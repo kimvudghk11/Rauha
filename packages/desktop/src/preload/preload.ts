@@ -69,6 +69,7 @@ const api: RauhaApi = {
     check: () => ipcRenderer.invoke(IPC.updateCheck),
     download: () => ipcRenderer.invoke(IPC.updateDownload),
     dismiss: () => ipcRenderer.invoke(IPC.updateDismiss),
+    install: () => ipcRenderer.invoke(IPC.updateInstall),
     onState: (listener) => {
       ipcRenderer.on(IPC.updateState, (_e, view: UpdateView) => listener(view));
     },

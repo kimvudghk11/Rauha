@@ -2,6 +2,7 @@ import { limitTone, type Settings } from '../shared/settings.js';
 import type { AccountsView, AuthApi, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
 import { el } from './dom.js';
 import type { UpdateView } from '../shared/update-record.js';
+import { installStateText } from '../shared/update-install.js';
 import { checkedText } from './update-text.js';
 import type { UpdateFeed } from './update-view.js';
 import { createLoginControl } from './login-view.js';
@@ -15,7 +16,7 @@ export interface SettingsApi {
   /** 앱 안 Claude 로그인(없으면 로그인 칸을 그리지 않는다) */
   auth?: AuthApi;
   /** 새 버전 알림(없으면 그 구역을 그리지 않는다) */
-  updates?: { readonly feed: UpdateFeed; check(): Promise<unknown> };
+  updates?: { readonly feed: UpdateFeed; check(): Promise<unknown>; install(): Promise<unknown> };
   /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
   team?: { build(): HTMLElement };
 }
@@ -110,15 +111,22 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       const button = el('button', 'btn sec', '업데이트 확인');
       button.addEventListener('click', () => void check());
       const status = el('div', 'dim pad');
+      const installNow = el('button', 'btn primary', '지금 업데이트');
+      installNow.hidden = true;
+      installNow.addEventListener('click', () => void api.updates?.install());
       const auto = el('input');
       auto.type = 'checkbox';
       auto.checked = s.autoUpdateCheck;
       auto.addEventListener('change', () => void api.update({ autoUpdateCheck: auto.checked }));
       const head = el('div', 'srow');
-      head.append(version, button);
+      head.append(version, button, installNow);
       const paint = (view: UpdateView | null): void => {
         version.textContent = `현재 버전 ${view?.current ?? ''}`;
         button.disabled = view?.checking === true;
+        const busy = view?.install.phase === 'downloading' || view?.install.phase === 'installing';
+        installNow.hidden = !(view?.canInstall === true && view.newer);
+        installNow.disabled = busy;
+        installNow.textContent = busy && view !== null ? installStateText(view.install) : '지금 업데이트';
         status.textContent = view === null ? '' : checkedText(view, resetText(view.checkedAt));
       };
       paint(feed.current());
