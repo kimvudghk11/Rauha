@@ -1,3 +1,5 @@
+import type { ChangedFile, LineMark } from './code-changes.js';
+import type { LineHit, SearchOptions } from './text-search.js';
 import type { Eol } from './code-text.js';
 import type { EditorConfigProps } from './indent.js';
 
@@ -7,6 +9,10 @@ export const CODE_IPC = {
   read: 'code:read',
   write: 'code:write',
   stat: 'code:stat',
+  changes: 'code:changes',
+  diff: 'code:diff',
+  search: 'code:search',
+  files: 'code:files',
 } as const;
 
 /** 못 하는 까닭. 화면이 문장으로 바꿔 보인다(codeFailText). */
@@ -63,7 +69,7 @@ export type WriteResult = { readonly ok: true; readonly version: string } | { re
 /** 열어 둔 파일들의 디스크 상태. 없으면 null. */
 export type StatResult = Readonly<Record<string, string | null>>;
 
-export interface CodeApi {
+export interface CodeApi extends CodeApi2 {
   tree(path: string): Promise<TreeResult>;
   read(path: string): Promise<ReadResult>;
   write(req: WriteRequest): Promise<WriteResult>;
@@ -88,3 +94,38 @@ const FAIL_TEXT: Readonly<Record<CodeFail, string>> = {
 };
 
 export const codeFailText = (reason: CodeFail): string => FAIL_TEXT[reason];
+
+// ── 2단계: git 변경 표시 · 전체 찾기 · 빠른 열기 ──
+
+
+/** 레포 한 개: 작업 폴더 기준 상대 경로('' = 작업 폴더 자신)와 절대 경로(git 탭으로 넘길 때 쓴다) */
+export interface RepoInfo {
+  readonly path: string;
+  readonly root: string;
+}
+
+export type ChangesResult = { readonly ok: true; readonly files: readonly ChangedFile[]; readonly repos: readonly RepoInfo[] } | { readonly ok: false; readonly reason: CodeFail };
+
+export type DiffResult = { readonly ok: true; readonly marks: readonly LineMark[] } | { readonly ok: false; readonly reason: CodeFail };
+
+export interface SearchFileHits {
+  readonly path: string;
+  readonly hits: readonly LineHit[];
+}
+
+export type SearchResult =
+  | { readonly ok: true; readonly files: readonly SearchFileHits[]; readonly truncated: boolean; readonly scanned: number }
+  | { readonly ok: false; readonly reason: CodeFail | 'empty' | 'bad-regex' };
+
+export type FilesResult = { readonly ok: true; readonly paths: readonly string[]; readonly truncated: boolean } | { readonly ok: false; readonly reason: CodeFail };
+
+export type { SearchOptions };
+
+export interface CodeApi2 {
+  /** 작업 폴더 아래 레포들의 바뀐 파일(작업 폴더 기준 경로) */
+  changes(): Promise<ChangesResult>;
+  /** 한 파일의 저장된 내용이 HEAD와 다른 줄 */
+  diff(path: string): Promise<DiffResult>;
+  search(options: SearchOptions): Promise<SearchResult>;
+  files(): Promise<FilesResult>;
+}

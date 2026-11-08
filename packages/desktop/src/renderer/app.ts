@@ -2,7 +2,7 @@ import type { ApprovalView, BoardView, RauhaApi } from '../shared/ipc.js';
 import { buildChat } from './chat-view.js';
 import { offerTerminalCleanup, runWizard } from './first-run.js';
 import { el, icon } from './dom.js';
-import { buildGit } from './git-view.js';
+import { buildGit, REMEMBER as GIT_REPO_KEY } from './git-view.js';
 import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
 import { addTodo, buildTodo, localToday } from './todo-view.js';
@@ -38,7 +38,7 @@ window.rauha.onFullScreen((on) => chrome.setFullScreen(on));
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
-const code = buildCode({ api: window.rauha.code, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform });
+const code = buildCode({ api: window.rauha.code, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, openGit: (repoRoot) => openGit(repoRoot) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform);
 
 // ── 배치 선택(A/B)은 이 PC에 기억한다. 저장소가 막혀 있어도 화면은 그대로 돈다. ──
@@ -81,6 +81,16 @@ function renderTabs(): void {
   TABS.filter((t) => !t.bottom).forEach(add);
   tabsNav.appendChild(el('span', 'spacer'));
   TABS.filter((t) => t.bottom).forEach(add);
+}
+
+/** 코드 탭에서 git 탭으로: git 탭이 기억하는 레포를 이 레포로 바꾸고 연다 */
+function openGit(repoRoot: string): void {
+  try {
+    localStorage.setItem(GIT_REPO_KEY, repoRoot);
+  } catch {
+    /* 기억 못 하면 git 탭이 알아서 고른 레포로 열린다 */
+  }
+  show('git');
 }
 
 function show(id: TabId): void {

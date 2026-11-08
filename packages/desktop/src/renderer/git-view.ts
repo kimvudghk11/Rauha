@@ -14,7 +14,7 @@ interface SubView {
 }
 
 const VIEW_LABEL: Readonly<Record<ViewId, string>> = { changes: '변경', branches: '브랜치', history: '히스토리', conflicts: '충돌' };
-const REMEMBER = 'rauha.git.repo';
+export const REMEMBER = 'rauha.git.repo';
 
 const remembered = (): string | null => {
   try {

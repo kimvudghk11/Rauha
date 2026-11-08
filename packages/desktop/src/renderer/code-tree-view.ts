@@ -1,5 +1,8 @@
 import { codeFailText, type CodeApi, type TreeEntry } from '../shared/code-api.js';
+import { ChangeMap, type ChangeCode } from '../shared/code-changes.js';
 import { el } from './dom.js';
+
+const CHANGE_TITLE: Readonly<Record<ChangeCode, string>> = { M: '수정됨', A: '추가됨', D: '삭제됨', R: '이름 바뀜', U: '새 파일(추적 안 함)', '!': '충돌' };
 
 export interface TreeHooks {
   readonly api: Pick<CodeApi, 'tree'>;
@@ -17,6 +20,7 @@ export class CodeTreeView {
   readonly root = el('div', 'tree');
   private readonly expanded = new Set<string>();
   private active: string | null = null;
+  private changes = ChangeMap.empty();
   private generation = 0;
 
   constructor(private readonly hooks: TreeHooks) {}
@@ -27,6 +31,30 @@ export class CodeTreeView {
     const top = el('div', 'tree-children');
     await this.fill(top, '', 0, gen);
     if (gen === this.generation) this.root.replaceChildren(top);
+  }
+
+  /** git 변경 표시를 바꾼다. 목록을 다시 읽지 않고 보이는 줄에만 입힌다. */
+  setChanges(map: ChangeMap): void {
+    this.changes = map;
+    for (const row of this.root.querySelectorAll<HTMLElement>('.tree-row')) this.decorate(row);
+  }
+
+  private decorate(row: HTMLElement): void {
+    const path = row.dataset['path'] ?? '';
+    row.querySelector('.tree-badge')?.remove();
+    for (const c of ['chg-M', 'chg-A', 'chg-D', 'chg-R', 'chg-U', 'chg-!', 'chg-dir']) row.classList.remove(c);
+    if (row.dataset['kind'] === 'dir') {
+      if (!this.changes.dirHasChange(path)) return;
+      row.classList.add('chg-dir');
+      row.append(el('span', 'tree-badge dot', '●'));
+      return;
+    }
+    const code = this.changes.statusOf(path);
+    if (code === null) return;
+    row.classList.add(`chg-${code}`);
+    const badge = el('span', 'tree-badge', code);
+    badge.title = CHANGE_TITLE[code];
+    row.append(badge);
   }
 
   /** 지금 열려 있는 파일 표시를 바꾼다 */
@@ -74,6 +102,7 @@ export class CodeTreeView {
     const row = el('button', 'tree-row');
     row.type = 'button';
     row.dataset['path'] = entry.path;
+    row.dataset['kind'] = entry.kind;
     row.style.paddingLeft = `${8 + depth * 12}px`;
     row.classList.toggle('on', entry.path === this.active);
     row.classList.toggle('heavy', entry.heavy);
@@ -84,6 +113,7 @@ export class CodeTreeView {
     if (entry.link) row.append(el('span', 'tree-tag', '링크'));
     if (entry.locked) row.append(el('span', 'tree-tag', '비밀'));
     if (entry.heavy) row.append(el('span', 'tree-tag', '생성물'));
+    this.decorate(row);
     row.title = entry.locked ? '비밀 파일이라 열지 않아요' : entry.blocked ? '작업 폴더 밖을 가리켜서 열지 않아요' : entry.path;
     row.addEventListener('click', () => {
       if (entry.locked || entry.blocked) return;

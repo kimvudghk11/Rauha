@@ -1,11 +1,13 @@
 import { constants } from 'node:fs';
 import { access, lstat, open, readdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
-import type { CodeFail, ReadResult, StatResult, TreeEntry, TreeResult, WriteResult } from '../../shared/code-api.js';
+import type { CodeFail, FilesResult, ReadResult, SearchResult, StatResult, TreeEntry, TreeResult, WriteResult } from '../../shared/code-api.js';
 import { decodeFile, encodeFile, MAX_OPEN_BYTES } from '../../shared/code-text.js';
 import { applicableConfigs, editorConfigFor, parseEditorConfig, type EditorConfigFile } from '../../shared/editor-config.js';
 import { SKIPPED_FOLDERS } from '../../shared/folder-kind.js';
 import { cleanRelative, isInside } from './code-path.js';
+import { searchWorkspace } from './code-search.js';
+import { walkFiles } from './code-walk.js';
 import { WriteRequestDto } from './write-request.js';
 
 /** 폴더 하나에서 보여 줄 항목 수 상한(넘치면 잘렸다고 알린다) */
@@ -23,7 +25,7 @@ export interface CodeFilesDeps {
   readonly platform?: NodeJS.Platform;
 }
 
-interface Resolved {
+export interface Resolved {
   readonly rootReal: string;
   /** 정리된 상대 경로(슬래시) */
   readonly clean: string;
@@ -31,7 +33,7 @@ interface Resolved {
   readonly real: string;
 }
 
-type Resolution = { readonly ok: true; readonly value: Resolved } | { readonly ok: false; readonly reason: CodeFail };
+export type Resolution = { readonly ok: true; readonly value: Resolved } | { readonly ok: false; readonly reason: CodeFail };
 
 const versionOf = (s: { mtimeMs: number; size: number }): string => `${Math.round(s.mtimeMs)}:${s.size}`;
 const isMissing = (e: unknown): boolean => (e as NodeJS.ErrnoException).code === 'ENOENT' || (e as NodeJS.ErrnoException).code === 'ENOTDIR';
@@ -95,6 +97,35 @@ export class CodeFiles {
     if (cleanRelative(realRel) === null) return { ok: false, reason: 'bad-path' };
     if (clean !== '' && (this.deps.isSecret(clean) || this.deps.isSecret(realRel))) return { ok: false, reason: 'secret' };
     return { ok: true, value: { rootReal, clean, real } };
+  }
+
+  /** 작업 폴더의 실제 경로(없으면 null) */
+  rootRealPath(): Promise<string | null> {
+    return this.rootReal();
+  }
+
+  /** 상대 경로를 안전한 실제 경로로 푼다(코드 탭 안의 다른 기능이 같은 검사를 거치게) */
+  locate(rawPath: unknown): Promise<Resolution> {
+    return this.resolve(rawPath);
+  }
+
+  isSecretPath(relPath: string): boolean {
+    return this.deps.isSecret(relPath);
+  }
+
+  /** 빠른 열기용 파일 목록 */
+  async listFiles(): Promise<FilesResult> {
+    const rootReal = await this.rootReal();
+    if (rootReal === null) return { ok: false, reason: 'no-folder' };
+    const { paths, truncated } = await walkFiles(rootReal, { isSecret: this.deps.isSecret });
+    return { ok: true, paths, truncated };
+  }
+
+  /** 작업 폴더 전체 글 찾기 */
+  async searchAll(input: unknown): Promise<SearchResult> {
+    const rootReal = await this.rootReal();
+    if (rootReal === null) return { ok: false, reason: 'no-folder' };
+    return searchWorkspace(rootReal, input, this.deps.isSecret);
   }
 
   async tree(rawPath: unknown): Promise<TreeResult> {

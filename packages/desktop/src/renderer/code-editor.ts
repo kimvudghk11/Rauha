@@ -18,9 +18,10 @@ import { properties } from '@codemirror/legacy-modes/mode/properties';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { toml } from '@codemirror/legacy-modes/mode/toml';
 import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
-import { EditorState, type Extension } from '@codemirror/state';
-import { drawSelection, dropCursor, EditorView, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection } from '@codemirror/view';
+import { EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state';
+import { drawSelection, dropCursor, EditorView, GutterMarker, gutter, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
+import type { LineMark } from '../shared/code-changes.js';
 import type { CodeLanguage } from '../shared/code-language.js';
 import type { Indent } from '../shared/indent.js';
 
@@ -58,6 +59,11 @@ const theme = EditorView.theme(
     '.cm-search button:hover': { backgroundColor: '#3c3c3c' },
     '.cm-search label': { display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#9d9d9d' },
     '.cm-search [name=close]': { position: 'absolute', top: '4px', right: '4px', background: 'none', border: 'none', color: '#9d9d9d', fontSize: '16px' },
+    '.cm-changes': { width: '5px', marginRight: '3px' },
+    '.cm-change': { width: '3px', height: '100%', marginLeft: '1px' },
+    '.cm-change-added': { backgroundColor: '#2ea043' },
+    '.cm-change-modified': { backgroundColor: '#0078d4' },
+    '.cm-change-deleted': { height: '0', borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: '5px solid #f85149', marginTop: '-4px', backgroundColor: 'transparent' },
     '.cm-tooltip': { backgroundColor: C.panel, border: `1px solid ${C.border}`, color: C.fg },
   },
   { dark: true },
@@ -84,6 +90,44 @@ const highlight = HighlightStyle.define([
   { tag: t.strong, fontWeight: 'bold' },
   { tag: t.invalid, color: '#f44747' },
 ]);
+
+/** 편집기 왼쪽 변경 표시(git): 새 줄 초록, 고친 줄 파랑, 지워진 자리 빨강. 글을 고치면 표시도 줄을 따라 움직인다. */
+class ChangeMarker extends GutterMarker {
+  constructor(private readonly kind: LineMark['kind']) {
+    super();
+  }
+  override eq(other: GutterMarker): boolean {
+    return other instanceof ChangeMarker && other.kind === this.kind;
+  }
+  override toDOM(): Node {
+    const d = document.createElement('div');
+    d.className = `cm-change cm-change-${this.kind}`;
+    return d;
+  }
+}
+const MARKERS = { added: new ChangeMarker('added'), modified: new ChangeMarker('modified'), deleted: new ChangeMarker('deleted') } as const;
+const setMarks = StateEffect.define<readonly LineMark[]>();
+
+function buildMarks(doc: Text, marks: readonly LineMark[]): RangeSet<GutterMarker> {
+  const placed: { from: number; kind: LineMark['kind'] }[] = [];
+  for (const m of marks) {
+    for (let n = Math.max(1, m.from); n <= Math.min(m.to, doc.lines); n++) placed.push({ from: doc.line(n).from, kind: m.kind });
+    if (m.kind === 'deleted' && m.from > doc.lines) placed.push({ from: doc.line(doc.lines).from, kind: 'deleted' });
+  }
+  placed.sort((a, b) => a.from - b.from);
+  const builder = new RangeSetBuilder<GutterMarker>();
+  for (const p of placed) builder.add(p.from, p.from, MARKERS[p.kind]);
+  return builder.finish();
+}
+
+const marksField = StateField.define<RangeSet<GutterMarker>>({
+  create: () => RangeSet.empty,
+  update(value, tr) {
+    let next = value.map(tr.changes);
+    for (const e of tr.effects) if (e.is(setMarks)) next = buildMarks(tr.state.doc, e.value);
+    return next;
+  },
+});
 
 const PHRASES: Record<string, string> = {
   Find: '찾기',
@@ -155,6 +199,8 @@ export class CodeEditor {
         EditorState.phrases.of(PHRASES),
         lineNumbers(),
         highlightActiveLineGutter(),
+        marksField,
+        gutter({ class: 'cm-changes', markers: (v) => v.state.field(marksField) }),
         highlightSpecialChars(),
         history(),
         foldGutter(),
@@ -239,6 +285,24 @@ export class CodeEditor {
   lengthOf(path: string): number | null {
     if (this.current === path) return this.view.state.doc.length;
     return this.states.get(path)?.doc.length ?? null;
+  }
+
+  /** 저장된 내용이 HEAD와 다른 줄을 왼쪽에 표시한다 */
+  setMarks(path: string, marks: readonly LineMark[]): void {
+    if (this.current === path) {
+      this.view.dispatch({ effects: setMarks.of(marks) });
+      return;
+    }
+    const state = this.states.get(path);
+    if (state !== undefined) this.states.set(path, state.update({ effects: setMarks.of(marks) }).state);
+  }
+
+  /** 지금 보는 파일의 해당 줄·칸으로 가서 가운데에 보인다 */
+  goto(line: number, column: number): void {
+    const doc = this.view.state.doc;
+    const l = doc.line(Math.min(Math.max(1, line), doc.lines));
+    const anchor = Math.min(l.from + Math.max(0, column - 1), l.to);
+    this.view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: 'center' }) });
   }
 
   focus(): void {

@@ -59,6 +59,10 @@ const api: RauhaApi = {
     read: (path) => ipcRenderer.invoke(CODE_IPC.read, path),
     write: (req) => ipcRenderer.invoke(CODE_IPC.write, req),
     stat: (paths) => ipcRenderer.invoke(CODE_IPC.stat, paths),
+    changes: () => ipcRenderer.invoke(CODE_IPC.changes),
+    diff: (path) => ipcRenderer.invoke(CODE_IPC.diff, path),
+    search: (options) => ipcRenderer.invoke(CODE_IPC.search, options),
+    files: () => ipcRenderer.invoke(CODE_IPC.files),
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

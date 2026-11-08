@@ -1,4 +1,6 @@
-import { codeFailText, type CodeApi } from '../shared/code-api.js';
+import { codeFailText, type CodeApi, type RepoInfo, type SearchFileHits } from '../shared/code-api.js';
+import { ChangeMap } from '../shared/code-changes.js';
+import { rankFiles } from '../shared/quick-open.js';
 import { defaultIndentSize, languageOf, type CodeLanguage } from '../shared/code-language.js';
 import { chooseIndent, detectIndent, type Indent } from '../shared/indent.js';
 import { baseName, OpenFile, OpenFiles, tabLabels } from '../shared/open-files.js';
@@ -11,6 +13,8 @@ export interface CodeDeps {
   /** 지금 작업 폴더(없으면 null) */
   readonly workFolder: () => Promise<string | null>;
   readonly platform: string;
+  /** 이 레포를 git 탭에서 열어 달라(레포 루트 절대 경로) */
+  readonly openGit: (repoRoot: string) => void;
 }
 
 interface FileInfo {
@@ -74,12 +78,28 @@ export function buildCode(deps: CodeDeps) {
 
   // ── 탐색기 ──
   const head = el('div', 'code-ehead');
-  const headName = el('b', undefined, '탐색기');
+  const modeFiles = el('button', 'code-mode on', '탐색기');
+  const modeSearch = el('button', 'code-mode', '검색');
+  const headName = el('b', 'code-folder');
   const refreshBtn = el('button', 'code-ibtn', '↻');
   refreshBtn.title = '목록 새로 고침';
-  head.append(headName, refreshBtn);
+  head.append(modeFiles, modeSearch, headName, refreshBtn);
   const tree = new CodeTreeView({ api: deps.api, open: (p) => void openPath(p) });
-  explorer.append(head, tree.root);
+  const searchPanel = el('div', 'code-search');
+  searchPanel.hidden = true;
+  const searchRow = el('div', 'cs-row');
+  const searchInput = el('input', 'cs-input');
+  searchInput.placeholder = '작업 폴더에서 찾기';
+  searchInput.spellcheck = false;
+  const caseBtn = el('button', 'cs-opt', 'Aa');
+  caseBtn.title = '대소문자 구분';
+  const regexBtn = el('button', 'cs-opt', '.*');
+  regexBtn.title = '정규식';
+  searchRow.append(searchInput, caseBtn, regexBtn);
+  const searchSummary = el('div', 'cs-summary');
+  const searchResults = el('div', 'cs-results');
+  searchPanel.append(searchRow, searchSummary, searchResults);
+  explorer.append(head, tree.root, searchPanel);
 
   // ── 오른쪽 ──
   const bar = el('div', 'code-bar');
@@ -104,6 +124,8 @@ export function buildCode(deps: CodeDeps) {
   let cursor = { line: 1, column: 1 };
   let folder: string | null | undefined;
   let flash: { text: string; timer: number } | null = null;
+  let changeMap = ChangeMap.empty();
+  let repos: readonly RepoInfo[] = [];
 
   const editor = new CodeEditor(host, {
     onChange: () => paintDirty(),
@@ -202,6 +224,39 @@ export function buildCode(deps: CodeDeps) {
     const ind = fi === undefined ? '' : `${fi.indent.unit === 'tab' ? '탭' : '스페이스'} ${fi.indent.size} (${INDENT_SOURCE[fi.indent.source]})`;
     const parts = [`줄 ${cursor.line}, 칸 ${cursor.column}`, ind, f.eol === 'crlf' ? 'CRLF' : 'LF', f.bom ? 'UTF-8 BOM' : 'UTF-8', LANGUAGE_NAMES[fi?.language ?? 'plain'], isDirty(path) ? '수정됨' : '저장됨'];
     sRight.textContent = parts.filter((p) => p !== '').join('   ');
+    const repo = repoOf(path);
+    if (repo !== null) {
+      const link = el('button', 'code-link', changeMap.statusOf(path) === null ? 'git에서 보기' : '변경됨 · git에서 보기');
+      link.addEventListener('click', () => deps.openGit(repo.root));
+      sRight.append(link);
+    }
+  }
+
+  /** 이 파일이 든 가장 깊은 레포(작업 폴더 기준 경로로 비교) */
+  function repoOf(path: string): RepoInfo | null {
+    let best: RepoInfo | null = null;
+    for (const r of repos) {
+      const inside = r.path === '' || path === r.path || path.startsWith(`${r.path}/`);
+      if (inside && (best === null || r.path.length > best.path.length)) best = r;
+    }
+    return best;
+  }
+
+  /** git 변경 표시(탐색기 M/A/U)를 새로 받아 입힌다 */
+  async function refreshChanges(): Promise<void> {
+    const r = await deps.api.changes();
+    if (!r.ok) return;
+    changeMap = ChangeMap.of(r.files);
+    repos = r.repos;
+    tree.setChanges(changeMap);
+    paintStatus();
+  }
+
+  /** 열어 둔 파일의 바뀐 줄(왼쪽 표시). 저장된 내용 기준이다. */
+  async function refreshMarks(path: string): Promise<void> {
+    if (!tabs.has(path)) return;
+    const r = await deps.api.diff(path);
+    if (r.ok && tabs.has(path)) editor.setMarks(path, r.marks);
   }
 
   function paintAll(): void {
@@ -217,6 +272,7 @@ export function buildCode(deps: CodeDeps) {
     editor.show(path);
     paintAll();
     editor.focus();
+    void refreshMarks(path);
   }
 
   function register(path: string, text: string, i: FileInfo): void {
@@ -244,6 +300,7 @@ export function buildCode(deps: CodeDeps) {
     paintAll();
     editor.focus();
     closeExplorerWhenNarrow();
+    void refreshMarks(path);
   }
 
   async function closeTab(path: string): Promise<void> {
@@ -282,6 +339,8 @@ export function buildCode(deps: CodeDeps) {
         if (r.ok) {
           tabs = tabs.updated(path, (x) => x.saved(text, r.version));
           paintAll();
+          void refreshMarks(path);
+          void refreshChanges();
           return true;
         }
         if ((r.reason === 'conflict' || r.reason === 'deleted') && !overwrite) {
@@ -326,10 +385,13 @@ export function buildCode(deps: CodeDeps) {
     tabs = tabs.updated(path, (f) => f.reloaded(r.text, r.version, r.eol, r.bom));
     if (tabs.active === path) editor.show(path);
     paintAll();
+    void refreshMarks(path);
+    void refreshChanges();
   }
 
   /** 디스크에서 바뀐 파일을 찾는다. 안 고친 탭은 조용히 새로 읽고, 고치던 탭은 알림만 띄운다. */
   async function checkDisk(): Promise<void> {
+    void refreshChanges();
     const paths = tabs.files.map((f) => f.path);
     if (paths.length === 0) return;
     const versions = await deps.api.stat(paths);
@@ -355,13 +417,188 @@ export function buildCode(deps: CodeDeps) {
   });
   refreshBtn.addEventListener('click', () => void tree.refresh());
 
+  // ── 탐색기 / 검색 전환 ──
+  function setMode(mode: 'files' | 'search'): void {
+    modeFiles.classList.toggle('on', mode === 'files');
+    modeSearch.classList.toggle('on', mode === 'search');
+    tree.root.hidden = mode !== 'files';
+    searchPanel.hidden = mode !== 'search';
+    refreshBtn.hidden = mode !== 'files';
+    if (mode === 'search') {
+      if (narrow()) root.classList.add('explorer-open');
+      else root.classList.remove('explorer-hidden');
+      searchInput.focus();
+      searchInput.select();
+    }
+  }
+  modeFiles.addEventListener('click', () => setMode('files'));
+  modeSearch.addEventListener('click', () => setMode('search'));
+
+  // ── 전체 찾기 ──
+  let caseOn = false;
+  let regexOn = false;
+  let searchSeq = 0;
+  let searchTimer = 0;
+  caseBtn.addEventListener('click', () => {
+    caseOn = !caseOn;
+    caseBtn.classList.toggle('on', caseOn);
+    void runSearch();
+  });
+  regexBtn.addEventListener('click', () => {
+    regexOn = !regexOn;
+    regexBtn.classList.toggle('on', regexOn);
+    void runSearch();
+  });
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => void runSearch(), 350);
+  });
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    clearTimeout(searchTimer);
+    void runSearch();
+  });
+
+  async function runSearch(): Promise<void> {
+    const query = searchInput.value;
+    const seq = ++searchSeq;
+    if (query === '') {
+      searchSummary.textContent = '';
+      searchResults.replaceChildren();
+      return;
+    }
+    searchSummary.textContent = '찾는 중…';
+    const r = await deps.api.search({ query, caseSensitive: caseOn, regex: regexOn });
+    if (seq !== searchSeq) return;
+    if (!r.ok) {
+      searchResults.replaceChildren();
+      searchSummary.textContent = r.reason === 'bad-regex' ? '정규식이 올바르지 않아요.' : r.reason === 'empty' ? '' : codeFailText(r.reason);
+      return;
+    }
+    const hitCount = r.files.reduce((n, f) => n + f.hits.length, 0);
+    searchSummary.textContent = hitCount === 0 ? '찾은 곳이 없어요.' : `${r.files.length}개 파일에서 ${hitCount}곳${r.truncated ? ' (너무 많아 일부만 보여요)' : ''}`;
+    searchResults.replaceChildren(...r.files.map(resultGroup));
+  }
+
+  function resultGroup(f: SearchFileHits): HTMLElement {
+    const group = el('div', 'cs-file');
+    const title = el('div', 'cs-path');
+    title.append(el('b', undefined, baseName(f.path)), el('span', 'dim', f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : ''), el('span', 'cs-count', String(f.hits.length)));
+    title.title = f.path;
+    group.append(title);
+    for (const h of f.hits) {
+      const row = el('button', 'cs-hit');
+      row.type = 'button';
+      const text = el('span', 'cs-text');
+      text.append(h.preview.slice(0, h.start), el('mark', undefined, h.preview.slice(h.start, h.end)), h.preview.slice(h.end));
+      row.append(el('span', 'cs-line', String(h.line)), text);
+      row.addEventListener('click', () => void openAt(f.path, h.line, h.column));
+      group.append(row);
+    }
+    return group;
+  }
+
+  /** 파일을 열고 그 줄·칸으로 간다 */
+  async function openAt(path: string, line: number, column: number): Promise<void> {
+    await openPath(path);
+    if (tabs.active === path) editor.goto(line, column);
+  }
+
+  // ── 빠른 열기(Ctrl/Cmd+P) ──
+  let quick: { close: () => void } | null = null;
+  let fileCache: { at: number; paths: readonly string[] } | null = null;
+  const FILE_CACHE_MS = 15_000;
+
+  async function openQuick(): Promise<void> {
+    if (quick !== null) return;
+    const veil = el('div', 'qo-veil');
+    const box = el('div', 'qo');
+    const input = el('input', 'qo-input');
+    input.placeholder = '파일 이름으로 열기';
+    input.spellcheck = false;
+    const list = el('div', 'qo-list');
+    box.append(input, list);
+    veil.append(box);
+    root.append(veil);
+    let shown: string[] = [];
+    let index = 0;
+    let all: readonly string[] = fileCache?.paths ?? [];
+    const close = (): void => {
+      veil.remove();
+      quick = null;
+      if (tabs.active !== null) editor.focus();
+    };
+    quick = { close };
+    const paint = (): void => {
+      shown = rankFiles(input.value, all, 50);
+      index = Math.min(index, Math.max(0, shown.length - 1));
+      list.replaceChildren();
+      if (shown.length === 0) list.append(el('div', 'qo-empty', all.length === 0 ? '파일을 찾는 중…' : '맞는 파일이 없어요.'));
+      shown.forEach((p, i) => {
+        const row = el('button', `qo-row${i === index ? ' on' : ''}`);
+        row.type = 'button';
+        const dir = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+        row.append(el('b', undefined, baseName(p)), el('span', 'dim', dir));
+        const st = changeMap.statusOf(p);
+        if (st !== null) row.append(el('span', `tree-badge chg-${st}`, st));
+        row.addEventListener('click', () => {
+          close();
+          void openPath(p);
+        });
+        list.append(row);
+      });
+      list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+    };
+    input.addEventListener('input', () => {
+      index = 0;
+      paint();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (shown.length > 0) index = (index + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+        paint();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const p = shown[index];
+        close();
+        if (p !== undefined) void openPath(p);
+      }
+    });
+    veil.addEventListener('mousedown', (e) => {
+      if (e.target === veil) close();
+    });
+    paint();
+    input.focus();
+    if (fileCache === null || Date.now() - fileCache.at > FILE_CACHE_MS) {
+      const r = await deps.api.files();
+      if (r.ok) {
+        fileCache = { at: Date.now(), paths: r.paths };
+        all = r.paths;
+        if (quick !== null) paint();
+      }
+    }
+  }
+
   // ── 키 ──
   window.addEventListener('keydown', (e) => {
     if (!root.isConnected || root.offsetParent === null) return;
     const mod = deps.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
+    if (!mod || e.altKey) return;
+    const key = e.key.toLowerCase();
+    if (!e.shiftKey && key === 's') {
       e.preventDefault();
       if (tabs.active !== null) void save(tabs.active);
+    } else if (!e.shiftKey && key === 'p') {
+      e.preventDefault();
+      void openQuick();
+    } else if (e.shiftKey && key === 'f') {
+      e.preventDefault();
+      setMode('search');
     }
   });
   window.addEventListener('focus', () => {
