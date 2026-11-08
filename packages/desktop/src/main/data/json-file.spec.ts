@@ -52,3 +52,21 @@ describe('앱 데이터 JSON 파일', () => {
     expect((await readFile(join(dir, 'log.jsonl'), 'utf8')).trim().split('\n')).toEqual(['{"a":1}', '{"b":2}']);
   });
 });
+
+describe('앱 데이터 JSON 파일 동시 쓰기', () => {
+  it('저장을 한꺼번에 여러 번 불러도 모두 끝나고, 파일은 깨지지 않고 마지막 값이다', async () => {
+    const path = join(dir, 'busy.json');
+    const file = new JsonFile(path);
+    await Promise.all(Array.from({ length: 30 }, (_, i) => file.write({ n: i, pad: 'x'.repeat(5000) })));
+    const read = await file.read();
+    expect(read.kind).toBe('ok');
+    expect((read as { value: { n: number } }).value.n).toBe(29);
+    expect((await readdir(dir)).filter((n) => n.includes('.tmp'))).toEqual([]);
+  });
+
+  it('같은 파일을 가리키는 JsonFile 둘이 동시에 써도 깨지지 않는다', async () => {
+    const path = join(dir, 'two.json');
+    await Promise.all([new JsonFile(path).write({ who: 'a', pad: 'y'.repeat(20000) }), new JsonFile(path).write({ who: 'b', pad: 'z'.repeat(20000) })]);
+    expect((await new JsonFile(path).read()).kind).toBe('ok');
+  });
+});

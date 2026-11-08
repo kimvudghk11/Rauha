@@ -1,23 +1,27 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { DefaultRuleSet, DefaultRulesDto, DomainError } from '@rauha/core';
 import type { DefaultRuleOp } from '../shared/ipc.js';
+import { JsonFile } from './data/json-file.js';
 
-/** 끈·고친 기본 규칙을 JSON 파일 하나에 둔다(이 PC에만). 없거나 깨진 파일은 기본 규칙으로 연다. */
+/** 끈·고친 기본 규칙을 JSON 파일 하나에 둔다(이 PC에만). 없거나 깨진 파일은 기본 규칙으로 연다(깨진 파일은 복사해 둔다). */
 export class DefaultRulesStore {
-  constructor(private readonly file: string) {}
+  private readonly json: JsonFile;
+
+  constructor(file: string) {
+    this.json = new JsonFile(file);
+  }
 
   async load(): Promise<DefaultRuleSet> {
+    const read = await this.json.read();
+    if (read.kind === 'broken') await this.json.keepCopy(new Date().toISOString());
     try {
-      return DefaultRulesDto.from(JSON.parse(await readFile(this.file, 'utf8'))).toEntity();
+      return read.kind === 'ok' ? DefaultRulesDto.from(read.value).toEntity() : DefaultRuleSet.initial();
     } catch {
       return DefaultRuleSet.initial();
     }
   }
 
   async save(set: DefaultRuleSet): Promise<void> {
-    await mkdir(dirname(this.file), { recursive: true });
-    await writeFile(this.file, JSON.stringify(DefaultRulesDto.fromEntity(set), null, 2), 'utf8');
+    await this.json.write(DefaultRulesDto.fromEntity(set));
   }
 }
 

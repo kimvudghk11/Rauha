@@ -8,6 +8,10 @@ export type JsonRead = { readonly kind: 'missing' } | { readonly kind: 'ok'; rea
  * 깨진 파일은 덮어쓰기 전에 옆에 따로 복사해 둔다(데이터가 말없이 사라지지 않게).
  */
 export class JsonFile {
+  /** 같은 파일에 대한 저장은 JsonFile이 몇 개든 한 줄로 세운다(한꺼번에 불러도 서로 덮지 않게) */
+  private static readonly queues = new Map<string, Promise<unknown>>();
+  private static counter = 0;
+
   constructor(readonly file: string) {}
 
   async read(): Promise<JsonRead> {
@@ -25,11 +29,22 @@ export class JsonFile {
     }
   }
 
-  async write(value: unknown): Promise<void> {
+  write(value: unknown): Promise<void> {
+    const json = JSON.stringify(value, null, 2);
+    const previous = JsonFile.queues.get(this.file) ?? Promise.resolve();
+    const mine = previous.catch(() => undefined).then(() => this.writeNow(json));
+    JsonFile.queues.set(this.file, mine);
+    return mine.finally(() => {
+      if (JsonFile.queues.get(this.file) === mine) JsonFile.queues.delete(this.file);
+    });
+  }
+
+  private async writeNow(json: string): Promise<void> {
     await mkdir(dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.tmp-${process.pid}`;
+    JsonFile.counter += 1;
+    const tmp = `${this.file}.tmp-${process.pid}-${JsonFile.counter}`;
     try {
-      await writeFile(tmp, JSON.stringify(value, null, 2), 'utf8');
+      await writeFile(tmp, json, 'utf8');
       await rename(tmp, this.file);
     } catch (error) {
       await rm(tmp, { force: true }).catch(() => undefined);
