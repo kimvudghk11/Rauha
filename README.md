@@ -60,7 +60,7 @@
   ```
 
 - **macOS, dmg로 직접**: `.dmg`를 열고 rauha를 Applications로 끌어다 놓는다. 처음 열면 "Apple은 rauha에 … 악성 코드가 없음을 확인할 수 없습니다"라는 경고가 뜬다(고장이 아니다). 둘 중 하나로 열면 된다.
-  1. **터미널 한 줄(가장 빠름)**: `xattr -dr com.apple.quarantine /Applications/rauha.app`을 실행하고 앱을 다시 연다.
+  1. **터미널 한 줄(가장 빠름)**: `xattr -dr com.apple.quarantine /Applications/Rauha.app`을 실행하고 앱을 다시 연다.
   2. **시스템 설정**: 앱을 한 번 열어 경고에서 **완료**를 누른다. 시스템 설정 → 개인정보 보호 및 보안 → 아래쪽 "rauha가 차단되었습니다" 옆 **그래도 열기** → 암호나 Touch ID → **열기**. (macOS 15 Sequoia부터는 "우클릭 → 열기"가 통하지 않는다.)
 - **Windows**: `rauha-Setup-…-x64.exe`를 실행한다. "알 수 없는 게시자" 경고가 뜨면 **추가 정보 → 실행**.
 

@@ -1,5 +1,5 @@
 appId: dev.rauha.desktop
-productName: rauha
+productName: Rauha
 directories:
   output: release
   buildResources: build

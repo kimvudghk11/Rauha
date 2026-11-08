@@ -1,7 +1,7 @@
 import { titleBarHeight, titleBarText, trafficLightsRightEdge } from '../shared/title-bar.js';
 
 /** 제목줄 치수와 글을 화면에 반영한다. 높이·신호등 여백은 CSS 변수로, 전체 화면은 data-fullscreen으로 넘긴다. */
-export function createChrome(root: HTMLElement, textNode: HTMLElement, platform: string, appName = 'rauha') {
+export function createChrome(root: HTMLElement, textNode: HTMLElement, platform: string, appName = 'Rauha') {
   let fullScreen = false;
   let folder: string | null = null;
   const paint = (): void => {

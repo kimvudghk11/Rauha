@@ -11,11 +11,11 @@ const arch = process.arch; // arm64 | x64
 const win = process.platform === 'win32';
 const mac = process.platform === 'darwin';
 const app = win
-  ? { exe: join(release, 'win-unpacked', 'rauha.exe'), resources: join(release, 'win-unpacked', 'resources'), sdk: `win32-${arch}`, bin: 'claude.exe' }
+  ? { exe: join(release, 'win-unpacked', 'Rauha.exe'), resources: join(release, 'win-unpacked', 'resources'), sdk: `win32-${arch}`, bin: 'claude.exe' }
   : mac
     ? (() => {
-        const dir = join(release, arch === 'arm64' ? 'mac-arm64' : 'mac', 'rauha.app', 'Contents');
-        return { exe: join(dir, 'MacOS', 'rauha'), resources: join(dir, 'Resources'), sdk: `darwin-${arch}`, bin: 'claude' };
+        const dir = join(release, arch === 'arm64' ? 'mac-arm64' : 'mac', 'Rauha.app', 'Contents');
+        return { exe: join(dir, 'MacOS', 'Rauha'), resources: join(dir, 'Resources'), sdk: `darwin-${arch}`, bin: 'claude' };
       })()
     : null;
 if (!app) throw new Error(`지원하지 않는 OS: ${process.platform}`);
@@ -33,7 +33,7 @@ if (problems.length) { console.error(problems.join('\n')); process.exit(1); }
 console.log('파일 배치 확인 완료');
 
 if (mac) {
-  const r = spawnSync('codesign', ['-dv', join(release, arch === 'arm64' ? 'mac-arm64' : 'mac', 'rauha.app')], { encoding: 'utf8' });
+  const r = spawnSync('codesign', ['-dv', join(release, arch === 'arm64' ? 'mac-arm64' : 'mac', 'Rauha.app')], { encoding: 'utf8' });
   console.log(`codesign: ${(r.stderr || r.stdout).trim().split('\n').join(' | ')}`);
 }
 

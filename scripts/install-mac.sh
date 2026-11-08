@@ -30,10 +30,10 @@ hdiutil attach "$work/rauha.dmg" -nobrowse -readonly -quiet -mountpoint "$mnt"
 app="$(find "$mnt" -maxdepth 1 -name '*.app' | head -n 1)"
 if [ -z "$app" ]; then echo "dmg 안에서 앱을 찾지 못했어요." >&2; exit 1; fi
 
-pkill -x rauha 2>/dev/null || true
-rm -rf "/Applications/rauha.app"
-cp -R "$app" "/Applications/rauha.app"
-xattr -dr com.apple.quarantine "/Applications/rauha.app" 2>/dev/null || true
+pkill -xi rauha 2>/dev/null || true
+rm -rf "/Applications/rauha.app" "/Applications/Rauha.app"
+cp -R "$app" "/Applications/Rauha.app"
+xattr -dr com.apple.quarantine "/Applications/Rauha.app" 2>/dev/null || true
 
-echo "설치했어요: /Applications/rauha.app"
-open "/Applications/rauha.app"
+echo "설치했어요: /Applications/Rauha.app"
+open "/Applications/Rauha.app"

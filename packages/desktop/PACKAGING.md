@@ -33,7 +33,7 @@
 
 ## 설치본에서 파일이 있는 곳 (소스 쪽이 읽을 때 기준)
 
-`resources`는 Windows `<설치폴더>/resources`, mac `rauha.app/Contents/Resources`. 코드에서는 `process.resourcesPath`.
+`resources`는 Windows `<설치폴더>/resources`, mac `Rauha.app/Contents/Resources`. 코드에서는 `process.resourcesPath`.
 
 | 무엇 | 설치본 위치 |
 | --- | --- |
