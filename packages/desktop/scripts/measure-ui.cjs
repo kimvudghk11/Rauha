@@ -35,8 +35,9 @@ const MEASURE = `(() => {
     });
   }
   const over = [];
-  for (const n of document.querySelectorAll('.main *')) { const r = n.getBoundingClientRect(); if (r.width > 0 && r.right > window.innerWidth + 1) over.push(trail(n)); if (over.length > 8) break; }
-  return { innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
+  const clipped = (n) => { for (let e = n.parentElement; e && e !== document.body; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o !== 'visible') return true; } return false; };
+  for (const n of document.querySelectorAll('.main *')) { const r = n.getBoundingClientRect(); if (r.width > 0 && r.right > window.innerWidth + 1 && !clipped(n)) over.push(trail(n)); if (over.length > 8) break; }
+  const cm = document.querySelector('.cm-content'); return { cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
 })()`;
 
 app.on('browser-window-created', (_e, win) => {
@@ -103,6 +104,8 @@ const SCENES = [
   ['chat-approval', 'chat', [byText('.room', '허락')]],
   ['code', 'code', []],
   ['code-file', 'code', ['.tree-row:not(.heavy)', '.tree-row:not(.heavy):nth-child(3)']],
+  // 편집기를 실제로 조작한다(찾기 패널·입력·Alt 십자 커서·빠른 열기): 화면 콘솔 오류가 나는지 본다
+  ['code-edit', 'code', ['.tree-row:not(.heavy)', '.tree-row:not(.heavy):nth-child(3)', `(() => { const c = document.querySelector('.cm-content'); c.focus(); const k = (key, o = {}) => c.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o })); k('f', { ctrlKey: true }); k('Alt', { altKey: true }); k('End'); k('Tab'); document.execCommand('insertText', false, 'x'); k('p', { ctrlKey: true }); k('Escape'); })()`]],
   ['code-term', 'code', ['.code-termbtn']],
   ['code-search', 'code', ['.code-mode:nth-child(2)']],
   ['todo', 'todo', []],
@@ -120,8 +123,39 @@ const SCENES = [
 ];
 const SCENE_FILTER = process.env.MEASURE_SCENES ? process.env.MEASURE_SCENES.split(',') : null;
 
+/** 같은 종류 부품은 같은 높이·글자 가운데·가로 넘침 없음을 숫자로 확인한다. 한 건이라도 있으면 문장으로 돌려준다. */
+function check(results) {
+  const bad = [];
+  const px = (v) => parseFloat(v);
+  for (const s of results.filter((r) => r.rows)) {
+    const where = s.name + '@' + s.width;
+    if (s.hscroll > 0) bad.push(where + ' 가로 스크롤 ' + s.hscroll + 'px');
+    for (const o of s.over) bad.push(where + ' 창 밖으로 나감: ' + o);
+    for (const r of s.rows) {
+      const id = r.tag + '.' + r.cls.replace(/ /g, '.') + ' "' + r.text + '"';
+      const [pt, , pb] = r.pad.split(' ').map(px);
+      const cls = r.cls.split(' ');
+      if (cls.includes('btn')) {
+        const want = cls.includes('sm') ? 24 : cls.includes('lg') ? 32 : 28;
+        if (Math.abs(r.h - want) > 0.6) bad.push(where + ' 버튼 높이 ' + r.h + ' (기대 ' + want + ') ' + id);
+        if (pt !== 0 || pb !== 0) bad.push(where + ' 버튼 위/아래 여백 ' + pt + '/' + pb + ' ' + id);
+        if (!['inline-flex', 'flex'].includes(r.display) || r.ai !== 'center') bad.push(where + ' 버튼 글자가 가운데 정렬이 아님 ' + id);
+      }
+      if (cls.includes('tab') && r.tag === 'button') {
+        const want = cls.includes('sm') ? 28 : 32;
+        if (Math.abs(r.h - want) > 0.6) bad.push(where + ' 탭 높이 ' + r.h + ' (기대 ' + want + ') ' + id);
+      }
+      if (cls.includes('chip') && Math.abs(r.h - 20) > 0.6 && r.tag === 'span') bad.push(where + ' 칩 높이 ' + r.h + ' ' + id);
+      if ((r.tag === 'select' || (r.tag === 'input' && !['checkbox', 'radio'].includes(r.type) && !r.cls.includes('term-input') && !r.cls.includes('qo-input'))) && ![24, 28].some((h) => Math.abs(r.h - h) < 0.6)) bad.push(where + ' 입력칸 높이 ' + r.h + ' ' + id);
+    }
+  }
+  return bad;
+}
+
 async function run(win) {
   const wc = win.webContents;
+  const consoleErrors = [];
+  wc.on('console-message', (e) => { const m = e.message ?? ''; if ((e.level === 'error' || e.level === 3 || /Content Security Policy/.test(m))) consoleErrors.push(m.slice(0, 300) + ' @' + (e.sourceId || '') + ':' + (e.lineNumber || '')); });
   const ev = (js) => wc.executeJavaScript(js);
   const results = [];
   const resize = async (width) => {
@@ -152,6 +186,7 @@ async function run(win) {
       await ev(next);
       await sleep(1500);
     }
+    if (process.env.MEASURE_PROBE) await ev(process.env.MEASURE_PROBE);
     const work = sandbox();
     await ev(`window.rauha.updateSettings({ workFolder: ${JSON.stringify(work)}, folderApproved: true, firstRunDone: true })`);
     for (const t of ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림']) await ev(`window.rauha.submit(${JSON.stringify(t)})`);
@@ -172,6 +207,11 @@ async function run(win) {
   } catch (e) {
     results.push({ error: String(e && e.stack ? e.stack : e) });
   }
+  const violations = check(results);
+  for (const m of new Set(consoleErrors)) violations.push('화면 콘솔 오류: ' + m);
+  results.push({ violations });
+  if (violations.length > 0) console.log(['규칙 위반 ' + violations.length + '건:', ...violations.slice(0, 40)].join(String.fromCharCode(10)));
+  else console.log('규칙 위반 0건');
   fs.writeFileSync(out, JSON.stringify(results));
   console.log('측정 저장:', out, results.length);
   app.quit();

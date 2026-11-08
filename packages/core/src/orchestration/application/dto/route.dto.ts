@@ -1,4 +1,5 @@
 import { onlyDocuments } from '../../domain/question-hint.js';
+import type { ReachValue } from '../../../analysis/domain/analysis-reach.js';
 import { Department, type DepartmentId, type DepartmentMemberRole } from '../../domain/department.js';
 
 export interface Route {
@@ -15,10 +16,13 @@ export interface Route {
   readonly member: DepartmentMemberRole | null;
   /** question일 때 답의 깊이. light: 파일을 안 열어도 되는 가벼운 질문(haiku 몇 턴). 그 밖에는 항상 deep. */
   readonly depth: 'light' | 'deep';
+  /** debug·risk일 때 분석을 어디까지 갈지(조사만·방향 비교까지·설계와 계획까지). 그 밖에는 null이고, 모르면 요청 글에서 어림한다. */
+  readonly reach: ReachValue | null;
 }
 
 const MODES: readonly Route['mode'][] = ['work', 'question', 'task', 'feature', 'ops', 'debug', 'risk', 'ideate', 'company', 'launch'];
-const FALLBACK: Route = { mode: 'work', refersToPast: false, pastQuery: null, department: null, member: null, depth: 'deep' };
+const REACHES: readonly ReachValue[] = ['investigate', 'compare', 'plan'];
+const FALLBACK: Route = { mode: 'work', refersToPast: false, pastQuery: null, department: null, member: null, depth: 'deep', reach: null };
 
 /**
  * 라우터 출력 → 입력 종류. 깨진 출력은 작업으로 본다: 작업이면 접수 팀장이 한 번 더 걸러 주고,
@@ -29,7 +33,7 @@ export class RouteDto {
 
   /** "더 깊게 알아보기": 라우터를 거치지 않고 같은 질문을 deep으로 다시 묻는다. */
   static deepQuestion(): Route {
-    return { mode: 'question', refersToPast: false, pastQuery: null, department: null, member: null, depth: 'deep' };
+    return { mode: 'question', refersToPast: false, pastQuery: null, department: null, member: null, depth: 'deep', reach: null };
   }
 
   /**
@@ -50,7 +54,8 @@ export class RouteDto {
     const refersToPast = o['refersToPast'] === true;
     // 지난 작업을 가리키는 질문은 기억에서 고른 작업을 읽어야 해서 가볍게 답하지 않는다.
     const depth = mode === 'question' && !refersToPast && o['depth'] === 'light' ? 'light' : 'deep';
-    const base = { mode, refersToPast, pastQuery: query, depth } as const;
+    const reach = mode === 'debug' || mode === 'risk' ? (REACHES.find((r) => r === o['reach']) ?? null) : null;
+    const base = { mode, refersToPast, pastQuery: query, depth, reach } as const;
     if (mode !== 'company') return { ...base, department: null, member: null };
     // 부서를 못 읽어도 작업(코드 수정)으로 되돌리지 않는다: 회사 일로 들어왔으니 기획부 부서장이 받아 나눈다.
     const department = Department.named(o['department']) ?? Department.of('planning');

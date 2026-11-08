@@ -76,7 +76,7 @@
 .app[data-tier=s] .rec, .app[data-tier=xs] .rec { grid-template-columns: minmax(0, 1fr); }
 .app[data-tier=s] .rec.show-detail .rclist, .app[data-tier=xs] .rec.show-detail .rclist { display: none; }
 .app[data-tier=s] .rec:not(.show-detail) .rcdet, .app[data-tier=xs] .rec:not(.show-detail) .rcdet { display: none; }
-.app[data-tier=s] .rback, .app[data-tier=xs] .rback { display: inline-block; }
+.app[data-tier=s] .rback, .app[data-tier=xs] .rback { display: inline-flex; }
 .app[data-tier=xs] .todo, .app[data-tier=xs] .records { padding: 8px; }
 .app[data-tier=xs] .tselects select { max-width: 120px; }
 

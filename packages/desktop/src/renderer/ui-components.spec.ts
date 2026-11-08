@@ -191,3 +191,17 @@ describe('버튼 클래스 이름', () => {
     expect(unknownModifiers).toEqual([]);
   });
 });
+
+describe('CSP(style-src)와 인라인 스타일', () => {
+  const ts = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts'));
+  it('화면 코드는 style 속성 문자열·style 태그를 만들지 않는다(element.style.x = … 와 클래스·CSS 변수만 쓴다)', () => {
+    const bad: string[] = [];
+    for (const file of ts) {
+      const text = read(file);
+      if (/setAttribute\(\s*['"`]style['"`]/.test(text)) bad.push(`${file}: setAttribute('style')`);
+      if (/style\s*=\s*\?["']/.test(text.replace(/\/\/.*$/gm, ''))) bad.push(`${file}: style="…" 문자열`);
+      if (/createElement\(\s*['"`]style['"`]/.test(text)) bad.push(`${file}: <style> 만들기`);
+    }
+    expect(bad).toEqual([]);
+  });
+});
