@@ -47,9 +47,15 @@ import { RecordService } from './data/record-service.js';
 import { decisionOf, JobTrail } from './team/job-trail.js';
 import { newlyChanged, snapshotChanges } from './team/changed-files.js';
 import { recordInputOf } from './team/record-input.js';
+import { isAppPage, isSafeExternalUrl } from '../shared/navigation-guard.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
 const BACKGROUND = '#1f1f1f';
+
+/** 기본 브라우저로는 https 주소만 연다(다른 방식·사용자 정보가 든 주소는 조용히 버린다). */
+const openSafe = async (url: string): Promise<void> => {
+  if (isSafeExternalUrl(url)) await shell.openExternal(url);
+};
 
 let window: BrowserWindow | null = null;
 let plan: PlanUsage | null = null;
@@ -323,6 +329,18 @@ function open(runner: JobRunner): void {
     },
   });
   if (placed.maximized) window.maximize();
+  // 화면은 앱 안 파일 하나뿐이다. 새 창은 만들지 않고, 다른 곳으로 옮겨 가는 것도 막는다(https 주소는 기본 브라우저로).
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    void openSafe(url).catch(() => undefined);
+    return { action: 'deny' };
+  });
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!isAppPage(url, window?.webContents.getURL() ?? '')) {
+      event.preventDefault();
+      void openSafe(url).catch(() => undefined);
+    }
+  });
+  window.webContents.session.setPermissionRequestHandler((_wc, _permission, done) => done(false));
   if (remembers()) {
     let timer: NodeJS.Timeout | undefined;
     const save = () => {
@@ -408,7 +426,7 @@ function startUpdates(): void {
     arch: process.arch,
     now: () => new Date(),
     enabled: () => settings.autoUpdateCheck,
-    openExternal: (url) => shell.openExternal(url),
+    openExternal: (url) => openSafe(url),
     onChange: (view) => window?.webContents.send(IPC.updateState, view),
   });
   ipcMain.handle(IPC.updateState, () => service.view());
@@ -432,7 +450,7 @@ function startAuth(): void {
       if (dir !== undefined) mkdirSync(dir, { recursive: true });
       return { ...process.env, ...agentEnv };
     },
-    openExternal: (url) => shell.openExternal(url),
+    openExternal: (url) => openSafe(url),
     onChange: (view) => window?.webContents.send(IPC.authState, view),
   });
   ipcMain.handle(IPC.authStatus, () => login.status());
@@ -485,7 +503,7 @@ void app.whenReady().then(async () => {
   // git 탭: 앱이 작업 폴더에서 찾은 레포의 루트에서만 git을 돌린다
   const gitGate = new RepoGate(async () => (await scanWorkFolder(currentWorkDir())).filter((e) => e.kind === 'repo').map((e) => e.root));
   ipcMain.handle(IPC.gitCall, (_e, fn: unknown, root: unknown, arg: unknown) =>
-    dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => shell.openExternal(url) }, fn, root, arg),
+    dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => openSafe(url) }, fn, root, arg),
   );
   ipcMain.handle(IPC.commandsGet, () => commandStore.load());
   ipcMain.handle(DATA_IPC.todoGet, () => todoService.get());

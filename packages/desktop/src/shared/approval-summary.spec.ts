@@ -55,3 +55,23 @@ describe('summarizeRequest', () => {
     expect(summarizeRequest({ tool: 'Write', detail: 'C:/Users/me/.ssh/config', reason: '폴더 밖' }).kind).toBe('files');
   });
 });
+
+describe('summarizeRequest 가리기 시도', () => {
+  it('prod_main처럼 밑줄로 이어진 운영 프로필도 운영으로 알린다(경로에 dev가 있어도)', () => {
+    const s = summarizeRequest(bash('aws s3 rm s3://dev-data/old --recursive --profile prod_main --region ap-northeast-2'));
+    expect(s.environment).toBe('prod');
+    expect(s.profile).toBe('prod_main');
+  });
+
+  it('git -C 폴더 merge main처럼 옵션이 끼어 있어도 보호 브랜치 합치기로 알린다', () => {
+    const s = summarizeRequest(bash('git -C ../app merge main'));
+    expect(s.protectedBranch).toBe('main');
+    expect(s.headline).toBe('main 브랜치 합치기');
+  });
+
+  it('git -c 옵션이 끼어 있어도 push는 push로 알린다', () => {
+    const s = summarizeRequest(bash('git -c http.extraHeader=x push --force origin main'));
+    expect(s.forcePush).toBe(true);
+    expect(s.protectedBranch).toBe('main');
+  });
+});

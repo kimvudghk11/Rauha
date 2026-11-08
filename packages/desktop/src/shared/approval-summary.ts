@@ -38,8 +38,12 @@ function flag(command: string, name: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** git과 하위 명령 사이에 낀 전역 옵션(-C 폴더, -c 키=값, --옵션) */
+const gitCommand = (names: string): RegExp => new RegExp(String.raw`\bgit(?:\s+(?:-[Cc]\s+\S+|--?\S+))*\s+(?:${names})\b`);
+
 function environmentOf(command: string): Environment | null {
-  if (/\b(prod|production)\b|운영/i.test(command)) return 'prod';
+  // prod_main, my-prod, PROD처럼 앞뒤가 알파벳이 아니면 운영으로 본다(밑줄·숫자로 이어진 이름도)
+  if (/(^|[^a-z])prod(uction)?([^a-z]|$)|운영/i.test(command)) return 'prod';
   if (/\b(qa|stg|staging)\b/i.test(command)) return 'qa';
   if (/\b(dev|develop|development)\b/i.test(command)) return 'dev';
   return null;
@@ -54,14 +58,14 @@ export function summarizeRequest(request: { readonly tool: string; readonly deta
   const shell = request.tool === 'Bash' || request.tool === 'PowerShell';
   const base = { protectedBranch: null, forcePush: false, environment: null, profile: null, region: null, risks: [] as string[] };
 
-  if (shell && /\bgit\s+push\b/.test(command)) {
+  if (shell && gitCommand('push').test(command)) {
     const branch = protectedIn(command, protectedBranches);
     const force = /\s(--force|-f|--force-with-lease)\b/.test(command);
     const risks = [force ? '강제 push는 원격의 기록을 덮어써요' : '원격 저장소에 바로 올라가요'];
     if (branch !== null) risks.push(`${branch} 브랜치는 보호 대상이라 자동 배포나 다른 사람의 작업에 영향이 있을 수 있어요`);
     return { ...base, kind: 'code', headline: `${branch ?? '브랜치'}${branch !== null ? ' 브랜치' : ''}${force ? '에 강제 push' : '에 push'}`, protectedBranch: branch, forcePush: force, risks };
   }
-  if (shell && /\bgit\s+(merge|rebase)\b/.test(command)) {
+  if (shell && gitCommand('merge|rebase').test(command)) {
     const branch = protectedIn(command, protectedBranches);
     return { ...base, kind: 'code', headline: branch !== null ? `${branch} 브랜치 합치기` : '브랜치 합치기', protectedBranch: branch, risks: branch !== null ? [`${branch} 브랜치에 닿아요`] : [] };
   }
