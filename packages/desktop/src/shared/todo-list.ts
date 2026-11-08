@@ -207,7 +207,7 @@ export class TodoList {
   }
 
   remove(id: string): TodoList {
-    this.need(id);
+    this.require(id);
     return new TodoList(this.items.filter((t) => t.id !== id));
   }
 
@@ -248,14 +248,15 @@ export class TodoList {
     return c;
   }
 
-  private need(id: string): Todo {
+  /** 번호로 찾는다. 없으면 던진다. */
+  require(id: string): Todo {
     const found = this.get(id);
     if (found === null) throw new TodoError('그 할 일을 찾지 못했어요. 이미 지워졌을 수 있어요.');
     return found;
   }
 
   private replace(id: string, change: (t: Todo) => Todo): TodoList {
-    const found = this.need(id);
+    const found = this.require(id);
     const next = change(found);
     return new TodoList(this.items.map((t) => (t === found ? next : t)));
   }
