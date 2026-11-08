@@ -43,7 +43,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hand .state { color: var(--muted); }
 .hand .stop { margin-left: auto; background: none; border: 1px solid var(--border2); border-radius: 4px; padding: 1px 8px; font-size: 11px; }
 .hand .stop:hover { border-color: var(--red); color: var(--red); }
-.chip { display: inline-flex; align-items: center; background: var(--input); border: 1px solid var(--border2); border-radius: 10px; padding: 0 7px; font-size: 11px; white-space: nowrap; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: #555; display: inline-block; }
 .dot.running { background: var(--green); animation: blink 1.2s infinite; }
 .dot.waiting { background: var(--yellow); }

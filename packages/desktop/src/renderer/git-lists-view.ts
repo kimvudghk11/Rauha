@@ -44,7 +44,7 @@ export function buildBranches(ctx: GitCtx) {
         if (ctx.isProtected(b.name)) row.appendChild(el('span', 'chip red', '보호'));
         if (b.track !== '') row.appendChild(el('span', 'dim', b.track));
         const btn = (label: string, fn: () => void, danger = false) => {
-          const x = el('button', `btn ${danger ? 'danger' : 'sec'}`, label);
+          const x = el('button', danger ? 'btn danger' : 'btn', label);
           x.addEventListener('click', fn);
           row.appendChild(x);
         };
@@ -137,8 +137,8 @@ export function buildConflicts(ctx: GitCtx) {
     const done = async (fn: () => Promise<unknown>) => {
       if (await fn()) await refresh();
     };
-    const mk = (label: string, fn: () => Promise<unknown>, cls = 'sec') => {
-      const b = el('button', `btn ${cls}`, label);
+    const mk = (label: string, fn: () => Promise<unknown>, cls = '') => {
+      const b = el('button', cls === '' ? 'btn' : `btn ${cls}`, label);
       b.addEventListener('click', () => void done(fn));
       head.appendChild(b);
     };

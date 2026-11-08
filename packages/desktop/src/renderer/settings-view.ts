@@ -102,7 +102,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     root.appendChild(section('계정·한도', ...login, row('쓸 계정', account), limits, el('div', 'hint pad', '계정 하나는 Claude Code 설정 폴더 하나예요. 로그인은 브라우저에서 하고, 토큰은 읽지 않아요.')));
 
     // 작업 폴더
-    const change = el('button', 'btn sec', '바꾸기');
+    const change = el('button', 'btn', '바꾸기');
     change.addEventListener('click', () => void api.pickFolder().then((p) => (p === null ? undefined : api.update({ workFolder: p, folderApproved: true }).then(render))));
     root.appendChild(section('작업 폴더', row(s.workFolder ?? '아직 안 골랐어요', change)));
 
@@ -121,7 +121,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     if (api.updates !== undefined) {
       const { feed, check } = api.updates;
       const version = el('span', 'lbl');
-      const button = el('button', 'btn sec', '업데이트 확인');
+      const button = el('button', 'btn', '업데이트 확인');
       button.addEventListener('click', () => void check());
       const status = el('div', 'dim pad');
       const installNow = el('button', 'btn primary', '지금 업데이트');

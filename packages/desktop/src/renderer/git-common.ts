@@ -41,7 +41,7 @@ export function askDialog(o: AskOptions): Promise<{ ok: boolean; value: string }
       box.appendChild(field);
     }
     const row = el('div', 'btns');
-    const cancel = el('button', 'btn sec', '취소');
+    const cancel = el('button', 'btn', '취소');
     const ok = el('button', o.danger === true ? 'btn danger' : 'btn primary', o.okLabel);
     const close = (result: boolean) => {
       document.removeEventListener('keydown', onKey, true);
@@ -98,7 +98,7 @@ export function renderDiff(diff: DiffView, options: DiffOptions): HTMLElement {
     head.append(...(selectable ? [hcheck] : []), el('span', 'mono', h.header.replace(/\r$/, '')));
     const rows: { box: HTMLInputElement; li: number }[] = [];
     if (selectable) {
-      const hb = el('button', 'btn sec', options.mode === 'stage' ? '이 덩어리 스테이지' : '이 덩어리 스테이지 해제');
+      const hb = el('button', 'btn', options.mode === 'stage' ? '이 덩어리 스테이지' : '이 덩어리 스테이지 해제');
       hb.addEventListener('click', () => finish({ hunks: [hi] }));
       head.appendChild(hb);
     }

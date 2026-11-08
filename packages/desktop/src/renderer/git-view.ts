@@ -6,6 +6,7 @@ import { buildChanges } from './git-changes-view.js';
 import { buildBranches, buildConflicts, buildHistory } from './git-lists-view.js';
 import { askDialog, type GitCtx } from './git-common.js';
 import { syncChips } from './git-format.js';
+import { primaryGitAction } from '../shared/git-primary.js';
 
 type ViewId = 'changes' | 'branches' | 'history' | 'conflicts';
 interface SubView {
@@ -124,7 +125,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     if (overview.merging) head.appendChild(el('span', 'chip red', '머지 중'));
     head.appendChild(el('span', 'gfill'));
     const act = (label: string, fn: () => Promise<void>, primary = false, disabled = false) => {
-      const b = el('button', `btn ${primary ? 'primary' : 'sec'}`, label);
+      const b = el('button', primary ? 'btn primary' : 'btn', label);
       b.disabled = disabled || busy;
       b.addEventListener('click', async () => {
         busy = true;
@@ -139,9 +140,11 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
       head.appendChild(b);
     };
     const hasRemote = overview.hasRemote;
+    // 파랗게 강조하는 동작은 상태에서 하나만 정한다(shared/git-primary.ts)
+    const primary = primaryGitAction({ staged: overview.files.filter((f) => f.staged).length, conflicts: overview.files.some((f) => f.conflict), merging: overview.merging, ahead: overview.ahead, behind: overview.behind, hasRemote });
     act('fetch', async () => void (await call('fetch', undefined as never)), false, !hasRemote);
-    act(overview.behind !== null && overview.behind > 0 ? `pull (${overview.behind})` : 'pull', pull, false, !hasRemote);
-    act(overview.ahead !== null && overview.ahead > 0 ? `push (${overview.ahead})` : 'push', async () => void (await call('push', {})), true, !hasRemote);
+    act(overview.behind !== null && overview.behind > 0 ? `pull (${overview.behind})` : 'pull', pull, primary === 'pull', !hasRemote);
+    act(overview.ahead !== null && overview.ahead > 0 ? `push (${overview.ahead})` : 'push', async () => void (await call('push', {})), primary === 'push', !hasRemote);
     act('PR 열기', openPr, false, !hasRemote);
   }
 
@@ -181,7 +184,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
       b.addEventListener('click', () => void open(id));
       bar.appendChild(b);
     }
-    const reread = el('button', 'btn sec gfillbtn', '다시 읽기');
+    const reread = el('button', 'btn gfillbtn', '다시 읽기');
     reread.addEventListener('click', () => void refreshAll());
     bar.appendChild(reread);
   }

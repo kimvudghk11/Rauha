@@ -27,7 +27,7 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
   const sentence = el('textarea');
   sentence.rows = 2;
   sentence.placeholder = '말로 적어요  예: api-server에서는 git push는 늘 먼저 물어봐 줘';
-  const draftBtn = el('button', 'btn sec', '정리하기');
+  const draftBtn = el('button', 'btn', '정리하기');
   const draftNote = el('div', 'hint');
   talk.append(el('div', 'ph', '말로 적기'), sentence, el('div', 'row', ''), draftNote);
   talk.children[2]!.appendChild(draftBtn);
@@ -61,7 +61,7 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
   form.append(row1, row2, error);
 
   const grid = el('div', 'rcols');
-  const resetAll = el('button', 'btn sec', '기본 규칙 모두 되돌리기');
+  const resetAll = el('button', 'btn', '기본 규칙 모두 되돌리기');
   resetAll.title = '끈 기본 규칙을 다시 켜고, 고친 기본 규칙을 처음 글로 되돌려요. 내 규칙은 그대로예요.';
   const defaultsNote = el('div', 'hint');
   let defaults: readonly DefaultRuleView[] = [];
@@ -93,7 +93,7 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
       const err = el('div', 'err');
       const save = el('button', 'btn primary', '저장');
       save.addEventListener('click', () => void apply({ kind: 'edit', id: d.id, text: text.value, variants: variantsFromText(variants.value) }, err));
-      const cancel = el('button', 'btn sec', '취소');
+      const cancel = el('button', 'btn', '취소');
       cancel.addEventListener('click', () => {
         editingDefault = null;
         void refresh();
@@ -110,14 +110,14 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
     card.appendChild(meta);
     if (d.note !== null) card.appendChild(el('div', 'hint', d.note));
     const row = el('div', 'row');
-    const edit = el('button', 'btn sec', '고치기');
+    const edit = el('button', 'btn', '고치기');
     edit.addEventListener('click', () => {
       editingDefault = d.id;
       void refresh();
     });
     row.appendChild(edit);
     if (d.edited || !d.enabled) {
-      const restore = el('button', 'btn sec', '기본값으로');
+      const restore = el('button', 'btn', '기본값으로');
       restore.addEventListener('click', () => void apply({ kind: 'restore', id: d.id }));
       row.appendChild(restore);
     }
@@ -161,7 +161,7 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
         const meta = el('div', 'meta');
         meta.appendChild(el('span', 'chip', SCOPE_LABEL(r)));
         if (r.includes.length > 0) meta.appendChild(el('span', 'chip', `${r.tools.join('·') || '모든 도구'}: ${r.includes.join(' + ')}`));
-        const del = el('button', 'btn sec', '지우기');
+        const del = el('button', 'btn', '지우기');
         del.addEventListener('click', () => void api.remove(r.id).then(render));
         card.append(meta, del);
         pane.appendChild(card);

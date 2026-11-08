@@ -1,0 +1,115 @@
+/*
+ * 공통 UI: 토큰과 부품. 탭마다 자기 버튼·칩·탭·입력칸 CSS를 만들지 않고 여기 것만 쓴다.
+ * 설명과 쓰는 법은 docs/design/ui-components.md. 이 파일의 규칙을 바꾸면 ui-components.spec.ts가 같이 확인한다.
+ * 색 기본 토큰(--bg --card --border --accent …)은 styles.css의 :root에 있다(VS Code Dark Modern).
+ */
+:root {
+  /* 간격 단계 */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+  /* 글자 크기 단계 (본문 13) */
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px;
+  /* 조작 부품 높이: 작게 24 · 기본 28 · 크게 32 (버튼·입력칸·탭이 같은 높이를 쓴다) */
+  --h-sm: 24px; --h-md: 28px; --h-lg: 32px;
+  /* 모서리 */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-pill: 999px;
+  /* 버튼 색 */
+  --btn-bg: var(--input); --btn-bg-hover: #3a3a3a; --btn-border-hover: #4a4a4a;
+  --accent-hover: #026ec1; --on-accent: #ffffff;
+  --danger-bg: #3a1d1d; --danger-border: #5a2d2d;
+  --warn-bg: #2f2a1e; --warn-border: #5b4d2e;
+  --row-hover: #2a2d2e; --ghost-hover: #ffffff14; --well: #1b1b1b;
+  --purple: #c586c0;
+}
+
+/* ── 글자 ── */
+.dim { color: var(--muted); }
+.faint { color: var(--dim); }
+.mono { font-family: var(--mono); }
+.hint { color: var(--muted); font-size: var(--fs-sm); }
+.err { color: var(--red); font-size: var(--fs-sm); }
+.err:empty { display: none; }
+.lbl { color: var(--muted); font-size: var(--fs-sm); }
+
+/* ── 버튼: 기본(보조) · .primary(강조, 한 화면에 한 동작) · .danger(위험) · .ghost(테두리 없음) ──
+   높이는 고정하고 안쪽을 flex로 가운데 맞춘다. 글자가 위아래로 쏠리지 않는다. */
+.btn {
+  box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: var(--s1); flex: none;
+  height: var(--h-md); padding: 0 var(--s3); margin: 0;
+  border: 1px solid var(--border2); border-radius: var(--r-sm); background: var(--btn-bg); color: var(--text);
+  font: inherit; font-size: var(--fs-sm); line-height: 1; font-weight: 400; text-align: center; white-space: nowrap; cursor: pointer; user-select: none;
+}
+.btn:hover:not(:disabled) { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
+.btn:focus-visible, .tab:focus-visible, .link:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.sm { height: var(--h-sm); padding: 0 var(--s2); font-size: var(--fs-xs); }
+.btn.lg { height: var(--h-lg); padding: 0 var(--s4); font-size: var(--fs-md); }
+.btn.icon { width: var(--h-md); padding: 0; font-size: 14px; }
+.btn.icon.sm { width: var(--h-sm); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.danger { background: transparent; border-color: var(--danger-border); color: var(--red); }
+.btn.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--red); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.btn.ghost:hover:not(:disabled) { background: var(--ghost-hover); border-color: transparent; color: var(--bright); }
+.btn.block { width: 100%; }
+
+/* 글자만 있는 단추(링크처럼 보이는 동작) */
+.link { display: inline-flex; align-items: center; height: var(--h-sm); padding: 0 var(--s1); border: none; background: none; color: var(--accentfg); font: inherit; font-size: var(--fs-sm); line-height: 1; white-space: nowrap; cursor: pointer; }
+.link:hover:not(:disabled) { text-decoration: underline; }
+.link:disabled { color: var(--green); cursor: default; }
+
+/* ── 입력칸: input·select·textarea는 클래스 없이도 같은 모양. .sm은 카드 안 한 줄용 ──
+   터미널·빠른 열기의 입력은 자기 칸에 박혀 있어 테두리를 그리지 않는다. */
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not(.term-input):not(.qo-input), select, textarea) {
+  box-sizing: border-box; min-width: 0; margin: 0; padding: 0 var(--s2);
+  background: var(--input); border: 1px solid var(--border2); border-radius: var(--r-sm); color: var(--text);
+  font: inherit; font-size: var(--fs-md); outline: none; color-scheme: dark;
+}
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not(.term-input):not(.qo-input), select) { height: var(--h-md); line-height: normal; }
+:where(textarea) { padding: 5px var(--s2); line-height: 1.45; resize: none; }
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea):focus { border-color: var(--accent); }
+:where(input[type=checkbox], input[type=radio]) { margin: 0; accent-color: var(--accent); }
+input.sm, select.sm { height: var(--h-sm); padding: 0 6px; font-size: var(--fs-sm); }
+
+/* ── 탭(밑줄): git 탭 줄, 팀 상세, 코드 탐색기 머리가 같은 부품 ── */
+.tabs { display: flex; align-items: stretch; gap: 2px; border-bottom: 1px solid var(--border); }
+.tab { display: inline-flex; align-items: center; height: var(--h-lg); padding: 0 var(--s3); border: none; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: inherit; font-size: var(--fs-md); line-height: 1; white-space: nowrap; cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab.on { color: var(--bright); border-bottom-color: var(--accent); }
+.tab.danger { color: var(--red); }
+.tab.sm { height: var(--h-md); padding: 0 var(--s2); font-size: var(--fs-sm); }
+.tabs .tab-end { margin-left: auto; align-self: center; }
+
+/* 나란히 고르는 토글(배치 A/B) */
+.seg { display: inline-flex; flex: none; border: 1px solid var(--border2); border-radius: var(--r-sm); overflow: hidden; }
+.seg > button { height: calc(var(--h-sm) - 2px); padding: 0 var(--s2); border: none; background: none; color: var(--muted); font: inherit; font-size: var(--fs-xs); line-height: 1; cursor: pointer; }
+.seg > button.on { background: var(--sel); color: var(--bright); }
+
+/* ── 칩(작은 배지). 누를 수 있는 칩은 button.chip ── */
+.chip { box-sizing: border-box; display: inline-flex; align-items: center; height: 20px; padding: 0 var(--s2); border: 1px solid var(--border2); border-radius: var(--r-pill); background: var(--input); color: var(--text); font: inherit; font-size: var(--fs-xs); line-height: 1; white-space: nowrap; }
+button.chip { cursor: pointer; color: var(--muted); }
+button.chip:hover { border-color: var(--accentfg); }
+.chip.on { background: var(--sel); border-color: var(--accent); color: var(--bright); }
+.chip.green { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); background: color-mix(in srgb, var(--green) 12%, var(--input)); }
+.chip.yellow { color: var(--yellow); border-color: var(--warn-border); background: var(--warn-bg); }
+.chip.red { color: var(--red); border-color: var(--danger-border); background: color-mix(in srgb, var(--red) 12%, var(--input)); }
+.chip.blue { color: var(--accentfg); border-color: color-mix(in srgb, var(--accentfg) 40%, transparent); background: color-mix(in srgb, var(--accentfg) 12%, var(--input)); }
+.chip.purple { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 40%, transparent); background: color-mix(in srgb, var(--purple) 12%, var(--input)); }
+
+/* ── 카드(.pane)와 카드 안 항목(.item), 목록 행(.row-item) ── */
+.item { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--s2) var(--s3); min-width: 0; }
+.item.off { opacity: .55; }
+.row-item { display: flex; align-items: center; gap: var(--s2); min-height: var(--h-md); padding: 0 var(--s3); }
+.row-item:hover { background: var(--row-hover); }
+.row-item.on { background: var(--sel); }
+
+/* 한 줄 도구줄: 버튼·입력칸·칩이 한 줄에서 높이를 맞춘다 */
+.bar { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; min-width: 0; }
+.bar .grow { flex: 1; min-width: 0; }
+.bar .end { margin-left: auto; }
+.btns { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.btns.end { justify-content: flex-end; }
+
+/* 경고 줄 */
+.notice { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--yellow); border-radius: var(--r-sm); padding: var(--s1) var(--s3); }
+.notice[hidden] { display: none; }

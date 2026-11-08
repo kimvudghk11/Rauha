@@ -17,7 +17,7 @@ export function syncText(ahead: number | null, behind: number | null): string {
 export function buildRepos(api: { list: () => Promise<readonly RepoRow[]> }, workFolder: () => Promise<string | null>) {
   const root = el('section', 'repos');
   const head = el('div', 'rhead');
-  const refresh = el('button', 'btn sec', '다시 읽기');
+  const refresh = el('button', 'btn', '다시 읽기');
   head.append(el('b', undefined, '레포'), el('span', 'hint', '작업 폴더 안의 레포와 문서 폴더예요. 일을 맡길 때 @이름으로 고를 수 있어요.'), refresh);
   const list = el('div', 'rlist');
   root.append(head, list);

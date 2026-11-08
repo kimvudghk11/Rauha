@@ -10,7 +10,6 @@ textarea.ginput { resize: none; width: 100%; }
 input.ginput { width: 100%; }
 .gbranch { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; padding: 3px 10px; color: var(--bright); font-family: var(--mono); font-size: 12px; }
 .gbranch:hover { border-color: var(--accentfg); }
-.chip.green { color: var(--green); } .chip.yellow { color: var(--yellow); } .chip.red { color: var(--red); } .chip.blue { color: var(--accentfg); } .chip.purple { color: #c586c0; }
 .gbar { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); }
 .gtab { background: none; border: none; border-bottom: 2px solid transparent; padding: 5px 12px; color: var(--muted); }
 .gtab:hover { color: var(--text); }

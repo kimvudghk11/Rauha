@@ -1,4 +1,5 @@
 import type { Overview } from '../shared/git-api.js';
+import { primaryGitAction } from '../shared/git-primary.js';
 import type { FileChangeView } from '../shared/git-changes.js';
 import { el } from './dom.js';
 import { type GitCtx, renderDiff } from './git-common.js';
@@ -99,8 +100,8 @@ export function buildChanges(ctx: GitCtx) {
     desc.placeholder = '설명 (선택)';
     desc.rows = 3;
     desc.value = body;
-    const go = el('button', 'btn primary', stagedCount > 0 ? `커밋 (${stagedCount}개 파일)` : '커밋');
     const blocked = view?.files.some((f) => f.conflict) === true;
+    const go = el('button', primaryGitAction({ staged: stagedCount, conflicts: blocked, merging: false, ahead: null, behind: null, hasRemote: false }) === 'commit' ? 'btn primary' : 'btn', stagedCount > 0 ? `커밋 (${stagedCount}개 파일)` : '커밋');
     const sync = () => {
       subject = title.value;
       body = desc.value;
@@ -131,14 +132,16 @@ export function buildChanges(ctx: GitCtx) {
     const head = el('div', 'gmh');
     head.append(el('b', undefined, f.path), el('span', `gb ${LABEL_CLASS[f.label] ?? ''}`, f.label));
     if (f.staged && f.unstaged) {
+      const seg = el('div', 'seg');
       for (const s of ['unstaged', 'staged'] as const) {
-        const b = el('button', `btn ${diffSide === s ? 'primary' : 'sec'}`, s === 'unstaged' ? '아직 스테이지 안 한 변경' : '스테이지한 변경');
+        const b = el('button', diffSide === s ? 'on' : '', s === 'unstaged' ? '아직 스테이지 안 한 변경' : '스테이지한 변경');
         b.addEventListener('click', () => {
           diffSide = s;
           void renderMain();
         });
-        head.appendChild(b);
+        seg.appendChild(b);
       }
+      head.appendChild(seg);
     } else head.appendChild(el('span', 'dim', f.staged ? '스테이지됨' : f.untracked ? '새 파일(추적 안 함)' : '아직 스테이지 안 함'));
     main.appendChild(head);
     const d = await ctx.call('diff', { path: f.path, side: diffSide });

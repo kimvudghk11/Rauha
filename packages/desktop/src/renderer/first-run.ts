@@ -38,11 +38,11 @@ export async function offerTerminalCleanup(): Promise<void> {
   box.appendChild(list);
   const row = el('div', 'btns');
   const remove = el('button', 'btn primary', '지우기');
-  const keep = el('button', 'btn sec', '그대로 두기');
+  const keep = el('button', 'btn', '그대로 두기');
   const done = (message: string) => {
     markSeen();
     box.replaceChildren(el('p', undefined, message), (() => {
-      const ok = el('button', 'btn sec', '닫기');
+      const ok = el('button', 'btn', '닫기');
       ok.addEventListener('click', () => veil.remove());
       return ok;
     })());
@@ -75,7 +75,7 @@ export function runWizard(api: { pickFolder(): Promise<string | null>; accounts(
 
     const folderStep = () => {
       const pick = el('button', 'btn primary', '폴더 고르기');
-      const next = el('button', 'btn sec', '다음');
+      const next = el('button', 'btn', '다음');
       next.disabled = true;
       const shown = el('div', 'dim', '아직 안 골랐어요.');
       pick.addEventListener('click', async () => {
@@ -90,7 +90,7 @@ export function runWizard(api: { pickFolder(): Promise<string | null>; accounts(
     };
     const approveStep = () => {
       const yes = el('button', 'btn primary', '허락해요');
-      const back = el('button', 'btn sec', '다른 폴더 고르기');
+      const back = el('button', 'btn', '다른 폴더 고르기');
       yes.addEventListener('click', accountStep);
       back.addEventListener('click', folderStep);
       box.replaceChildren(el('b', undefined, '2/3 · 이 폴더에서 일해도 될까요?'), el('p', undefined, `${folder ?? ''}\n팀원이 이 안의 파일을 읽고 고칠 수 있어요. 위험한 일(보호 브랜치 push, 운영 인프라 변경 등)은 그때마다 허락을 물어요.`), row(yes, back));

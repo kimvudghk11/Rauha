@@ -43,7 +43,7 @@ export function buildCommands(api: CommandsApi) {
   const error = el('div', 'err');
   const save = el('button', 'btn primary', '더하기');
   save.type = 'submit';
-  const cancel = el('button', 'btn sec', '취소');
+  const cancel = el('button', 'btn', '취소');
   cancel.type = 'button';
   cancel.hidden = true;
   const btns = el('div', 'row');
@@ -53,7 +53,7 @@ export function buildCommands(api: CommandsApi) {
   form.append(formTitle, fields);
 
   const list = el('div', 'cmdlist');
-  const reset = el('button', 'btn sec', '기본 명령 되돌리기');
+  const reset = el('button', 'btn', '기본 명령 되돌리기');
   reset.title = '꺼 둔 기본 명령을 모두 다시 켜요. 내 명령은 그대로예요.';
   const foot = el('div', 'cmdfoot');
   foot.append(reset);
@@ -101,7 +101,7 @@ export function buildCommands(api: CommandsApi) {
     const top = el('div', 'top');
     const title = el('b', undefined, c.usage());
     const aliases = c.aliases.length > 0 ? el('span', 'chip', c.aliases.map((a) => `/${a}`).join(' ')) : null;
-    const more = el('button', 'btn sec', open.has(c.id) ? '접기' : '자세히');
+    const more = el('button', 'btn', open.has(c.id) ? '접기' : '자세히');
     more.addEventListener('click', () => {
       if (open.has(c.id)) open.delete(c.id);
       else open.add(c.id);
@@ -119,9 +119,9 @@ export function buildCommands(api: CommandsApi) {
       toggle.append(box2, el('span', undefined, enabled ? '켬' : '끔'));
       top.append(toggle);
     } else {
-      const edit = el('button', 'btn sec', '고치기');
+      const edit = el('button', 'btn', '고치기');
       edit.addEventListener('click', () => startEdit(c));
-      const del = el('button', 'btn sec', '지우기');
+      const del = el('button', 'btn', '지우기');
       del.addEventListener('click', () => {
         if (editing === c.id) startEdit(null);
         void persist(book.remove(c.id));

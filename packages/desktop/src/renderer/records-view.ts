@@ -113,7 +113,7 @@ export function buildRecords(deps: RecordsViewDeps) {
       renderList();
     });
     diverged.append(box, el('span', undefined, '내가 다르게 골랐어요'));
-    const copyAll = el('button', 'btn sec', '보이는 기록 복사');
+    const copyAll = el('button', 'btn', '보이는 기록 복사');
     copyAll.type = 'button';
     copyAll.addEventListener('click', () => {
       const shown = book.view(filter);
@@ -212,7 +212,7 @@ export function buildRecords(deps: RecordsViewDeps) {
       detail.append(empty);
       return;
     }
-    const back = el('button', 'btn sec rback', '← 목록');
+    const back = el('button', 'btn rback', '← 목록');
     back.type = 'button';
     back.addEventListener('click', () => {
       selected = null;
@@ -283,7 +283,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     memo.maxLength = 500;
     memo.value = e.memo;
     memo.placeholder = '면접·포트폴리오에서 말할 것, 배운 점 (비밀 값은 적지 마세요. 적어도 가려져요)';
-    const saveMemo = el('button', 'btn sec', '메모 저장');
+    const saveMemo = el('button', 'btn', '메모 저장');
     saveMemo.type = 'button';
     saveMemo.addEventListener('click', () => void send({ kind: 'memo', id: e.id, memo: memo.value }));
     detail.append(section('내 메모', memo, saveMemo));
@@ -301,7 +301,7 @@ export function buildRecords(deps: RecordsViewDeps) {
         selected = null;
         void send({ kind: 'remove', id: e.id });
       });
-      const no = el('button', 'btn sec', '아니요');
+      const no = el('button', 'btn', '아니요');
       no.type = 'button';
       no.addEventListener('click', () => {
         confirming = null;
@@ -309,7 +309,7 @@ export function buildRecords(deps: RecordsViewDeps) {
       });
       actions.append(yes, no);
     } else {
-      const del = el('button', 'btn sec danger', '기록 지우기');
+      const del = el('button', 'btn danger', '기록 지우기');
       del.type = 'button';
       del.addEventListener('click', () => {
         confirming = e.id;

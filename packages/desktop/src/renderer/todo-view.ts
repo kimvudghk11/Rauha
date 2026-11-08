@@ -99,7 +99,7 @@ export function buildTodo(deps: TodoViewDeps) {
   const fError = el('div', 'err');
   const save = el('button', 'btn primary', '더하기');
   save.type = 'submit';
-  const cancel = el('button', 'btn sec', '취소');
+  const cancel = el('button', 'btn', '취소');
   cancel.type = 'button';
   const fRow = el('div', 'trow');
   fRow.append(save, cancel);
@@ -205,7 +205,7 @@ export function buildTodo(deps: TodoViewDeps) {
     if (todo.note !== '') box.append(el('div', 'tnote', todo.note));
 
     const buttons = el('div', 'tbtns');
-    const button = (label: string, onClick: () => void, cls = 'btn sec') => {
+    const button = (label: string, onClick: () => void, cls = 'btn') => {
       const b = el('button', cls, label);
       b.type = 'button';
       b.addEventListener('click', onClick);
@@ -233,7 +233,7 @@ export function buildTodo(deps: TodoViewDeps) {
       button('지우기', () => {
         confirming = todo.id;
         renderBoard();
-      }, 'btn sec danger');
+      }, 'btn danger');
     }
     box.append(buttons);
     return box;

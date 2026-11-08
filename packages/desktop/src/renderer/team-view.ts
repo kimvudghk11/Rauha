@@ -28,7 +28,7 @@ export function buildTeam(api: TeamApi) {
   const status = el('div', 'err pad');
   const list = el('div', 'tlist');
   const foot = el('div', 'tfoot');
-  const resetAll = el('button', 'btn sec', '팀 전체 기본값으로');
+  const resetAll = el('button', 'btn', '팀 전체 기본값으로');
   foot.appendChild(resetAll);
   root.append(note, status, list, foot);
 
@@ -78,7 +78,7 @@ export function buildTeam(api: TeamApi) {
     box.addEventListener('change', () => void change(info.role, { enabled: box.checked }));
     toggle.append(box, el('span', undefined, info.required ? '켬(고정)' : enabled ? '켬' : '끔'));
 
-    const more = el('button', 'btn sec', open.has(info.role) ? '접기' : '자세히');
+    const more = el('button', 'btn', open.has(info.role) ? '접기' : '자세히');
     more.addEventListener('click', () => {
       if (open.has(info.role)) open.delete(info.role);
       else open.add(info.role);
@@ -132,7 +132,7 @@ export function buildTeam(api: TeamApi) {
       character.value = s.character ?? info.role;
       character.addEventListener('change', () => void change(info.role, { character: isCharacter(character.value) ? character.value : null }));
 
-      const reset = el('button', 'btn sec', '이 팀원 기본값으로');
+      const reset = el('button', 'btn', '이 팀원 기본값으로');
       reset.disabled = !changed;
       reset.addEventListener('click', () => void apply({ kind: 'reset', role: info.role }));
 

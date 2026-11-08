@@ -205,7 +205,7 @@ export function buildChat(actions: ChatActions) {
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));
     // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
     if (job.canGoDeeper) {
-      const deeper = el('button', 'btn sec deeper', '더 깊게');
+      const deeper = el('button', 'btn deeper', '더 깊게');
       deeper.addEventListener('click', () => {
         deeper.disabled = true;
         void actions.deeper(job.id);
@@ -417,14 +417,14 @@ export function buildChat(actions: ChatActions) {
     note.placeholder = '다르게 해 줘: 이렇게 바꿔 달라고 적어요';
     const row = el('div', 'btns');
     const btn = (label: string, cls: string, choice: () => ApprovalChoice) => {
-      const b = el('button', `btn ${cls}`, label);
+      const b = el('button', cls === '' ? 'btn' : `btn ${cls}`, label);
       b.addEventListener('click', () => actions.answer(a.id, choice()));
       return b;
     };
     row.append(
       btn('한 번만 허락', 'primary', () => ({ kind: 'once' })),
-      btn('이번 작업 동안 허락', 'sec', () => ({ kind: 'job' })),
-      btn('다르게 해 줘', 'sec', () => ({ kind: 'revise', note: note.value })),
+      btn('이번 작업 동안 허락', '', () => ({ kind: 'job' })),
+      btn('다르게 해 줘', '', () => ({ kind: 'revise', note: note.value })),
       btn('거절', 'danger', () => ({ kind: 'deny' })),
     );
     card.append(note, row);
@@ -440,7 +440,7 @@ export function buildChat(actions: ChatActions) {
     const main = el('div', 'pane');
     const ph = el('div', 'ph');
     const cast = castCanvases(job.cast.filter(isRole), 2);
-    const back = el('button', 'btn sec', '← 메인');
+    const back = el('button', 'btn', '← 메인');
     back.addEventListener('click', close);
     const stop = el('button', 'btn danger', '멈추기');
     stop.hidden = job.status === 'done' || job.status === 'stopped';

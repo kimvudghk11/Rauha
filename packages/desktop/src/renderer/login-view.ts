@@ -36,8 +36,8 @@ export function createLoginControl(api: AuthApi, options: LoginControlOptions = 
   const card = el('div', 'acct');
   card.append(title, detail);
   const go = el('button', 'btn primary', 'Claude 로그인');
-  const recheck = el('button', 'btn sec', '다시 확인');
-  const cancel = el('button', 'btn sec', '취소');
+  const recheck = el('button', 'btn', '다시 확인');
+  const cancel = el('button', 'btn', '취소');
   const text = el('span', 'login-text');
   const row = el('div', 'login-row');
   row.append(go, recheck, cancel, text);
@@ -51,7 +51,7 @@ export function createLoginControl(api: AuthApi, options: LoginControlOptions = 
     const shown = accountCard(check);
     const prominent = showStatus ? shown.loginProminent : true;
     go.disabled = running;
-    go.className = prominent ? 'btn primary' : 'btn sec';
+    go.className = prominent ? 'btn primary' : 'btn';
     go.textContent = view.state === 'failed' || view.state === 'cancelled' ? '다시 로그인' : showStatus ? shown.loginLabel : 'Claude 로그인';
     // 확인이 끝나기 전에는 로그인을 권하지 않는다(읽는 중에 큰 버튼이 번쩍이지 않게)
     go.hidden = showStatus && check === null && !running;
