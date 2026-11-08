@@ -5,6 +5,10 @@ import { el, icon } from './dom.js';
 import { buildGit } from './git-view.js';
 import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
+import { buildCommands, commandsApi } from './commands-view.js';
+import { createRunner } from './command-runner.js';
+import { CommandBook } from '../shared/command-book.js';
+import { CommandBookDto } from '../shared/command-dto.js';
 import { buildSettings, limitBar } from './settings-view.js';
 import { createChrome } from './chrome.js';
 import { createUpdateFeed } from './update-view.js';
@@ -79,7 +83,8 @@ function show(id: TabId): void {
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
   else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check() } }, pickLayout).root);
-  else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid) }).root);
+  else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);
+  else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid), defaults: { list: () => window.rauha.listDefaultRules(), apply: (op) => window.rauha.applyDefaultRule(op) } }).root);
   else {
     const soon = el('div', 'soon');
     soon.append(el('b', undefined, tab.label), el('span', undefined, '곧 열려요'));
@@ -87,8 +92,31 @@ function show(id: TabId): void {
   }
 }
 
+// ── 명령(입력창의 /명령) ──
+let commandBook = CommandBook.initial();
+let lastBoard: BoardView | null = null;
+const runner = createRunner({
+  book: () => commandBook,
+  say: (content) => chat.notice(content),
+  clear: () => chat.clearScreen(),
+  openTab: (tab) => {
+    const t = TABS.find((x) => x.id === tab);
+    if (t !== undefined) show(t.id);
+  },
+  openJob: (id) => {
+    show('chat');
+    chat.open(id);
+  },
+  jobs: () => chat.jobList(),
+  board: () => lastBoard,
+  api: window.rauha,
+});
+void window.rauha.getCommands().then((json) => (commandBook = CommandBookDto.from(json).toEntity()));
+
 // ── 채팅 ──
 const chat = buildChat({
+  intercept: (text) => runner.intercept(text),
+  suggest: (text) => commandBook.suggest(text),
   submit: (text) => window.rauha.submit(text),
   stop: (id) => window.rauha.stop(id),
   deeper: (id) => window.rauha.goDeeper(id),
@@ -149,6 +177,7 @@ async function refreshLimits(): Promise<void> {
 }
 
 function renderStatus(view: BoardView): void {
+  lastBoard = view;
   document.getElementById('status-jobs')!.textContent = statusText(view);
   document.getElementById('status-limit')!.textContent = `동시에 ${view.limit}개까지`;
 }

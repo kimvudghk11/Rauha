@@ -5,9 +5,10 @@ import type { FolderKind } from './folder-kind.js';
 import type { RepoStatus } from './git-status.js';
 import type { GitApi } from './git-api.js';
 import type { Settings } from './settings.js';
+import type { CommandBookJson } from './command-dto.js';
 import type { UpdateView } from './update-record.js';
 import type { LoginView } from './claude-login.js';
-import type { InfraRisk } from '@rauha/core/jobs';
+import type { DefaultRuleView, DefaultVariant, InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
 /** main ↔ 화면 IPC 채널. 화면은 이 채널로만 main과 이야기한다. */
@@ -36,6 +37,12 @@ export const IPC = {
   reposList: 'repos:list',
   /** git 탭: 함수 이름(고정 목록) + 레포 루트 + 인자를 한 채널로 보낸다 */
   gitCall: 'git:call',
+  /** 명령어 탭: 명령 모음 읽기 · 저장 */
+  commandsGet: 'commands:get',
+  commandsSave: 'commands:save',
+  /** 규칙 탭의 기본 규칙: 목록 · 끄기/고치기/되돌리기 */
+  defaultRulesList: 'rules:defaults',
+  defaultRulesApply: 'rules:defaults-apply',
   rulesDraft: 'rules:draft',
   rulesList: 'rules:list',
   rulesAdd: 'rules:add',
@@ -147,6 +154,11 @@ export interface RauhaApi {
   listRepos(): Promise<readonly RepoRow[]>;
   /** git 탭: 앱이 아는 레포에서만 순수 git 명령을 돌린다(모델 호출 없음) */
   readonly git: GitApi;
+  getCommands(): Promise<CommandBookJson>;
+  /** 명령 모음을 저장한다(깨진 항목은 빠진 채 저장된 모양을 돌려준다) */
+  saveCommands(book: CommandBookJson): Promise<CommandBookJson>;
+  listDefaultRules(): Promise<readonly DefaultRuleView[]>;
+  applyDefaultRule(op: DefaultRuleOp): Promise<DefaultRulesResult>;
   /** 말로 적은 규칙을 haiku 한 번으로 정리한 초안. 사용자가 확인해야 규칙이 된다. */
   draftRule(sentence: string): Promise<DraftResult>;
   listRules(): Promise<readonly RuleView[]>;
@@ -217,6 +229,15 @@ export interface RepoRow {
 }
 
 export type DraftResult = { readonly ok: true; readonly draft: Omit<RuleView, 'id'> } | { readonly ok: false; readonly error: string };
+
+/** 기본 규칙에 하는 일: 켜고 끄기 · 글과 찾을 글 고치기 · 하나 되돌리기 · 모두 되돌리기 */
+export type DefaultRuleOp =
+  | { readonly kind: 'toggle'; readonly id: string; readonly enabled: boolean }
+  | { readonly kind: 'edit'; readonly id: string; readonly text: string; readonly variants: readonly DefaultVariant[] }
+  | { readonly kind: 'restore'; readonly id: string }
+  | { readonly kind: 'restoreAll' };
+
+export type DefaultRulesResult = { readonly ok: true; readonly rules: readonly DefaultRuleView[] } | { readonly ok: false; readonly error: string };
 
 export type RulesResult = { readonly ok: true; readonly rules: readonly RuleView[] } | { readonly ok: false; readonly error: string };
 

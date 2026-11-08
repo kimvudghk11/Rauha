@@ -5,11 +5,13 @@ import { existsSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
-import { DomainError, discoverRepos, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
+import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
+import { CommandStore } from './command-store.js';
+import { DefaultRulesStore, applyDefaultRuleOp } from './default-rules-store.js';
 import { scanWorkFolder } from './workspace/scan.js';
 import { addWorktree, cleanupLeftovers, finishWorktree } from './workspace/git-worktree.js';
 import { WorktreeLedger } from './workspace/worktree-ledger.js';
@@ -44,12 +46,17 @@ let limitNotified = false;
 /** 사용자 규칙(규칙 탭). 팀원이 도구를 부를 때마다 이 값을 읽으므로 고치면 바로 반영된다. */
 const ruleStore = new FileRuleStore(join(homedir(), '.rauha', 'desktop', 'rules.json'));
 let ruleBook: RuleBook = RuleBook.empty();
+const defaultRulesStore = new DefaultRulesStore(join(homedir(), '.rauha', 'desktop', 'default-rules.json'));
+let defaultRules = DefaultRuleSet.initial();
+/** 엔진이 읽는 규칙: 내 규칙 + 켜 둔 기본 규칙 */
+const effectiveRules = (): RuleBook => RuleBook.of([...ruleBook.rules, ...defaultRules.toRules()]);
 
 /** 확인용: 실제 Claude를 부르지 않고 가짜 팀으로 돈다(RAUHA_FAKE_TEAM=1). */
 const FAKE = process.env['RAUHA_FAKE_TEAM'] === '1';
 
 const home = homedir();
 /** 사용자 설정(작업 폴더·계정·알림·동시 실행 수 …). 시작할 때 파일에서 읽는다. */
+const commandStore = new CommandStore(join(homedir(), '.rauha', 'desktop', 'commands.json'));
 const settingsStore = new SettingsStore(join(homedir(), '.rauha', 'desktop', 'settings.json'));
 let settings: Settings = DEFAULT_SETTINGS;
 
@@ -144,7 +151,7 @@ async function startRunner(): Promise<JobRunner> {
             jobRoots.set(job.id, cwd);
             try {
               if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
-              const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: () => ruleBook }, cwd, io, root);
+              const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: effectiveRules }, cwd, io, root);
               return await session.handle(target.text, depth);
             } finally {
               const released = ledger.release(job.id);
@@ -239,7 +246,7 @@ function open(runner: JobRunner): void {
     minWidth: 480,
     minHeight: 360,
     backgroundColor: BACKGROUND,
-    title: 'rauha',
+    title: 'Rauha',
     icon: join(app.getAppPath(), 'build', 'icon.png'),
     ...windowChrome(process.platform, release()),
     autoHideMenuBar: true,
@@ -302,6 +309,12 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
       await window!.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.click()`);
       await new Promise((r) => setTimeout(r, 400));
     }
+  }
+  // 확인용: 입력창에 글을 쳐 넣는다(예: /re 를 쳐서 명령 자동완성을 본다)
+  const type = process.env['RAUHA_SMOKE_TYPE'];
+  if (type !== undefined) {
+    await window!.webContents.executeJavaScript(`(() => { const i = document.querySelector('.composer textarea'); i.value = ${JSON.stringify(type)}; i.dispatchEvent(new Event('input')); i.focus(); })()`);
+    await new Promise((r) => setTimeout(r, 300));
   }
   const image = await window!.webContents.capturePage();
   writeFileSync(path, image.toPNG());
@@ -366,7 +379,7 @@ function startAuth(): void {
 }
 
 function installMenu(): void {
-  const template = appMenuTemplate(process.platform, 'rauha', () => window?.webContents.send(IPC.openTab, 'settings'));
+  const template = appMenuTemplate(process.platform, 'Rauha', () => window?.webContents.send(IPC.openTab, 'settings'));
   Menu.setApplicationMenu(template === null ? null : Menu.buildFromTemplate(template));
 }
 
@@ -379,6 +392,7 @@ void app.whenReady().then(async () => {
   await cleanupLeftovers(worktreeRoot()).catch(() => 0);
   settings = await settingsStore.load();
   ruleBook = await ruleStore.load().catch(() => RuleBook.empty());
+  defaultRules = await defaultRulesStore.load();
   const runner = await startRunner();
   ipcMain.handle(IPC.settingsGet, () => (process.env['RAUHA_WORK_DIR'] !== undefined ? { ...settings, workFolder: currentWorkDir(), folderApproved: true, firstRunDone: true } : settings));
   ipcMain.handle(IPC.settingsUpdate, async (_e, patch: unknown) => {
@@ -406,6 +420,16 @@ void app.whenReady().then(async () => {
   ipcMain.handle(IPC.gitCall, (_e, fn: unknown, root: unknown, arg: unknown) =>
     dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => shell.openExternal(url) }, fn, root, arg),
   );
+  ipcMain.handle(IPC.commandsGet, () => commandStore.load());
+  ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
+  ipcMain.handle(IPC.defaultRulesList, () => DefaultRulesDto.view(defaultRules));
+  ipcMain.handle(IPC.defaultRulesApply, async (_e, op: unknown) => {
+    const res = applyDefaultRuleOp(defaultRules, op);
+    if (!res.ok) return res;
+    defaultRules = res.set;
+    await defaultRulesStore.save(defaultRules);
+    return { ok: true, rules: DefaultRulesDto.view(defaultRules) };
+  });
   const rulesView = () => RuleBookDto.fromEntity(ruleBook).toJSON().rules;
   ipcMain.handle(IPC.rulesList, rulesView);
   ipcMain.handle(IPC.rulesDraft, async (_e, sentence: unknown) => {

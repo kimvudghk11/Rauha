@@ -1,4 +1,7 @@
 import type { RuleBucket } from '@rauha/core/jobs';
+import type { DefaultRuleView } from '@rauha/core/jobs';
+import { variantsFromText, variantsToText } from '../shared/default-rules-form.js';
+import type { DefaultRuleOp, DefaultRulesResult } from '../shared/ipc.js';
 import { ruleFromForm, type RuleView } from '../shared/rules-form.js';
 import { el } from './dom.js';
 
@@ -14,7 +17,7 @@ const SCOPE_LABEL = (r: RuleView): string => (r.scope.kind === 'global' ? '전�
  * 규칙 탭: 칸 셋(항상 지킬 것 / 묻지 않고 할 것 / 꼭 허락받을 것)과 범위(전체·작업 폴더·폴더).
  * 묻지 않음·허락 규칙은 명령이나 경로에서 찾을 글로 판정한다. 비밀 파일·역할 권한·git push 거절은 규칙보다 앞서 늘 지켜진다.
  */
-export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]> }) {
+export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]>; defaults?: { list: () => Promise<readonly DefaultRuleView[]>; apply: (op: DefaultRuleOp) => Promise<DefaultRulesResult> } }) {
   const root = el('section', 'rules');
   const head = el('div', 'rhead');
   head.append(el('b', undefined, '규칙'), el('span', 'hint', '내 규칙을 적어 두면 팀원이 따라요. 비밀 파일과 git push 거절은 규칙과 상관없이 늘 지켜져요.'));
@@ -58,16 +61,101 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
   form.append(row1, row2, error);
 
   const grid = el('div', 'rcols');
-  root.append(head, talk, form, grid);
+  const resetAll = el('button', 'btn sec', '기본 규칙 모두 되돌리기');
+  resetAll.title = '끈 기본 규칙을 다시 켜고, 고친 기본 규칙을 처음 글로 되돌려요. 내 규칙은 그대로예요.';
+  const defaultsNote = el('div', 'hint');
+  let defaults: readonly DefaultRuleView[] = [];
+  let editingDefault: string | null = null;
+  let mine: readonly RuleView[] = [];
+  root.append(head, talk, form, grid, el('div', 'rfoot'));
+  root.lastElementChild!.append(defaultsNote, resetAll);
+
+  function defaultCard(d: DefaultRuleView): HTMLElement {
+    const card = el('div', d.enabled ? 'rule default' : 'rule default off');
+    const top = el('div', 'dtop');
+    top.append(el('span', 'chip', '기본'), ...(d.edited ? [el('span', 'chip', '고침')] : []));
+    const toggle = el('label', 'tg');
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = d.enabled;
+    box.addEventListener('change', () => void apply({ kind: 'toggle', id: d.id, enabled: box.checked }));
+    toggle.append(box, el('span', undefined, d.enabled ? '켬' : '끔'));
+    top.appendChild(toggle);
+    card.append(top);
+    if (editingDefault === d.id) {
+      const text = el('textarea');
+      text.rows = 3;
+      text.value = d.text;
+      const variants = el('textarea');
+      variants.rows = Math.min(8, Math.max(3, d.variants.length + 1));
+      variants.value = variantsToText(d.variants);
+      variants.hidden = d.bucket === 'always';
+      const err = el('div', 'err');
+      const save = el('button', 'btn primary', '저장');
+      save.addEventListener('click', () => void apply({ kind: 'edit', id: d.id, text: text.value, variants: variantsFromText(variants.value) }, err));
+      const cancel = el('button', 'btn sec', '취소');
+      cancel.addEventListener('click', () => {
+        editingDefault = null;
+        void refresh();
+      });
+      const row = el('div', 'row');
+      row.append(save, cancel);
+      card.append(text, ...(d.bucket === 'always' ? [] : [el('div', 'hint', '찾을 글: 한 줄이 한 경우예요. 줄 안의 글은 +로 이어 모두 들어 있을 때 맞고, 앞에 "Bash:"처럼 도구를 적을 수 있어요.'), variants]), err, row);
+      return card;
+    }
+    card.appendChild(el('div', undefined, d.text));
+    const meta = el('div', 'meta');
+    meta.appendChild(el('span', 'chip', '전체'));
+    if (d.variants.length > 0) meta.appendChild(el('span', 'chip', `찾을 글 ${d.variants.length}가지`));
+    card.appendChild(meta);
+    if (d.note !== null) card.appendChild(el('div', 'hint', d.note));
+    const row = el('div', 'row');
+    const edit = el('button', 'btn sec', '고치기');
+    edit.addEventListener('click', () => {
+      editingDefault = d.id;
+      void refresh();
+    });
+    row.appendChild(edit);
+    if (d.edited || !d.enabled) {
+      const restore = el('button', 'btn sec', '기본값으로');
+      restore.addEventListener('click', () => void apply({ kind: 'restore', id: d.id }));
+      row.appendChild(restore);
+    }
+    card.appendChild(row);
+    return card;
+  }
+
+  async function apply(op: DefaultRuleOp, err?: HTMLElement): Promise<void> {
+    const res = await api.defaults!.apply(op);
+    if (!res.ok) {
+      if (err !== undefined) err.textContent = res.error;
+      else defaultsNote.textContent = res.error;
+      return;
+    }
+    defaultsNote.textContent = '';
+    editingDefault = null;
+    defaults = res.rules;
+    render(mine);
+  }
+
+  async function refresh(): Promise<void> {
+    defaults = api.defaults === undefined ? [] : await api.defaults.list();
+    render(mine);
+  }
+  resetAll.addEventListener('click', () => void apply({ kind: 'restoreAll' }));
 
   function render(rules: readonly RuleView[]): void {
+    mine = rules;
+    resetAll.hidden = api.defaults === undefined;
+    resetAll.disabled = defaults.every((d) => d.enabled && !d.edited);
     grid.replaceChildren();
     for (const col of COLUMNS) {
       const pane = el('div', 'pane rcol');
       pane.append(el('div', 'ph', col.title), el('div', 'hint pad', col.hint));
-      const mine = rules.filter((r) => r.bucket === col.bucket);
-      if (mine.length === 0) pane.appendChild(el('div', 'dim pad', '아직 없어요.'));
-      for (const r of mine) {
+      const own = rules.filter((r) => r.bucket === col.bucket);
+      for (const d of defaults.filter((x) => x.bucket === col.bucket)) pane.appendChild(defaultCard(d));
+      if (own.length === 0 && defaults.every((d) => d.bucket !== col.bucket)) pane.appendChild(el('div', 'dim pad', '아직 없어요.'));
+      for (const r of own) {
         const card = el('div', 'rule');
         card.appendChild(el('div', undefined, r.text));
         const meta = el('div', 'meta');
@@ -125,6 +213,9 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
     });
   });
 
-  void api.list().then(render);
+  void api.list().then((rules) => {
+    mine = rules;
+    return refresh();
+  });
   return { root };
 }

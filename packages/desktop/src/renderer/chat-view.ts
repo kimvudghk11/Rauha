@@ -3,6 +3,8 @@ import type { ApprovalSummary } from '../shared/approval-summary.js';
 import { classifyDiffLine, type ChangeReview } from '../shared/branch-impact.js';
 import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared/ipc.js';
 import { CHARACTER_ROLES, leadName, spriteFor, type CharacterRole } from './characters.js';
+import type { Command } from '../shared/command-book.js';
+import { attachSuggest } from './command-suggest.js';
 import { el } from './dom.js';
 import { needsLogin } from '../shared/claude-login.js';
 import { loginCard } from './login-view.js';
@@ -30,6 +32,10 @@ export interface ChatActions {
   readonly deeper: (id: string) => Promise<JobView | null>;
   readonly answer: (id: string, choice: ApprovalChoice) => void;
   readonly review: (id: string) => Promise<ChangeReview | null>;
+  /** `/명령`을 읽어 앱이 처리하고, 팀에 보낼 글을 돌려준다(앱이 처리했으면 null). 없으면 글을 그대로 보낸다. */
+  readonly intercept?: (text: string) => Promise<string | null>;
+  /** `/`를 치는 동안 보일 명령 후보 */
+  readonly suggest?: (text: string) => readonly Command[];
 }
 
 interface RoomEl {
@@ -83,13 +89,21 @@ export function buildChat(actions: ChatActions) {
 
   const cards = new Map<string, { dot: HTMLElement; state: HTMLElement; stop: HTMLButtonElement; line: HTMLElement }>();
   const reported = new Set<string>();
+  /** 화면 지우기(/clear)로 비운 끝난 작업. 다시 그리지 않는다. */
+  const cleared = new Set<string>();
   const roomEls = new Map<string, RoomEl>();
 
   // ── 보내기 ──
   const send = async () => {
-    const text = input.value;
-    if (text.trim() === '') return;
+    const typed = input.value;
+    if (typed.trim() === '') return;
     input.value = '';
+    suggest.close();
+    const text = actions.intercept === undefined ? typed : await actions.intercept(typed);
+    if (text === null) {
+      input.focus();
+      return;
+    }
     const job = await actions.submit(text);
     if (job !== null) {
       jobs.set(job.id, job);
@@ -97,7 +111,13 @@ export function buildChat(actions: ChatActions) {
     }
     input.focus();
   };
+  const suggest = attachSuggest(input, composer, (t) => actions.suggest?.(t) ?? []);
+  input.addEventListener('input', () => suggest.update());
   input.addEventListener('keydown', (e) => {
+    if (suggest.key(e)) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       void send();
@@ -115,7 +135,7 @@ export function buildChat(actions: ChatActions) {
   }
 
   function addJob(job: JobView): void {
-    if (cards.has(job.id)) return;
+    if (cards.has(job.id) || cleared.has(job.id)) return;
     empty.remove();
     const me = el('div', 'm me');
     me.appendChild(el('div', 'tx', job.request));
@@ -483,6 +503,33 @@ export function buildChat(actions: ChatActions) {
   return {
     root,
     layoutButtons,
+    /** 명령 결과 같은 안내를 메인 칸에 말풍선으로 보인다 */
+    notice(content: string | HTMLElement): void {
+      empty.remove();
+      const m = el('div', 'm');
+      const av = el('div', 'av');
+      const face = el('canvas', 'sp');
+      paintOnce(face, 'intake', 2);
+      av.appendChild(face);
+      const tx = el('div', 'tx');
+      if (typeof content === 'string') tx.textContent = content;
+      else tx.appendChild(content);
+      const body = el('div');
+      body.append(el('div', 'who', leadName()), tx);
+      m.append(av, body);
+      msgs.appendChild(m);
+      msgs.scrollTop = msgs.scrollHeight;
+    },
+    /** 채팅 화면을 비운다(돌고 있는 작업과 기록은 그대로) */
+    clearScreen(): void {
+      msgs.replaceChildren(empty);
+      cards.clear();
+      for (const j of jobs.values()) {
+        reported.add(j.id);
+        if (j.status === 'done' || j.status === 'stopped') cleared.add(j.id);
+      }
+    },
+    jobList: (): readonly JobView[] => [...jobs.values()],
     board(view: BoardView): void {
       for (const job of view.jobs) {
         jobs.set(job.id, job);

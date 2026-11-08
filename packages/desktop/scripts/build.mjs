@@ -21,4 +21,4 @@ await Promise.all([
   build({ ...common, entryPoints: [join(src, 'preload', 'preload.ts')], outfile: join(dist, 'preload.cjs'), platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: [join(src, 'renderer', 'app.ts')], outfile: join(dist, 'renderer', 'app.js'), platform: 'browser', format: 'iife' }),
 ]);
-for (const file of ['index.html', 'styles.css', 'chat.css', 'git.css']) cpSync(join(src, 'renderer', file), join(dist, 'renderer', file));
+for (const file of ['index.html', 'styles.css', 'chat.css', 'git.css', 'commands.css']) cpSync(join(src, 'renderer', file), join(dist, 'renderer', file));
