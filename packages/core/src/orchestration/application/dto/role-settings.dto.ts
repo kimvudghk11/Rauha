@@ -1,5 +1,5 @@
 import { DomainError } from '../../../shared/domain-error.js';
-import { MEMBER_ROLES, type MemberRole } from '../../domain/member-role.js';
+import { MEMBER_ROLES, ROLE_INFO, type MemberRole } from '../../domain/member-role.js';
 import type { ModelTier } from '../../domain/team.js';
 
 export type { MemberRole };
@@ -14,7 +14,28 @@ export interface RoleSetting {
   readonly tools: readonly string[];
   /** 프로젝트 설정(CLAUDE.md 등)을 읽는지. 입력 종류만 가르는 라우터는 읽지 않아 빨리 끝난다. */
   readonly readsProject: boolean;
+  /** 사용자가 이 팀원에게 더한 지시(팀 설정). 시스템 프롬프트 끝에 붙는다. */
+  readonly extraInstruction?: string;
 }
+
+/** 팀 설정에서 쓸 수 있는 도구 */
+export const ROLE_TOOLS: readonly string[] = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Edit', 'Write', 'Bash'];
+
+/** 끌 수 없는 팀원: 접수·라우터·답변·테스트·구현·리뷰·저장소 파악·부서장은 작업 흐름이 늘 부른다. */
+export const REQUIRED_ROLES: readonly MemberRole[] = ['intake', 'router', 'answerer', 'tester', 'implementer', 'reviewer', 'surveyor', 'chief'];
+
+/** 사용자가 팀원 하나에 바꾼 것(안 바꾼 칸은 없다 = 기본값 그대로) */
+export interface RoleOverride {
+  readonly enabled?: boolean;
+  readonly tier?: ModelTier;
+  readonly effort?: Effort;
+  readonly tools?: readonly string[];
+  readonly extraInstruction?: string;
+}
+
+export type RoleOverrides = Readonly<Partial<Record<MemberRole, RoleOverride>>>;
+
+const EXTRA_LIMIT = 2000;
 
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'];
 const WRITE_TOOLS = [...READ_TOOLS, 'Edit', 'Write', 'Bash'];
@@ -36,6 +57,8 @@ export class RoleSettingsDto {
     private readonly settings: Readonly<Record<MemberRole, RoleSetting>>,
     /** 환경 변수로 모델을 고정한 역할. 배정 모델을 무시한다. */
     private readonly pinned: ReadonlySet<MemberRole> = new Set(),
+    /** 팀 설정에서 끈 역할. 부르면 DomainError. */
+    private readonly disabled: ReadonlySet<MemberRole> = new Set(),
   ) {}
 
   static defaults(): RoleSettingsDto {
@@ -94,7 +117,47 @@ export class RoleSettingsDto {
       next[role] = { ...next[role], tier: tier as ModelTier, ...(effort !== undefined ? { effort: effort as Effort } : {}) };
       pinned.add(role);
     }
-    return new RoleSettingsDto(next, pinned);
+    return new RoleSettingsDto(next, pinned, this.disabled);
+  }
+
+  /**
+   * 팀 설정(사용자가 바꾼 것)을 얹는다. 규칙은 여기서 지킨다: 필수 팀원은 끌 수 없고, 도구는 아는 도구만, 모델 등급은 고르면 상태 머신의
+   * 승격 배정보다 앞선다(고른 등급 그대로). 안 바꾼 칸은 기본값 그대로라 설정이 비어 있으면 동작이 달라지지 않는다.
+   */
+  withOverrides(overrides: RoleOverrides): RoleSettingsDto {
+    const next = { ...this.settings };
+    const pinned = new Set(this.pinned);
+    const disabled = new Set(this.disabled);
+    for (const role of MEMBER_ROLES) {
+      const o = overrides[role];
+      if (o === undefined) continue;
+      if (o.enabled === false) {
+        if (REQUIRED_ROLES.includes(role)) throw new DomainError('ROLE_REQUIRED', `${ROLE_INFO[role].name}은(는) 작업 흐름에 꼭 필요해서 끌 수 없습니다.`);
+        disabled.add(role);
+      }
+      const unknown = o.tools?.find((t) => !ROLE_TOOLS.includes(t));
+      if (unknown !== undefined) throw new DomainError('INVALID_INPUT', `${ROLE_INFO[role].name}: 알 수 없는 도구 ${unknown}`);
+      const extra = o.extraInstruction?.trim() ?? '';
+      if (extra.length > EXTRA_LIMIT) throw new DomainError('INVALID_INPUT', `${ROLE_INFO[role].name}: 추가 지시는 ${EXTRA_LIMIT}자까지입니다.`);
+      next[role] = {
+        ...next[role],
+        ...(o.tier !== undefined ? { tier: o.tier } : {}),
+        ...(o.effort !== undefined ? { effort: o.effort } : {}),
+        ...(o.tools !== undefined ? { tools: [...o.tools] } : {}),
+        ...(extra !== '' ? { extraInstruction: extra } : {}),
+      };
+      if (o.tier !== undefined) pinned.add(role);
+    }
+    return new RoleSettingsDto(next, pinned, disabled);
+  }
+
+  isEnabled(role: MemberRole): boolean {
+    return !this.disabled.has(role);
+  }
+
+  private of(role: MemberRole): RoleSetting {
+    if (this.disabled.has(role)) throw new DomainError('ROLE_DISABLED', `${ROLE_INFO[role].name}은(는) 꺼 둔 팀원이에요. 설정의 팀 설정에서 켤 수 있어요.`);
+    return this.settings[role];
   }
 
   /** 모든 역할의 설정. 화면에 팀 구성을 보여 줄 때 쓴다. */
@@ -103,7 +166,7 @@ export class RoleSettingsDto {
   }
 
   get(role: MemberRole): RoleSetting {
-    return this.settings[role];
+    return this.of(role);
   }
 
   /**
@@ -118,7 +181,7 @@ export class RoleSettingsDto {
 
   /** 상태 머신이 배정한 모델로 부를 때의 설정. 환경 변수로 고정한 역할은 고정 모델을 쓴다. */
   forAssignment(role: MemberRole, tier: ModelTier): RoleSetting {
-    const base = this.settings[role];
+    const base = this.of(role);
     if (this.pinned.has(role) || tier === base.tier) return base;
     return { ...base, tier, ...ESCALATED[role]?.[tier] };
   }

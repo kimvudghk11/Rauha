@@ -60,10 +60,15 @@ export { Department, LAUNCH_ORDER, type DepartmentId, type DepartmentMember, typ
 export { ReadingGuideDto, type ReadingGuideProps, type RunStopReason, type SettledAssumption } from './orchestration/application/dto/reading-guide.dto.js';
 export {
   RoleSettingsDto,
+  ROLE_TOOLS,
+  REQUIRED_ROLES,
+  type RoleOverride,
+  type RoleOverrides,
   type Effort,
   type MemberRole,
   type RoleSetting,
 } from './orchestration/application/dto/role-settings.dto.js';
+export { RoleOverridesDto } from './orchestration/application/dto/role-overrides.dto.js';
 export { PlanUsageDto, type PlanUsage, type UsageWindow } from './orchestration/application/dto/plan-usage.dto.js';
 export { INTAKE_SCHEMA, TESTER_REPORT_SCHEMA, IMPLEMENTER_REPORT_SCHEMA } from './orchestration/application/dto/schemas.js';
 export type * from './orchestration/application/ports.js';
@@ -76,7 +81,7 @@ export { ProfileBook, type ProfileRequest, type Resolution, type ResolutionSourc
 export { ProfileConfigDto } from './profile/application/dto/profile-config.dto.js';
 
 // infrastructure (CLI가 조립한다)
-export { AgentSdkTeamMember, type AgentSdkTeamMemberOptions } from './orchestration/infrastructure/agent-sdk-team-member.js';
+export { AgentSdkTeamMember, withTeamInstruction, type AgentSdkTeamMemberOptions } from './orchestration/infrastructure/agent-sdk-team-member.js';
 export { PromptLibrary } from './orchestration/infrastructure/prompt-library.js';
 export { GitWorkspace } from './orchestration/infrastructure/git-workspace.js';
 export { readPlanUsage } from './orchestration/infrastructure/agent-sdk-plan-usage.js';

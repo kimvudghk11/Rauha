@@ -9,3 +9,5 @@ export { MEMBER_ROLES, ROLE_INFO, type MemberRole, type RoleInfo } from './orche
 export { type RuleBucket } from './orchestration/domain/rule-book.js';
 export type { DefaultRuleView } from './orchestration/application/dto/default-rules.dto.js';
 export type { DefaultVariant } from './orchestration/domain/default-rules.js';
+export { ROLE_TOOLS, REQUIRED_ROLES, type RoleOverride, type RoleOverrides } from './orchestration/application/dto/role-settings.dto.js';
+export { RoleOverridesDto } from './orchestration/application/dto/role-overrides.dto.js';

@@ -44,6 +44,11 @@ interface Spare extends Session {
  * 팀원 한 명 = Agent SDK query() 한 번. 역할 프롬프트는 짧은 자체 문자열로 넣어
  * (claude_code preset 대신) 앞부분을 고정하고 캐시가 잘 먹게 한다.
  */
+/** 팀 설정에서 사용자가 이 팀원에게 더한 지시를 시스템 프롬프트 끝에 붙인다(없으면 그대로). */
+export function withTeamInstruction(system: string, extra: string | undefined): string {
+  return extra === undefined || extra.trim() === '' ? system : `${system}\n\n<user-team-instruction>\n사용자가 이 팀원에게 더한 지시입니다.\n${extra.trim()}\n</user-team-instruction>`;
+}
+
 export class AgentSdkTeamMember implements TeamMemberPort {
   /** 이번 실행 동안 사용자가 계속 허락한 동작. 이 객체는 실행 한 번에 하나라서 여기 둔다. */
   private readonly remembered = new Set<string>();
@@ -182,7 +187,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       ...((call.additionalDirectories?.length ?? 0) > 0 ? { additionalDirectories: [...call.additionalDirectories!] } : {}),
       env: this.options.env,
       ...(this.options.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: this.options.claudeExecutable } : {}),
-      systemPrompt: this.withAlwaysRules(this.options.prompts.system(call.role, call.kits ?? [])),
+      systemPrompt: withTeamInstruction(this.withAlwaysRules(this.options.prompts.system(call.role, call.kits ?? [])), call.setting.extraInstruction),
       tools: [...call.setting.tools],
       allowedTools: [...call.setting.tools, ...kits.tools],
       // 도구 묶음은 요청이 그쪽을 가리킬 때만 붙인다(도구 설명이 길어서).

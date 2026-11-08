@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DomainError } from '../../../shared/domain-error.js';
-import { RoleSettingsDto } from './role-settings.dto.js';
+import { RoleOverridesDto } from './role-overrides.dto.js';
+import { REQUIRED_ROLES, RoleSettingsDto } from './role-settings.dto.js';
 
 describe('RoleSettingsDto', () => {
   it('기본값: 접수는 sonnet low, 테스트·구현은 haiku medium', () => {
@@ -109,5 +110,65 @@ describe('RoleSettingsDto — 가벼운 답변', () => {
   it('환경 변수로 답변 팀원 모델을 고정했으면 light도 그 모델을 따른다', () => {
     const pinned = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_ANSWERER: 'opus' });
     expect(pinned.lightAnswerer().tier).toBe('opus');
+  });
+});
+
+describe('팀 설정(withOverrides)', () => {
+  const plain = RoleSettingsDto.defaults();
+
+  it('설정이 비어 있으면 모든 팀원의 동작이 기본값 그대로다', () => {
+    const same = plain.withOverrides({});
+    expect(same.entries()).toEqual(plain.entries());
+    expect(same.forAssignment('implementer', 'sonnet')).toEqual(plain.forAssignment('implementer', 'sonnet'));
+  });
+
+  it('모델 등급·노력·도구·추가 지시를 팀원 하나만 바꾼다', () => {
+    const roles = plain.withOverrides({ reviewer: { tier: 'opus', effort: 'high', tools: ['Read', 'Grep'], extraInstruction: ' 보안부터 봐 ' } });
+    expect(roles.get('reviewer')).toMatchObject({ tier: 'opus', effort: 'high', tools: ['Read', 'Grep'], extraInstruction: '보안부터 봐' });
+    expect(roles.get('tester')).toEqual(plain.get('tester'));
+  });
+
+  it('고른 모델 등급은 상태 머신의 승격 배정보다 앞선다', () => {
+    const roles = plain.withOverrides({ implementer: { tier: 'opus' } });
+    expect(roles.forAssignment('implementer', 'haiku').tier).toBe('opus');
+  });
+
+  it('환경 변수로 고정한 모델이 설정보다 앞선다(실험용)', () => {
+    const roles = plain.withOverrides({ implementer: { tier: 'opus' } }).withEnv({ RAUHA_ROLE_IMPLEMENTER: 'haiku' });
+    expect(roles.get('implementer').tier).toBe('haiku');
+  });
+
+  it('끈 팀원을 부르면 켜라는 안내와 함께 막는다', () => {
+    const roles = plain.withOverrides({ marketer: { enabled: false } });
+    expect(roles.isEnabled('marketer')).toBe(false);
+    expect(() => roles.get('marketer')).toThrow(/꺼 둔 팀원/);
+    expect(() => roles.forAssignment('marketer', 'sonnet')).toThrow(DomainError);
+    expect(roles.get('brand')).toEqual(plain.get('brand'));
+  });
+
+  it('작업 흐름에 꼭 필요한 팀원은 끌 수 없다', () => {
+    for (const role of REQUIRED_ROLES) expect(() => plain.withOverrides({ [role]: { enabled: false } })).toThrow(/꼭 필요/);
+  });
+
+  it('아는 도구만 쓸 수 있고 추가 지시는 2000자까지다', () => {
+    expect(() => plain.withOverrides({ writer: { tools: ['Read', 'Rm'] } })).toThrow(/알 수 없는 도구/);
+    expect(() => plain.withOverrides({ writer: { extraInstruction: 'a'.repeat(2001) } })).toThrow(/2000자/);
+  });
+
+  it('가벼운 답변도 답변 팀원의 추가 지시를 따른다', () => {
+    expect(plain.withOverrides({ answerer: { extraInstruction: '존댓말' } }).lightAnswerer().extraInstruction).toBe('존댓말');
+  });
+});
+
+describe('RoleOverridesDto', () => {
+  it('틀린 칸·모르는 역할은 버려 기본값으로 둔다', () => {
+    const dto = RoleOverridesDto.from({ roles: { reviewer: { tier: 'gpt', effort: 'max', tools: ['Read', 3], extraInstruction: '  ' }, nobody: { tier: 'opus' }, writer: 'x', marketer: { enabled: false } } });
+    expect(dto.overrides).toEqual({ reviewer: { effort: 'max', tools: ['Read'] }, marketer: { enabled: false } });
+    expect(RoleOverridesDto.from('엉망').overrides).toEqual({});
+  });
+
+  it('저장한 모양을 다시 읽어도 같다', () => {
+    const o = { reviewer: { tier: 'opus' as const, tools: ['Read'] } };
+    expect(RoleOverridesDto.from(JSON.parse(JSON.stringify(RoleOverridesDto.from({ roles: o }).toJSON()))).overrides).toEqual(o);
   });
 });
