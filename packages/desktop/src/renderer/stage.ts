@@ -1,5 +1,6 @@
 import type { CharacterArt, CharacterRole, CharacterState } from './characters.js';
 import { pixelArt } from './pixel-art.js';
+import { layoutRow } from './stage-layout.js';
 
 /** 그림 공급자. 수채화 PNG로 바꿀 때는 이 한 줄만 바꾼다. */
 let art: CharacterArt = pixelArt;
@@ -22,10 +23,16 @@ interface Mounted {
   readonly rows: number;
   cols: number;
   visible: boolean;
+  /** 부모 크기 관찰을 시작했는지(붙기 전에 등록된 캔버스는 붙은 뒤에 시작한다) */
+  observed: boolean;
+  /** 아직 화면에 붙지 않은 채 지나간 걸음 수 */
+  waiting: number;
 }
 
 const mounted = new Set<Mounted>();
 const STEP_MS = 120;
+/** 붙기 전에 등록된 캔버스를 기다려 주는 걸음 수(약 12초) */
+const WAIT_STEPS = 100;
 let lastStep = 0;
 let tick = 0;
 
@@ -45,16 +52,34 @@ function resize(m: Mounted, px: number): void {
   draw(m);
 }
 
+/** 화면에 붙은 fit 캔버스의 부모를 관찰하고 지금 너비로 한 번 맞춘다(한 번만) */
+function watchParent(m: Mounted): void {
+  if (m.observed || !m.canvas.isConnected) return;
+  if (!m.fit || m.canvas.parentElement === null) {
+    m.observed = true;
+    return;
+  }
+  m.observed = true;
+  resizer.observe(m.canvas.parentElement);
+  resize(m, m.canvas.parentElement.clientWidth);
+}
+
 function draw(m: Mounted): void {
   const ctx = m.canvas.getContext('2d');
   if (ctx === null) return;
   ctx.clearRect(0, 0, m.canvas.width, m.canvas.height);
   const actors = m.actors();
-  const gap = m.cols / (actors.length + 1);
-  // 뒤에 서는 줄이 없어서 순서대로 한 줄에 선다
+  // 뒤에 서는 줄이 없어서 순서대로 한 줄에 선다. 칸 수가 모자라거나 아직 모르면 겹치지 않을 만큼 늘린다.
+  const sizes = actors.map((a) => art.size(a.role));
+  const row = layoutRow(m.cols, sizes.map((s) => s.w));
+  if (row.cols !== m.cols) {
+    m.cols = row.cols;
+    m.canvas.width = row.cols * m.scale;
+    m.canvas.style.width = `${row.cols * m.scale}px`;
+  }
   actors.forEach((a, i) => {
-    const { w, h } = art.size(a.role);
-    art.draw(ctx, a.role, a.state, tick, { x: Math.round(gap * (i + 1) - w / 2), y: m.rows - 1 - h, scale: m.scale, seed: i });
+    const { h } = sizes[i]!;
+    art.draw(ctx, a.role, a.state, tick, { x: row.xs[i]!, y: m.rows - 1 - h, scale: m.scale, seed: i });
   });
 }
 
@@ -68,10 +93,14 @@ function frame(now: number): void {
     tick += 1;
     for (const m of [...mounted]) {
       if (!m.canvas.isConnected) {
-        visibility.unobserve(m.canvas);
-        mounted.delete(m);
+        // 만들고 곧바로 붙이지 않는 화면도 있어서(첫 작업 배정 등) 잠깐은 기다린다. 오래 안 붙으면 치운다.
+        if (m.observed || (m.waiting += 1) > WAIT_STEPS) {
+          visibility.unobserve(m.canvas);
+          mounted.delete(m);
+        }
         continue;
       }
+      watchParent(m);
       if (m.visible) draw(m);
     }
   }
@@ -84,7 +113,7 @@ requestAnimationFrame(frame);
  * fit이면 부모 너비를 채우고 캐릭터가 고르게 선다.
  */
 export function mountStage(canvas: HTMLCanvasElement, options: { scale: number; rows: number; actors: () => readonly Actor[]; fit?: boolean }): { redraw(): void } {
-  const m: Mounted = { canvas, scale: options.scale, actors: options.actors, fit: options.fit === true, rows: options.rows, cols: 0, visible: true };
+  const m: Mounted = { canvas, scale: options.scale, actors: options.actors, fit: options.fit === true, rows: options.rows, cols: 0, visible: true, observed: false, waiting: 0 };
   canvas.height = options.rows * options.scale;
   canvas.style.height = `${options.rows * options.scale}px`;
   if (!m.fit) {
@@ -95,7 +124,8 @@ export function mountStage(canvas: HTMLCanvasElement, options: { scale: number; 
   }
   mounted.add(m);
   visibility.observe(canvas);
-  if (m.fit) queueMicrotask(() => canvas.parentElement !== null && (resizer.observe(canvas.parentElement), resize(m, canvas.parentElement.clientWidth)));
+  watchParent(m);
+  if (m.fit) queueMicrotask(() => watchParent(m));
   draw(m);
   return { redraw: () => draw(m) };
 }
