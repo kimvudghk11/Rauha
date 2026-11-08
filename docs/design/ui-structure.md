@@ -6,7 +6,7 @@
 ## 조사 방법
 
 - 측정기: `packages/desktop/scripts/measure-ui.cjs`. 창을 화면에 띄우지 않고(`show` 무효화), 임시 데이터 폴더와 가짜 팀(`RAUHA_FAKE_TEAM=1`)으로 돌려 실제 Claude를 부르지 않는다. 시험용 레포 둘(변경·앞섬·브랜치가 있는 것, 머지 충돌 중인 것)을 만들어 작업 폴더로 쓴다.
-- 장면 18개(채팅 2, 코드 4, 할 일 2, 기록 2, 레포, git 4, 명령어, 규칙, 설정)를 폭 1700·1100·720·600에서 `getBoundingClientRect`·`getComputedStyle`로 쟀다. 보이는 `button·select·input·textarea·.chip` 전부를 표로 모았다.
+- 장면 17개(채팅 2, 코드 4, 할 일 2, 기록 2, git 4, 명령어, 규칙, 설정. 레포 탭은 코드 탭에 합쳐졌고, 그 뒤 코드 탭 탐색기 장면 9개가 늘었다: 레포 노드 줄·메뉴·이름 바꾸기 입력·삭제 확인)를 폭 1700·1100·720·600에서 `getBoundingClientRect`·`getComputedStyle`로 쟀다. 보이는 `button·select·input·textarea·.chip` 전부를 표로 모았다.
 - 아래 수치는 모두 이 측정값이다. 폭 4단계는 `layout.ts`의 `TIER_MIN`(xl 1700 · m 1100 · s 720 · xs 그 아래)이다.
 - 폭 4단계 전부에서 가로 넘침(`scrollWidth > innerWidth`)과 잘림(`overflow` 숨김인데 내용이 더 큼)은 0건이었다.
 - 못 한 것: 맥 실기(신호등·제목줄 겹침은 코드와 `title-bar.spec.ts`로만 확인), 첫 실행 마법사 3단계(측정기에서 예전 rauha 지우기 대화상자까지만 잡힘. 같은 `.dialog` 부품이라 같은 수치가 적용된다).
@@ -46,13 +46,14 @@ section.chat  (grid: data-mode = xl 2열 방 · side 나란히 · rows 위아래
 알림 토스트 .toasts > .toast: b · 문구 · .btn.primary 「정리 보기」
 ```
 
-### 코드 (`code-view.ts`, `code-tree-view.ts`, `code-editor.ts`, `terminal-view.ts`, `code.css`)
+### 코드 (`code-view.ts`, `code-tree-view.ts`, `code-file-ops.ts`, `code-menu.ts`, `code-dialog.ts`, `code-editor.ts`, `terminal-view.ts`, `code.css`)
 
 ```
 section.code  (flex, 테두리 1px, 둥근 6px)
  ├─ aside.code-explorer (260/300px, s·xs는 ☰로 겹쳐 열기)
  │    ├─ .code-ehead    35px: .code-mode(탐색기/검색, 밑줄 탭) · b.code-folder · .code-ibtn ↻
- │    ├─ .tree          button.tree-row 22px (.tree-chev .tree-name .tree-tag .tree-badge)
+ │    ├─ .code-tools    아이콘 단추 6개(.btn.ghost.icon.sm: 새 파일·새 폴더·이름 바꾸기·복제·옮기기·휴지통)
+ │    ├─ .tree          button.tree-row 22px (.tree-chev .tree-name .tree-sync(브랜치·↑↓) .tree-tag .tree-badge) · 레포 노드 아래 .repo-line(.chip 브랜치·.sbadge ↑↓·변경 수·작업 중·.link git 탭에서 보기·.btn.icon ↻) · .tree-edit(input.sm + .err) · 오른쪽 클릭 .menu.ctx
  │    └─ .code-search   .cs-row(input.cs-input · .cs-opt Aa .*) · .cs-summary · .cs-results(.cs-path .cs-hit)
  └─ section.code-main
       ├─ .code-bar      35px: .code-ibtn ☰ · .code-tabs(.code-tab + .code-x) · .code-ibtn >_
@@ -105,12 +106,6 @@ section.records
 13. (측정기 자체) 숨긴 창에서 `requestAnimationFrame`이 멈춰 폭 720 장면이 폭 1100 배치로 재졌다 → `setBackgroundThrottling(false)`. 앞 장면의 확인 창·메뉴가 다음 장면에 남던 것도 장면 사이에 치움. 측정기가 기록·할 일 파일을 내 실제 `~/.rauha/desktop`이 아니라 임시 폴더에 둠(이전에는 시험 기록이 실제 기록에 쌓였다).
 
 결과: 폭 1700·1100·720·600 모두 규칙 위반 0건(버튼 높이 28/24, 위쪽 단추 줄 줄바꿈 0, 선택 작업줄 줄바꿈 0, 강조 버튼 1개 이하, 아이콘만 있는 버튼의 툴팁·접근성 이름 있음, 글자 잘린 버튼 0, 가로 넘침 0).
-
-### 레포 (`repos-view.ts`)
-
-```
-section.repos > .rhead(b · .hint · .btn.sec 다시 읽기) · .rlist(grid) > .pane.repo(.rtop(b .chip) · .rstat · .dim)
-```
 
 ### git (`git-view.ts`, `git-changes-view.ts`, `git-lists-view.ts`, `git-common.ts`, `git.css`)
 

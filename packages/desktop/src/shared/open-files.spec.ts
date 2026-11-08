@@ -49,6 +49,32 @@ describe('파일 탭들', () => {
   });
 });
 
+describe('이름 바꾸기·옮기기를 따라가는 탭', () => {
+  it('파일 이름이 바뀌면 같은 탭이 새 경로로 이어지고 수정 상태·보던 탭이 그대로다', () => {
+    const tabs = OpenFiles.empty().opened(file('src/a.ts', 'abc')).opened(file('src/b.ts')).activated('src/a.ts');
+    const moved = tabs.moved('src/a.ts', 'src/z.ts');
+    expect(moved.files.map((f) => f.path)).toEqual(['src/z.ts', 'src/b.ts']);
+    expect(moved.active).toBe('src/z.ts');
+    expect(moved.get('src/z.ts')?.isDirty('abcd')).toBe(true);
+    expect(moved.get('src/a.ts')).toBeUndefined();
+  });
+  it('폴더가 바뀌면 안에 열린 탭이 모두 새 경로로 이어진다', () => {
+    const tabs = OpenFiles.empty().opened(file('src/a.ts')).opened(file('src/deep/b.ts')).opened(file('other.ts'));
+    expect(tabs.moved('src', 'lib').files.map((f) => f.path)).toEqual(['lib/a.ts', 'lib/deep/b.ts', 'other.ts']);
+    expect(tabs.moved('src', 'lib').active).toBe('other.ts');
+  });
+  it('관계없는 이동은 그대로다', () => {
+    const tabs = OpenFiles.empty().opened(file('a.ts'));
+    expect(tabs.moved('x', 'y')).toBe(tabs);
+  });
+  it('여러 탭을 한꺼번에 닫는다(삭제)', () => {
+    const tabs = OpenFiles.empty().opened(file('src/a.ts')).opened(file('src/b.ts')).opened(file('c.ts')).activated('src/a.ts');
+    const rest = tabs.closedUnder('src');
+    expect(rest.files.map((f) => f.path)).toEqual(['c.ts']);
+    expect(rest.active).toBe('c.ts');
+  });
+});
+
 describe('탭 이름', () => {
   it('이름이 겹치지 않으면 파일 이름만 쓴다', () => {
     expect([...tabLabels(['src/a.ts', 'b.ts']).values()]).toEqual(['a.ts', 'b.ts']);

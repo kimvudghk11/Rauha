@@ -1,4 +1,5 @@
 import type { Eol } from './code-text.js';
+import { isSameOrUnder, movedPath } from './code-ops.js';
 
 /** 열어 둔 파일 하나. 편집 중인 글은 편집기가 갖고, 여기엔 디스크에 있다고 아는 상태만 둔다. */
 export class OpenFile {
@@ -30,6 +31,11 @@ export class OpenFile {
   /** 디스크 내용을 다시 읽어 왔다(되돌리기·다시 불러오기) */
   reloaded(text: string, version: string, eol: Eol, bom: boolean): OpenFile {
     return new OpenFile(this.path, text, version, eol, bom, false);
+  }
+
+  /** 이름이 바뀌거나 옮겨져 경로가 달라졌다(내용·수정 상태는 그대로) */
+  movedTo(path: string): OpenFile {
+    return new OpenFile(path, this.savedText, this.version, this.eol, this.bom, this.stale);
   }
 
   /** 디스크에서 바뀐 것을 알았다 */
@@ -73,6 +79,23 @@ export class OpenFiles {
     const rest = this.files.filter((f) => f.path !== path);
     if (this.active !== path) return new OpenFiles(rest, this.active);
     return new OpenFiles(rest, (rest[i] ?? rest[i - 1])?.path ?? null);
+  }
+
+  /** 파일이나 폴더의 이름이 바뀌거나 옮겨졌다: 그 안에 열린 탭들이 새 경로로 이어진다(순서·보던 탭은 그대로) */
+  moved(from: string, to: string): OpenFiles {
+    if (!this.files.some((f) => movedPath(f.path, from, to) !== null)) return this;
+    const next = (path: string): string => movedPath(path, from, to) ?? path;
+    return new OpenFiles(
+      this.files.map((f) => (movedPath(f.path, from, to) === null ? f : f.movedTo(next(f.path)))),
+      this.active === null ? null : next(this.active),
+    );
+  }
+
+  /** 지워진 파일이나 폴더 안의 탭을 모두 닫는다. 보던 탭이 닫히면 남은 탭 중 가까운 쪽으로 간다. */
+  closedUnder(path: string): OpenFiles {
+    let tabs: OpenFiles = this;
+    for (const f of this.files) if (isSameOrUnder(f.path, path)) tabs = tabs.closed(f.path);
+    return tabs;
   }
 
   /** 한 파일의 상태를 바꾼다 */

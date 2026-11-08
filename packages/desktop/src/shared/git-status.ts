@@ -1,4 +1,4 @@
-/** 레포 한 곳의 상태(레포 탭에 보인다) */
+/** 레포 한 곳의 상태(코드 탭 레포 노드에 보인다) */
 export interface RepoStatus {
   /** 지금 브랜치(분리된 HEAD면 null) */
   readonly branch: string | null;

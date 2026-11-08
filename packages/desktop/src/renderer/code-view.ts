@@ -4,6 +4,11 @@ import { rankFiles } from '../shared/quick-open.js';
 import { defaultIndentSize, languageOf, type CodeLanguage } from '../shared/code-language.js';
 import { chooseIndent, detectIndent, type Indent } from '../shared/indent.js';
 import { baseName, OpenFile, OpenFiles, tabLabels } from '../shared/open-files.js';
+import { remapOpen, isSameOrUnder } from '../shared/code-ops.js';
+import type { RepoRow } from '../shared/ipc.js';
+import { ask } from './code-dialog.js';
+import { createFileOps } from './code-file-ops.js';
+import { codeIcon, type CodeIcon } from './code-icons.js';
 import { CodeEditor } from './code-editor.js';
 import { CodeTreeView } from './code-tree-view.js';
 import { buildTerminal } from './terminal-view.js';
@@ -19,6 +24,8 @@ export interface CodeDeps {
   readonly terminal: TerminalApi;
   /** 이 레포를 git 탭에서 열어 달라(레포 루트 절대 경로) */
   readonly openGit: (repoRoot: string) => void;
+  /** 작업 폴더 안의 레포·문서 폴더와 상태(탐색기 레포 노드) */
+  readonly repos: () => Promise<readonly RepoRow[]>;
 }
 
 interface FileInfo {
@@ -28,47 +35,12 @@ interface FileInfo {
   readonly mixedEol: boolean;
 }
 
-interface Choice {
-  readonly id: string;
-  readonly label: string;
-  readonly kind?: 'primary' | 'danger';
-}
-
 const LANGUAGE_NAMES: Readonly<Record<CodeLanguage, string>> = {
   plain: '일반 글', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JavaScript JSX', tsx: 'TypeScript JSX', json: 'JSON', css: 'CSS', html: 'HTML', markdown: 'Markdown',
   python: 'Python', java: 'Java', yaml: 'YAML', xml: 'XML', sql: 'SQL', rust: 'Rust', cpp: 'C/C++', go: 'Go', shell: '셸', toml: 'TOML', properties: '설정', dockerfile: 'Dockerfile',
 };
 
 const INDENT_SOURCE = { editorconfig: '.editorconfig', detected: '파일에서 알아냄', default: '기본값' } as const;
-
-/** 작은 확인 창. 고른 버튼의 id를 돌려준다(Esc는 마지막 버튼). */
-function ask(title: string, body: string, choices: readonly Choice[]): Promise<string> {
-  return new Promise((resolve) => {
-    const veil = el('div', 'veil');
-    const box = el('div', 'dialog');
-    const done = (id: string): void => {
-      veil.remove();
-      window.removeEventListener('keydown', onKey, true);
-      resolve(id);
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      done(choices[choices.length - 1]?.id ?? 'cancel');
-    };
-    const btns = el('div', 'btns');
-    for (const c of choices) {
-      const b = el('button', `btn sm${c.kind === undefined ? '' : ` ${c.kind}`}`, c.label);
-      b.addEventListener('click', () => done(c.id));
-      btns.append(b);
-    }
-    box.append(el('b', undefined, title), el('p', undefined, body), btns);
-    veil.append(box);
-    window.addEventListener('keydown', onKey, true);
-    document.body.append(veil);
-    (btns.querySelector<HTMLElement>('.primary') ?? btns.querySelector<HTMLElement>('button'))?.focus();
-  });
-}
 
 /**
  * 코드 탭: 왼쪽 탐색기, 오른쪽에 파일 탭들과 편집기. 파일 읽기·쓰기는 전부 main(api)이 한다.
@@ -88,7 +60,44 @@ export function buildCode(deps: CodeDeps) {
   const refreshBtn = el('button', 'btn ghost icon sm', '↻');
   refreshBtn.title = '목록 새로 고침';
   head.append(modeFiles, modeSearch, headName, refreshBtn);
-  const tree = new CodeTreeView({ api: deps.api, open: (p) => void openPath(p) });
+  const tools = el('div', 'code-tools');
+  const toolBtn = (kind: CodeIcon, title: string, run: () => void): HTMLButtonElement => {
+    const b = el('button', 'btn ghost icon sm');
+    b.type = 'button';
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    b.append(codeIcon(kind));
+    b.addEventListener('click', run);
+    tools.append(b);
+    return b;
+  };
+  const tree = new CodeTreeView({
+    api: deps.api,
+    open: (p) => void openPath(p),
+    contextMenu: (t, x, y) => ops.menuFor(t, x, y),
+    key: (e, t) => ops.key(e, t),
+    drop: (path, dest) => void ops.move(path, dest),
+    openGit: (r) => deps.openGit(r),
+    reloadRepos: () => void loadRepos(),
+    caseInsensitive: deps.platform === 'win32' || deps.platform === 'darwin',
+    onPick: (t) => paintTools(t),
+  });
+  const newFileBtn = toolBtn('newFile', '새 파일', () => void ops.create('file'));
+  const newDirBtn = toolBtn('newFolder', '새 폴더', () => void ops.create('dir'));
+  const renameBtn = toolBtn('rename', '이름 바꾸기 (F2)', () => void ops.rename());
+  const dupBtn = toolBtn('duplicate', '복제', () => void ops.duplicate());
+  const moveBtn = toolBtn('move', '다른 폴더로 옮기기', () => {
+    const t = tree.selection();
+    if (t !== null && t.kind !== 'root') void ops.move(t.path);
+  });
+  const delBtn = toolBtn('trash', '휴지통으로 보내기 (Delete)', () => void ops.remove());
+  void newFileBtn;
+  void newDirBtn;
+  function paintTools(t: { kind: string } | null): void {
+    const none = t === null || t.kind === 'root';
+    for (const b of [renameBtn, dupBtn, moveBtn, delBtn]) b.disabled = none;
+  }
+  paintTools(null);
   const searchPanel = el('div', 'code-search');
   searchPanel.hidden = true;
   const searchRow = el('div', 'cs-row');
@@ -103,7 +112,7 @@ export function buildCode(deps: CodeDeps) {
   const searchSummary = el('div', 'cs-summary');
   const searchResults = el('div', 'cs-results');
   searchPanel.append(searchRow, searchSummary, searchResults);
-  explorer.append(head, tree.root, searchPanel);
+  explorer.append(head, tools, tree.root, searchPanel);
 
   // ── 오른쪽 ──
   const bar = el('div', 'code-bar');
@@ -423,13 +432,17 @@ export function buildCode(deps: CodeDeps) {
     if (narrow()) root.classList.toggle('explorer-open');
     else root.classList.toggle('explorer-hidden');
   });
-  refreshBtn.addEventListener('click', () => void tree.refresh());
+  refreshBtn.addEventListener('click', () => {
+    void tree.refresh();
+    void loadRepos();
+  });
 
   // ── 탐색기 / 검색 전환 ──
   function setMode(mode: 'files' | 'search'): void {
     modeFiles.classList.toggle('on', mode === 'files');
     modeSearch.classList.toggle('on', mode === 'search');
     tree.root.hidden = mode !== 'files';
+    tools.hidden = mode !== 'files';
     searchPanel.hidden = mode !== 'search';
     refreshBtn.hidden = mode !== 'files';
     if (mode === 'search') {
@@ -628,6 +641,7 @@ export function buildCode(deps: CodeDeps) {
     }
     headName.textContent = baseName(next.replace(/[\\/]+$/, '').replace(/\\/g, '/')).toUpperCase();
     folder = next;
+    void loadRepos();
     await tree.refresh();
     tree.setActive(tabs.active);
   }
@@ -646,6 +660,79 @@ export function buildCode(deps: CodeDeps) {
     if (lost.length > 0) say(`작업 폴더가 바뀌어 열어 둔 파일을 닫았어요. 저장 안 한 ${lost.join(', ')}의 수정은 사라졌어요.`);
   }
 
+  // ── 레포 노드 ──
+  let repoRows: readonly RepoRow[] = [];
+  let repoSeq = 0;
+  /** 작업 폴더의 레포·문서 폴더 정보를 읽어 탐색기 줄에 입힌다(git을 불러 느릴 수 있어 화면은 먼저 그린다) */
+  async function loadRepos(): Promise<void> {
+    const seq = ++repoSeq;
+    try {
+      const rows = await deps.repos();
+      if (seq !== repoSeq) return;
+      repoRows = rows;
+      tree.setRepos(rows);
+    } catch {
+      /* 못 읽으면 레포 정보 없이 파일 트리만 보인다 */
+    }
+  }
+
+  // ── 파일 조작(탐색기) ──
+  /** 이름이 바뀌거나 옮겨진 파일의 탭이 새 경로로 이어진다. 확장자가 달라 언어가 바뀌면 색칠도 새로 한다. */
+  function moveTabs(from: string, to: string): void {
+    const moves = remapOpen(tabs.files.map((f) => f.path), from, to);
+    if (moves.length === 0) return;
+    for (const m of moves) {
+      editor.rename(m.from, m.to);
+      const old = info.get(m.from);
+      info.delete(m.from);
+      if (old === undefined) continue;
+      const language = languageOf(baseName(m.to));
+      info.set(m.to, { ...old, language });
+      if (language !== old.language) editor.replace(m.to, editor.textOf(m.to) ?? '', language, old.indent, old.readOnly);
+    }
+    tabs = tabs.moved(from, to);
+    paintAll();
+    void refreshChanges();
+  }
+
+  /** 지워진 경로 안의 탭을 닫는다. keepUnsaved면 수정 중인 탭만 남겨 "지워졌어요"로 표시한다. */
+  function dropTabs(path: string, keepUnsaved: boolean): void {
+    for (const f of tabs.files.filter((x) => isSameOrUnder(x.path, path))) {
+      if (keepUnsaved && isDirty(f.path)) {
+        tabs = tabs.updated(f.path, (x) => x.markedStale());
+        continue;
+      }
+      editor.remove(f.path);
+      info.delete(f.path);
+      tabs = tabs.closed(f.path);
+    }
+    if (tabs.active === null) editor.hide();
+    else editor.show(tabs.active);
+    paintAll();
+  }
+
+  const ops = createFileOps({
+    api: deps.api,
+    tree,
+    platform: deps.platform,
+    workFolder: () => folder ?? null,
+    repos: () => repoRows,
+    openPaths: () => tabs.files.map((f) => f.path),
+    dirtyPaths: () => tabs.files.filter((f) => isDirty(f.path)).map((f) => f.path),
+    tabsMoved: moveTabs,
+    tabsDeleted: dropTabs,
+    say,
+    refresh: async () => {
+      fileCache = null;
+      await tree.refresh();
+      tree.setActive(tabs.active);
+      void refreshChanges();
+    },
+    open: (p) => void openPath(p),
+    openGit: (r) => deps.openGit(r),
+    reloadRepos: () => void loadRepos(),
+  });
+
   paintAll();
   return {
     root,
@@ -654,7 +741,10 @@ export function buildCode(deps: CodeDeps) {
       const next = await deps.workFolder();
       if (folder !== undefined && next !== folder) dropAll();
       if (next !== folder) await loadTree();
-      else void tree.refresh();
+      else {
+        void tree.refresh();
+        void loadRepos();
+      }
       void checkDisk();
       if (tabs.active !== null) editor.focus();
     },

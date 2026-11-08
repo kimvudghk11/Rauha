@@ -91,7 +91,7 @@ describe('resolve', () => {
 
   it('앱 동작 명령은 동작 이름을 돌려준다(대소문자·공백 무시)', () => {
     expect(book.resolve('  /CLEAR ')).toMatchObject({ kind: 'app', action: 'clear' });
-    expect(book.resolve('/repo')).toMatchObject({ kind: 'app', action: 'tab', tab: 'repos' });
+    expect(book.resolve('/repo')).toMatchObject({ kind: 'app', action: 'tab', tab: 'code' });
   });
 
   it('프롬프트 명령은 인자를 템플릿에 넣어 보낼 글을 만든다', () => {

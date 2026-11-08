@@ -3,7 +3,6 @@ import { buildChat } from './chat-view.js';
 import { offerTerminalCleanup, runWizard } from './first-run.js';
 import { el, icon } from './dom.js';
 import { buildGit, REMEMBER as GIT_REPO_KEY } from './git-view.js';
-import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
 import { addTodo, buildTodo, localToday } from './todo-view.js';
 import { buildRecords, copyText } from './records-view.js';
@@ -23,7 +22,7 @@ import { installClickGuard } from './click-guard.js';
 import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
-import { TABS, type TabId } from './tabs.js';
+import { resolveTab, TABS, type TabId } from './tabs.js';
 
 installClickGuard();
 
@@ -42,7 +41,7 @@ window.rauha.onFullScreen((on) => chrome.setFullScreen(on));
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
-const code = buildCode({ api: window.rauha.code, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot) });
+const code = buildCode({ api: window.rauha.code, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), repos: () => window.rauha.listRepos() });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
 
@@ -104,7 +103,6 @@ function show(id: TabId): void {
   const tab = TABS.find((t) => t.id === id)!;
   if (id === 'chat') screen.replaceChildren(chat.root);
   else if (id === 'code') (screen.replaceChildren(code.root), void code.onShow());
-  else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
   else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
   else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
@@ -126,8 +124,8 @@ const runner = createRunner({
   say: (content) => chat.notice(content),
   clear: () => chat.clearScreen(),
   openTab: (tab) => {
-    const t = TABS.find((x) => x.id === tab);
-    if (t !== undefined) show(t.id);
+    const id = resolveTab(tab);
+    if (id !== null) show(id);
   },
   openJob: (id) => {
     show('chat');
@@ -229,8 +227,8 @@ window.rauha.onBoard((view) => {
 });
 window.rauha.onApprovals(onApprovals);
 window.rauha.onOpenTab((tab) => {
-  const t = TABS.find((x) => x.id === tab);
-  if (t !== undefined) show(t.id);
+  const id = resolveTab(tab);
+  if (id !== null) show(id);
 });
 window.rauha.onOpenJob((id) => {
   show('chat');

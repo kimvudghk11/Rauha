@@ -151,8 +151,8 @@ const BUILTIN_DEFS: readonly BuiltinDef[] = [
     description: '코드 전에 설계부터 정리해요', detail: '요청을 바로 만들지 않고 설계부터 해요. 구조와 내가 정해야 할 점을 짚어 추천안을 내고, 내가 정하면 그다음 작업으로 이어 가요.', argHelp: { 요청: '설계할 기능이나 변경. 예: 쿠폰 기능' },
   },
   {
-    name: 'repo', group: '작업', action: app('tab', 'repos'),
-    description: '레포 탭을 열어요', detail: '앱이 아는 저장소와 상태를 보는 레포 탭으로 가요. 일할 레포는 요청 맨 앞에 @폴더이름을 쓰면 바꿔요.',
+    name: 'repo', group: '작업', action: app('tab', 'code'),
+    description: '코드 탭의 레포 목록을 열어요', detail: '앱이 아는 저장소와 상태가 보이는 코드 탭으로 가요. 일할 레포는 요청 맨 앞에 @폴더이름을 쓰면 바꿔요.',
   },
   {
     name: 'routine', group: '작업', action: app('tab', 'todo'),

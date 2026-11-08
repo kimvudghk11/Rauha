@@ -15,7 +15,7 @@ BrowserWindow.prototype.showInactive = function () {};
 
 const out = process.argv.find((a, i) => i > 1 && a.endsWith('.json')) ?? path.join(os.tmpdir(), 'rauha-measure.json');
 const rest = process.argv.filter((a, i) => i > 1 && !a.endsWith('.json') && !a.startsWith('-') && a !== '.');
-const TABS = (rest[0] ?? 'chat,code,todo,records,repos,git,commands,rules,settings').split(',');
+const TABS = (rest[0] ?? 'chat,code,todo,records,git,commands,rules,settings').split(',');
 const WIDTHS = (rest[1] ?? '1700,1100,720,600').split(',').map(Number);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -37,6 +37,8 @@ const MEASURE = `(() => {
     });
   }
   const over = [];
+  for (const n of document.querySelectorAll('.menu.ctx, .veil .dialog')) { const r = n.getBoundingClientRect(); if (r.right > window.innerWidth + 1 || r.bottom > window.innerHeight + 1 || r.left < -1) over.push('화면 밖 ' + n.className); }
+  for (const n of document.querySelectorAll('.tree-row, .repo-line, .tree-edit')) if (n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).overflowX === 'visible') { const r = n.getBoundingClientRect(); if (r.right > (document.querySelector('.code-explorer')?.getBoundingClientRect().right ?? 9999) + 1) over.push('탐색기 밖으로 나감 ' + n.className); }
   const clipped = (n) => { for (let e = n.parentElement; e && e !== document.body; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o !== 'visible') return true; } return false; };
   for (const n of document.querySelectorAll('.main *')) { const r = n.getBoundingClientRect(); if (r.width > 0 && r.right > window.innerWidth + 1 && !clipped(n)) over.push(trail(n)); if (over.length > 8) break; }
   const gt = document.querySelector('.gtool'); const tool = gt ? { sw: gt.scrollWidth, cw: gt.clientWidth, tops: [...gt.querySelectorAll('.gbranch, .gsync .btn')].filter((n) => n.getBoundingClientRect().width > 0).map((n) => Math.round(n.getBoundingClientRect().top)) } : null;
@@ -122,10 +124,20 @@ function sandbox() {
 
 const q = (sel) => `document.querySelector(${JSON.stringify(sel)})?.click()`;
 const byText = (sel, text) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find((n) => n.textContent.includes(${JSON.stringify(text)}))?.click()`;
-const TAB = { chat: 0, code: 1, todo: 2, records: 3, repos: 4, git: 5, commands: 6, rules: 7, settings: 8 };
+const TAB = { chat: 0, code: 1, todo: 2, records: 3, git: 4, commands: 5, rules: 6, settings: 7 };
 // [이름, 탭, 그 탭에서 먼저 할 클릭들(CSS 선택자 또는 완성된 JS)]
 // 레포 이름으로 git 탭의 레포를 고른다(기억된 레포가 장면마다 달라지지 않게 장면마다 먼저 고른다)
 const pickRepo = (name) => `(() => { const s = document.querySelector('.gselect'); const o = [...s.options].find((o) => o.text.startsWith(${JSON.stringify(name)})); s.value = o.value; s.dispatchEvent(new Event('change')); })()`;
+// 코드 탭 장면 도우미: 열려 있는 메뉴·대화상자·입력칸을 닫고, 레포 정보가 입혀질 때까지 기다리고, 이름으로 줄을 찾아 누른다
+const CLEAN = "(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); if (['s', 'xs'].includes(document.querySelector('.app').dataset.tier)) document.querySelector('.code').classList.add('explorer-open'); })() /* querySelector */";
+const WAIT = "(() => new Promise((r) => setTimeout(r, 1200)))() /* querySelector */";
+// 팀이 일하는 레포의 파일을 바꾸려 하면 뜨는 "작업 중인 레포예요" 경고만 넘긴다(다른 대화상자는 그대로 둔다)
+const WARNOK = "(() => { const d = document.querySelector('.dialog'); if (d?.querySelector('b')?.textContent.includes('작업 중인 레포')) d.querySelector('.btn.primary').click(); })() /* querySelector */";
+const rowOf = (name) => "[...document.querySelectorAll('.tree-row')].find((n) => n.querySelector('.tree-name')?.textContent === " + JSON.stringify(name) + ")";
+const expandByName = (name) => "(() => { const r = " + rowOf(name) + "; if (r?.querySelector('.tree-chev')?.textContent === '▸') r.click(); })() /* querySelector */";
+const rowByName = (name) => "(() => { " + rowOf(name) + "?.click(); })()";
+const rightClick = (name) => "(() => { const r = " + rowOf(name) + "; const b = r.getBoundingClientRect(); r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.x + 24, clientY: b.y + 10 })); })()";
+const pressKey = (name, key) => "(() => { " + rowOf(name) + "?.dispatchEvent(new KeyboardEvent('keydown', { key: " + JSON.stringify(key) + ", bubbles: true, cancelable: true })); })()";
 const typeInto = (sel, text) => `(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.focus(); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 const SCENES = [
   ['chat', 'chat', []],
@@ -153,7 +165,6 @@ const SCENES = [
   ['records-empty-filter', 'records', [typeInto('.rsearch input', '없는검색어xyz')]],
   ['records-blog', 'records', ['.ri', byText('.rdbar .btn', '블로그 글')]],
   ['records-blog-draft', 'records', ['.ri', byText('.rdbar .btn', '블로그 글'), byText('.rdbar .btn', '초안 쓰기')]],
-  ['repos', 'repos', []],
   ['git-changes', 'git', [pickRepo('app-one')]],
   ['git-branches', 'git', [pickRepo('app-one'), byText('.tabs .tab', '브랜치')]],
   ['git-history', 'git', [pickRepo('app-one'), byText('.tabs .tab', '히스토리')]],
@@ -167,6 +178,16 @@ const SCENES = [
   ['git-new-branch', 'git', [pickRepo('app-one'), q('.gbranch'), byText('.menu button', '새 브랜치')]],
   ['git-new-branch-bad', 'git', [pickRepo('app-one'), q('.gbranch'), byText('.menu button', '새 브랜치'), typeInto('.gnew input', 'my branch')]],
   ['git-commit-long', 'git', [pickRepo('app-one'), typeInto('.gcommit input', 'feat(ui): ' + '아주 긴 제목 '.repeat(10))]],
+  // 코드 탭 탐색기: 레포 노드 줄(브랜치·↑↓·변경 수) · 오른쪽 클릭 메뉴 · 이름 바꾸기 입력 · 삭제 확인(휴지통)
+  ['code-repos', 'code', [CLEAN, WAIT]],
+  ['code-repo-open', 'code', [CLEAN, WAIT, expandByName('app-one')]],
+  ['code-ctx-menu', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rightClick('main.ts')]],
+  ['code-ctx-menu-repo', 'code', [CLEAN, WAIT, rightClick('app-one')]],
+  ['code-rename', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'F2'), WARNOK]],
+  ['code-rename-bad', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'F2'), WARNOK, typeInto('.tree-edit input', 'x:y')]],
+  ['code-rename-exists', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'F2'), WARNOK, typeInto('.tree-edit input', 'README.md')]],
+  ['code-create', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), '.code-tools .btn:nth-child(1)', WARNOK, typeInto('.tree-edit input', 'new file.ts')]],
+  ['code-delete-confirm', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'Delete'), WARNOK]],
   ['commands', 'commands', [byText('button', '자세히')]],
   ['rules', 'rules', []],
   ['settings', 'settings', [byText('button', '자세히')]],

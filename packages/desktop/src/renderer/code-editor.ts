@@ -244,6 +244,18 @@ export class CodeEditor {
     if (this.current === path) this.view.setState(this.states.get(path)!);
   }
 
+  /** 파일 이름이 바뀌었다: 글·커서·되돌리기 기록을 새 경로 몫으로 옮긴다 */
+  rename(from: string, to: string): void {
+    const state = from === this.current ? this.view.state : this.states.get(from);
+    if (state === undefined) return;
+    const scroll = from === this.current ? this.view.scrollDOM.scrollTop : this.scrolls.get(from);
+    this.states.delete(from);
+    this.scrolls.delete(from);
+    this.states.set(to, state);
+    if (scroll !== undefined) this.scrolls.set(to, scroll);
+    if (this.current === from) this.current = to;
+  }
+
   has(path: string): boolean {
     return this.states.has(path);
   }

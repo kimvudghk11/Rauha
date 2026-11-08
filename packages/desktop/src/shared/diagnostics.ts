@@ -92,7 +92,7 @@ export interface DiagnosticSnapshot {
   readonly os: { readonly platform: string; readonly version: string; readonly arch: string; readonly chip: string | null };
   readonly runtime: { readonly electron: string; readonly node: string; readonly chrome: string };
   readonly workFolder: { readonly path: string | null; readonly exists: boolean | null };
-  /** 레포 탭이 찾은 레포 수(못 셌으면 null) */
+  /** 작업 폴더에서 찾은 레포 수(못 셌으면 null) */
   readonly repoCount: number | null;
   readonly claude: { readonly path: string | null; readonly exists: boolean; readonly executable: boolean };
   /** `auth status`를 읽은 결과(안 읽었으면 null) */
@@ -131,7 +131,7 @@ export class DiagnosticReport {
     out.push('## 컴퓨터', `- OS: ${osName} ${s.os.version}`, `- 칩: ${s.os.chip === null ? '모름' : s.os.chip} (${s.os.arch})`, `- 실행 환경: Electron ${s.runtime.electron} · Node ${s.runtime.node} · Chrome ${s.runtime.chrome}`, '');
 
     const folder = s.workFolder.path === null ? '안 골랐어요' : `${r.path(s.workFolder.path)} (${s.workFolder.exists === null ? '있는지 모름' : s.workFolder.exists ? '있음' : '없음'})`;
-    out.push('## 작업 폴더', `- 경로: ${folder}`, `- 레포 탭이 찾은 레포: ${s.repoCount === null ? '못 셌어요' : `레포 ${s.repoCount}개`}`, '');
+    out.push('## 작업 폴더', `- 경로: ${folder}`, `- 작업 폴더에서 찾은 레포: ${s.repoCount === null ? '못 셌어요' : `레포 ${s.repoCount}개`}`, '');
 
     const claude = s.claude.path === null ? '찾지 못함' : `${r.path(s.claude.path)} (${!s.claude.exists ? '파일 없음' : s.claude.executable ? '있음 · 실행 가능' : '있음 · 실행 권한 없음'})`;
     out.push('## Claude', `- 실행 파일: ${claude}`, `- 로그인: ${this.authLine()}`);

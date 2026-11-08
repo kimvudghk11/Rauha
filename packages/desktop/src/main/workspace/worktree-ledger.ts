@@ -40,7 +40,7 @@ export class WorktreeLedger {
     return { ledger: new WorktreeLedger(next), worktree: h.worktree };
   }
 
-  /** 그 레포에서 지금 worktree로 일하는 작업 수(레포 탭에 "worktree 작업 중"으로 보인다) */
+  /** 그 레포에서 지금 worktree로 일하는 작업 수(코드 탭 레포 노드에 "worktree 작업 중"으로 보인다) */
   worktreeJobs(repo: string): number {
     return [...this.holders.values()].filter((h) => key(h.repo) === key(repo) && h.worktree !== null).length;
   }

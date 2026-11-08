@@ -261,7 +261,7 @@ export interface AccountsView {
   readonly selected: string | null;
 }
 
-/** 레포 탭 한 줄 */
+/** 코드 탭 레포 노드·git 탭·할 일 탭이 쓰는 레포 한 줄 */
 export interface RepoRow {
   readonly name: string;
   readonly root: string;

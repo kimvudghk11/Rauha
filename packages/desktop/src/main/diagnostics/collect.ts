@@ -10,7 +10,7 @@ export interface CollectDeps {
   readonly runtime: DiagnosticSnapshot['runtime'];
   readonly workFolder: string | null;
   readonly fs: { exists(path: string): boolean; executable(path: string): boolean };
-  /** 레포 탭이 찾은 레포 수 */
+  /** 작업 폴더에서 찾은 레포 수 */
   readonly repoCount: () => Promise<number | null>;
   readonly claudePath: string | undefined;
   /** `auth status` 읽기(앱 안 로그인과 같은 길) */
