@@ -42,7 +42,7 @@ const HIDDEN = '[값 가림]';
 
 export class RecordError extends Error {}
 
-const SECRET_PATTERNS: readonly (readonly [RegExp, string])[] = [
+export const SECRET_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, HIDDEN],
   [/\bsk-[A-Za-z0-9_-]{16,}/g, HIDDEN],
   [/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, HIDDEN],
@@ -60,7 +60,7 @@ const SECRET_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/\b(?![0-9a-f]{40,64}\b)(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{40,}\b/g, HIDDEN],
 ];
 
-const MONEY_PATTERNS: readonly RegExp[] = [/(?:US)?\$\s?\d[\d,]*(?:\.\d+)?/gi, /\d[\d,.]*\s?(?:달러|USD)/gi];
+export const MONEY_PATTERNS: readonly RegExp[] = [/(?:US)?\$\s?\d[\d,]*(?:\.\d+)?/gi, /\d[\d,.]*\s?(?:달러|USD)/gi];
 
 /** 글에서 비밀 값·코드 블록·달러 금액을 지운다. 몇 번 거쳐도 결과가 같다. */
 export function scrub(text: string): string {
