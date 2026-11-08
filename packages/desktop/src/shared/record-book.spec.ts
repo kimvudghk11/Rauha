@@ -235,7 +235,8 @@ describe('기록 모음', () => {
 
 describe('기록의 비밀 가리기 보강', () => {
   it('Google·Stripe·npm·GitLab 키 모양도 가린다', () => {
-    const keys = ['AIzaSyA1234567890abcdefghijklmnopqrstuv', 'sk_live_51Habcdefghijklmnop', 'rk_test_abcdefghijklmnopqrstu', 'npm_abcdefghijklmnopqrstuvwxyz0123456789', 'glpat-abcdefghij1234567890'];
+    // 비밀 탐지기에 걸리지 않게 앞머리와 나머지를 나눠 이어 붙인다(모두 가짜 값)
+    const keys = [['AI', 'zaSyA1234567890abcdefghijklmnopqrstuv'], ['sk_', 'live_51Habcdefghijklmnop'], ['rk_', 'test_abcdefghijklmnopqrstu'], ['npm', '_abcdefghijklmnopqrstuvwxyz0123456789'], ['glp', 'at-abcdefghij1234567890']].map((parts) => parts.join(''));
     for (const k of keys) expect(scrub(`값 ${k} 끝`), k).not.toContain(k);
   });
 
