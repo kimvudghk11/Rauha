@@ -43,3 +43,24 @@ packages/desktop/release/
 docs/next-todo.md
 rauha-bench/
 .rauha-bench/
+
+# 공개하면 안 되는 것: 키·인증서·계정 설정·개인 설정
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+*.cer
+id_rsa*
+id_ed25519*
+.aws/
+.claude/
+.npmrc
+*.tfstate
+*.tfstate.*
+.env.local
+.env.*.local
+credentials*.json
+service-account*.json
+packages/desktop/release/
+update.json
