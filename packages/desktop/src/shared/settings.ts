@@ -30,6 +30,8 @@ export interface Settings {
   readonly autoUpdateCheck: boolean;
   /** 블로그 글에서 일반 이름으로 바꿀 회사·서비스 이름(공개하면 안 되는 이름) */
   readonly blogNames: readonly string[];
+  /** 분석 요청에서 조사 → 방향 비교 → 설계·계획 단계를 쓸지(기본 켬). 끄면 분석은 팀원 한 번 호출이다. */
+  readonly analysisFlow: boolean;
 }
 
 export const CONCURRENCY_MIN = 1;
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   firstRunDone: false,
   autoUpdateCheck: true,
   blogNames: [],
+  analysisFlow: true,
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -83,6 +86,7 @@ export function parseSettings(input: unknown): Settings {
     firstRunDone: bool(input['firstRunDone'], false),
     autoUpdateCheck: bool(input['autoUpdateCheck'], true),
     blogNames: names(input['blogNames']),
+    analysisFlow: bool(input['analysisFlow'], true),
   };
 }
 

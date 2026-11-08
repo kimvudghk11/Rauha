@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import {
   AgentSdkTeamMember,
+  AnalysisService,
   ChatSession,
   DesignService,
+  FileAnalysisDocs,
   FileCompanyBook,
   FileDesignStore,
   FileKnowledgeStore,
@@ -25,6 +27,7 @@ import {
   loadSecretPolicy,
   projectLockFile,
   projectMemoryFile,
+  realAskTimer,
   type MemberCall,
   type MemberResult,
   type PlanUsage,
@@ -92,6 +95,8 @@ export interface ComposeOptions {
   readonly rules?: (() => RuleBook) | undefined;
   /** 팀 설정(팀원별 켜기·모델·도구·지시). 부를 때마다 최신 값을 돌려준다. 없으면 기본 역할 설정 그대로. */
   readonly roleOverrides?: (() => RoleOverrides) | undefined;
+  /** 분석 단계(조사 → 방향 비교 → 설계·계획)를 쓸지. 부를 때마다 최신 설정을 돌려준다. 없으면 쓴다. */
+  readonly analysis?: (() => boolean) | undefined;
 }
 
 /**
@@ -124,6 +129,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     progress: io.progress,
     repoName: basename(projectRoot(keyRoot)),
   });
+  const budget = () => SessionBudget.fromWindows([options.plan()?.session ?? null, options.plan()?.weekly ?? null]);
   const runId = randomUUID();
   const memory = SqliteMemory.open(projectMemoryFile(profile.memoryDir(home), projectRoot(keyRoot)));
   const session = ChatSession.start({
@@ -167,7 +173,12 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     today: () => localDate(),
     learning: new FileLearningStore(profile.learningDir(home), keyRoot),
     company: new FileCompanyBook(profile.companyDir(home), keyRoot),
-    budget: () => SessionBudget.fromWindows([options.plan()?.session ?? null, options.plan()?.weekly ?? null]),
+    budget,
+    // 분석 문서는 원래 레포(keyRoot)의 docs 아래에 쓴다. 방향·승인 카드는 사용자와 주고받을 화면(io.user.analysis)이 있을 때만 묻는다.
+    analyst:
+      options.analysis?.() === false
+        ? undefined
+        : new AnalysisService({ team, roles, docs: new FileAnalysisDocs(keyRoot), progress: io.progress, today: () => localDate(), newId: () => randomUUID(), timer: realAskTimer, user: io.user.analysis, budget }),
     nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
   });
   return {

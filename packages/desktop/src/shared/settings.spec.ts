@@ -4,6 +4,10 @@ import { canWork, DEFAULT_SETTINGS, limitTone, parseSettings, updateSettings } f
 describe('parseSettings', () => {
   it('새 버전 자동 확인은 기본으로 켜져 있고 글자 같은 값은 기본으로 돌린다', () => {
     expect(DEFAULT_SETTINGS.autoUpdateCheck).toBe(true);
+    expect(DEFAULT_SETTINGS.analysisFlow).toBe(true);
+    expect(parseSettings({ analysisFlow: false }).analysisFlow).toBe(false);
+    expect(parseSettings({ analysisFlow: 'no' }).analysisFlow).toBe(true);
+    expect(parseSettings({}).analysisFlow).toBe(true);
     expect(parseSettings({ autoUpdateCheck: false }).autoUpdateCheck).toBe(false);
     expect(parseSettings({ autoUpdateCheck: 'no' }).autoUpdateCheck).toBe(true);
   });

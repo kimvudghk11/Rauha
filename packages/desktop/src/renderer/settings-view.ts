@@ -173,6 +173,13 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     concurrency.addEventListener('change', () => void api.update({ concurrency: Number(concurrency.value) }).then(render));
     root.appendChild(section('권한', row('보호 브랜치(쉼표로)', branches), row('동시에 돌 작업 수(다음 실행부터)', concurrency)));
 
+    // 분석: 조사 → 방향 비교 → 설계·계획 단계를 쓸지
+    const flow = el('input');
+    flow.type = 'checkbox';
+    flow.checked = s.analysisFlow;
+    flow.addEventListener('change', () => void api.update({ analysisFlow: flow.checked }));
+    root.appendChild(section('분석', row('분석 단계 쓰기(조사 → 방향 비교 → 설계·계획)', flow), el('div', 'hint pad', '원인·위험·방법을 분석해 달라는 요청에서만 써요. 끄면 분석은 팀원 한 번 호출이고 질문 카드도 나오지 않아요. 다음 요청부터 적용돼요.')));
+
     if (api.team !== undefined) root.appendChild(section('팀 설정', api.team.build()));
     root.appendChild(section('정보 저장', el('div', 'dim pad', '지금은 기록이 이 컴퓨터에만 저장돼요(기록 탭). 내 AWS(S3)로 요약을 보내는 기능은 나중에 열려요.')));
     if (api.diagnostics !== undefined) {

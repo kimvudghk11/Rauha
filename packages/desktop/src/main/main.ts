@@ -56,6 +56,7 @@ import { TodoService } from './data/todo-service.js';
 import { RecordStore } from './data/record-store.js';
 import { RecordService } from './data/record-service.js';
 import { decisionOf, JobTrail } from './team/job-trail.js';
+import { askCardFlow } from './team/ask-flow.js';
 import { newlyChanged, snapshotChanges } from './team/changed-files.js';
 import { recordInputOf } from './team/record-input.js';
 import { isAppPage, isSafeExternalUrl } from '../shared/navigation-guard.js';
@@ -165,9 +166,9 @@ const approvals = new Approvals({
 });
 
 /** 허락이 새로 오면 Windows 알림으로도 알린다. 누르면 그 작업의 팀 상세(정리 보기)로 간다. */
-function notifyApproval(jobId: string, headline: string): void {
+function notifyApproval(jobId: string, headline: string, title = '허락이 필요해요'): void {
   if (!settings.notify.choice || !Notification.isSupported() || window?.isFocused() === true) return;
-  const n = new Notification({ title: '허락이 필요해요', body: headline });
+  const n = new Notification({ title, body: headline });
   n.on('click', () => {
     window?.show();
     window?.focus();
@@ -202,7 +203,7 @@ async function smokeCompose(): Promise<void> {
 async function startRunner(): Promise<JobRunner> {
   let work;
   if (FAKE) {
-    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? currentWorkDir()), trail.repo(job.id, basename(folders()[0]?.root ?? currentWorkDir())), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request) });
+    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? currentWorkDir()), trail.repo(job.id, basename(folders()[0]?.root ?? currentWorkDir())), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request), askCard: (jobId, payload, signal) => askCard(jobId, payload, signal) });
   } else {
     const prompts = await PromptLibrary.load(promptsDir());
     const profileFor = await profileResolver(home, settings.account);
@@ -224,7 +225,7 @@ async function startRunner(): Promise<JobRunner> {
             try {
               if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
               before = await snapshotChanges(cwd);
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides() }, cwd, io, root);
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow }, cwd, io, root);
               return await session.handle(target.text, depth);
             } finally {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
@@ -241,6 +242,7 @@ async function startRunner(): Promise<JobRunner> {
         };
       },
       askUser: (jobId, request) => askWithNotice(jobId, request),
+      askCard: (jobId, payload, signal) => askCard(jobId, payload, signal),
     });
     // 한도는 평소 25초마다, 설정을 열 때·창에 초점이 올 때·일이 끝날 때 읽는다(읽는 곳은 usage 하나).
     void usage.refresh('interval');
@@ -290,6 +292,13 @@ const recordService = new RecordService({
 /** 작업이 도는 동안 기록에 쓸 것(허락 결정·바뀐 파일·레포)을 모아 둔다 */
 const trail = new JobTrail();
 const recorded = new Set<string>();
+/** 분석의 질문 카드(방향 고르기·계획 승인): 허락 창구에 올리고, 고른 방향을 기록거리로 남긴다 */
+const askCard = askCardFlow({
+  approvals,
+  trail,
+  notify: (jobId, headline) => notifyApproval(jobId, headline, '내 선택이 필요해요'),
+  isOver: (jobId) => runnerRef?.board.find(jobId)?.isOver === true,
+});
 
 /** 팀(메인)에 일을 넘긴다. 폴더를 고르고 허락하기 전에는 일을 받지 않는다(엉뚱한 폴더에서 일하지 않게). 확인용 환경 변수가 있으면 건너뛴다. */
 function submitJob(text: string): { id: string } | null {
