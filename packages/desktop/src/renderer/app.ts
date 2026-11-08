@@ -7,6 +7,7 @@ import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
 import { addTodo, buildTodo, localToday } from './todo-view.js';
 import { buildRecords, copyText } from './records-view.js';
+import { buildCode } from './code-view.js';
 import { TodoDto } from '../shared/todo-dto.js';
 import { buildCommands, commandsApi } from './commands-view.js';
 import { useLooks } from './characters.js';
@@ -37,6 +38,7 @@ window.rauha.onFullScreen((on) => chrome.setFullScreen(on));
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
+const code = buildCode({ api: window.rauha.code, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform);
 
 // ── 배치 선택(A/B)은 이 PC에 기억한다. 저장소가 막혀 있어도 화면은 그대로 돈다. ──
@@ -86,6 +88,7 @@ function show(id: TabId): void {
   renderTabs();
   const tab = TABS.find((t) => t.id === id)!;
   if (id === 'chat') screen.replaceChildren(chat.root);
+  else if (id === 'code') (screen.replaceChildren(code.root), void code.onShow());
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
   else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check() }, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);

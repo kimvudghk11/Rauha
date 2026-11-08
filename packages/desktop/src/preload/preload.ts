@@ -3,6 +3,7 @@ import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
 import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { DATA_IPC } from '../shared/data-api.js';
+import { CODE_IPC } from '../shared/code-api.js';
 import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared/ipc.js';
 
 const git = Object.fromEntries(GIT_FUNCTIONS.map((fn) => [fn, (root: string, arg: unknown) => ipcRenderer.invoke(IPC.gitCall, fn, root, arg ?? {})])) as unknown as GitApi;
@@ -52,6 +53,12 @@ const api: RauhaApi = {
     onChange: (listener) => {
       ipcRenderer.on(DATA_IPC.recordsChanged, (_e, book) => listener(book));
     },
+  },
+  code: {
+    tree: (path) => ipcRenderer.invoke(CODE_IPC.tree, path),
+    read: (path) => ipcRenderer.invoke(CODE_IPC.read, path),
+    write: (req) => ipcRenderer.invoke(CODE_IPC.write, req),
+    stat: (paths) => ipcRenderer.invoke(CODE_IPC.stat, paths),
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

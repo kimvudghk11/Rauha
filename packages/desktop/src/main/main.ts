@@ -38,6 +38,7 @@ import { fakeReleases } from './update/fake-releases.js';
 import { ClaudeLogin } from './auth/claude-login.js';
 import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
+import { registerCodeIpc } from './code/code-ipc.js';
 import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
@@ -491,6 +492,7 @@ void app.whenReady().then(async () => {
   ipcMain.handle(DATA_IPC.todoApply, (_e, op: unknown) => todoService.apply(op));
   ipcMain.handle(DATA_IPC.recordsGet, () => recordService.get());
   ipcMain.handle(DATA_IPC.recordsApply, (_e, op: unknown) => recordService.apply(op));
+  registerCodeIpc(ipcMain, () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null);
   ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
   ipcMain.handle(IPC.teamGet, () => teamView(team));
   ipcMain.handle(IPC.teamApply, async (_e, op: unknown) => {
