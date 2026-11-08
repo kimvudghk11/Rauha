@@ -6,6 +6,8 @@ import { chooseIndent, detectIndent, type Indent } from '../shared/indent.js';
 import { baseName, OpenFile, OpenFiles, tabLabels } from '../shared/open-files.js';
 import { CodeEditor } from './code-editor.js';
 import { CodeTreeView } from './code-tree-view.js';
+import { buildTerminal } from './terminal-view.js';
+import type { TerminalApi } from '../shared/terminal-api.js';
 import { el } from './dom.js';
 
 export interface CodeDeps {
@@ -13,6 +15,7 @@ export interface CodeDeps {
   /** 지금 작업 폴더(없으면 null) */
   readonly workFolder: () => Promise<string | null>;
   readonly platform: string;
+  readonly terminal: TerminalApi;
   /** 이 레포를 git 탭에서 열어 달라(레포 루트 절대 경로) */
   readonly openGit: (repoRoot: string) => void;
 }
@@ -106,7 +109,9 @@ export function buildCode(deps: CodeDeps) {
   const toggle = el('button', 'code-ibtn code-toggle', '☰');
   toggle.title = '탐색기 접기/펴기';
   const strip = el('div', 'code-tabs');
-  bar.append(toggle, strip);
+  const termBtn = el('button', 'code-ibtn code-termbtn', '>_');
+  termBtn.title = '터미널 (Ctrl/Cmd+`)';
+  bar.append(toggle, strip, termBtn);
   const notice = el('div', 'code-notice');
   notice.hidden = true;
   const host = el('div', 'code-host');
@@ -116,7 +121,9 @@ export function buildCode(deps: CodeDeps) {
   const sPath = el('span', 'sp');
   const sRight = el('span', 'sr');
   status.append(sPath, sRight);
-  main.append(bar, notice, host, empty, status);
+  const term = buildTerminal(deps.terminal);
+  termBtn.addEventListener('click', () => void term.toggle());
+  main.append(bar, notice, host, empty, term.root, status);
 
   let tabs = OpenFiles.empty();
   const info = new Map<string, FileInfo>();
@@ -590,6 +597,11 @@ export function buildCode(deps: CodeDeps) {
     const mod = deps.platform === 'darwin' ? e.metaKey : e.ctrlKey;
     if (!mod || e.altKey) return;
     const key = e.key.toLowerCase();
+    if (e.key === '`' || e.code === 'Backquote') {
+      e.preventDefault();
+      void term.toggle();
+      return;
+    }
     if (!e.shiftKey && key === 's') {
       e.preventDefault();
       if (tabs.active !== null) void save(tabs.active);
@@ -627,6 +639,7 @@ export function buildCode(deps: CodeDeps) {
       info.delete(f.path);
     }
     tabs = OpenFiles.empty();
+    void term.reset();
     editor.hide();
     paintAll();
     if (lost.length > 0) say(`작업 폴더가 바뀌어 열어 둔 파일을 닫았어요. 저장 안 한 ${lost.join(', ')}의 수정은 사라졌어요.`);

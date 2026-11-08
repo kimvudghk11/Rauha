@@ -4,6 +4,8 @@ import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { CODE_IPC } from '../shared/code-api.js';
+import { TERM_IPC, type TermEvent } from '../shared/terminal-api.js';
+import { exposeUsageBridge } from './usage-bridge.js';
 import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared/ipc.js';
 
 const git = Object.fromEntries(GIT_FUNCTIONS.map((fn) => [fn, (root: string, arg: unknown) => ipcRenderer.invoke(IPC.gitCall, fn, root, arg ?? {})])) as unknown as GitApi;
@@ -63,6 +65,16 @@ const api: RauhaApi = {
     diff: (path) => ipcRenderer.invoke(CODE_IPC.diff, path),
     search: (options) => ipcRenderer.invoke(CODE_IPC.search, options),
     files: () => ipcRenderer.invoke(CODE_IPC.files),
+  },
+  terminal: {
+    roots: () => ipcRenderer.invoke(TERM_IPC.roots),
+    open: (rootPath) => ipcRenderer.invoke(TERM_IPC.open, rootPath),
+    run: (id, line) => ipcRenderer.invoke(TERM_IPC.run, id, line),
+    stop: (id) => ipcRenderer.invoke(TERM_IPC.stop, id),
+    close: (id) => ipcRenderer.invoke(TERM_IPC.close, id),
+    onEvent: (listener) => {
+      ipcRenderer.on(TERM_IPC.event, (_e, event: TermEvent) => listener(event));
+    },
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

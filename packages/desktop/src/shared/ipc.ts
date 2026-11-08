@@ -10,6 +10,7 @@ import type { CommandBookJson } from './command-dto.js';
 import type { UpdateView } from './update-record.js';
 import type { RecordsApi, TodoApi } from './data-api.js';
 import type { CodeApi } from './code-api.js';
+import type { TerminalApi } from './terminal-api.js';
 import type { LoginView } from './claude-login.js';
 import type { DefaultRuleView, DefaultVariant, InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
@@ -186,6 +187,8 @@ export interface RauhaApi {
   readonly records: RecordsApi;
   /** 코드 탭: 파일 탐색·읽기·저장(main이 한다) */
   readonly code: CodeApi;
+  /** 코드 탭 아래 터미널 칸 */
+  readonly terminal: TerminalApi;
   readonly auth: AuthApi;
 }
 
