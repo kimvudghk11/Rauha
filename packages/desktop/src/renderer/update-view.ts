@@ -23,18 +23,18 @@ export function createUpdateFeed(api: UpdateApi, banner: HTMLElement, platform: 
     bar.appendChild(msg);
     const busy = view.install.phase === 'downloading' || view.install.phase === 'installing';
     if (view.canInstall) {
-      const now = el('button', 'btn primary', busy ? installStateText(view.install) : '지금 업데이트');
+      const now = el('button', 'btn sm primary', busy ? installStateText(view.install) : '지금 업데이트');
       now.disabled = busy;
       now.addEventListener('click', () => void api.install());
       bar.appendChild(now);
     }
     if (view.install.phase === 'failed') bar.appendChild(el('span', 'dim', installStateText(view.install)));
     if (view.hasDownload && !busy) {
-      const get = el('button', view.canInstall ? 'btn' : 'btn primary', view.canInstall ? '브라우저로 받기' : '내려받기');
+      const get = el('button', view.canInstall ? 'btn sm' : 'btn sm primary', view.canInstall ? '브라우저로 받기' : '내려받기');
       get.addEventListener('click', () => void api.download());
       bar.appendChild(get);
     }
-    const later = el('button', 'btn', '나중에');
+    const later = el('button', 'btn sm', '나중에');
     later.disabled = busy;
     later.addEventListener('click', () => void api.dismiss());
     bar.appendChild(later);

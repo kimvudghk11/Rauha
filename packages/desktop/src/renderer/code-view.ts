@@ -57,7 +57,7 @@ function ask(title: string, body: string, choices: readonly Choice[]): Promise<s
     };
     const btns = el('div', 'btns');
     for (const c of choices) {
-      const b = el('button', `btn${c.kind === undefined ? '' : ` ${c.kind}`}`, c.label);
+      const b = el('button', `btn sm${c.kind === undefined ? '' : ` ${c.kind}`}`, c.label);
       b.addEventListener('click', () => done(c.id));
       btns.append(b);
     }
@@ -81,10 +81,10 @@ export function buildCode(deps: CodeDeps) {
 
   // ── 탐색기 ──
   const head = el('div', 'code-ehead');
-  const modeFiles = el('button', 'code-mode on', '탐색기');
-  const modeSearch = el('button', 'code-mode', '검색');
+  const modeFiles = el('button', 'tab sm on', '탐색기');
+  const modeSearch = el('button', 'tab sm', '검색');
   const headName = el('b', 'code-folder');
-  const refreshBtn = el('button', 'code-ibtn', '↻');
+  const refreshBtn = el('button', 'btn ghost icon sm', '↻');
   refreshBtn.title = '목록 새로 고침';
   head.append(modeFiles, modeSearch, headName, refreshBtn);
   const tree = new CodeTreeView({ api: deps.api, open: (p) => void openPath(p) });
@@ -94,9 +94,9 @@ export function buildCode(deps: CodeDeps) {
   const searchInput = el('input', 'cs-input');
   searchInput.placeholder = '작업 폴더에서 찾기';
   searchInput.spellcheck = false;
-  const caseBtn = el('button', 'cs-opt', 'Aa');
+  const caseBtn = el('button', 'btn ghost icon sm cs-opt', 'Aa');
   caseBtn.title = '대소문자 구분';
-  const regexBtn = el('button', 'cs-opt', '.*');
+  const regexBtn = el('button', 'btn ghost icon sm cs-opt', '.*');
   regexBtn.title = '정규식';
   searchRow.append(searchInput, caseBtn, regexBtn);
   const searchSummary = el('div', 'cs-summary');
@@ -106,10 +106,10 @@ export function buildCode(deps: CodeDeps) {
 
   // ── 오른쪽 ──
   const bar = el('div', 'code-bar');
-  const toggle = el('button', 'code-ibtn code-toggle', '☰');
+  const toggle = el('button', 'btn ghost icon sm code-toggle', '☰');
   toggle.title = '탐색기 접기/펴기';
   const strip = el('div', 'code-tabs');
-  const termBtn = el('button', 'code-ibtn code-termbtn', '>_');
+  const termBtn = el('button', 'btn ghost icon sm code-termbtn', '>_');
   termBtn.title = '터미널 (Ctrl/Cmd+`)';
   bar.append(toggle, strip, termBtn);
   const notice = el('div', 'code-notice');
@@ -167,7 +167,7 @@ export function buildCode(deps: CodeDeps) {
       if (active.stale) {
         const line = el('div', 'note warn');
         line.append(el('span', undefined, '디스크에서 이 파일이 바뀌었거나 지워졌어요. '));
-        const reload = el('button', 'btn', '디스크 내용 불러오기');
+        const reload = el('button', 'btn sm', '디스크 내용 불러오기');
         reload.addEventListener('click', () => void revert(active.path, true));
         line.append(reload);
         lines.push(line);
@@ -188,7 +188,7 @@ export function buildCode(deps: CodeDeps) {
       t.title = f.path;
       t.dataset['path'] = f.path;
       const dirty = isDirty(f.path);
-      const close = el('button', 'code-x');
+      const close = el('button', 'btn ghost icon sm code-x');
       close.title = dirty ? '수정됨 — 닫기' : '닫기';
       close.textContent = dirty ? '●' : '×';
       close.classList.toggle('dirty', dirty);
@@ -233,7 +233,7 @@ export function buildCode(deps: CodeDeps) {
     sRight.textContent = parts.filter((p) => p !== '').join('   ');
     const repo = repoOf(path);
     if (repo !== null) {
-      const link = el('button', 'code-link', changeMap.statusOf(path) === null ? 'git에서 보기' : '변경됨 · git에서 보기');
+      const link = el('button', 'link', changeMap.statusOf(path) === null ? 'git에서 보기' : '변경됨 · git에서 보기');
       link.addEventListener('click', () => deps.openGit(repo.root));
       sRight.append(link);
     }
@@ -490,7 +490,7 @@ export function buildCode(deps: CodeDeps) {
   function resultGroup(f: SearchFileHits): HTMLElement {
     const group = el('div', 'cs-file');
     const title = el('div', 'cs-path');
-    title.append(el('b', undefined, baseName(f.path)), el('span', 'dim', f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : ''), el('span', 'cs-count', String(f.hits.length)));
+    title.append(el('b', undefined, baseName(f.path)), el('span', 'dim', f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : ''), el('span', 'chip cs-count', String(f.hits.length)));
     title.title = f.path;
     group.append(title);
     for (const h of f.hits) {

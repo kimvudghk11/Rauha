@@ -75,10 +75,10 @@ const rule = (selector: string): Readonly<Record<string, string>> => {
   return Object.assign({}, ...found.map((r) => r.decls));
 };
 
-const otherCss = readdirSync(dir).filter((f) => f.endsWith('.css') && f !== 'ui.css' && f !== 'styles.css');
+const otherCss = readdirSync(dir).filter((f) => f.endsWith('.css') && f !== 'ui.css');
 
 /** 아직 공통 부품으로 옮기지 못한 CSS 파일. 화면을 하나씩 옮길 때마다 여기서 뺀다(끝나면 비어야 한다). */
-const NOT_MIGRATED: readonly string[] = ['code.css'];
+const NOT_MIGRATED: readonly string[] = [];
 
 describe('공통 토큰', () => {
   const root = rule(':root');
@@ -162,6 +162,17 @@ describe('탭마다 공통 부품을 덮어쓰지 않는다', () => {
     for (const file of otherCss) for (const r of parseCss(read(file))) if (/(^|[\s>])\.sec($|[\s.:>])/.test(r.selector)) bad.push(`${file} ${r.selector}`);
     expect(bad).toEqual([]);
   });
+});
+
+describe('색 글자(#rrggbb)', () => {
+  /** 토큰이 아닌 색은 그림 같은 곳(diff·무대·말풍선·그림자·계정 줄)에서만 직접 쓴다. 새 색은 토큰으로 먼저 더한다. */
+  const ALLOWED = new Set(['#17283a', '#0f1b28', '#2a2620', '#0c2a44', '#0e4f7f', '#1c2a38', '#17301c', '#12261a', '#2a1717', '#2f4a63', '#3fb27f', '#d9a441', '#ea5c0055', '#00000040', '#000a', '#000c', '#0008', '#0009', '#555']);
+  for (const file of otherCss.filter((f) => f !== 'styles.css')) {
+    it(`${file}는 토큰에 없는 색을 새로 쓰지 않는다`, () => {
+      const found = new Set(read(file).replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{3,8}\b/g) ?? []);
+      expect([...found].filter((c) => !ALLOWED.has(c.toLowerCase()) && !ALLOWED.has(c))).toEqual([]);
+    });
+  }
 });
 
 describe('버튼 클래스 이름', () => {

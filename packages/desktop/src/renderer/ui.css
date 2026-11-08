@@ -53,6 +53,7 @@
 .btn.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--red); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn.ghost:hover:not(:disabled) { background: var(--ghost-hover); border-color: transparent; color: var(--bright); }
+.btn.on { background: var(--sel); border-color: var(--accent); color: var(--bright); }
 .btn.block { width: 100%; }
 
 /* 글자만 있는 단추(링크처럼 보이는 동작) */

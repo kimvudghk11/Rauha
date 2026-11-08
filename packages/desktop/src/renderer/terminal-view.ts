@@ -36,11 +36,11 @@ export function buildTerminal(api: TerminalApi) {
   const grip = el('div', 'term-grip');
   const bar = el('div', 'term-bar');
   const tabsBox = el('div', 'term-tabs');
-  const addBtn = el('button', 'code-ibtn', '+');
+  const addBtn = el('button', 'btn ghost icon sm', '+');
   addBtn.title = '새 터미널';
-  const stopBtn = el('button', 'term-stop', '멈추기');
+  const stopBtn = el('button', 'btn sm danger', '멈추기');
   stopBtn.hidden = true;
-  const hideBtn = el('button', 'code-ibtn', '×');
+  const hideBtn = el('button', 'btn ghost icon sm', '×');
   hideBtn.title = '터미널 칸 접기';
   bar.append(tabsBox, addBtn, stopBtn, hideBtn);
   const note = el('div', 'term-note', TERMINAL_LIMIT_NOTE);
@@ -78,7 +78,7 @@ export function buildTerminal(api: TerminalApi) {
     for (const t of tabs) {
       const b = el('div', `term-tab${t === active ? ' on' : ''}`);
       const name = el('span', 'term-tab-name', t.title);
-      const x = el('button', 'code-x', '×');
+      const x = el('button', 'btn ghost icon sm code-x', '×');
       x.title = '터미널 닫기';
       x.addEventListener('click', (e) => {
         e.stopPropagation();

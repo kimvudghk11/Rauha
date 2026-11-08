@@ -126,8 +126,10 @@ async function run(win) {
   const results = [];
   const resize = async (width) => {
     win.setContentSize(width, 760);
-    for (let i = 0; i < 20 && (await ev('window.innerWidth')) !== width; i++) await sleep(100);
-    await sleep(250);
+    const tier = width >= 1700 ? 'xl' : width >= 1100 ? 'm' : width >= 720 ? 's' : 'xs';
+    // 창 크기와 화면의 폭 단계(data-tier)가 둘 다 바뀔 때까지 기다린다
+    for (let i = 0; i < 40 && (await ev(`window.innerWidth === ${width} && document.querySelector('.app')?.dataset.tier === '${tier}'`)) !== true; i++) await sleep(100);
+    await sleep(300);
   };
   const snap = async (name, width) => results.push({ name, width, ...(await ev(MEASURE)) });
   try {
