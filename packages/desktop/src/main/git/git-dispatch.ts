@@ -1,4 +1,6 @@
 import { GIT_FUNCTIONS, type GitErrorCode, type GitFn, type GitResult } from '../../shared/git-api.js';
+import { conventionsView } from '../../shared/git-conventions-view.js';
+import { readConventions } from '../workspace/git-worktree.js';
 import { GitInputError } from '../../shared/git-guard.js';
 import { GitRepo } from './git-repo.js';
 import { GitFailure } from './git-run.js';
@@ -50,13 +52,15 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       discard: () => repo.discard(strs(a['paths'])),
       commit: () => repo.commit(str(a['subject']), typeof a['body'] === 'string' ? a['body'] : ''),
       branches: () => repo.branches(),
-      createBranch: () => repo.createBranch(str(a['name'])),
+      createBranch: () => repo.createBranch(str(a['name']), typeof a['base'] === 'string' ? a['base'] : undefined, a['checkout'] !== false),
       switchBranch: () => repo.switchBranch(str(a['name'])),
       merge: () => repo.merge(str(a['name']), confirm),
       deleteBranch: () => repo.deleteBranch(str(a['name'])),
       fetch: () => repo.fetch(),
       pull: () => repo.pull(a['mode'] === 'merge' ? 'merge' : 'ff'),
       push: () => repo.push(confirm),
+      conventions: async () => conventionsView(await readConventions(checked)),
+      undoCommit: () => repo.undoCommit(),
       log: () => repo.log(typeof a['ref'] === 'string' ? a['ref'] : undefined),
       commitDiff: () => repo.commitDiff(str(a['hash'])),
       mergeState: () => repo.mergeState(),

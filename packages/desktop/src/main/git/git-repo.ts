@@ -1,10 +1,11 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, stat, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { type ConfirmArg, type Done, type DiffView, type FileDiffView, type Overview, protectedMessage } from '../../shared/git-api.js';
 import { ChangeSet } from '../../shared/git-changes.js';
 import { FileDiff, type PatchMode, type Selection } from '../../shared/git-diff.js';
 import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath } from '../../shared/git-guard.js';
 import { BRANCH_FORMAT, branchView, LOG_FORMAT, LOG_LIMIT, parseBranches, parseLog } from '../../shared/git-lists.js';
+import { knownGitError, pullDoneMessage } from '../../shared/git-toolbar.js';
 import { assertPlainFile } from './safe-file.js';
 import { GitFailure, mustGit, runGit } from './git-run.js';
 
@@ -45,9 +46,51 @@ export class GitRepo {
     return first === undefined || first === '' ? null : first;
   }
 
+  /** 마지막으로 원격을 확인한 시각: git이 fetch·pull 때마다 고치는 FETCH_HEAD 파일의 수정 시각 */
+  private async fetchedAt(): Promise<number | null> {
+    const r = await runGit(this.root, ['rev-parse', '--git-path', 'FETCH_HEAD']);
+    if (r.code !== 0) return null;
+    try {
+      return Math.floor((await stat(resolve(this.root, r.stdout.trim()))).mtimeMs / 1000);
+    } catch {
+      return null;
+    }
+  }
+
+  private async stagedLines(): Promise<{ added: number; removed: number } | null> {
+    const r = await runGit(this.root, ['diff', '--cached', '--numstat', '--no-color', '--no-ext-diff']);
+    if (r.code !== 0) return null;
+    let added = 0;
+    let removed = 0;
+    for (const line of r.stdout.split('\n')) {
+      const m = /^(\d+)\t(\d+)\t/.exec(line);
+      if (m !== null) [added, removed] = [added + Number(m[1]), removed + Number(m[2])];
+    }
+    return { added, removed };
+  }
+
+  /** 지금 브랜치가 원격 브랜치보다 몇 커밋 뒤처졌는지(연결된 원격 브랜치가 없으면 null) */
+  private async behindCount(): Promise<number | null> {
+    const r = await runGit(this.root, ['rev-list', '--count', 'HEAD..@{upstream}']);
+    return r.code === 0 ? Number(r.stdout.trim()) : null;
+  }
+
+  /** 원격 명령이 실패하면 git의 영어 이유를 쉬운 말로 바꿔 던진다(아는 모양일 때만) */
+  private async remote<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (e) {
+      if (e instanceof GitFailure) {
+        const easy = knownGitError(e.message);
+        if (easy !== null) throw new GitFailure(e.code, easy);
+      }
+      throw e;
+    }
+  }
+
   async overview(): Promise<Overview> {
     const s = await this.status();
-    return { branch: s.branch, upstream: s.upstream, ahead: s.ahead, behind: s.behind, files: s.views(), merging: await this.isMerging(), hasRemote: (await this.remoteName()) !== null };
+    return { branch: s.branch, upstream: s.upstream, ahead: s.ahead, behind: s.behind, files: s.views(), merging: await this.isMerging(), hasRemote: (await this.remoteName()) !== null, fetchedAt: await this.fetchedAt(), staged: await this.stagedLines() };
   }
 
   async diff(path: string, side: 'staged' | 'unstaged'): Promise<DiffView> {
@@ -109,10 +152,26 @@ export class GitRepo {
     return parseBranches(await this.git(['for-each-ref', `--format=${BRANCH_FORMAT}`, 'refs/heads', 'refs/remotes'])).map(branchView);
   }
 
-  async createBranch(name: string): Promise<Done> {
+  /** base(기준 브랜치)에서 새 브랜치를 만든다. 기준이 원격 브랜치여도 그 원격에 연결하지 않는다. checkout=false면 옮기지 않는다. */
+  async createBranch(name: string, base?: string, checkout = true): Promise<Done> {
     const n = BranchName.parse(name).value;
-    await this.git(['switch', '-c', n]);
-    return ok(`${n} 브랜치를 만들고 옮겨 왔어요.`);
+    const from = base === undefined ? [] : [BranchName.parse(base).value];
+    if (checkout) {
+      await this.git(['switch', '--no-track', '-c', n, ...from]);
+      return ok(`${n} 브랜치를 만들고 옮겨 왔어요.`);
+    }
+    await this.git(['branch', '--no-track', n, ...from]);
+    return ok(`${n} 브랜치를 만들었어요. 옮기지는 않았어요.`);
+  }
+
+  /** 직전 커밋을 취소한다(soft reset: 바뀐 내용은 스테이지에 그대로 남는다). 이미 원격에 올라갔거나 첫 커밋이면 막는다. */
+  async undoCommit(): Promise<Done> {
+    if (!(await this.hasHead()) || (await runGit(this.root, ['rev-parse', '-q', '--verify', 'HEAD~1'])).code !== 0) throw new GitFailure('BLOCKED', '취소할 이전 커밋이 없어요(첫 커밋이에요).');
+    if (await this.isMerging()) throw new GitFailure('BLOCKED', '머지 중에는 커밋을 취소할 수 없어요.');
+    if ((await this.git(['branch', '-r', '--contains', 'HEAD'])).trim() !== '') throw new GitFailure('BLOCKED', '이미 원격에 올라간 커밋이라 취소할 수 없어요.');
+    const subject = (await this.git(['log', '-1', '--format=%s'])).trim();
+    await this.git(['reset', '--soft', 'HEAD~1']);
+    return ok(`직전 커밋을 취소했어요(${subject}). 바뀐 내용은 스테이지에 그대로 있어요.`);
   }
 
   /** 전환. 커밋 안 한 변경이 막으면 git의 이유를 그대로 돌려주고 강제로 하지 않는다. */
@@ -149,16 +208,24 @@ export class GitRepo {
   }
 
   async fetch(): Promise<Done> {
-    await this.git(['fetch', '--prune']);
-    return ok('원격 소식을 가져왔어요.');
+    await this.remote(() => this.git(['fetch', '--prune']));
+    const received = await this.behindCount();
+    if (received === null) return ok('원격 소식을 확인했어요.');
+    return ok(received > 0 ? `원격에 새 커밋 ${received}개가 있어요. pull로 받을 수 있어요.` : '새 소식이 없어요.', { received });
   }
 
   /** 기본은 fast-forward만(--ff-only). 안 되면 이유를 돌려주고, 사용자가 고르면 merge 방식으로 한다. */
   async pull(mode: 'ff' | 'merge'): Promise<Done> {
+    const before = (await runGit(this.root, ['rev-parse', '-q', '--verify', 'HEAD'])).stdout.trim();
     const r = await runGit(this.root, mode === 'ff' ? ['pull', '--ff-only'] : ['pull', '--no-rebase', '--no-edit']);
-    if (r.code === 0) return ok(/Already up to date/i.test(r.stdout) ? '이미 최신이에요.' : '가져와서 합쳤어요.');
+    if (r.code === 0) {
+      const counted = before === '' ? null : await runGit(this.root, ['rev-list', '--count', `${before}..HEAD`]);
+      const received = counted === null || counted.code !== 0 ? null : Number(counted.stdout.trim());
+      return ok(pullDoneMessage(received), received === null ? {} : { received });
+    }
     if (await this.isMerging()) return ok('충돌이 났어요. 충돌 탭에서 풀어 주세요.', { conflicts: true });
-    throw new GitFailure('BLOCKED', (r.stderr.trim() || r.stdout.trim()).split('\n').slice(0, 6).join('\n'));
+    const raw = (r.stderr.trim() || r.stdout.trim()).split('\n').slice(0, 6).join('\n');
+    throw new GitFailure('BLOCKED', knownGitError(raw) ?? raw);
   }
 
   /** push는 force 없이 현재 브랜치만. 보호 브랜치면 확인이 필요하다. */
@@ -167,7 +234,7 @@ export class GitRepo {
     const s = await this.status();
     const remote = await this.remoteName();
     if (remote === null) throw new GitFailure('INVALID', '원격이 없어요.');
-    await this.git(s.upstream === null ? ['push', '-u', remote, branch] : ['push']);
+    await this.remote(() => this.git(s.upstream === null ? ['push', '-u', remote, branch] : ['push']));
     return ok(`${branch}을(를) 올렸어요.`);
   }
 

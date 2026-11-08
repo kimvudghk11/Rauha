@@ -1,12 +1,13 @@
 import type { FileChangeView } from './git-changes.js';
 import type { Hunk, PatchMode, Selection } from './git-diff.js';
+import type { ConventionsView } from './git-conventions-view.js';
 import type { BranchView, LogRow } from './git-lists.js';
 
 /** git 탭이 main에 부를 수 있는 함수 이름. 이 목록에 없는 이름은 main이 받지 않는다. */
 export const GIT_FUNCTIONS = [
   'overview', 'diff', 'stage', 'unstage', 'stageSelection', 'discard', 'commit',
   'branches', 'createBranch', 'switchBranch', 'merge', 'deleteBranch', 'fetch', 'pull', 'push',
-  'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr',
+  'conventions', 'undoCommit', 'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr',
 ] as const;
 export type GitFn = (typeof GIT_FUNCTIONS)[number];
 
@@ -19,6 +20,10 @@ export interface Overview {
   /** 머지가 끝나지 않은 채 멈춰 있다(MERGE_HEAD가 있다) */
   readonly merging: boolean;
   readonly hasRemote: boolean;
+  /** 마지막으로 원격을 확인(fetch·pull)한 시각(초 단위 UNIX 시각). 한 번도 안 했으면 null */
+  readonly fetchedAt: number | null;
+  /** 스테이지한 변경의 추가·삭제 줄 수 */
+  readonly staged: { readonly added: number; readonly removed: number } | null;
 }
 
 export interface DiffView {
@@ -35,6 +40,8 @@ export interface Done {
   readonly message: string;
   /** 머지·pull이 충돌로 멈췄다 */
   readonly conflicts?: boolean;
+  /** fetch·pull이 알려 주는 받은(받을 수 있는) 새 커밋 수 */
+  readonly received?: number;
 }
 
 export interface ConfirmArg {
@@ -52,13 +59,15 @@ export interface GitCalls {
   discard: [{ paths: readonly string[] }, Done];
   commit: [{ subject: string; body: string }, Done];
   branches: [void, readonly BranchView[]];
-  createBranch: [{ name: string }, Done];
+  createBranch: [{ name: string; base?: string; checkout?: boolean }, Done];
   switchBranch: [{ name: string }, Done];
   merge: [{ name: string } & ConfirmArg, Done];
   deleteBranch: [{ name: string }, Done];
   fetch: [void, Done];
   pull: [{ mode: 'ff' | 'merge' }, Done];
   push: [ConfirmArg, Done];
+  conventions: [void, ConventionsView];
+  undoCommit: [void, Done];
   log: [{ ref?: string }, readonly LogRow[]];
   commitDiff: [{ hash: string }, readonly FileDiffView[]];
   mergeState: [void, { merging: boolean; conflicts: readonly string[] }];

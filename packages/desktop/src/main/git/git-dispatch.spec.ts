@@ -281,4 +281,123 @@ describe('git 탭 main (임시 저장소)', () => {
     const team = await data<{ name: string; team: boolean }[]>(r, 'branches');
     expect(team.find((b) => b.name === 'rauha/job-3f2a')!.team).toBe(true);
   });
+
+  /** 원격(bare)과 이를 따라가는 레포, 같은 원격을 쓰는 다른 복제본 */
+  const withRemote = () => {
+    const r = newRepo();
+    const remote = join(base, `remote${n++}.git`);
+    sh(base, 'init', '-q', '--bare', '-b', 'main', remote);
+    sh(r, 'remote', 'add', 'origin', remote);
+    write(r, 'a.txt', 'base\n');
+    commitAll(r);
+    sh(r, 'push', '-q', '-u', 'origin', 'main');
+    const other = join(base, `clone${n++}`);
+    sh(base, 'clone', '-q', remote, other);
+    for (const [k, v] of [['user.name', 'o'], ['user.email', 'o@o'], ['core.autocrlf', 'false']] as const) sh(other, 'config', k, v);
+    return { r, remote, other };
+  };
+
+  it('개요에 마지막 fetch 시각과 스테이지한 줄 수를 담는다', async () => {
+    const { r } = withRemote();
+    type O = { fetchedAt: number | null; staged: { added: number; removed: number } | null };
+    const before = await data<O>(r, 'overview');
+    expect(before.staged).toEqual({ added: 0, removed: 0 });
+    write(r, 'a.txt', 'base\nplus1\nplus2\n');
+    await data(r, 'stage', { paths: ['a.txt'] });
+    expect((await data<O>(r, 'overview')).staged).toEqual({ added: 2, removed: 0 });
+    await data(r, 'fetch');
+    const after = await data<O>(r, 'overview');
+    expect(after.fetchedAt).toBeGreaterThan(Date.now() / 1000 - 120);
+  });
+
+  it('fetch와 pull은 받은 새 커밋 수를 알려 준다', async () => {
+    const { r, other } = withRemote();
+    const first = await data<{ message: string; received: number }>(r, 'fetch');
+    expect(first.received).toBe(0);
+    expect(first.message).toBe('새 소식이 없어요.');
+    write(other, 'b.txt', 'b\n');
+    commitAll(other, 'b');
+    write(other, 'c.txt', 'c\n');
+    commitAll(other, 'c');
+    sh(other, 'push', '-q');
+    const f = await data<{ message: string; received: number }>(r, 'fetch');
+    expect(f).toMatchObject({ received: 2, message: '원격에 새 커밋 2개가 있어요. pull로 받을 수 있어요.' });
+    const p = await data<{ message: string; received: number }>(r, 'pull', { mode: 'ff' });
+    expect(p).toMatchObject({ received: 2, message: '새 커밋 2개를 받았어요.' });
+    expect(await data(r, 'pull', { mode: 'ff' })).toMatchObject({ received: 0, message: '이미 최신이에요.' });
+  });
+
+  it('push가 거절되면 쉬운 말로 먼저 pull 하라고 알린다', async () => {
+    const { r, other } = withRemote();
+    write(other, 'b.txt', 'b\n');
+    commitAll(other, 'b');
+    sh(other, 'push', '-q');
+    write(r, 'c.txt', 'c\n');
+    commitAll(r, 'c');
+    const res = await call(r, 'push', { confirmed: true });
+    expect(res).toMatchObject({ ok: false });
+    expect(res.ok ? '' : res.error).toMatch(/먼저 pull/);
+  });
+
+  it('새 브랜치는 기준 브랜치에서 만들고, 옮기지 않을 수도 있다', async () => {
+    const r = newRepo();
+    write(r, 'a', 'a');
+    commitAll(r);
+    await data(r, 'createBranch', { name: 'base1' });
+    write(r, 'b', 'b');
+    commitAll(r, 'b');
+    await data(r, 'switchBranch', { name: 'main' });
+    const done = await data<{ message: string }>(r, 'createBranch', { name: 'fix/y', base: 'base1', checkout: false });
+    expect(done.message).toContain('옮기지는 않았어요');
+    expect(sh(r, 'branch', '--show-current').trim()).toBe('main');
+    expect(sh(r, 'rev-parse', 'fix/y').trim()).toBe(sh(r, 'rev-parse', 'base1').trim());
+    await data(r, 'createBranch', { name: 'fix/z', base: 'base1' });
+    expect(sh(r, 'branch', '--show-current').trim()).toBe('fix/z');
+  });
+
+  it('새 브랜치의 기준 이름도 옵션처럼 보이면 받지 않는다', async () => {
+    const r = newRepo();
+    write(r, 'a', 'a');
+    commitAll(r);
+    expect(await call(r, 'createBranch', { name: 'ok', base: '--force' })).toMatchObject({ ok: false, code: 'INVALID' });
+    expect(await call(r, 'createBranch', { name: 'ok', base: 'nothere' })).toMatchObject({ ok: false });
+  });
+
+  it('원격 브랜치에서 만든 새 브랜치는 그 원격 브랜치에 연결하지 않는다', async () => {
+    const { r } = withRemote();
+    await data(r, 'createBranch', { name: 'topic', base: 'origin/main' });
+    expect(sh(r, 'for-each-ref', '--format=%(upstream)', 'refs/heads/topic').trim()).toBe('');
+  });
+
+  it('커밋 방식 안내를 레포의 최근 커밋에서 읽는다', async () => {
+    const r = newRepo();
+    for (const s of ['feat(ui): 가', 'fix(ui): 나', 'feat(api): 다', 'feat(ui): 라']) {
+      write(r, 'f', s);
+      commitAll(r, s);
+    }
+    const v = await data<{ commit: { known: boolean; text: string } }>(r, 'conventions');
+    expect(v.commit.known).toBe(true);
+    expect(v.commit.text).toContain('feat(범위): 내용');
+  });
+
+  it('직전 커밋 취소는 soft reset이라 변경이 스테이지에 남고, 이미 올린 커밋과 첫 커밋은 막는다', async () => {
+    const { r } = withRemote();
+    write(r, 'c.txt', 'c\n');
+    commitAll(r, 'c');
+    sh(r, 'push', '-q');
+    expect(await call(r, 'undoCommit')).toMatchObject({ ok: false, code: 'BLOCKED' });
+    write(r, 'd.txt', 'd\n');
+    commitAll(r, 'd');
+    const done = await data<{ message: string }>(r, 'undoCommit');
+    expect(done.message).toContain('d');
+    expect(sh(r, 'log', '-1', '--format=%s').trim()).toBe('c');
+    expect(sh(r, 'status', '--porcelain').trim()).toBe('A  d.txt');
+  });
+
+  it('커밋이 하나뿐이면 취소하지 않는다', async () => {
+    const r = newRepo();
+    write(r, 'a', 'a');
+    commitAll(r);
+    expect(await call(r, 'undoCommit')).toMatchObject({ ok: false, code: 'BLOCKED' });
+  });
 });
