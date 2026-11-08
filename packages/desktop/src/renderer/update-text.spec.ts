@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UpdateView } from '../shared/update-record.js';
-import { bannerText, checkedText, MAC_INSTALL_NOTE } from './update-text.js';
+import { bannerText, checkedText, GATEKEEPER_NOTE, MAC_INSTALL_NOTE } from './update-text.js';
 
 const view = (over: Partial<UpdateView> = {}): UpdateView => ({ current: '0.1.1', checkedAt: null, latest: '0.1.2', newer: true, showBanner: true, hasDownload: true, checking: false, failed: false, failReason: null, canInstall: false, install: { phase: 'idle', percent: null }, attempt: null, ...over });
 
@@ -45,5 +45,12 @@ describe('MAC_INSTALL_NOTE', () => {
   it('Applications에 덮어쓰고 quarantine을 푸는 한 줄 명령을 안내한다', () => {
     expect(MAC_INSTALL_NOTE).toContain('Applications');
     expect(MAC_INSTALL_NOTE).toContain('xattr -dr com.apple.quarantine /Applications/rauha.app');
+  });
+});
+
+describe('GATEKEEPER_NOTE', () => {
+  it('첫 설치 경고는 한 번뿐이고 앱 안 업데이트로 받은 파일에는 안 뜬다고 알린다', () => {
+    expect(GATEKEEPER_NOTE).toContain('처음 설치');
+    expect(GATEKEEPER_NOTE).toContain('지금 업데이트');
   });
 });

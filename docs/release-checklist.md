@@ -61,3 +61,20 @@
 - 실제 맥에서의 Claude 로그인(키체인)과 실제 일 맡기기: 확인 못 함.
 
 Windows는 개발 PC에서 개발 실행으로 화면·허락 카드(가짜 팀)·레포·설정·규칙을 직접 확인했어요. Windows 설치 파일(.exe)을 실제로 설치해 실행한 것은 확인 못 함.
+
+## 서명·공증을 켜려면 필요한 것 (맥)
+
+첫 설치 때 뜨는 "확인할 수 없는 앱" 경고(Gatekeeper)는 코드로 없앨 수 없어요. Apple Developer ID 서명과 공증이 필요하고, 가입 여부는 사용자 결정이에요. 서버 빌드는 준비돼 있어서 아래를 갖추면 켜져요.
+
+1. Apple Developer Program 가입(유료, 연 단위). 개인 계정이면 팀 ID가 하나 있어요.
+2. "Developer ID Application" 인증서를 만들어 `.p12`로 내보내고 base64로 바꿔요(`base64 -i cert.p12`).
+3. appleid.apple.com에서 앱 암호(app-specific password)를 만들어요.
+4. GitHub 저장소 Settings → Secrets and variables → Actions에 다섯 비밀을 이름 그대로 등록해요.
+   - `CSC_LINK`: 인증서 `.p12`(base64 글 또는 https 주소)
+   - `CSC_KEY_PASSWORD`: `.p12` 암호
+   - `APPLE_ID`: Apple ID 이메일
+   - `APPLE_APP_SPECIFIC_PASSWORD`: 앱 암호
+   - `APPLE_TEAM_ID`: 팀 ID(10자리)
+5. 다섯 개가 **모두** 있을 때만 `scripts/dist.mjs`가 서명·공증 설정(`hardenedRuntime`, `notarize`)으로 빌드해요. 하나라도 없으면 지금처럼 ad-hoc이라 서버가 깨지지 않아요. 값은 저장소에 쓰지 않아요.
+
+확인 못 한 것: 실제 인증서로 한 번도 돌려 보지 못했어요. 공증은 앱 안의 실행 파일(`app.asar.unpacked`의 Claude SDK 실행 파일, 브라우저 연동)도 모두 서명돼 있어야 통과하는데, 그것이 자동 서명되는지는 첫 실행 때 확인해야 해요. 실패하면 서버 로그의 notarytool 메시지를 보고 맞춰요.

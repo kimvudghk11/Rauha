@@ -3,7 +3,7 @@ import type { AccountsView, AuthApi, DiagnosticsResult, SettingsPatch, UsageView
 import { el } from './dom.js';
 import type { UpdateView } from '../shared/update-record.js';
 import { installStateText, isInstallBusy } from '../shared/update-install.js';
-import { checkedText } from './update-text.js';
+import { checkedText, GATEKEEPER_NOTE } from './update-text.js';
 import type { UpdateFeed } from './update-view.js';
 import { createLoginControl } from './login-view.js';
 import { usageTooltip, type UsageFeed } from './usage-feed.js';
@@ -148,7 +148,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       };
       paint(feed.current());
       unsubscribe = feed.subscribe(paint);
-      root.appendChild(section('새 버전', head, status, row('자동으로 확인(6시간마다)', auto)));
+      root.appendChild(section('새 버전', head, status, row('자동으로 확인(6시간마다)', auto), el('div', 'hint pad', GATEKEEPER_NOTE)));
     }
 
     // 화면

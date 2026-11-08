@@ -32,6 +32,13 @@ jobs:
       - run: yarn dist
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # 맥 서명·공증: 아래 다섯 비밀이 모두 등록돼 있을 때만 켜진다(scripts/signing.mjs). 하나라도 없으면 지금처럼 ad-hoc.
+          # 값은 GitHub Secrets 이름만 쓴다. 등록 방법은 docs/release-checklist.md.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       # 설치본 파일 배치 확인 + 가짜 팀으로 Electron 실행 스모크(실제 Claude 호출 없음)
       - run: yarn workspace @rauha/desktop smoke:dist
       - uses: actions/upload-artifact@v7

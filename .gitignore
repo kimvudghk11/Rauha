@@ -64,3 +64,4 @@ credentials*.json
 service-account*.json
 packages/desktop/release/
 update.json
+electron-builder.signed.tmp.yml

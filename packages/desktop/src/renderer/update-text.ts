@@ -2,6 +2,9 @@ import type { UpdateView } from '../shared/update-record.js';
 
 export const MAC_INSTALL_NOTE = '내려받은 뒤 Applications에 덮어쓰고, 처음 열 때 경고가 뜨면 터미널에서 xattr -dr com.apple.quarantine /Applications/rauha.app';
 
+/** 설정의 새 버전 구역 한 줄: 맥 첫 설치 경고(Gatekeeper)는 코드로 없앨 수 없지만, 앱 안 업데이트로 받은 파일에는 안 뜬다 */
+export const GATEKEEPER_NOTE = '맥: 처음 설치할 때의 "확인할 수 없는 앱" 경고는 한 번뿐이에요. 앱 안 "지금 업데이트"로 받은 새 버전에는 다시 뜨지 않아요.';
+
 /** 위쪽 배너의 글(돈·가격 표시 없음) */
 export function bannerText(view: UpdateView): string {
   const base = `새 버전 v${view.latest ?? ''}가 있어요`;
