@@ -1,4 +1,4 @@
-import type { ApprovalView, BoardView, RauhaApi } from '../shared/ipc.js';
+import type { ApprovalView, BoardView, RauhaApi, UsageView } from '../shared/ipc.js';
 import { buildChat } from './chat-view.js';
 import { offerTerminalCleanup, runWizard } from './first-run.js';
 import { el, icon } from './dom.js';
@@ -17,6 +17,7 @@ import { createRunner } from './command-runner.js';
 import { CommandBook } from '../shared/command-book.js';
 import { CommandBookDto } from '../shared/command-dto.js';
 import { buildSettings, limitBar } from './settings-view.js';
+import { createUsageFeed, usageTooltip } from './usage-feed.js';
 import { createChrome } from './chrome.js';
 import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
@@ -40,6 +41,7 @@ const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
 const code = buildCode({ api: window.rauha.code, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform);
+const usageFeed = createUsageFeed();
 
 // ── 배치 선택(A/B)은 이 PC에 기억한다. 저장소가 막혀 있어도 화면은 그대로 돈다. ──
 const readLayout = (): Layout => {
@@ -101,7 +103,7 @@ function show(id: TabId): void {
   else if (id === 'code') (screen.replaceChildren(code.root), void code.onShow());
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
-  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
+  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
   else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
   else if (id === 'records') screen.replaceChildren(buildRecords({ api: window.rauha.records, now: () => Date.now(), copy: copyText }).root);
   else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);
@@ -191,13 +193,20 @@ function toast(a: ApprovalView): void {
 }
 
 /** 아래 상태 줄의 세션·주간 한도 미니 막대(%만, 돈은 없다) */
-async function refreshLimits(): Promise<void> {
-  const usage = await window.rauha.getUsage();
+function paintLimits(usage: UsageView | null): void {
   const box = document.getElementById('status-usage')!;
   box.replaceChildren();
   if (usage === null) return;
   box.append(limitBar('세션', usage.session), limitBar('주간', usage.weekly));
 }
+const statusUsage = document.getElementById('status-usage')!;
+/** 툴팁은 보기 직전에 "n초 전"을 새로 계산한다 */
+statusUsage.addEventListener('mouseenter', () => (statusUsage.title = usageTooltip(usageFeed.current())));
+usageFeed.subscribe((view) => {
+  paintLimits(view);
+  statusUsage.title = usageTooltip(view);
+});
+window.addEventListener('focus', () => void usageFeed.refresh('focus'));
 
 function renderStatus(view: BoardView): void {
   lastBoard = view;
@@ -239,8 +248,6 @@ void (async () => {
   }
   await offerTerminalCleanup();
 })();
-void refreshLimits();
-setInterval(() => void refreshLimits(), 30_000);
 applyMode();
 show('chat');
 chat.focus();

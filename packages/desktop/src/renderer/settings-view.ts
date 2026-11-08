@@ -6,11 +6,14 @@ import { installStateText } from '../shared/update-install.js';
 import { checkedText } from './update-text.js';
 import type { UpdateFeed } from './update-view.js';
 import { createLoginControl } from './login-view.js';
+import { usageTooltip, type UsageFeed } from './usage-feed.js';
 
 export interface SettingsApi {
   get(): Promise<Settings>;
   update(patch: SettingsPatch): Promise<Settings>;
   usage(): Promise<UsageView | null>;
+  /** 상태 줄과 같은 한도 값(없으면 설정을 열 때 받은 값만 보인다) */
+  usageFeed?: UsageFeed;
   accounts(): Promise<AccountsView>;
   pickFolder(): Promise<string | null>;
   /** 앱 안 Claude 로그인(없으면 로그인 칸을 그리지 않는다) */
@@ -64,10 +67,13 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
   };
 
   let unsubscribe: (() => void) | null = null;
+  let unsubscribeUsage: (() => void) | null = null;
 
   async function render(): Promise<void> {
     unsubscribe?.();
     unsubscribe = null;
+    unsubscribeUsage?.();
+    unsubscribeUsage = null;
     const [s, usage, accounts] = await Promise.all([api.get(), api.usage(), api.accounts()]).catch((error: unknown) => {
       root.replaceChildren(el('div', 'err pad', `설정을 불러오지 못했어요: ${error instanceof Error ? error.message : String(error)}`));
       return [null, null, null] as const;
@@ -84,7 +90,14 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     account.value = s.account ?? '';
     account.addEventListener('change', () => void api.update({ account: account.value === '' ? null : account.value }).then(render));
     const limits = el('div', 'limits');
-    limits.append(limitBar('지금 세션(5시간)', usage?.session ?? null), limitBar('이번 주', usage?.weekly ?? null));
+    const paintLimits = (view: UsageView | null, readAt: number | null): void => {
+      limits.replaceChildren(limitBar('지금 세션(5시간)', view?.session ?? null), limitBar('이번 주', view?.weekly ?? null), el('div', 'hint pad', usageTooltip(view === null ? null : { session: view.session, weekly: view.weekly, readAt })));
+    };
+    paintLimits(usage, api.usageFeed?.current()?.readAt ?? null);
+    if (api.usageFeed !== undefined) {
+      const stop = api.usageFeed.subscribe((view) => (limits.isConnected ? paintLimits(view, view.readAt) : stop()));
+      unsubscribeUsage = stop;
+    }
     const login = api.auth === undefined ? [] : [createLoginControl(api.auth, { onSuccess: () => void api.usage().then(() => undefined) }).root];
     root.appendChild(section('계정·한도', row('계정', account), ...login, limits, el('div', 'hint pad', '계정 하나는 Claude Code 설정 폴더 하나예요. 로그인은 브라우저에서 하고, 토큰은 읽지 않아요.')));
 

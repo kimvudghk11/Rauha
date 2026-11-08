@@ -37,6 +37,10 @@ import { FileUpdateStore } from './update/update-store.js';
 import { fakeReleases } from './update/fake-releases.js';
 import { createInstaller } from './update/installer.js';
 import { ClaudeLogin } from './auth/claude-login.js';
+import { UsageService } from './usage/usage-service.js';
+import { registerUsageIpc, toUsageView } from './usage/usage-ipc.js';
+import { USAGE_IPC } from '../shared/usage-api.js';
+import { READ_EVERY_MS } from '../shared/usage-freshness.js';
 import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
@@ -59,7 +63,6 @@ const openSafe = async (url: string): Promise<void> => {
 };
 
 let window: BrowserWindow | null = null;
-let plan: PlanUsage | null = null;
 let limitNotified = false;
 
 /** 사용자 규칙(규칙 탭). 팀원이 도구를 부를 때마다 이 값을 읽으므로 고치면 바로 반영된다. */
@@ -100,6 +103,25 @@ const promptsDir = (): string => resolvePromptsDir(resourceEnv(), process.env['R
 
 /** Claude Code 실행 파일(SDK의 플랫폼 패키지). 설치본은 asar 밖에서 찾는다. */
 const claudeExecutable = (): string | undefined => claudeBinaryPath(resourceEnv(), process.platform, process.arch) ?? undefined;
+
+/** 구독 한도를 읽는 유일한 곳(상태 줄·설정·새 작업 판단이 같은 값을 받는다). 확인용 가짜 팀 실행에서는 읽지 않는다. */
+const usage = new UsageService({
+  read: async () => {
+    if (FAKE) return null;
+    const profile = (await profileResolver(home, settings.account))(currentWorkDir());
+    return readPlanUsage({ ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, undefined, claudeExecutable());
+  },
+  now: () => Date.now(),
+  onChange: (snap) => {
+    window?.webContents.send(USAGE_IPC.changed, toUsageView(snap));
+    const pct = Math.max(snap.plan?.session?.percent ?? 0, snap.plan?.weekly?.percent ?? 0);
+    if (pct >= 90 && !limitNotified && settings.notify.limit && Notification.isSupported()) {
+      limitNotified = true;
+      new Notification({ title: '한도가 90%에 닿았어요', body: '새 작업을 아껴 쓰는 게 좋아요.' }).show();
+    }
+    if (pct < 90) limitNotified = false;
+  },
+});
 
 /** 같은 레포를 동시에 고치는 일이 서로의 변경을 망치지 않게 자리를 나눠 주는 장부(두 번째 작업부터 worktree) */
 let ledger = WorktreeLedger.empty();
@@ -176,7 +198,7 @@ async function startRunner(): Promise<JobRunner> {
             try {
               if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
               before = await snapshotChanges(cwd);
-              const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides() }, cwd, io, root);
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides() }, cwd, io, root);
               return await session.handle(target.text, depth);
             } finally {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
@@ -194,18 +216,9 @@ async function startRunner(): Promise<JobRunner> {
       },
       askUser: (jobId, request) => askWithNotice(jobId, request),
     });
-    // 한도는 1분마다 읽어 둔다(새 작업을 시작할지 정하는 데 쓴다).
-    const refresh = () => void readPlanUsage({ ...(process.env as Record<string, string>), ...profileFor(currentWorkDir()).agentEnv(home) }, undefined, claudeExecutable()).then((p) => {
-      plan = p ?? plan;
-      const pct = Math.max(plan?.session?.percent ?? 0, plan?.weekly?.percent ?? 0);
-      if (pct >= 90 && !limitNotified && settings.notify.limit && Notification.isSupported()) {
-        limitNotified = true;
-        new Notification({ title: '한도가 90%에 닿았어요', body: '새 작업을 아껴 쓰는 게 좋아요.' }).show();
-      }
-      if (pct < 90) limitNotified = false;
-    });
-    refresh();
-    setInterval(refresh, 60_000).unref();
+    // 한도는 평소 25초마다, 설정을 열 때·창에 초점이 올 때·일이 끝날 때 읽는다(읽는 곳은 usage 하나).
+    void usage.refresh('interval');
+    setInterval(() => void usage.refresh('interval'), READ_EVERY_MS).unref();
   }
   const runner: JobRunner = JobRunner.start({
     work,
@@ -218,6 +231,10 @@ async function startRunner(): Promise<JobRunner> {
         if (!job.isOver) continue;
         onJobOver(job);
         approvals.closeJob(job.id);
+        if (!usageOverSeen.has(job.id)) {
+          usageOverSeen.add(job.id);
+          void usage.refresh('job-over');
+        }
         if (job.status === 'done' && !doneNotified.has(job.id)) {
           doneNotified.add(job.id);
           notifyDone(job.id, job.request);
@@ -229,6 +246,7 @@ async function startRunner(): Promise<JobRunner> {
 }
 
 const doneNotified = new Set<string>();
+const usageOverSeen = new Set<string>();
 
 /** 할 일·기록(앱 데이터 폴더의 JSON 파일). 기록은 이 PC에만 둔다. 확인용으로 RAUHA_DATA_DIR로 폴더를 바꿀 수 있다. */
 const dataDir = process.env['RAUHA_DATA_DIR'] ?? join(homedir(), '.rauha', 'desktop');
@@ -495,7 +513,11 @@ void app.whenReady().then(async () => {
     await settingsStore.save(settings);
     return settings;
   });
-  ipcMain.handle(IPC.usageGet, () => (plan === null ? null : { session: plan.session, weekly: plan.weekly }));
+  ipcMain.handle(IPC.usageGet, () => {
+    const p = usage.current().plan;
+    return p === null ? null : { session: p.session, weekly: p.weekly };
+  });
+  registerUsageIpc(ipcMain, usage);
   ipcMain.handle(IPC.accountsList, async () => {
     // 설정 파일이 깨졌어도 설정 화면은 열려야 한다(계정 목록만 비운다).
     const names = await accountNames(home).catch(() => []);

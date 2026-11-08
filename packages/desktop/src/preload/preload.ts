@@ -108,3 +108,4 @@ const api: RauhaApi = {
 };
 
 contextBridge.exposeInMainWorld('rauha', api);
+exposeUsageBridge();
