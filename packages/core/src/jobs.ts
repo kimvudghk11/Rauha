@@ -7,3 +7,5 @@ export { JobRunner, type JobRunnerDeps, type JobReport, type JobWork } from './o
 export type { InfraRisk } from './orchestration/application/dto/infra-risk.dto.js';
 export { MEMBER_ROLES, ROLE_INFO, type MemberRole, type RoleInfo } from './orchestration/domain/member-role.js';
 export { type RuleBucket } from './orchestration/domain/rule-book.js';
+export type { DefaultRuleView } from './orchestration/application/dto/default-rules.dto.js';
+export type { DefaultVariant } from './orchestration/domain/default-rules.js';

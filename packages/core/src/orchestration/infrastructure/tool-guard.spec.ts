@@ -143,6 +143,13 @@ describe('createToolGuard', () => {
   });
 
   describe('사용자 규칙', () => {
+    it('묻지 않고 할 것 규칙은 명령을 이은 글 전체를 풀어 주지 않는다(맞는 조각 때문에 위험한 조각이 지나가면 안 된다)', async () => {
+      const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { rules: (_tool, detail) => (detail.includes('git status') ? 'allow' : null) });
+      const out = await guard(input('Bash', { command: 'git status && git reset --hard' }), 't1', opts);
+      expect(asked).toHaveLength(1);
+      expect(decision(out)).toBe('deny');
+    });
+
     it('묻지 않고 할 것 규칙에 맞는 위험 동작은 묻지 않고 허락한다', async () => {
       const { guard, asked } = guardWith([], { rules: (_tool, detail) => (detail.includes('terraform apply') ? 'allow' : null) });
       const out = await guard(input('Bash', { command: 'terraform apply -var env=prod' }), 't1', opts);

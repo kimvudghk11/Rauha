@@ -84,6 +84,9 @@ function grepIntoSecrets(options: ToolGuardOptions, toolInput: Record<string, un
   return inside ? (target === '' ? '저장소 전체 검색' : `${target} 폴더 검색`) : null;
 }
 
+/** 명령 여러 개를 이은 글인지(&& || ; | & 줄바꿈 $( 백틱) */
+const isChained = (detail: string): boolean => /&&|\|\||[;|&\n`]|\$\(/.test(detail);
+
 function decide(permissionDecision: 'allow' | 'deny', reason: string) {
   return {
     hookSpecificOutput: { hookEventName: 'PreToolUse' as const, permissionDecision, permissionDecisionReason: reason },
@@ -125,7 +128,8 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
     if (base.decision === 'deny') return decide('deny', base.reason ?? '거절된 동작입니다.');
     const detail = typeof toolInput['command'] === 'string' ? toolInput['command'] : String(toolInput['file_path'] ?? input.tool_name);
     const rule = options.rules?.(input.tool_name, detail) ?? null;
-    if (rule === 'allow' && base.decision === 'ask') return decide('allow', '사용자 규칙(묻지 않고 할 것)에 맞는 동작입니다.');
+    // 여러 명령을 이은 글(a && b)은 "묻지 않음" 규칙으로 통째로 풀어 주지 않는다. 규칙에 맞는 한 조각 때문에 위험한 다른 조각이 묻지 않고 지나가면 안 된다.
+    if (rule === 'allow' && base.decision === 'ask' && !isChained(detail)) return decide('allow', '사용자 규칙(묻지 않고 할 것)에 맞는 동작입니다.');
     const verdict = rule === 'ask' && base.decision !== 'ask' ? { decision: 'ask' as const, reason: '내 규칙(꼭 허락받을 것)에 걸린 동작입니다.' } : base;
     if (verdict.decision === 'ask') {
       const key = `${input.tool_name}\n${detail}`;

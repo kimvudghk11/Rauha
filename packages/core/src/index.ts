@@ -129,6 +129,8 @@ export type { DesignUserPort, DesignStorePort } from './design/application/ports
 export { InfraRiskDto, type InfraRisk, type CostDirection, type Downtime } from './orchestration/application/dto/infra-risk.dto.js';
 export { Rule, RuleBook, type RuleBucket, type RuleScope, type RuleMatch, type RuleVerdict } from './orchestration/domain/rule-book.js';
 export { RuleBookDto } from './orchestration/application/dto/rule-book.dto.js';
+export { DefaultRuleSet, DEFAULT_RULES, type DefaultVariant, type DefaultEdit } from './orchestration/domain/default-rules.js';
+export { DefaultRulesDto, type DefaultRuleView, type DefaultRulesJson } from './orchestration/application/dto/default-rules.dto.js';
 export { FileRuleStore } from './orchestration/infrastructure/file-rule-store.js';
 export { RuleDraftDto, RULE_DRAFT_SCHEMA, type RuleDraft } from './orchestration/application/dto/rule-draft.dto.js';
 export { draftRule } from './orchestration/infrastructure/agent-sdk-rule-parser.js';
