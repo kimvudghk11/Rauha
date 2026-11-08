@@ -6,6 +6,9 @@ import { buildGit } from './git-view.js';
 import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
 import { buildCommands, commandsApi } from './commands-view.js';
+import { useLooks } from './characters.js';
+import { buildTeam } from './team-view.js';
+import { TeamSettings } from '../shared/team-settings.js';
 import { createRunner } from './command-runner.js';
 import { CommandBook } from '../shared/command-book.js';
 import { CommandBookDto } from '../shared/command-dto.js';
@@ -82,7 +85,7 @@ function show(id: TabId): void {
   if (id === 'chat') screen.replaceChildren(chat.root);
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
-  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check() } }, pickLayout).root);
+  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check() }, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
   else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);
   else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid), defaults: { list: () => window.rauha.listDefaultRules(), apply: (op) => window.rauha.applyDefaultRule(op) } }).root);
   else {
@@ -111,6 +114,7 @@ const runner = createRunner({
   board: () => lastBoard,
   api: window.rauha,
 });
+void window.rauha.getTeam().then((v) => useLooks(TeamSettings.from(v.settings).looks()));
 void window.rauha.getCommands().then((json) => (commandBook = CommandBookDto.from(json).toEntity()));
 
 // ── 채팅 ──

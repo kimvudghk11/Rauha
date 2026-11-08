@@ -1,6 +1,6 @@
 import { MEMBER_ROLES } from '@rauha/core';
 import { describe, expect, it } from 'vitest';
-import { CHARACTER_ROLES, leadName, spriteFor } from './characters.js';
+import { CHARACTER_ROLES, defaultSprite, leadName, spriteFor, useLooks } from './characters.js';
 
 describe('spriteFor', () => {
   it('팀원 역할마다 캐릭터가 하나씩 있다(22종)', () => {
@@ -38,5 +38,27 @@ describe('spriteFor', () => {
 
   it('화면에 쓰는 메인의 이름은 팀장 캐릭터의 이름에서 읽는다', () => {
     expect(leadName()).toBe(spriteFor('intake').name);
+  });
+});
+
+describe('팀 설정으로 바꾼 이름·캐릭터', () => {
+  it('바꾸지 않으면 기본 캐릭터 그대로다', () => {
+    useLooks({ names: {}, characters: {} });
+    expect(spriteFor('tester')).toEqual(defaultSprite('tester'));
+  });
+
+  it('이름만 바꾸면 그림은 그대로 이름만 바뀌고, 캐릭터를 바꾸면 그 그림을 쓴다', () => {
+    useLooks({ names: { tester: '깐깐이' }, characters: { reviewer: 'brand' } });
+    expect(spriteFor('tester').name).toBe('깐깐이');
+    expect(spriteFor('tester').frames).toEqual(defaultSprite('tester').frames);
+    expect(spriteFor('reviewer').frames).toEqual(defaultSprite('brand').frames);
+    expect(spriteFor('reviewer').name).toBe(defaultSprite('brand').name);
+    useLooks({ names: {}, characters: {} });
+  });
+
+  it('없는 캐릭터를 가리키면 기본으로 돌아간다', () => {
+    useLooks({ names: {}, characters: { tester: 'nobody' } });
+    expect(spriteFor('tester')).toEqual(defaultSprite('tester'));
+    useLooks({ names: {}, characters: {} });
   });
 });

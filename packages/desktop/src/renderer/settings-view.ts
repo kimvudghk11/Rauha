@@ -16,6 +16,8 @@ export interface SettingsApi {
   auth?: AuthApi;
   /** 새 버전 알림(없으면 그 구역을 그리지 않는다) */
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown> };
+  /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
+  team?: { build(): HTMLElement };
 }
 
 /** 초기화 시각을 "오늘 오후 3:20" 같은 짧은 글로(모르면 빈 글) */
@@ -147,7 +149,8 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     concurrency.addEventListener('change', () => void api.update({ concurrency: Number(concurrency.value) }).then(render));
     root.appendChild(section('권한', row('보호 브랜치(쉼표로)', branches), row('동시에 돌 작업 수(다음 실행부터)', concurrency)));
 
-    root.appendChild(section('정보 저장 · 캐릭터', el('div', 'dim pad', '곧 열려요.')));
+    if (api.team !== undefined) root.appendChild(section('팀 설정', api.team.build()));
+    root.appendChild(section('정보 저장', el('div', 'dim pad', '곧 열려요.')));
   }
 
   void render();

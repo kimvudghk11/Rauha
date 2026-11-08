@@ -50,3 +50,28 @@
 .rule .err:empty { display: none; }
 .rfoot { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
 .rfoot .hint { flex: 1; color: var(--red); }
+
+/* 설정 탭: 팀 설정 */
+.team { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
+.team .err:empty { display: none; }
+.tlist { display: flex; flex-direction: column; gap: 5px; padding: 0 10px; }
+.tm { padding: 5px 9px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+.tm.off { opacity: .6; }
+.tmtop { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tmtop .sp { flex: 0 0 auto; width: 32px; height: 28px; image-rendering: pixelated; }
+.tmtop b { color: var(--bright); flex: 0 0 auto; }
+.tmtop .ds { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tmtop select, .tmbody select, .tmbody input:not([type=checkbox]), .tmbody textarea { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 2px 6px; font: inherit; outline: none; min-width: 0; }
+.tmtop select { max-width: 170px; }
+.tmbody textarea { resize: none; width: 100%; padding: 5px 8px; }
+.tmtop .btn { padding: 1px 8px; font-size: 11.5px; flex: 0 0 auto; }
+.tmtop .tg { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); flex: 0 0 auto; white-space: nowrap; }
+.tmbody { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.tmbody .tf { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.tmbody .tf .lbl { color: var(--muted); font-size: 11.5px; }
+.tmbody .tools { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.tmbody .tool { display: flex; align-items: center; gap: 4px; }
+.tmbody .btn { align-self: flex-start; }
+.tfoot { display: flex; justify-content: flex-end; padding: 0 10px; }
+.app[data-tier=s] .tmtop, .app[data-tier=xs] .tmtop { flex-wrap: wrap; }
+.app[data-tier=s] .tmtop .ds, .app[data-tier=xs] .tmtop .ds { flex: 1 1 100%; order: 9; white-space: normal; }

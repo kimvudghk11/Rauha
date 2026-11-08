@@ -11,6 +11,8 @@ import { boardView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch }
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
 import { CommandStore } from './command-store.js';
+import { applyTeamOp, TeamSettingsStore, teamView } from './team-settings-store.js';
+import { TeamSettings } from '../shared/team-settings.js';
 import { DefaultRulesStore, applyDefaultRuleOp } from './default-rules-store.js';
 import { scanWorkFolder } from './workspace/scan.js';
 import { addWorktree, cleanupLeftovers, finishWorktree } from './workspace/git-worktree.js';
@@ -48,6 +50,9 @@ const ruleStore = new FileRuleStore(join(homedir(), '.rauha', 'desktop', 'rules.
 let ruleBook: RuleBook = RuleBook.empty();
 const defaultRulesStore = new DefaultRulesStore(join(homedir(), '.rauha', 'desktop', 'default-rules.json'));
 let defaultRules = DefaultRuleSet.initial();
+const teamStore = new TeamSettingsStore(join(homedir(), '.rauha', 'desktop', 'team.json'));
+/** 팀 설정(팀원별 켜기·모델·도구·지시). 작업을 시작할 때마다 최신 값을 읽어 다음 작업부터 반영된다. */
+let team = TeamSettings.initial();
 /** 엔진이 읽는 규칙: 내 규칙 + 켜 둔 기본 규칙 */
 const effectiveRules = (): RuleBook => RuleBook.of([...ruleBook.rules, ...defaultRules.toRules()]);
 
@@ -151,7 +156,7 @@ async function startRunner(): Promise<JobRunner> {
             jobRoots.set(job.id, cwd);
             try {
               if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
-              const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: effectiveRules }, cwd, io, root);
+              const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides() }, cwd, io, root);
               return await session.handle(target.text, depth);
             } finally {
               const released = ledger.release(job.id);
@@ -393,6 +398,7 @@ void app.whenReady().then(async () => {
   settings = await settingsStore.load();
   ruleBook = await ruleStore.load().catch(() => RuleBook.empty());
   defaultRules = await defaultRulesStore.load();
+  team = await teamStore.load();
   const runner = await startRunner();
   ipcMain.handle(IPC.settingsGet, () => (process.env['RAUHA_WORK_DIR'] !== undefined ? { ...settings, workFolder: currentWorkDir(), folderApproved: true, firstRunDone: true } : settings));
   ipcMain.handle(IPC.settingsUpdate, async (_e, patch: unknown) => {
@@ -422,6 +428,14 @@ void app.whenReady().then(async () => {
   );
   ipcMain.handle(IPC.commandsGet, () => commandStore.load());
   ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
+  ipcMain.handle(IPC.teamGet, () => teamView(team));
+  ipcMain.handle(IPC.teamApply, async (_e, op: unknown) => {
+    const res = applyTeamOp(team, op);
+    if (!res.ok) return res;
+    team = res.settings;
+    await teamStore.save(team);
+    return { ok: true, view: res.view };
+  });
   ipcMain.handle(IPC.defaultRulesList, () => DefaultRulesDto.view(defaultRules));
   ipcMain.handle(IPC.defaultRulesApply, async (_e, op: unknown) => {
     const res = applyDefaultRuleOp(defaultRules, op);

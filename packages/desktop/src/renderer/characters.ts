@@ -26,9 +26,27 @@ export function leadName(): string {
   return spriteFor('intake').name;
 }
 
-export function spriteFor(role: CharacterRole): Sprite {
+/** 팀 설정에서 사용자가 바꾼 이름·그림(역할 → 이름, 역할 → 쓸 캐릭터). 비어 있으면 기본 그대로다. */
+export interface Looks {
+  readonly names: Readonly<Partial<Record<string, string>>>;
+  readonly characters: Readonly<Partial<Record<string, string>>>;
+}
+let looks: Looks = { names: {}, characters: {} };
+export function useLooks(next: Looks): void {
+  looks = next;
+}
+
+/** 바꾸기 전 원래 캐릭터(팀 설정의 캐릭터 고르기 목록이 쓴다) */
+export function defaultSprite(role: CharacterRole): Sprite {
   const c = PIXEL_CHARACTERS[role]!;
   return { name: c.name, animal: c.animal, palette: c.colors, frames: c.frames };
+}
+
+export function spriteFor(role: CharacterRole): Sprite {
+  const picked = looks.characters[role];
+  const art = defaultSprite(picked !== undefined && picked in PIXEL_CHARACTERS ? (picked as CharacterRole) : role);
+  const name = looks.names[role];
+  return name === undefined ? art : { ...art, name };
 }
 
 /** 캐릭터가 보이는 상태: 일함·생각·허락 기다림·끝·멈춤·쉼·걷기, 그 밖엔 가만히(idle) */

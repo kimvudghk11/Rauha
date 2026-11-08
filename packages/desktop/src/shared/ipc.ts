@@ -5,6 +5,7 @@ import type { FolderKind } from './folder-kind.js';
 import type { RepoStatus } from './git-status.js';
 import type { GitApi } from './git-api.js';
 import type { Settings } from './settings.js';
+import type { Effort, MemberDefaults, MemberSetting, Tier, TeamSettingsJson } from './team-settings.js';
 import type { CommandBookJson } from './command-dto.js';
 import type { UpdateView } from './update-record.js';
 import type { LoginView } from './claude-login.js';
@@ -43,6 +44,9 @@ export const IPC = {
   /** 규칙 탭의 기본 규칙: 목록 · 끄기/고치기/되돌리기 */
   defaultRulesList: 'rules:defaults',
   defaultRulesApply: 'rules:defaults-apply',
+  /** 팀 설정: 읽기 · 바꾸기 */
+  teamGet: 'team:get',
+  teamApply: 'team:apply',
   rulesDraft: 'rules:draft',
   rulesList: 'rules:list',
   rulesAdd: 'rules:add',
@@ -159,6 +163,8 @@ export interface RauhaApi {
   saveCommands(book: CommandBookJson): Promise<CommandBookJson>;
   listDefaultRules(): Promise<readonly DefaultRuleView[]>;
   applyDefaultRule(op: DefaultRuleOp): Promise<DefaultRulesResult>;
+  getTeam(): Promise<TeamView>;
+  applyTeam(op: TeamOp): Promise<TeamResult>;
   /** 말로 적은 규칙을 haiku 한 번으로 정리한 초안. 사용자가 확인해야 규칙이 된다. */
   draftRule(sentence: string): Promise<DraftResult>;
   listRules(): Promise<readonly RuleView[]>;
@@ -238,6 +244,32 @@ export type DefaultRuleOp =
   | { readonly kind: 'restoreAll' };
 
 export type DefaultRulesResult = { readonly ok: true; readonly rules: readonly DefaultRuleView[] } | { readonly ok: false; readonly error: string };
+
+/** 팀 설정 화면의 팀원 한 줄 정보(코어가 아는 것) */
+export interface TeamMemberInfo {
+  readonly role: MemberRole;
+  /** 맡은 일 이름(예: 리뷰어) */
+  readonly title: string;
+  readonly stage: string | null;
+  /** 작업 흐름에 꼭 필요해서 끌 수 없다 */
+  readonly required: boolean;
+  readonly defaults: MemberDefaults;
+}
+
+export interface TeamView {
+  readonly settings: TeamSettingsJson;
+  readonly members: readonly TeamMemberInfo[];
+}
+
+/** 팀 설정에 하는 일: 팀원 한 칸 바꾸기(null은 기본값으로) · 팀원 하나 기본값 · 모두 기본값 */
+export type TeamOp =
+  | { readonly kind: 'change'; readonly role: MemberRole; readonly patch: { readonly enabled?: boolean; readonly tier?: Tier | null; readonly effort?: Effort | null; readonly tools?: readonly string[] | null; readonly extraInstruction?: string | null; readonly name?: string | null; readonly character?: MemberRole | null } }
+  | { readonly kind: 'reset'; readonly role: MemberRole }
+  | { readonly kind: 'resetAll' };
+
+export type TeamResult = { readonly ok: true; readonly view: TeamView } | { readonly ok: false; readonly error: string };
+
+export type { MemberSetting };
 
 export type RulesResult = { readonly ok: true; readonly rules: readonly RuleView[] } | { readonly ok: false; readonly error: string };
 

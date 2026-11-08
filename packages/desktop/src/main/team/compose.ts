@@ -17,6 +17,7 @@ import {
   MinimalLoopService,
   NodeChecks,
   RoleSettingsDto,
+  type RoleOverrides,
   SessionBudget,
   SqliteMemory,
   listSecretFiles,
@@ -89,6 +90,8 @@ export interface ComposeOptions {
   readonly claudeExecutable?: string | undefined;
   /** 사용자 규칙 모음(규칙 탭). 부를 때마다 최신 값을 돌려준다. */
   readonly rules?: (() => RuleBook) | undefined;
+  /** 팀 설정(팀원별 켜기·모델·도구·지시). 부를 때마다 최신 값을 돌려준다. 없으면 기본 역할 설정 그대로. */
+  readonly roleOverrides?: (() => RoleOverrides) | undefined;
 }
 
 /**
@@ -100,7 +103,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
   // keyRoot: 기억·지식·학습·규칙이 매이는 원래 레포 폴더. root는 팀원이 실제로 일하는 폴더(worktree면 임시 폴더)다.
   const profile = options.profileFor(keyRoot);
   const secrets = loadSecretPolicy(root);
-  const roles = RoleSettingsDto.defaults().withEnv({ ...process.env });
+  // 팀 설정을 얹은 뒤 환경 변수 고정(실험용)이 마지막으로 이긴다. 설정이 비어 있으면 기본 역할 설정 그대로다.
+  const roles = RoleSettingsDto.defaults().withOverrides(options.roleOverrides?.() ?? {}).withEnv({ ...process.env });
   const inner = new AgentSdkTeamMember({
     cwd: root,
     env: { ...definedEnv(process.env), ...profile.agentEnv(home) },
