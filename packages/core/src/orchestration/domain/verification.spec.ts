@@ -91,3 +91,20 @@ describe('VerificationVerdict.failureDetail', () => {
     expect(verdict.failureDetail(2).split('\n')).toHaveLength(2);
   });
 });
+
+describe('VerificationVerdict.needsFullConfirmation', () => {
+  const passing = () => Verification.of([check('locked-tests', 'pass'), check('tests', 'pass')]).judge(null);
+
+  it('좁혀 돌린 검사가 통과하면 리뷰 직전에 전체 검사를 한 번 더 돌려야 한다', () => {
+    expect(passing().needsFullConfirmation(true)).toBe(true);
+  });
+
+  it('전체로 돌린 검사가 통과하면 더 돌릴 필요가 없다', () => {
+    expect(passing().needsFullConfirmation(false)).toBe(false);
+  });
+
+  it('좁혀 돌린 검사가 실패하면 전체 검사 없이 바로 고치러 돌아간다', () => {
+    const failing = Verification.of([check('locked-tests', 'pass'), check('tests', 'fail', ['x'])]).judge(null);
+    expect(failing.needsFullConfirmation(true)).toBe(false);
+  });
+});

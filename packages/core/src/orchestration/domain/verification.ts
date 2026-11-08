@@ -90,6 +90,11 @@ export class VerificationVerdict {
     return this.checks.length > 0 && this.checks.every((c) => c.ok);
   }
 
+  /** 좁혀서(바뀐 곳 관련만) 돌린 검사가 통과했으면, 리뷰로 넘어가기 전에 전체 검사로 한 번 확인해야 한다. */
+  needsFullConfirmation(narrowed: boolean): boolean {
+    return narrowed && this.isPassing();
+  }
+
   /** 상태 머신의 recordGreen에 넘길 TestRun. 잠긴 테스트가 통과해도 검증이 실패하면 실패다. */
   toTestRun(locked: TestRun): TestRun {
     if (this.isPassing()) return locked;
