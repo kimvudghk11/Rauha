@@ -11,19 +11,21 @@
 - 설계서: [docs/design/claude-team-design.md](docs/design/claude-team-design.md)
 - 개발 규칙: [docs/conventions/ddd-entity-dto.md](docs/conventions/ddd-entity-dto.md)
 - 데스크톱 앱 사용 안내(한 장): [docs/desktop-guide.md](docs/desktop-guide.md)
+- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-Setup-0.1.1-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-x64.dmg) — 설치 방법은 아래 "데스크톱 앱 설치"
 
 ## 데스크톱 앱 설치 (맥북 · Windows)
 
 터미널 대신 창에서 쓰는 데스크톱 앱이다. 메인 칸에서 일을 맡기면 팀이 각자 팀 방에서 동시에 일하고, 위험한 일만 정리된 화면을 보고 허락한다. macOS(Apple 칩·인텔)와 Windows에서 돈다. 설치 파일에는 서명이 없어서 처음 열 때 한 번 허용해 줘야 한다.
 
-### 1. 설치 파일 받기
+### 1. 설치 파일 받기 (로그인 필요 없음)
 
-GitHub에 로그인하고 이 저장소의 **Actions → desktop**에서 맨 위의 성공(초록) 실행을 열면 아래쪽 **Artifacts**에 설치 파일이 있다(14일 보관, 로그인 필요).
+| 내 컴퓨터 | 내려받기 | 크기 |
+| --- | --- | --- |
+| Windows | [rauha-Setup-0.1.1-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-Setup-0.1.1-x64.exe) | 210MB |
+| Mac (Apple 칩, M1 이상) | [rauha-0.1.1-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-arm64.dmg) | 228MB |
+| Mac (인텔) | [rauha-0.1.1-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-x64.dmg) | 239MB |
 
-| artifact | 안에 든 것 |
-| --- | --- |
-| `rauha-desktop-macOS` | `.dmg` 둘과 `.zip` 둘: `arm64`는 Apple 칩(M1~), `x64`는 인텔 맥. 내 맥에 맞는 것을 쓴다(Apple 메뉴 → 이 Mac에 관하여). |
-| `rauha-desktop-Windows` | `rauha-Setup-…-x64.exe` |
+내 맥이 어떤 칩인지는 Apple 메뉴 → 이 Mac에 관하여에서 볼 수 있다. 다른 버전은 [Releases 페이지](https://github.com/kimvudghk11/rauha/releases)에 있다. 가장 최신 개발 빌드는 Actions → desktop 실행의 Artifacts에도 올라온다(14일 보관, GitHub 로그인 필요).
 
 ### 2. 설치
 
