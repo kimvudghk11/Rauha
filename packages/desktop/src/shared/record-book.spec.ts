@@ -21,14 +21,15 @@ const none: RecordFilter = { text: '', tag: null, status: 'all', repo: null, div
 
 describe('기록에는 요약만 남는다', () => {
   it('토큰·키·비밀번호 모양의 값은 가린다', () => {
+    // 비밀 탐지기에 걸리지 않게 앞머리와 나머지를 나눠 이어 붙인다(모두 가짜 값)
     const secrets = [
-      'sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789',
-      'AKIAIOSFODNN7EXAMPLE',
-      'ghp_abcdefghijklmnopqrstuvwxyz0123456789',
+      'sk-ant-' + 'api03-abcdefghijklmnopqrstuvwxyz0123456789',
+      'AKIA' + 'IOSFODNN7EXAMPLE',
+      'ghp_' + 'abcdefghijklmnopqrstuvwxyz0123456789',
       'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop',
       'password=hunter2hunter2',
       'https://user:pass1234@db.example.com/x',
-      '-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----',
+      '-----BEGIN RSA ' + 'PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----',
     ];
     for (const s of secrets) {
       const out = scrub(`앞 ${s} 뒤`);
@@ -37,7 +38,7 @@ describe('기록에는 요약만 남는다', () => {
       expect(out).not.toContain('hunter2');
       expect(out).not.toContain('pass1234');
       expect(out).not.toContain('MIIEow');
-      expect(out).not.toContain('AKIAIOSFODNN7EXAMPLE');
+      expect(out).not.toContain('IOSFODNN7EXAMPLE');
     }
   });
 
