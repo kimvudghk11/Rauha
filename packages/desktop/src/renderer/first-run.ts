@@ -1,4 +1,6 @@
+import type { AuthApi } from '../shared/ipc.js';
 import { el } from './dom.js';
+import { createLoginControl } from './login-view.js';
 
 const FLAG = 'rauha.terminalChecked';
 
@@ -63,7 +65,7 @@ export async function offerTerminalCleanup(): Promise<void> {
  * 첫 실행 마법사: 작업 폴더 고르기 → 그 폴더에서 일해도 되는지 허락 → 계정 고르기 → 정보 저장(건너뛰기, 곧).
  * 끝나면 설정에 저장하고 resolve한다. 폴더를 고르고 허락하기 전에는 일을 맡길 수 없다.
  */
-export function runWizard(api: { pickFolder(): Promise<string | null>; accounts(): Promise<{ names: readonly string[] }>; update(patch: { workFolder?: string; folderApproved?: boolean; account?: string | null; firstRunDone?: boolean }): Promise<unknown> }): Promise<void> {
+export function runWizard(api: { pickFolder(): Promise<string | null>; accounts(): Promise<{ names: readonly string[] }>; auth?: AuthApi; update(patch: { workFolder?: string; folderApproved?: boolean; account?: string | null; firstRunDone?: boolean }): Promise<unknown> }): Promise<void> {
   return new Promise((resolve) => {
     const veil = el('div', 'veil');
     const box = el('div', 'dialog wizard');
@@ -104,7 +106,7 @@ export function runWizard(api: { pickFolder(): Promise<string | null>; accounts(
         veil.remove();
         resolve();
       });
-      box.replaceChildren(el('b', undefined, '3/3 · 쓸 Claude 계정'), el('p', undefined, '이미 로그인된 Claude Code 설정 폴더(계정) 중에서 골라요. 토큰은 읽지 않아요. 정보 저장(내 AWS)은 곧 열려요 — 지금은 건너뛰어요.'), select, row(done));
+      box.replaceChildren(el('b', undefined, '3/3 · 쓸 Claude 계정'), el('p', undefined, '쓸 계정을 골라요. 아직 로그인하지 않았다면 아래 버튼으로 브라우저에서 로그인해요. 토큰은 읽지 않아요. 정보 저장(내 AWS)은 곧 열려요 — 지금은 건너뛰어요.'), select, ...(api.auth === undefined ? [] : [createLoginControl(api.auth).root]), row(done));
     };
     const row = (...children: HTMLElement[]) => {
       const r = el('div', 'btns');

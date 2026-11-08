@@ -6,6 +6,7 @@ import type { RepoStatus } from './git-status.js';
 import type { GitApi } from './git-api.js';
 import type { Settings } from './settings.js';
 import type { UpdateView } from './update-record.js';
+import type { LoginView } from './claude-login.js';
 import type { InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
@@ -53,6 +54,11 @@ export const IPC = {
   updateCheck: 'update:check',
   updateDownload: 'update:download',
   updateDismiss: 'update:dismiss',
+  /** Claude 로그인: 상태 읽기 · 로그인 시작 · 취소 · (main → 화면) 진행 상태 푸시 */
+  authStatus: 'auth:status',
+  authLogin: 'auth:login',
+  authCancel: 'auth:cancel',
+  authState: 'auth:state',
 } as const;
 
 /** 단계 막대 한 칸. 지나온 단계는 done, 지금 단계는 now. */
@@ -155,6 +161,17 @@ export interface RauhaApi {
   findTerminalRauha(): Promise<readonly TerminalRauhaView[]>;
   removeTerminalRauha(paths: readonly string[]): Promise<readonly string[]>;
   readonly update: UpdateApi;
+  readonly auth: AuthApi;
+}
+
+/** 앱 안 Claude 로그인 API. 로그인할 계정은 main이 설정에서 정한다(화면이 경로를 보내지 않는다). */
+export interface AuthApi {
+  /** 지금 계정이 로그인돼 있는지. 모르면 null */
+  status(): Promise<boolean | null>;
+  /** 로그인을 시작한다(브라우저가 열린다). 바로 지금 상태를 돌려주고, 끝나면 onState로 알린다. */
+  login(): Promise<LoginView>;
+  cancel(): void;
+  onState(listener: (view: LoginView) => void): void;
 }
 
 /** 새 버전 알림 API. 내려받을 주소는 화면이 보내지 않는다(main이 검증한 것만 연다). */

@@ -4,6 +4,8 @@ import { classifyDiffLine, type ChangeReview } from '../shared/branch-impact.js'
 import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared/ipc.js';
 import { CHARACTER_ROLES, leadName, spriteFor, type CharacterRole } from './characters.js';
 import { el } from './dom.js';
+import { needsLogin } from '../shared/claude-login.js';
+import { loginCard } from './login-view.js';
 import { characterStateOf, elapsedText } from './room.js';
 import { mountStage, paintOnce } from './stage.js';
 
@@ -161,6 +163,8 @@ export function buildChat(actions: ChatActions) {
     const body = el('div');
     const text = job.result ?? (job.status === 'done' ? '끝났어요.' : `멈췄어요${job.stopReason !== null ? `: ${job.stopReason}` : ''}`);
     const card = el('div', 'tx', text);
+    // 로그인이 필요해서 멈춘 일: 터미널로 보내지 않고 이 카드에서 바로 로그인한다
+    if (job.status === 'stopped' && needsLogin(`${text} ${job.stopReason ?? ''}`)) card.appendChild(loginCard());
     // 지식 없이 먼저 답한 깊은 답: 그 답 카드 안에 작게 알린다(알림·로그가 아니다)
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));
     // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
@@ -435,6 +439,7 @@ export function buildChat(actions: ChatActions) {
       now.textContent = job.status === 'done' ? '끝났어요.' : job.status === 'stopped' ? `멈췄어요${job.stopReason !== null ? ` · ${job.stopReason}` : ''}` : job.status === 'waiting' ? '허락이나 선택을 기다려요.' : job.status === 'queued' ? '차례를 기다려요.' : `${job.roleName ?? '팀'}이(가) ${job.lastLine ?? '시작하는 중'}`;
       body.appendChild(now);
       if (job.result !== null) body.appendChild(el('div', 'result', job.result));
+      if (job.status === 'stopped' && needsLogin(`${job.result ?? ''} ${job.stopReason ?? ''}`)) body.appendChild(loginCard());
       const doneNotes = job.notes.filter((n) => n.role !== null).slice(-8);
       if (doneNotes.length > 0) {
         body.appendChild(el('div', 'sub', '지금까지'));

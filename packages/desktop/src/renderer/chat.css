@@ -178,3 +178,11 @@
 .ruletalk { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
 .ruletalk textarea { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 6px 8px; font: inherit; resize: none; outline: none; }
 .ruletalk textarea:focus { border-color: var(--accent); }
+
+/* Claude 로그인 칸(설정·첫 실행·오류 카드) */
+.login { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 0 0 2px; }
+.settings .login { padding: 6px 12px; margin: 0; }
+.login-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.login-text { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; min-width: 0; }
+.login-text.err { color: var(--red); }
+.dialog .login { margin-top: 2px; }

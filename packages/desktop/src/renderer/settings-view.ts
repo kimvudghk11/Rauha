@@ -1,9 +1,10 @@
 import { limitTone, type Settings } from '../shared/settings.js';
-import type { AccountsView, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
+import type { AccountsView, AuthApi, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
 import { el } from './dom.js';
 import type { UpdateView } from '../shared/update-record.js';
 import { checkedText } from './update-text.js';
 import type { UpdateFeed } from './update-view.js';
+import { createLoginControl } from './login-view.js';
 
 export interface SettingsApi {
   get(): Promise<Settings>;
@@ -11,6 +12,8 @@ export interface SettingsApi {
   usage(): Promise<UsageView | null>;
   accounts(): Promise<AccountsView>;
   pickFolder(): Promise<string | null>;
+  /** 앱 안 Claude 로그인(없으면 로그인 칸을 그리지 않는다) */
+  auth?: AuthApi;
   /** 새 버전 알림(없으면 그 구역을 그리지 않는다) */
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown> };
 }
@@ -79,7 +82,8 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     account.addEventListener('change', () => void api.update({ account: account.value === '' ? null : account.value }).then(render));
     const limits = el('div', 'limits');
     limits.append(limitBar('지금 세션(5시간)', usage?.session ?? null), limitBar('이번 주', usage?.weekly ?? null));
-    root.appendChild(section('계정·한도', row('계정', account), limits, el('div', 'hint pad', '계정 하나는 Claude Code 설정 폴더 하나예요. 토큰은 읽지 않아요.')));
+    const login = api.auth === undefined ? [] : [createLoginControl(api.auth, { onSuccess: () => void api.usage().then(() => undefined) }).root];
+    root.appendChild(section('계정·한도', row('계정', account), ...login, limits, el('div', 'hint pad', '계정 하나는 Claude Code 설정 폴더 하나예요. 로그인은 브라우저에서 하고, 토큰은 읽지 않아요.')));
 
     // 작업 폴더
     const change = el('button', 'btn sec', '바꾸기');

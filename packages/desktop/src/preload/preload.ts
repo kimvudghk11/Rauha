@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
 import type { UpdateView } from '../shared/update-record.js';
+import type { LoginView } from '../shared/claude-login.js';
 import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared/ipc.js';
 
 const git = Object.fromEntries(GIT_FUNCTIONS.map((fn) => [fn, (root: string, arg: unknown) => ipcRenderer.invoke(IPC.gitCall, fn, root, arg ?? {})])) as unknown as GitApi;
@@ -38,6 +39,14 @@ const api: RauhaApi = {
     dismiss: () => ipcRenderer.invoke(IPC.updateDismiss),
     onState: (listener) => {
       ipcRenderer.on(IPC.updateState, (_e, view: UpdateView) => listener(view));
+    },
+  },
+  auth: {
+    status: () => ipcRenderer.invoke(IPC.authStatus),
+    login: () => ipcRenderer.invoke(IPC.authLogin),
+    cancel: () => ipcRenderer.send(IPC.authCancel),
+    onState: (listener) => {
+      ipcRenderer.on(IPC.authState, (_e, view: LoginView) => listener(view));
     },
   },
   onOpenTab: (listener) => {

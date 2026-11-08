@@ -31,6 +31,7 @@ import { AppVersion } from '../shared/app-update.js';
 import { UpdateService, type FetchLike } from './update/update-service.js';
 import { FileUpdateStore } from './update/update-store.js';
 import { fakeReleases } from './update/fake-releases.js';
+import { ClaudeLogin } from './auth/claude-login.js';
 import { measureTyping } from './measure-typing.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
@@ -342,6 +343,28 @@ function startUpdates(): void {
   });
 }
 
+/** 앱 안 Claude 로그인: 앱에 들어 있는 실행 파일을 지금 계정의 설정 폴더로 돌린다. 확인용 가짜 팀 실행에서만 실행 파일을 바꿀 수 있다. */
+function startAuth(): void {
+  const login = new ClaudeLogin({
+    executable: () => (FAKE ? process.env['RAUHA_CLAUDE_EXECUTABLE'] : undefined) ?? claudeExecutable(),
+    env: async () => {
+      const profile = (await profileResolver(home, settings.account))(currentWorkDir());
+      const agentEnv = profile.agentEnv(home);
+      const dir = agentEnv['CLAUDE_CONFIG_DIR'];
+      if (dir !== undefined) mkdirSync(dir, { recursive: true });
+      return { ...process.env, ...agentEnv };
+    },
+    openExternal: (url) => shell.openExternal(url),
+    onChange: (view) => window?.webContents.send(IPC.authState, view),
+  });
+  ipcMain.handle(IPC.authStatus, () => login.status());
+  ipcMain.handle(IPC.authLogin, () => {
+    void login.start();
+    return login.view();
+  });
+  ipcMain.on(IPC.authCancel, () => login.cancel());
+}
+
 function installMenu(): void {
   const template = appMenuTemplate(process.platform, 'rauha', () => window?.webContents.send(IPC.openTab, 'settings'));
   Menu.setApplicationMenu(template === null ? null : Menu.buildFromTemplate(template));
@@ -458,6 +481,7 @@ void app.whenReady().then(async () => {
   ipcMain.on(IPC.approvalAnswer, (_e, id: unknown, choice: unknown) => {
     if (typeof id === 'string' && typeof choice === 'object' && choice !== null && 'kind' in choice) approvals.answer(id, answerFor(choice as ApprovalChoice));
   });
+  startAuth();
   startUpdates();
   open(runner);
 });
