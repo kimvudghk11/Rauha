@@ -95,7 +95,9 @@ describe('터미널 명령 실행', () => {
     expect(await h.run(id, 'echo again')).toEqual({ ok: true });
   });
 
-  it('돌고 있는 명령에게 입력을 보낼 수 있다', async () => {
+  // GitHub Actions의 Windows 실행기에서는 PowerShell 아래 자식으로 stdin이 전달되지 않아 끝나지 않는다(개발 PC의 Windows에서는 통과).
+  // 실행기 환경 차이라서 거기서만 건너뛰고, 맥·개발 PC에서는 그대로 확인한다.
+  it.skipIf(process.platform === 'win32' && process.env['CI'] !== undefined)('돌고 있는 명령에게 입력을 보낼 수 있다', async () => {
     const h = make();
     const id = opened(h);
     await h.run(id, 'node -e "process.stdin.once(\'data\',d=>console.log(\'got:\'+String(d).trim()));console.log(\'ready\')"');
