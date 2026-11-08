@@ -65,6 +65,13 @@ disabled는 모두 같은 `opacity .45`.
 - 항목 `.item`: 카드 안 항목(`--card`, 안쪽 8/12, 모서리 6). `off`는 흐리게.
 - 목록 행 `.row-item`: 높이 최소 28, hover `--row-hover`, 선택 `--sel`.
 
+### 색 점·진행 막대·팝업 메뉴·표
+
+- 색 점 `.dot`(+`blue green yellow red purple`, 기본 회색): 칸·라벨 색. 라벨은 `.chip`의 같은 색 이름을 쓴다.
+- 진행 막대 `.meter > i`(너비는 `element.style.width`로만).
+- 팝업 메뉴 `.menu > button`(+`.sep`, `.lbl`): `position: fixed`로 기준 요소 아래에 띄운다. 위험 항목은 `danger`.
+- 표 `.tbl`: 머리 고정, 줄 hover `--row-hover`.
+
 ### 줄과 묶음
 
 - 도구줄 `.bar`: 버튼·입력칸·칩이 가운데 정렬로 한 줄(간격 8). `.grow`, `.end`로 늘리기·오른쪽 끝.
