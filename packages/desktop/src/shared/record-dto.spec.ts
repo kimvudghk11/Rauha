@@ -103,3 +103,19 @@ describe('마크다운으로 뽑기(포트폴리오·이력서 정리용)', () =
     expect(unknown).not.toContain('### 바뀐 파일');
   });
 });
+
+describe('기록 지우기 요청(여러 개를 하나씩 보낼 때)', () => {
+  it('번호가 글자가 아니면(숫자·배열·객체·없음) 거절한다', () => {
+    for (const id of [5, null, ['a'], { toString: () => 'a' }, undefined]) expect(() => RecordOpDto.from({ kind: 'remove', id })).toThrow(RecordError);
+  });
+
+  it('요청이 배열이거나 객체가 아니면 거절한다', () => {
+    for (const bad of [null, 'a', 5, [], [{ kind: 'remove', id: 'a' }]]) expect(() => RecordOpDto.from(bad)).toThrow(RecordError);
+  });
+
+  it('없는 번호나 프로토타입 이름(__proto__)을 지우라 해도 다른 기록은 그대로다', () => {
+    const book = RecordBook.empty().add(RecordEntry.capture(input('a')));
+    for (const id of ['nope', '__proto__', 'constructor']) expect(() => RecordOpDto.from({ kind: 'remove', id }).applyTo(book)).toThrow(RecordError);
+    expect(book.has('a')).toBe(true);
+  });
+});

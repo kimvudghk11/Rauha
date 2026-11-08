@@ -163,3 +163,24 @@ describe('팀에 맡길 글', () => {
     expect(TodoDto.requestText(list.items[0]!)).toBe('배포\n- [x] 테스트\n- [ ] 릴리스');
   });
 });
+
+describe('라벨 지우기 요청', () => {
+  it('이름이 글자가 아니면(숫자·배열·객체·없음) 거절한다', () => {
+    for (const name of [5, null, ['bug'], { toString: () => 'bug' }, undefined]) expect(() => TodoOpDto.from({ kind: 'label-remove', name })).toThrow(TodoError);
+  });
+
+  it('빈 이름은 요청은 받아도 적용에서 거절해 아무 카드도 건드리지 않는다', () => {
+    const op = TodoOpDto.from({ kind: 'label-remove', name: '   ' });
+    const list = TodoList.empty().add({ title: 'a', labels: [{ name: 'bug', color: 'red' }] }, newId, at);
+    expect(() => op.applyTo(list, newId, at)).toThrow(TodoError);
+    expect(list.items[0]?.labels.map((l) => l.name)).toEqual(['bug']);
+  });
+
+  it('프로토타입 이름(__proto__·constructor)을 지우라 해도 다른 라벨은 그대로다', () => {
+    const list = TodoList.empty().add({ title: 'a', labels: [{ name: 'bug', color: 'red' }] }, newId, at);
+    for (const name of ['__proto__', 'constructor', 'toString']) {
+      const next = TodoOpDto.from({ kind: 'label-remove', name }).applyTo(list, newId, at);
+      expect(next.items[0]?.labels.map((l) => l.name)).toEqual(['bug']);
+    }
+  });
+});
