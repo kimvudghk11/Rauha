@@ -77,8 +77,19 @@ describe('답답한 점 목록', () => {
   });
 
   it('올리지 않은 메모만 올릴 대상이 된다', () => {
-    const list = BugNoteList.empty().add(make('a')).add(make('b', T1)).markUploaded(['a']);
+    const list = BugNoteList.empty().add(make('a')).add(make('b', T1)).markUploaded([{ id: 'a', updatedAt: T0 }]);
     expect(list.pendingUpload().map((n) => n.id)).toEqual(['b']);
+  });
+
+  it('올리는 동안 바뀐 메모에는 올림 표시를 하지 않는다', () => {
+    const list = BugNoteList.empty().add(make('a')).resolve('a', T2).markUploaded([{ id: 'a', updatedAt: T0 }]);
+    expect(list.require('a').uploaded).toBe(false);
+  });
+
+  it('받아오기 뒤 새로 생긴 수와 상태가 바뀐 수를 센다', () => {
+    const before = BugNoteList.empty().add(make('a'));
+    const after = before.mergeRemote([make('a').resolve(T1), make('b')]);
+    expect(after.changesSince(before)).toEqual({ added: 1, updated: 1 });
   });
 
   it('받아온 새 메모는 더하고 올림으로 본다', () => {

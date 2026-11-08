@@ -191,10 +191,25 @@ export class BugNoteList {
     return new BugNoteList(this.notes.filter((n) => n.id !== id));
   }
 
-  /** 올리기가 끝난 번호들에 올림 표시를 한다 */
-  markUploaded(ids: readonly string[]): BugNoteList {
-    const set = new Set(ids);
-    return new BugNoteList(this.notes.map((n) => (set.has(n.id) ? n.markUploaded() : n)));
+  /**
+   * 올리기가 끝난 메모에 올림 표시를 한다. 올리는 동안 그 메모가 바뀌었다면(바뀐 시각이 다르면) 표시하지 않는다
+   * (바뀐 쪽이 아직 안 올라갔으므로 다음에 다시 올려야 한다).
+   */
+  markUploaded(sent: readonly { readonly id: string; readonly updatedAt: string }[]): BugNoteList {
+    const at = new Map(sent.map((s) => [s.id, s.updatedAt]));
+    return new BugNoteList(this.notes.map((n) => (at.get(n.id) === n.updatedAt ? n.markUploaded() : n)));
+  }
+
+  /** 앞 모음(before)에 견줘 새로 생긴 메모 수와 상태가 바뀐 메모 수 */
+  changesSince(before: BugNoteList): { readonly added: number; readonly updated: number } {
+    let added = 0;
+    let updated = 0;
+    for (const n of this.notes) {
+      const old = before.find(n.id);
+      if (old === undefined) added += 1;
+      else if (old.status !== n.status) updated += 1;
+    }
+    return { added, updated };
   }
 
   /** 받아온 메모를 합친다. 같은 번호는 상태가 최신인 쪽, 새 번호는 더한다(최대 개수까지) */

@@ -4,6 +4,7 @@ import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
+import { BUG_IPC } from '../shared/bug-api.js';
 import { CODE_IPC } from '../shared/code-api.js';
 import { TERM_IPC, type TermEvent } from '../shared/terminal-api.js';
 import { exposeUsageBridge } from './usage-bridge.js';
@@ -61,6 +62,13 @@ const api: RauhaApi = {
     context: () => ipcRenderer.invoke(BLOG_IPC.context),
     draft: (request) => ipcRenderer.invoke(BLOG_IPC.draft, request),
     save: (request) => ipcRenderer.invoke(BLOG_IPC.save, request),
+  },
+  bugs: {
+    get: () => ipcRenderer.invoke(BUG_IPC.get),
+    apply: (op) => ipcRenderer.invoke(BUG_IPC.apply, op),
+    preview: () => ipcRenderer.invoke(BUG_IPC.preview),
+    upload: (digest) => ipcRenderer.invoke(BUG_IPC.upload, digest),
+    download: () => ipcRenderer.invoke(BUG_IPC.download),
   },
   code: {
     tree: (path) => ipcRenderer.invoke(CODE_IPC.tree, path),

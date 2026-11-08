@@ -20,6 +20,9 @@
     "@playwright/mcp": "0.0.84"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "@aws-sdk/client-sts": "^3.1164.0",
+    "@aws-sdk/credential-providers": "^3.1164.0",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-cpp": "^6.0.3",
     "@codemirror/lang-css": "^6.3.1",

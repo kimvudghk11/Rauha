@@ -51,6 +51,10 @@ import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
 import { registerBlogIpc } from './blog/blog-ipc.js';
+import { registerBugIpc } from './bugs/bug-ipc.js';
+import { BugStore } from './bugs/bug-store.js';
+import { connectAws } from './bugs/aws-s3.js';
+import { fakeAws } from './bugs/fake-aws.js';
 import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
@@ -664,6 +668,18 @@ void app.whenReady().then(async () => {
   ipcMain.handle(DATA_IPC.todoApply, (_e, op: unknown) => todoService.apply(op));
   ipcMain.handle(DATA_IPC.recordsGet, () => recordService.get());
   ipcMain.handle(DATA_IPC.recordsApply, (_e, op: unknown) => recordService.apply(op));
+  const fakeS3 = FAKE ? fakeAws() : null;
+  registerBugIpc(ipcMain, {
+    store: new BugStore(join(dataDir, 'bugs.json')),
+    newId: () => randomUUID(),
+    appVersion: () => app.getVersion(),
+    aws: () => ({ profile: settings.awsProfile, bucket: settings.awsBucket, region: settings.awsRegion, account: settings.awsAccount }),
+    folderNames: () => folders().map((f) => f.name),
+    companyNames: () => settings.blogNames,
+    connect: (target) => fakeS3 ?? connectAws(target),
+    platform: process.platform,
+    onChange: () => undefined,
+  });
   registerBlogIpc(ipcMain, {
     folderNames: () => folders().map((f) => f.name),
     companyNames: () => settings.blogNames,
