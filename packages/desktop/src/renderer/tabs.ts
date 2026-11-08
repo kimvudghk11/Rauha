@@ -18,7 +18,7 @@ export const TABS: readonly Tab[] = [
   tab('code', '코드', 'M6 3h8l4 4v14H6z M10 13l-2 2 2 2 M14 13l2 2-2 2', true),
   tab('todo', '할 일', 'M4 4h16v16H4z M8 12l3 3 5-6', true),
   tab('records', '기록', 'M5 4h11l3 3v13H5z M9 10h6 M9 14h6', true),
-  tab('repos', '레포', 'M7 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M7 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M17 7a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M7 8v8 M17 11c0 4-6 3-10 5', true),
+  tab('repos', '레포', 'M3 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', true),
   tab('git', 'git', 'M6 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M18 8a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 8v8 M18 12c0 3-5 3-12 4', true),
   tab('commands', '명령어', 'M5 7l5 5-5 5 M12 17h7', true),
   tab('rules', '규칙', 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z M9 12l2 2 4-4', true),
