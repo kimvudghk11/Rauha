@@ -1,5 +1,5 @@
 import type { Command } from '../shared/command-book.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 
 /**
  * 입력창에 `/`를 치는 동안 입력창 위에 뜨는 명령 후보 목록.
@@ -62,7 +62,7 @@ export function attachSuggest(input: HTMLTextAreaElement, host: HTMLElement, sug
       const picked = list[index]!;
       const typed = input.value.trim().slice(1).toLowerCase();
       const complete = picked.name.toLowerCase() === typed || picked.aliases.some((a) => a.toLowerCase() === typed);
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !complete)) {
+      if (e.key === 'Tab' || (isEnterKey(e) && !e.shiftKey && !complete)) {
         fill(picked);
         return true;
       }

@@ -1,7 +1,7 @@
 import type { Column } from '../shared/todo-columns.js';
 import { beforeIdAt } from '../shared/todo-order.js';
 import { TEAM_CHOICES, type Todo } from '../shared/todo-list.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 import { PRIORITY_LABEL, button, chipOf, colorItems, confirmDialog, dot, dueText, labelChip, meter, showMenu, type MenuItem, type TodoCtx } from './todo-parts.js';
 
 /** 끌고 있는 것. 한 번에 하나이고, 끌기가 끝나면 비운다. (HTML5 끌어서 놓기: 데이터는 여기에 두고 dataTransfer에는 표시만 한다) */
@@ -63,7 +63,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     box.setAttribute('role', 'button');
     box.addEventListener('click', () => ctx.open(todo.id));
     box.addEventListener('keydown', (e) => {
-      if (e.target === box && (e.key === 'Enter' || e.key === ' ')) {
+      if (e.target === box && (isEnterKey(e) || e.key === ' ')) {
         e.preventDefault();
         ctx.open(todo.id);
       }
@@ -182,7 +182,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
         else render();
       };
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') finish(true);
+        if (isEnterKey(e)) finish(true);
         if (e.key === 'Escape') finish(false);
       });
       input.addEventListener('blur', () => finish(true));
@@ -224,7 +224,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
         addDraft = '';
         render();
       }
-      if (e.key === 'Enter' && input.value.trim() !== '') {
+      if (isEnterKey(e) && input.value.trim() !== '') {
         e.preventDefault();
         const title = input.value;
         input.value = '';
@@ -386,7 +386,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
         columnDraft = '';
         render();
       }
-      if (e.key === 'Enter' && input.value.trim() !== '') {
+      if (isEnterKey(e) && input.value.trim() !== '') {
         e.preventDefault();
         const name = input.value;
         void ctx.act({ kind: 'column-add', name, color: 'gray' }).then((r) => {

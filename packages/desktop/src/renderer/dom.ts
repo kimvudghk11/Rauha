@@ -17,3 +17,11 @@ export function icon(path: string): SVGSVGElement {
   }
   return svg;
 }
+
+/**
+ * Enter 키로 "확정"하는 입력칸용. 한글·일본어·중국어 입력기(IME)는 글자를 조합하는 중에도 Enter 키 이벤트를 두 번(조합 확정 + 실제 Enter) 보낸다.
+ * 조합 중(isComposing, 또는 일부 브라우저의 keyCode 229)의 Enter는 무시해서 마지막 글자가 따로 카드·명령으로 새는 것을 막는다.
+ */
+export function isEnterKey(e: KeyboardEvent): boolean {
+  return e.key === 'Enter' && !e.isComposing && e.keyCode !== 229;
+}

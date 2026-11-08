@@ -112,8 +112,6 @@ export class CodeTreeView {
     const open = entry.kind === 'dir' && this.expanded.has(entry.path) && !entry.blocked;
     row.append(el('span', 'tree-chev', entry.kind === 'dir' ? (open ? '▾' : '▸') : ''), iconByName(entry.name, entry.kind === 'dir', open), el('span', 'tree-name', entry.name));
     if (entry.link) row.append(el('span', 'chip tree-tag', '링크'));
-    if (entry.locked) row.append(el('span', 'chip tree-tag', '비밀'));
-    if (entry.heavy) row.append(el('span', 'chip tree-tag', '생성물'));
     this.decorate(row);
     row.title = entry.locked ? '비밀 파일이라 열지 않아요' : entry.blocked ? '작업 폴더 밖을 가리켜서 열지 않아요' : entry.path;
     row.addEventListener('click', () => {

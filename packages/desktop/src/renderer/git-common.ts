@@ -2,7 +2,7 @@ import type { GitArg, GitData, GitFn } from '../shared/git-api.js';
 import type { DiffView } from '../shared/git-api.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
 import type { Selection } from '../shared/git-diff.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 
 /** git 탭의 화면들이 함께 쓰는 손잡이 */
 export interface GitCtx {
@@ -57,7 +57,7 @@ export function askDialog(o: AskOptions): Promise<{ ok: boolean; value: string }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close(false);
-      else if (e.key === 'Enter' && field !== null && document.activeElement === field) close(true);
+      else if (isEnterKey(e) && field !== null && document.activeElement === field) close(true);
     };
     cancel.addEventListener('click', () => close(false));
     ok.addEventListener('click', () => close(true));

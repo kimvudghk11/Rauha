@@ -1,7 +1,7 @@
 import type { BranchView } from '../shared/git-lists.js';
 import { parseTrack, sortBranchesRecent } from '../shared/git-lists.js';
 import { checkBranchName } from '../shared/branch-name-check.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 import type { GitCtx } from './git-common.js';
 import { gitIcon } from './git-icons.js';
 
@@ -173,7 +173,7 @@ export async function openNewBranchDialog(ctx: GitCtx, prefill = ''): Promise<vo
   };
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') finish();
-    else if (e.key === 'Enter' && !ok.disabled && document.activeElement === name) void create();
+    else if (isEnterKey(e) && !ok.disabled && document.activeElement === name) void create();
   };
   const create = async (): Promise<void> => {
     const r = checkBranchName(name.value, local, remotes);

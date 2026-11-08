@@ -8,7 +8,7 @@ import { CodeEditor } from './code-editor.js';
 import { CodeTreeView } from './code-tree-view.js';
 import { buildTerminal } from './terminal-view.js';
 import type { TerminalApi } from '../shared/terminal-api.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 import { iconByName } from './file-icons.js';
 
 export interface CodeDeps {
@@ -462,7 +462,7 @@ export function buildCode(deps: CodeDeps) {
     searchTimer = window.setTimeout(() => void runSearch(), 350);
   });
   searchInput.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
+    if (!isEnterKey(e)) return;
     clearTimeout(searchTimer);
     void runSearch();
   });
@@ -570,7 +570,7 @@ export function buildCode(deps: CodeDeps) {
         e.preventDefault();
         if (shown.length > 0) index = (index + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
         paint();
-      } else if (e.key === 'Enter') {
+      } else if (isEnterKey(e)) {
         e.preventDefault();
         const p = shown[index];
         close();

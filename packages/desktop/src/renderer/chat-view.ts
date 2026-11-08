@@ -7,7 +7,7 @@ import type { Command } from '../shared/command-book.js';
 import { attachSuggest } from './command-suggest.js';
 import { askCard } from './ask-card.js';
 import { needLabel } from '../shared/ask-form.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 import { needsLogin } from '../shared/claude-login.js';
 import { loginCard } from './login-view.js';
 import { characterStateOf, elapsedText } from './room.js';
@@ -122,7 +122,7 @@ export function buildChat(actions: ChatActions) {
       e.preventDefault();
       return;
     }
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    if (isEnterKey(e) && !e.shiftKey) {
       e.preventDefault();
       void send();
     }

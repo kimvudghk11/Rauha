@@ -1,5 +1,5 @@
 import { TEAM_CHOICES, type TodoSort } from '../shared/todo-list.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 import { PRIORITY_LABEL, chipOf, dot, dueText, labelChip, ymd, type TodoCtx } from './todo-parts.js';
 
 export interface TableView {
@@ -35,7 +35,7 @@ export function buildTable(ctx: TodoCtx): TableView {
       tr.tabIndex = 0;
       tr.addEventListener('click', () => ctx.open(todo.id));
       tr.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') ctx.open(todo.id);
+        if (isEnterKey(e)) ctx.open(todo.id);
       });
       const col = board.columns.get(todo.columnId);
       const progress = todo.checklist.progress();

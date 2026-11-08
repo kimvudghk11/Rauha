@@ -1,7 +1,7 @@
 import { Checklist, ChecklistError } from '../shared/todo-checklist.js';
 import { COLUMN_COLORS, type ColumnColor } from '../shared/todo-columns.js';
 import { LABEL_MAX, NOTE_LIMIT, TEAM_CHOICES, TITLE_LIMIT, TODO_PRIORITIES, type Label, type Todo, type TodoPatch, type TodoPriority } from '../shared/todo-list.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 import { COLOR_LABEL, PRIORITY_LABEL, button, chipOf, confirmDialog, dueText, labelChip, meter, select, ymd, type TodoCtx } from './todo-parts.js';
 
 export interface DetailView {
@@ -159,7 +159,7 @@ export function buildDetail(ctx: TodoCtx, onClose: () => void): DetailView {
       setLabels([...labels, { name, color: labelColor.value as ColumnColor }]);
     }
     labelInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+      if (isEnterKey(e)) {
         e.preventDefault();
         addLabel();
       }
@@ -222,7 +222,7 @@ export function buildDetail(ctx: TodoCtx, onClose: () => void): DetailView {
       add.maxLength = 120;
       add.setAttribute('aria-label', '새 항목');
       add.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && add.value.trim() !== '') {
+        if (isEnterKey(e) && add.value.trim() !== '') {
           e.preventDefault();
           const text = add.value;
           guarded(() => checklist.add(text, newItemId()));

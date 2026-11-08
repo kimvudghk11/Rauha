@@ -1,6 +1,6 @@
 import { TERMINAL_LIMIT_NOTE, type TermEvent, type TermRoot, type TerminalApi } from '../shared/terminal-api.js';
 import { TerminalScreen } from '../shared/terminal-line.js';
-import { el } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 
 interface Tab {
   readonly id: string;
@@ -213,7 +213,7 @@ export function buildTerminal(api: TerminalApi) {
   input.addEventListener('keydown', (e) => {
     const tab = active;
     if (tab === null) return;
-    if (e.key === 'Enter') {
+    if (isEnterKey(e)) {
       e.preventDefault();
       void submit();
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
