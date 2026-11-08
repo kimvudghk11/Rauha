@@ -66,4 +66,37 @@ describe('git worktree', () => {
   it('남은 게 없거나 폴더가 없으면 0이다', async () => {
     expect(await cleanupLeftovers(join(tmpdir(), 'rauha-없는-폴더'))).toBe(0);
   });
+
+  it('이 레포의 기존 브랜치·커밋 방식(feature/ 하이픈, feat: 한국어)을 따라 남긴다', async () => {
+    const r = repo();
+    for (const [b, m] of [['feature/add-cart', 'feat: 장바구니 추가'], ['feature/fix-login', 'fix: 로그인 오류'], ['feature/coupon-page', 'feat: 쿠폰 화면']] as const) {
+      r.git('checkout', '-q', '-b', b);
+      writeFileSync(join(r.root, `${b.replace('/', '-')}.txt`), 'x');
+      r.git('add', '.');
+      r.git('commit', '-q', '-m', m);
+    }
+    r.git('checkout', '-q', 'main');
+    const wt = join(r.base, 'wt-style');
+    await addWorktree(r.root, wt);
+    writeFileSync(join(wt, 'a.ts'), 'changed\n');
+    const branch = await finishWorktree(r.root, wt, 'zzzz1111-aaaa', '쿠폰 목록 추가');
+    expect(branch).toBe('feature/쿠폰-목록-추가');
+    expect(r.git('log', '-1', '--format=%s', branch!).trim()).toBe('feat: 쿠폰 목록 추가');
+  });
+
+  it('같은 이름의 브랜치가 이미 있으면 번호를 붙여 겹치지 않게 한다', async () => {
+    const r = repo();
+    for (const b of ['feature/a', 'feature/b', 'feature/c']) {
+      r.git('checkout', '-q', '-b', b);
+      writeFileSync(join(r.root, b.replace('/', '-')), 'x');
+      r.git('add', '.');
+      r.git('commit', '-q', '-m', 'work ' + b);
+    }
+    r.git('checkout', '-q', 'main');
+    r.git('branch', 'feature/same-name');
+    const wt = join(r.base, 'wt-dup');
+    await addWorktree(r.root, wt);
+    writeFileSync(join(wt, 'a.ts'), 'changed\n');
+    expect(await finishWorktree(r.root, wt, 'yyyy2222-aaaa', 'same name')).toBe('feature/same-name-2');
+  });
 });

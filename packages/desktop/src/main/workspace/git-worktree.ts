@@ -2,12 +2,41 @@ import { execFile } from 'node:child_process';
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { RepoConventions } from '../../shared/repo-conventions.js';
 
 const run = promisify(execFile);
 const git = (cwd: string, args: readonly string[]) => run('git', [...args], { cwd, windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
 
 /** 작업 브랜치 이름: 어느 작업의 결과인지 알 수 있게 작업 id 앞 8자를 쓴다 */
 export const jobBranch = (jobId: string): string => `rauha/job-${jobId.replace(/[^A-Za-z0-9]/g, '').slice(0, 8)}`;
+
+/**
+ * 이 레포의 기존 브랜치·커밋 이름 방식을 읽는다. 내 이름(git user.name)으로 쓴 최근 커밋을 먼저 보고, 적으면 모두의 커밋을 본다.
+ * 읽지 못하면 기본값(예전 rauha/job-…)이다.
+ */
+export async function readConventions(repo: string): Promise<RepoConventions> {
+  try {
+    const lines = (out: string) => out.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '');
+    const branches = lines((await git(repo, ['branch', '-a', '--format=%(refname:short)'])).stdout);
+    const me = (await git(repo, ['config', 'user.name']).catch(() => ({ stdout: '' }))).stdout.trim();
+    const log = async (extra: string[]) => lines((await git(repo, ['log', '--all', '-n', '50', '--no-merges', '--format=%s', ...extra]).catch(() => ({ stdout: '' }))).stdout);
+    const mine = me === '' ? [] : await log([`--author=${me}`]);
+    const subjects = mine.length >= 5 ? mine : await log([]);
+    return RepoConventions.infer(branches, subjects);
+  } catch {
+    return RepoConventions.default();
+  }
+}
+
+/** 같은 이름의 브랜치가 이미 있으면 -2, -3 … 을 붙여 겹치지 않게 한다. */
+async function freeBranchName(repo: string, wanted: string): Promise<string> {
+  for (let n = 1; n < 50; n += 1) {
+    const name = n === 1 ? wanted : `${wanted}-${n}`;
+    const exists = await git(repo, ['rev-parse', '--verify', '-q', `refs/heads/${name}`]).then(() => true, () => false);
+    if (!exists) return name;
+  }
+  return `${wanted}-${Date.now()}`;
+}
 
 /** 레포 원래 폴더에서 갈라져 나오는 worktree를 만든다(지금 HEAD 기준, 분리된 상태). */
 export async function addWorktree(repo: string, path: string): Promise<void> {
@@ -24,10 +53,13 @@ export async function finishWorktree(repo: string, path: string, jobId: string, 
   try {
     const { stdout } = await git(path, ['status', '--porcelain']);
     if (stdout.trim() !== '') {
-      const branch = jobBranch(jobId);
+      const conv = await readConventions(repo);
+      const branch = await freeBranchName(repo, conv.branchName(message, jobId));
       await git(path, ['checkout', '-q', '-b', branch]);
       await git(path, ['add', '-A']);
-      await git(path, ['-c', 'user.name=rauha', '-c', 'user.email=rauha@localhost', 'commit', '-q', '-m', `rauha: ${message.slice(0, 60)}`]);
+      const hasUser = (await git(repo, ['config', 'user.email']).catch(() => ({ stdout: '' }))).stdout.trim() !== '';
+      const identity = hasUser ? [] : ['-c', 'user.name=rauha', '-c', 'user.email=rauha@localhost'];
+      await git(path, [...identity, 'commit', '-q', '-m', conv.commitSubject(message.replace(/s+/g, ' ').trim().slice(0, 60), message)]);
       kept = branch;
     }
   } catch {
