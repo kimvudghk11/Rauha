@@ -9,6 +9,7 @@ import { CodeTreeView } from './code-tree-view.js';
 import { buildTerminal } from './terminal-view.js';
 import type { TerminalApi } from '../shared/terminal-api.js';
 import { el } from './dom.js';
+import { iconByName } from './file-icons.js';
 
 export interface CodeDeps {
   readonly api: CodeApi;
@@ -196,7 +197,7 @@ export function buildCode(deps: CodeDeps) {
         e.stopPropagation();
         void closeTab(f.path);
       });
-      t.append(el('span', 'code-tab-name', (labels.get(f.path) ?? f.path) + (f.stale ? ' !' : '')), close);
+      t.append(iconByName(baseName(f.path), false), el('span', 'code-tab-name', (labels.get(f.path) ?? f.path) + (f.stale ? ' !' : '')), close);
       t.addEventListener('click', () => activate(f.path));
       t.addEventListener('auxclick', (e) => {
         if (e.button === 1) void closeTab(f.path);
@@ -490,7 +491,7 @@ export function buildCode(deps: CodeDeps) {
   function resultGroup(f: SearchFileHits): HTMLElement {
     const group = el('div', 'cs-file');
     const title = el('div', 'cs-path');
-    title.append(el('b', undefined, baseName(f.path)), el('span', 'dim', f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : ''), el('span', 'chip cs-count', String(f.hits.length)));
+    title.append(iconByName(baseName(f.path), false), el('b', undefined, baseName(f.path)), el('span', 'dim', f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : ''), el('span', 'chip cs-count', String(f.hits.length)));
     title.title = f.path;
     group.append(title);
     for (const h of f.hits) {
@@ -545,7 +546,7 @@ export function buildCode(deps: CodeDeps) {
         const row = el('button', `qo-row${i === index ? ' on' : ''}`);
         row.type = 'button';
         const dir = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
-        row.append(el('b', undefined, baseName(p)), el('span', 'dim', dir));
+        row.append(iconByName(baseName(p), false), el('b', undefined, baseName(p)), el('span', 'dim', dir));
         const st = changeMap.statusOf(p);
         if (st !== null) row.append(el('span', `tree-badge chg-${st}`, st));
         row.addEventListener('click', () => {

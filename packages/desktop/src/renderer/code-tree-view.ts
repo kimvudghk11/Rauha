@@ -1,6 +1,7 @@
 import { codeFailText, type CodeApi, type TreeEntry } from '../shared/code-api.js';
 import { ChangeMap, type ChangeCode } from '../shared/code-changes.js';
 import { el } from './dom.js';
+import { iconByName } from './file-icons.js';
 
 const CHANGE_TITLE: Readonly<Record<ChangeCode, string>> = { M: '수정됨', A: '추가됨', D: '삭제됨', R: '이름 바뀜', U: '새 파일(추적 안 함)', '!': '충돌' };
 
@@ -109,7 +110,7 @@ export class CodeTreeView {
     row.classList.toggle('locked', entry.locked || entry.blocked);
     const children = el('div', 'tree-children');
     const open = entry.kind === 'dir' && this.expanded.has(entry.path) && !entry.blocked;
-    row.append(el('span', 'tree-chev', entry.kind === 'dir' ? (open ? '▾' : '▸') : ''), el('span', 'tree-name', entry.name));
+    row.append(el('span', 'tree-chev', entry.kind === 'dir' ? (open ? '▾' : '▸') : ''), iconByName(entry.name, entry.kind === 'dir', open), el('span', 'tree-name', entry.name));
     if (entry.link) row.append(el('span', 'chip tree-tag', '링크'));
     if (entry.locked) row.append(el('span', 'chip tree-tag', '비밀'));
     if (entry.heavy) row.append(el('span', 'chip tree-tag', '생성물'));
@@ -129,10 +130,12 @@ export class CodeTreeView {
       this.expanded.delete(entry.path);
       children.replaceChildren();
       if (chev !== null) chev.textContent = '▸';
+      row.querySelector('.fi')?.replaceWith(iconByName(entry.name, true, false));
       return;
     }
     this.expanded.add(entry.path);
     if (chev !== null) chev.textContent = '▾';
+    row.querySelector('.fi')?.replaceWith(iconByName(entry.name, true, true));
     const depth = Math.round((Number.parseInt(row.style.paddingLeft, 10) - 8) / 12) + 1;
     await this.fill(children, entry.path, depth, this.generation);
   }

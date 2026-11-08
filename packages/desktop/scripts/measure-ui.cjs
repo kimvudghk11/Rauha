@@ -18,7 +18,7 @@ const WIDTHS = (rest[1] ?? '1700,1100,720,600').split(',').map(Number);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const MEASURE = `(() => {
-  const sel = 'button, select, input, textarea, .chip, .rtag, .gtab, .tree-row, .act button, .dtabs button, .ltoggle button, [role=button]';
+  const sel = 'button, select, input, textarea, .chip, .rtag, .gtab, .tree-row, .act button, .dtabs button, .ltoggle button, [role=button], svg.fi';
   const rows = [];
   const trail = (n) => { const p = []; for (let e = n; e && e !== document.body && p.length < 4; e = e.parentElement) p.unshift(e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : '')); return p.join(' > '); };
   for (const n of document.querySelectorAll(sel)) {
@@ -106,6 +106,8 @@ const SCENES = [
   ['code-file', 'code', ['.tree-row:not(.heavy)', '.tree-row:not(.heavy):nth-child(3)']],
   // 편집기를 실제로 조작한다(찾기 패널·입력·Alt 십자 커서·빠른 열기): 화면 콘솔 오류가 나는지 본다
   ['code-edit', 'code', ['.tree-row:not(.heavy)', '.tree-row:not(.heavy):nth-child(3)', `(() => { const c = document.querySelector('.cm-content'); c.focus(); const k = (key, o = {}) => c.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o })); k('f', { ctrlKey: true }); k('Alt', { altKey: true }); k('End'); k('Tab'); document.execCommand('insertText', false, 'x'); k('p', { ctrlKey: true }); k('Escape'); })()`]],
+  // 아이콘 갤러리: 문서에 들어 있는 모든 파일 아이콘 심볼을 16px로 그려 크기를 잰다
+  ['code-icons', 'code', [`(() => { const g = document.createElement('div'); g.className = 'tree'; for (const sym of document.querySelectorAll('symbol[id^=fi-]')) { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'fi fi-blue'); s.setAttribute('width', '16'); s.setAttribute('height', '16'); const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#' + sym.id); s.append(u); g.append(s); } document.querySelector('.code-explorer').append(g); })()`]],
   ['code-term', 'code', ['.code-termbtn']],
   ['code-search', 'code', ['.code-mode:nth-child(2)']],
   ['todo', 'todo', []],
@@ -145,6 +147,8 @@ function check(results) {
         const want = cls.includes('sm') ? 28 : 32;
         if (Math.abs(r.h - want) > 0.6) bad.push(where + ' 탭 높이 ' + r.h + ' (기대 ' + want + ') ' + id);
       }
+      if (r.tag === 'svg' && cls.includes('fi') && (r.w !== 16 || r.h !== 16)) bad.push(where + ' 파일 아이콘 크기 ' + r.w + 'x' + r.h + ' (기대 16x16)');
+      if (cls.includes('tree-row') && Math.abs(r.h - 22) > 0.6) bad.push(where + ' 트리 행 높이 ' + r.h + ' (기대 22) ' + id);
       if (cls.includes('chip') && Math.abs(r.h - 20) > 0.6 && r.tag === 'span') bad.push(where + ' 칩 높이 ' + r.h + ' ' + id);
       if ((r.tag === 'select' || (r.tag === 'input' && !['checkbox', 'radio'].includes(r.type) && !r.cls.includes('term-input') && !r.cls.includes('qo-input'))) && ![24, 28].some((h) => Math.abs(r.h - h) < 0.6)) bad.push(where + ' 입력칸 높이 ' + r.h + ' ' + id);
     }
@@ -202,6 +206,7 @@ async function run(win) {
           await sleep(700);
         }
         await snap(name, width);
+        if (process.env.MEASURE_SHOT_DIR) fs.writeFileSync(path.join(process.env.MEASURE_SHOT_DIR, name + '-' + width + '.png'), (await wc.capturePage()).toPNG());
       }
     }
   } catch (e) {

@@ -4,6 +4,7 @@
   --text: #cccccc; --bright: #e7e7e7; --muted: #9d9d9d; --dim: #6e7681; --input: #313131;
   --accent: #0078d4; --accentfg: #4daafc; --sel: #04395e;
   --green: #89d185; --yellow: #e2c08d; --red: #f48771; --delfi: #6FBDEB;
+  --fi-blue: #4daafc; --fi-orange: #e8935a; --fi-teal: #4ec9b0; --fi-pink: #e58bc0; --fi-folder: #d1a45e;
   --mono: Consolas, "Cascadia Code", "D2Coding", monospace;
 }
 * { box-sizing: border-box; }
