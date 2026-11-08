@@ -97,11 +97,11 @@ export function buildCommands(api: CommandsApi) {
   reset.addEventListener('click', () => void persist(book.restoreDefaults()));
 
   function card(c: Command, enabled: boolean): HTMLElement {
-    const box = el('div', enabled ? 'cmd' : 'cmd off');
+    const box = el('div', enabled ? 'item cmd' : 'item cmd off');
     const top = el('div', 'top');
     const title = el('b', undefined, c.usage());
     const aliases = c.aliases.length > 0 ? el('span', 'chip', c.aliases.map((a) => `/${a}`).join(' ')) : null;
-    const more = el('button', 'btn', open.has(c.id) ? '접기' : '자세히');
+    const more = el('button', 'btn sm', open.has(c.id) ? '접기' : '자세히');
     more.addEventListener('click', () => {
       if (open.has(c.id)) open.delete(c.id);
       else open.add(c.id);
@@ -119,9 +119,9 @@ export function buildCommands(api: CommandsApi) {
       toggle.append(box2, el('span', undefined, enabled ? '켬' : '끔'));
       top.append(toggle);
     } else {
-      const edit = el('button', 'btn', '고치기');
+      const edit = el('button', 'btn sm', '고치기');
       edit.addEventListener('click', () => startEdit(c));
-      const del = el('button', 'btn', '지우기');
+      const del = el('button', 'btn sm danger', '지우기');
       del.addEventListener('click', () => {
         if (editing === c.id) startEdit(null);
         void persist(book.remove(c.id));

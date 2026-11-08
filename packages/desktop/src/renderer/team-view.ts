@@ -53,7 +53,7 @@ export function buildTeam(api: TeamApi) {
   function row(info: TeamMemberInfo, s: MemberSetting): HTMLElement {
     const enabled = s.enabled !== false;
     const changed = Object.keys(s).length > 0;
-    const card = el('div', enabled ? 'tm' : 'tm off');
+    const card = el('div', enabled ? 'item tm' : 'item tm off');
     const top = el('div', 'tmtop');
     const face = el('canvas', 'sp');
     paintOnce(face, (s.character ?? info.role) as CharacterRole, 2);
@@ -63,7 +63,7 @@ export function buildTeam(api: TeamApi) {
     top.append(face, name, title);
     if (changed) top.appendChild(el('span', 'chip', '바꿈'));
 
-    const tier = el('select');
+    const tier = el('select', 'sm');
     for (const t of TIERS) tier.appendChild(new Option(`${TIER_LABEL[t]}${t === info.defaults.tier ? ' · 기본' : ''}`, t));
     tier.value = s.tier ?? info.defaults.tier;
     tier.addEventListener('change', () => void change(info.role, { tier: tier.value as Tier }));
@@ -78,7 +78,7 @@ export function buildTeam(api: TeamApi) {
     box.addEventListener('change', () => void change(info.role, { enabled: box.checked }));
     toggle.append(box, el('span', undefined, info.required ? '켬(고정)' : enabled ? '켬' : '끔'));
 
-    const more = el('button', 'btn', open.has(info.role) ? '접기' : '자세히');
+    const more = el('button', 'btn sm', open.has(info.role) ? '접기' : '자세히');
     more.addEventListener('click', () => {
       if (open.has(info.role)) open.delete(info.role);
       else open.add(info.role);
@@ -132,7 +132,7 @@ export function buildTeam(api: TeamApi) {
       character.value = s.character ?? info.role;
       character.addEventListener('change', () => void change(info.role, { character: isCharacter(character.value) ? character.value : null }));
 
-      const reset = el('button', 'btn', '이 팀원 기본값으로');
+      const reset = el('button', 'btn sm', '이 팀원 기본값으로');
       reset.disabled = !changed;
       reset.addEventListener('click', () => void apply({ kind: 'reset', role: info.role }));
 

@@ -71,7 +71,7 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
   root.lastElementChild!.append(defaultsNote, resetAll);
 
   function defaultCard(d: DefaultRuleView): HTMLElement {
-    const card = el('div', d.enabled ? 'rule default' : 'rule default off');
+    const card = el('div', d.enabled ? 'item rule default' : 'item rule default off');
     const top = el('div', 'dtop');
     top.append(el('span', 'chip', '기본'), ...(d.edited ? [el('span', 'chip', '고침')] : []));
     const toggle = el('label', 'tg');
@@ -110,14 +110,14 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
     card.appendChild(meta);
     if (d.note !== null) card.appendChild(el('div', 'hint', d.note));
     const row = el('div', 'row');
-    const edit = el('button', 'btn', '고치기');
+    const edit = el('button', 'btn sm', '고치기');
     edit.addEventListener('click', () => {
       editingDefault = d.id;
       void refresh();
     });
     row.appendChild(edit);
     if (d.edited || !d.enabled) {
-      const restore = el('button', 'btn', '기본값으로');
+      const restore = el('button', 'btn sm', '기본값으로');
       restore.addEventListener('click', () => void apply({ kind: 'restore', id: d.id }));
       row.appendChild(restore);
     }
@@ -156,12 +156,12 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
       for (const d of defaults.filter((x) => x.bucket === col.bucket)) pane.appendChild(defaultCard(d));
       if (own.length === 0 && defaults.every((d) => d.bucket !== col.bucket)) pane.appendChild(el('div', 'dim pad', '아직 없어요.'));
       for (const r of own) {
-        const card = el('div', 'rule');
+        const card = el('div', 'item rule');
         card.appendChild(el('div', undefined, r.text));
         const meta = el('div', 'meta');
         meta.appendChild(el('span', 'chip', SCOPE_LABEL(r)));
         if (r.includes.length > 0) meta.appendChild(el('span', 'chip', `${r.tools.join('·') || '모든 도구'}: ${r.includes.join(' + ')}`));
-        const del = el('button', 'btn', '지우기');
+        const del = el('button', 'btn sm danger', '지우기');
         del.addEventListener('click', () => void api.remove(r.id).then(render));
         card.append(meta, del);
         pane.appendChild(card);
