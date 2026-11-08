@@ -60,7 +60,8 @@ function compareIdentifier(a: string, b: string): number {
 
 /** 내려받기 주소는 이 저장소의 릴리스 파일만 허용한다. */
 export function isAllowedDownload(url: unknown): url is string {
-  if (typeof url !== 'string' || !url.startsWith(DOWNLOAD_PREFIX)) return false;
+  // GitHub는 저장소 이름을 바꾸면 응답의 주소에 새 대소문자(Rauha)를 쓴다. 호스트·소유자·저장소 이름은 대소문자를 가리지 않고 비교한다.
+  if (typeof url !== 'string' || !url.toLowerCase().startsWith(DOWNLOAD_PREFIX.toLowerCase())) return false;
   const rest = url.slice(DOWNLOAD_PREFIX.length);
   return rest !== '' && !/[\s\\]/.test(rest) && !rest.split('/').some((seg) => seg === '..' || seg === '.');
 }

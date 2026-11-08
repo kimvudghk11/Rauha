@@ -128,3 +128,16 @@ describe('shouldShowBanner', () => {
     expect(shouldShowBanner(v('0.1.1'), null, null)).toBe(false);
   });
 });
+
+describe('isAllowedDownload 저장소 이름 대소문자', () => {
+  it('저장소 이름을 Rauha로 바꾼 뒤의 응답 주소(대문자 R)도 허용한다', () => {
+    expect(isAllowedDownload('https://github.com/kimvudghk11/Rauha/releases/download/v0.1.5/rauha-0.1.5-mac-arm64.dmg')).toBe(true);
+    expect(isAllowedDownload('https://github.com/KimVudghk11/RAUHA/releases/download/v0.1.5/rauha-Setup-0.1.5-x64.exe')).toBe(true);
+  });
+
+  it('다른 소유자나 저장소, 다른 호스트는 여전히 거절한다', () => {
+    expect(isAllowedDownload('https://github.com/evil/Rauha/releases/download/v0.1.5/x.dmg')).toBe(false);
+    expect(isAllowedDownload('https://github.com/kimvudghk11/Rauha-evil/releases/download/v0.1.5/x.dmg')).toBe(false);
+    expect(isAllowedDownload('https://evil.example/kimvudghk11/Rauha/releases/download/v0.1.5/x.dmg')).toBe(false);
+  });
+});
