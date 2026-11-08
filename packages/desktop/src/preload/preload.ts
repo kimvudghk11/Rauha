@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
 import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
+import { DATA_IPC } from '../shared/data-api.js';
 import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared/ipc.js';
 
 const git = Object.fromEntries(GIT_FUNCTIONS.map((fn) => [fn, (root: string, arg: unknown) => ipcRenderer.invoke(IPC.gitCall, fn, root, arg ?? {})])) as unknown as GitApi;
@@ -38,6 +39,20 @@ const api: RauhaApi = {
   reviewApproval: (id) => ipcRenderer.invoke(IPC.approvalReview, id),
   answerApproval: (id, choice) => ipcRenderer.send(IPC.approvalAnswer, id, choice),
   platform: process.platform,
+  todo: {
+    get: () => ipcRenderer.invoke(DATA_IPC.todoGet),
+    apply: (op) => ipcRenderer.invoke(DATA_IPC.todoApply, op),
+    onChange: (listener) => {
+      ipcRenderer.on(DATA_IPC.todoChanged, (_e, list) => listener(list));
+    },
+  },
+  records: {
+    get: () => ipcRenderer.invoke(DATA_IPC.recordsGet),
+    apply: (op) => ipcRenderer.invoke(DATA_IPC.recordsApply, op),
+    onChange: (listener) => {
+      ipcRenderer.on(DATA_IPC.recordsChanged, (_e, book) => listener(book));
+    },
+  },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),
     check: () => ipcRenderer.invoke(IPC.updateCheck),

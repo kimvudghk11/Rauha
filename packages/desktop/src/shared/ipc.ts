@@ -8,6 +8,7 @@ import type { Settings } from './settings.js';
 import type { Effort, MemberDefaults, MemberSetting, Tier, TeamSettingsJson } from './team-settings.js';
 import type { CommandBookJson } from './command-dto.js';
 import type { UpdateView } from './update-record.js';
+import type { RecordsApi, TodoApi } from './data-api.js';
 import type { LoginView } from './claude-login.js';
 import type { DefaultRuleView, DefaultVariant, InfraRisk } from '@rauha/core/jobs';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
@@ -179,6 +180,8 @@ export interface RauhaApi {
   findTerminalRauha(): Promise<readonly TerminalRauhaView[]>;
   removeTerminalRauha(paths: readonly string[]): Promise<readonly string[]>;
   readonly update: UpdateApi;
+  readonly todo: TodoApi;
+  readonly records: RecordsApi;
   readonly auth: AuthApi;
 }
 

@@ -150,7 +150,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     root.appendChild(section('권한', row('보호 브랜치(쉼표로)', branches), row('동시에 돌 작업 수(다음 실행부터)', concurrency)));
 
     if (api.team !== undefined) root.appendChild(section('팀 설정', api.team.build()));
-    root.appendChild(section('정보 저장', el('div', 'dim pad', '곧 열려요.')));
+    root.appendChild(section('정보 저장', el('div', 'dim pad', '지금은 기록이 이 컴퓨터에만 저장돼요(기록 탭). 내 AWS(S3)로 요약을 보내는 기능은 나중에 열려요.')));
   }
 
   void render();

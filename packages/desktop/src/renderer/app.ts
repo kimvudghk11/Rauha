@@ -5,6 +5,9 @@ import { el, icon } from './dom.js';
 import { buildGit } from './git-view.js';
 import { buildRepos } from './repos-view.js';
 import { buildRules } from './rules-view.js';
+import { addTodo, buildTodo, localToday } from './todo-view.js';
+import { buildRecords, copyText } from './records-view.js';
+import { TodoDto } from '../shared/todo-dto.js';
 import { buildCommands, commandsApi } from './commands-view.js';
 import { useLooks } from './characters.js';
 import { buildTeam } from './team-view.js';
@@ -86,6 +89,8 @@ function show(id: TabId): void {
   else if (id === 'repos') screen.replaceChildren(buildRepos({ list: () => window.rauha.listRepos() }, async () => (await window.rauha.getSettings()).workFolder).root);
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
   else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => window.rauha.getUsage(), accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check() }, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
+  else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
+  else if (id === 'records') screen.replaceChildren(buildRecords({ api: window.rauha.records, now: () => Date.now(), copy: copyText }).root);
   else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);
   else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid), defaults: { list: () => window.rauha.listDefaultRules(), apply: (op) => window.rauha.applyDefaultRule(op) } }).root);
   else {
@@ -122,6 +127,7 @@ const chat = buildChat({
   intercept: (text) => runner.intercept(text),
   suggest: (text) => commandBook.suggest(text),
   submit: (text) => window.rauha.submit(text),
+  saveTodo: (text) => addTodo(window.rauha.todo, TodoDto.draftFromChat(text)),
   stop: (id) => window.rauha.stop(id),
   deeper: (id) => window.rauha.goDeeper(id),
   answer: (id, choice) => window.rauha.answerApproval(id, choice),

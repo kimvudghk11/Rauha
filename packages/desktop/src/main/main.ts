@@ -7,7 +7,7 @@ import { dirname } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
-import { boardView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
+import { boardView, jobView, IPC, type ApprovalChoice, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
 import { CommandStore } from './command-store.js';
@@ -37,6 +37,15 @@ import { FileUpdateStore } from './update/update-store.js';
 import { fakeReleases } from './update/fake-releases.js';
 import { ClaudeLogin } from './auth/claude-login.js';
 import { measureTyping } from './measure-typing.js';
+import { DATA_IPC } from '../shared/data-api.js';
+import { summarizeRequest } from '../shared/approval-summary.js';
+import { TodoStore } from './data/todo-store.js';
+import { TodoService } from './data/todo-service.js';
+import { RecordStore } from './data/record-store.js';
+import { RecordService } from './data/record-service.js';
+import { decisionOf, JobTrail } from './team/job-trail.js';
+import { newlyChanged, snapshotChanges } from './team/changed-files.js';
+import { recordInputOf } from './team/record-input.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
 const BACKGROUND = '#1f1f1f';
@@ -137,7 +146,7 @@ async function smokeCompose(): Promise<void> {
 async function startRunner(): Promise<JobRunner> {
   let work;
   if (FAKE) {
-    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? currentWorkDir()), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request) });
+    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? currentWorkDir()), trail.repo(job.id, basename(folders()[0]?.root ?? currentWorkDir())), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request) });
   } else {
     const prompts = await PromptLibrary.load(promptsDir());
     const profileFor = await profileResolver(home, settings.account);
@@ -154,11 +163,17 @@ async function startRunner(): Promise<JobRunner> {
             ledger = claim.ledger;
             const cwd = claim.place.kind === 'worktree' ? claim.place.path : root;
             jobRoots.set(job.id, cwd);
+            trail.repo(job.id, basename(root));
+            let before: Map<string, string> | null = null;
             try {
               if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
+              before = await snapshotChanges(cwd);
               const session = composeSession({ home, prompts, profileFor, plan: () => plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides() }, cwd, io, root);
               return await session.handle(target.text, depth);
             } finally {
+              // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
+              const after = before === null ? null : await snapshotChanges(cwd);
+              if (before !== null && after !== null) trail.files(job.id, newlyChanged(before, after));
               const released = ledger.release(job.id);
               ledger = released.ledger;
               if (released.worktree !== null) {
@@ -193,6 +208,7 @@ async function startRunner(): Promise<JobRunner> {
       window?.webContents.send(IPC.board, boardView(board));
       for (const job of board.jobs) {
         if (!job.isOver) continue;
+        onJobOver(job);
         approvals.closeJob(job.id);
         if (job.status === 'done' && !doneNotified.has(job.id)) {
           doneNotified.add(job.id);
@@ -205,6 +221,41 @@ async function startRunner(): Promise<JobRunner> {
 }
 
 const doneNotified = new Set<string>();
+
+/** 할 일·기록(앱 데이터 폴더의 JSON 파일). 기록은 이 PC에만 둔다. 확인용으로 RAUHA_DATA_DIR로 폴더를 바꿀 수 있다. */
+const dataDir = process.env['RAUHA_DATA_DIR'] ?? join(homedir(), '.rauha', 'desktop');
+const todoService = new TodoService({
+  store: new TodoStore(join(dataDir, 'todos.json')),
+  newId: () => randomUUID(),
+  now: () => new Date().toISOString(),
+  submit: (text) => submitJob(text),
+  onChange: (list) => window?.webContents.send(DATA_IPC.todoChanged, list),
+});
+const recordService = new RecordService({
+  store: new RecordStore(join(dataDir, 'records.json')),
+  onChange: (book) => window?.webContents.send(DATA_IPC.recordsChanged, book),
+});
+/** 작업이 도는 동안 기록에 쓸 것(허락 결정·바뀐 파일·레포)을 모아 둔다 */
+const trail = new JobTrail();
+const recorded = new Set<string>();
+
+/** 팀(메인)에 일을 넘긴다. 폴더를 고르고 허락하기 전에는 일을 받지 않는다(엉뚱한 폴더에서 일하지 않게). 확인용 환경 변수가 있으면 건너뛴다. */
+function submitJob(text: string): { id: string } | null {
+  const ready = process.env['RAUHA_WORK_DIR'] !== undefined || FAKE || canWork(settings);
+  return runnerRef !== null && ready ? runnerRef.submit(text) : null;
+}
+
+/** 끝난 작업을 기록으로 옮기고, 맡겨 둔 할 일을 끝/멈춤으로 바꾼다. 같은 작업은 한 번만 처리한다. */
+function onJobOver(job: Parameters<typeof jobView>[0]): void {
+  if (recorded.has(job.id)) return;
+  recorded.add(job.id);
+  // 허락을 닫는 답(작업 정리로 인한 거절)이 모두 들어온 뒤에 모은 것을 꺼낸다
+  setTimeout(() => {
+    const input = recordInputOf(jobView(job), trail.take(job.id), new Date().toISOString());
+    if (input !== null) void recordService.capture(input);
+  }, 0);
+  void todoService.jobFinished(job.id, job.status === 'done' ? 'done' : 'stopped');
+}
 
 /** 작업이 끝나면(창이 가려져 있을 때만) 알린다. 누르면 그 작업의 팀 상세로 간다. */
 function notifyDone(jobId: string, request: string): void {
@@ -222,6 +273,12 @@ function askWithNotice(jobId: string, request: Parameters<Approvals['ask']>[1]) 
   const answered = approvals.ask(jobId, request);
   const pending = approvals.pending().find((p) => p.jobId === jobId && p.request === request);
   if (pending !== undefined) notifyApproval(jobId, approvalView(pending, settings.protectedBranches).summary.headline);
+  void answered.then((answer) => {
+    // 작업이 끝나서 닫힌 허락(자동 거절)은 사용자가 정한 결정이 아니라서 기록하지 않는다
+    if (runnerRef?.board.find(jobId)?.isOver === true) return;
+    const { decision, note } = decisionOf(answer);
+    trail.approval(jobId, { tool: request.tool, headline: summarizeRequest(request, settings.protectedBranches).headline, reason: request.reason, decision, note, at: new Date().toISOString() });
+  });
   return answered;
 }
 
@@ -401,6 +458,7 @@ void app.whenReady().then(async () => {
   ruleBook = await ruleStore.load().catch(() => RuleBook.empty());
   defaultRules = await defaultRulesStore.load();
   team = await teamStore.load();
+  await todoService.releaseOrphans(new Set());
   const runner = await startRunner();
   ipcMain.handle(IPC.settingsGet, () => (process.env['RAUHA_WORK_DIR'] !== undefined ? { ...settings, workFolder: currentWorkDir(), folderApproved: true, firstRunDone: true } : settings));
   ipcMain.handle(IPC.settingsUpdate, async (_e, patch: unknown) => {
@@ -429,6 +487,10 @@ void app.whenReady().then(async () => {
     dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => shell.openExternal(url) }, fn, root, arg),
   );
   ipcMain.handle(IPC.commandsGet, () => commandStore.load());
+  ipcMain.handle(DATA_IPC.todoGet, () => todoService.get());
+  ipcMain.handle(DATA_IPC.todoApply, (_e, op: unknown) => todoService.apply(op));
+  ipcMain.handle(DATA_IPC.recordsGet, () => recordService.get());
+  ipcMain.handle(DATA_IPC.recordsApply, (_e, op: unknown) => recordService.apply(op));
   ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
   ipcMain.handle(IPC.teamGet, () => teamView(team));
   ipcMain.handle(IPC.teamApply, async (_e, op: unknown) => {
@@ -491,8 +553,7 @@ void app.whenReady().then(async () => {
   });
   ipcMain.handle(IPC.submit, (_e, text: unknown) => {
     // 폴더를 고르고 허락하기 전에는 일을 받지 않는다(엉뚱한 폴더에서 일하지 않게). 확인용 환경 변수가 있으면 건너뛴다.
-    const ready = process.env['RAUHA_WORK_DIR'] !== undefined || FAKE || canWork(settings);
-    const job = typeof text === 'string' && ready ? runner.submit(text) : null;
+    const job = typeof text === 'string' ? submitJob(text) : null;
     return job === null ? null : boardView(runner.board).jobs.find((j) => j.id === job.id) ?? null;
   });
   ipcMain.handle(IPC.deeper, (_e, id: unknown) => {

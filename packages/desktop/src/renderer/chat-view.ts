@@ -30,6 +30,8 @@ export interface ChatActions {
   readonly submit: (text: string) => Promise<JobView | null>;
   readonly stop: (id: string) => void;
   readonly deeper: (id: string) => Promise<JobView | null>;
+  /** 보낸 일을 할 일로 담는다 */
+  readonly saveTodo?: (text: string) => Promise<{ readonly ok: true } | { readonly ok: false; readonly error: string }>;
   readonly answer: (id: string, choice: ApprovalChoice) => void;
   readonly review: (id: string) => Promise<ChangeReview | null>;
   /** `/명령`을 읽어 앱이 처리하고, 팀에 보낼 글을 돌려준다(앱이 처리했으면 null). 없으면 글을 그대로 보낸다. */
@@ -154,7 +156,21 @@ export function buildChat(actions: ChatActions) {
     go.addEventListener('click', () => open(job.id));
     const stop = el('button', 'stop', '멈추기');
     stop.addEventListener('click', () => actions.stop(job.id));
-    hand.append(dot, line, state, go, stop);
+    hand.append(dot, line, state, go);
+    if (actions.saveTodo !== undefined) {
+      const keep = el('button', 'keep', '할 일로 담기');
+      keep.title = '이 일을 할 일 탭에 담아 둬요';
+      keep.addEventListener('click', () => {
+        keep.disabled = true;
+        void actions.saveTodo!(job.request).then((res) => {
+          keep.textContent = res.ok ? '담았어요 ✓' : '담지 못했어요';
+          keep.title = res.ok ? '할 일 탭에서 볼 수 있어요' : res.error;
+          keep.disabled = res.ok;
+        });
+      });
+      hand.append(keep);
+    }
+    hand.append(stop);
     tx.appendChild(hand);
     body.append(el('div', 'who', leadName()), tx);
     reply.append(av, body);

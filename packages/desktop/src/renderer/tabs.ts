@@ -16,8 +16,8 @@ const tab = (id: TabId, label: string, icon: string, ready = false, bottom = fal
 export const TABS: readonly Tab[] = [
   tab('chat', '채팅', 'M4 5h16v11H9l-5 4z', true),
   tab('code', '코드', 'M6 3h8l4 4v14H6z M10 13l-2 2 2 2 M14 13l2 2-2 2'),
-  tab('todo', '할 일', 'M4 4h16v16H4z M8 12l3 3 5-6'),
-  tab('records', '기록', 'M5 4h11l3 3v13H5z M9 10h6 M9 14h6'),
+  tab('todo', '할 일', 'M4 4h16v16H4z M8 12l3 3 5-6', true),
+  tab('records', '기록', 'M5 4h11l3 3v13H5z M9 10h6 M9 14h6', true),
   tab('repos', '레포', 'M7 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M7 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M17 7a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M7 8v8 M17 11c0 4-6 3-10 5', true),
   tab('git', 'git', 'M6 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M18 8a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 8v8 M18 12c0 3-5 3-12 4', true),
   tab('commands', '명령어', 'M5 7l5 5-5 5 M12 17h7', true),

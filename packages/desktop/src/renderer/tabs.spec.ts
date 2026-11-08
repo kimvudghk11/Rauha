@@ -7,7 +7,7 @@ describe('TABS', () => {
     expect(TABS.filter((t) => t.bottom).map((t) => t.label)).toEqual(['설정']);
   });
 
-  it('지금은 채팅·레포·git·명령어·규칙·설정 탭이 열리고 나머지는 곧', () => {
-    expect(TABS.filter((t) => t.ready).map((t) => t.id)).toEqual(['chat', 'repos', 'git', 'commands', 'rules', 'settings']);
+  it('지금은 채팅·할 일·기록·레포·git·명령어·규칙·설정 탭이 열리고 코드만 곧', () => {
+    expect(TABS.filter((t) => t.ready).map((t) => t.id)).toEqual(['chat', 'todo', 'records', 'repos', 'git', 'commands', 'rules', 'settings']);
   });
 });
