@@ -174,7 +174,7 @@ describe('NodeProject 관련 테스트 명령', () => {
 });
 
 describe('NodeChecks 검사 묶음 병렬 실행', () => {
-  const slow = 'node -e "setTimeout(()=>{},1500)"';
+  const slow = 'node -e "setTimeout(()=>{},2500)"';
 
   it('tests·typecheck·lint를 차례가 아니라 동시에 돌린다', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rauha-par-'));
@@ -183,7 +183,7 @@ describe('NodeChecks 검사 묶음 병렬 실행', () => {
       const started = Date.now();
       const results = await new NodeChecks(dir).runSuite();
       expect(results.map((r) => [r.name, r.status])).toEqual([['tests', 'pass'], ['typecheck', 'pass'], ['lint', 'pass']]);
-      expect(Date.now() - started).toBeLessThan(4200); // 차례로 돌면 4500ms 이상
+      expect(Date.now() - started).toBeLessThan(6500); // 차례로 돌면 7500ms 이상(전체 테스트가 몰려 느려져도 겹쳐 도는지 가린다)
     } finally {
       rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     }
