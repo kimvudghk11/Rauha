@@ -150,6 +150,13 @@ describe('createToolGuard', () => {
       expect(decision(out)).toBe('deny');
     });
 
+    it('프로세스 치환(<( ))으로 이어 붙인 명령도 통째로 풀어 주지 않는다', async () => {
+      const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { rules: (_tool, detail) => (detail.includes('terraform apply') ? 'allow' : null) });
+      const out = await guard(input('Bash', { command: 'terraform apply <(rm -rf build)' }), 't1', opts);
+      expect(asked).toHaveLength(1);
+      expect(decision(out)).toBe('deny');
+    });
+
     it('묻지 않고 할 것 규칙에 맞는 위험 동작은 묻지 않고 허락한다', async () => {
       const { guard, asked } = guardWith([], { rules: (_tool, detail) => (detail.includes('terraform apply') ? 'allow' : null) });
       const out = await guard(input('Bash', { command: 'terraform apply -var env=prod' }), 't1', opts);
@@ -184,5 +191,27 @@ describe('createToolGuard', () => {
       expect(decision(await guard(input('Bash', { command: 'terraform apply -var env=prod' }), 't1', opts))).toBeDefined();
       expect(asked.length).toBeLessThanOrEqual(1);
     });
+  });
+});
+
+describe('createToolGuard 비밀 파일 심볼릭 링크', () => {
+  it('작업 폴더 안의 링크가 비밀 파일을 가리키면 읽기를 거절한다', async () => {
+    const { mkdtempSync, symlinkSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'rauha-link-'));
+    try {
+      writeFileSync(join(dir, '.env'), 'X=1');
+      try {
+        symlinkSync(join(dir, '.env'), join(dir, 'notes.txt'), 'file');
+      } catch {
+        return; // 이 PC는 링크를 만들 권한이 없다(Windows 일반 계정)
+      }
+      const { guard } = guardWith([], { root: dir.replaceAll('\\', '/') });
+      const out = await guard(input('Read', { file_path: join(dir, 'notes.txt') }), 't1', opts);
+      expect(decision(out)).toBe('deny');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

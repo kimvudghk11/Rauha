@@ -165,3 +165,50 @@ describe('ToolRisk — 클라우드 명령', () => {
     }
   });
 });
+
+describe('ToolRisk 우회 시도', () => {
+  const denied = (command: string) => expect(bash(command), command).toBe('deny');
+
+  it('감싸는 프로그램(timeout, command, nice …)과 별칭(-c alias.)으로도 git push를 막는다', () => {
+    denied('timeout 30 git push origin main');
+    denied('command git push');
+    denied('nice -n 5 git push');
+    denied('git -c alias.p=push p');
+    denied('git -c alias.ship=push ship origin main');
+    denied('git submodule foreach "git push"');
+    denied('git rebase -x "git push" main');
+  });
+
+  it('공백이 든 따옴표 경로의 git.exe, PowerShell 호출 형태로도 git push를 막는다', () => {
+    denied('& "C:\\Program Files\\Git\\cmd\\git.exe" push');
+    denied('iex "git push"');
+    denied('Invoke-Expression "git commit -m x"');
+    denied('Start-Process git -ArgumentList "push"');
+  });
+
+  it('git push와 같은 일을 하는 저수준 명령(send-pack, http-push)도 막는다', () => {
+    denied('git send-pack origin main');
+    denied('git http-push origin main');
+  });
+
+  it('git 별칭을 만드는 설정은 묻는다', () => {
+    expect(bash('git config alias.p push')).toBe('ask');
+    expect(bash('git config --global alias.p "!git push"')).toBe('ask');
+    expect(bash('git config user.name x')).toBe('allow');
+  });
+});
+
+describe('ToolRisk .git 안쪽', () => {
+  it('팀원이 .git/hooks나 .git/config를 쓰는 것은 거절하고, 셸로 건드리면 묻는다', () => {
+    expect(write('E:/work/app/.git/hooks/pre-push')).toBe('deny');
+    expect(write('E:/work/app/.GIT/config')).toBe('deny');
+    expect(write('E:/work/app/.github/workflows/ci.yml')).toBe('allow');
+    expect(bash('echo x > .git/hooks/pre-commit')).toBe('ask');
+    expect(bash('git status')).toBe('allow');
+  });
+
+  it('sudo git push도 묻지 않고 거절한다', () => {
+    expect(bash('sudo git push')).toBe('deny');
+    expect(bash('sudo ls')).toBe('ask');
+  });
+});

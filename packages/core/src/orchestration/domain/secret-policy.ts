@@ -1,4 +1,5 @@
 import { matchesPattern, relativeToRoot } from '../../shared/path-pattern.js';
+import { commandVariants, DECODE_AND_RUN, expandBraces, isShortNameOf, shellGlobMatches } from './shell-words.js';
 
 /** 언제나 막는 비밀 파일. 이름(어느 폴더에 있든)으로 맞춘다. */
 const DEFAULT_NAMES: readonly string[] = [
@@ -50,7 +51,7 @@ export interface SecretContext {
 }
 
 function normalize(path: string): string {
-  return path.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+  return path.normalize('NFC').replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
 }
 
 /** `.gitignore`처럼 쓴 한 줄 → 규칙. `/x`는 루트 기준, `x/`는 폴더, `/`가 없으면 어디서든. */
@@ -105,7 +106,7 @@ export class SecretPolicy {
   /** glob(Grep의 glob, 셸의 와일드카드)이 비밀 파일을 겨누는지. 실제로 있는 비밀 파일과 기본 목록의 대표 이름에 맞춰 본다. */
   globTargetsSecret(glob: string, secretFiles: readonly string[]): boolean {
     const g = normalize(glob);
-    return [...DEFAULT_SAMPLES, ...secretFiles.map(normalize)].some((f) => matchesPattern(g, f) || matchesPattern(g, f.split('/').pop() ?? f));
+    return [...DEFAULT_SAMPLES, ...secretFiles.map(normalize)].some((f) => shellGlobMatches(g, f) || shellGlobMatches(g, f.split('/').pop() ?? f));
   }
 
   /**
@@ -118,15 +119,28 @@ export class SecretPolicy {
       const search = this.recursiveSearch(command);
       if (search !== null) return search;
     }
-    return command.split(WORD_BOUNDARY).find((word) => word !== '' && this.wordTouchesSecret(word, ctx)) ?? null;
+    const decoding = ctx.secretFiles.length > 0 ? DECODE_AND_RUN.exec(command)?.[0] : undefined;
+    if (decoding !== undefined) return decoding.trim();
+    // 따옴표·역슬래시·16진 표기·중괄호로 이름을 쪼개 써도 이어 붙여 본다.
+    for (const variant of commandVariants(command)) {
+      for (const word of variant.split(WORD_BOUNDARY)) {
+        if (word === '') continue;
+        for (const expanded of expandBraces(word)) if (this.wordTouchesSecret(expanded, ctx)) return word;
+      }
+    }
+    return null;
   }
 
   private wordTouchesSecret(word: string, ctx: SecretContext): boolean {
     const candidates = [word];
     if (!WINDOWS_DRIVE.test(word) && word.includes(':')) candidates.push(word.slice(word.lastIndexOf(':') + 1));
+    // Windows 대체 데이터 스트림(.env::$DATA)은 같은 파일이다
+    const stream = word.replace(/(:[^\\/:]*)+$/, '');
+    if (stream !== '' && stream !== word) candidates.push(stream);
     const rel = relativeToRoot(ctx.root, word);
     if (rel !== null && rel !== '') candidates.push(rel);
-    return candidates.some((c) => c !== '' && (this.isSecret(c) || (/[*?]/.test(c) && this.globTargetsSecret(c, ctx.secretFiles))));
+    const touches = candidates.some((c) => c !== '' && (this.isSecret(c) || (/[*?[]/.test(c) && this.globTargetsSecret(c, ctx.secretFiles))));
+    return touches || isShortNameOf(word, [...DEFAULT_SAMPLES, ...ctx.secretFiles]);
   }
 
   private recursiveSearch(command: string): string | null {

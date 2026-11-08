@@ -48,3 +48,47 @@ describe('SecretPolicy', () => {
     expect(p.secretIn('grep -n foo src/a.ts', here)).toBeNull();
   });
 });
+
+describe('SecretPolicy 우회 시도', () => {
+  const p = SecretPolicy.defaults();
+  const here = { root: 'E:/work/app', secretFiles: ['.env', 'credentials.json'] };
+  const blocked = (command: string) => expect(p.secretIn(command, here), command).not.toBeNull();
+
+  it('따옴표나 역슬래시로 이름을 쪼개도 같은 파일로 본다', () => {
+    blocked('cat .e""nv');
+    blocked("cat .en''v");
+    blocked('cat .e\\nv');
+    blocked('cat ".e"nv');
+  });
+
+  it('?와 [글자]와 {a,b} 와일드카드로 가리켜도 잡는다', () => {
+    blocked('cat .?nv');
+    blocked('cat .[e]nv');
+    blocked('cat .en{v,}');
+    blocked('cat .{env,x}');
+  });
+
+  it('16진·8진 표기($\'\\x2e\')로 쓴 이름도 잡는다', () => {
+    blocked("cat $'\\x2eenv'");
+    blocked("cat $'\\056env'");
+  });
+
+  it('Windows 대체 데이터 스트림(::$DATA)과 짧은 8.3 이름으로 가리켜도 잡는다', () => {
+    blocked('type .env::$DATA');
+    blocked('type ENV~1');
+    blocked('type CREDEN~1.JSO');
+  });
+
+  it('비밀 파일이 있으면 풀어서 실행하는 명령(base64 -d, eval, xxd -r, printf \\x)은 거절한다', () => {
+    blocked('echo LmVudg== | base64 -d | xargs cat');
+    blocked('eval "$(echo Y2F0IC5lbnY= | base64 --decode)"');
+    blocked('cat $(printf "\\x2eenv")');
+    blocked('xxd -r -p <<< 2e656e76');
+  });
+
+  it('비밀 파일이 없으면 같은 명령도 막지 않고, HEAD~1 같은 보통 명령은 막지 않는다', () => {
+    expect(p.secretIn('echo aGk= | base64 -d', { root: 'E:/work/app', secretFiles: [] })).toBeNull();
+    expect(p.secretIn('git diff HEAD~1', here)).toBeNull();
+    expect(p.secretIn('git log -n 3 --oneline', here)).toBeNull();
+  });
+});

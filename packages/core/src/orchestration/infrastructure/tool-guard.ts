@@ -1,3 +1,5 @@
+import { realpath } from 'node:fs/promises';
+import { isAbsolute, resolve } from 'node:path';
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { relativeToRoot } from '../../shared/path-pattern.js';
 import { InfraRiskDto, type InfraRisk } from '../application/dto/infra-risk.dto.js';
@@ -54,8 +56,19 @@ const PATH_INPUTS: Readonly<Record<string, readonly string[]>> = {
   Glob: ['path'],
 };
 
+/** 작업 폴더 안의 심볼릭 링크가 비밀 파일을 가리키는지(링크 이름은 평범해도 실제 파일이 비밀이면 막는다). 없는 파일이면 false. */
+async function linksToSecret(options: ToolGuardOptions, path: string): Promise<boolean> {
+  try {
+    const real = (await realpath(isAbsolute(path) ? path : resolve(options.root, path))).replaceAll('\\', '/');
+    const realRoot = (await realpath(options.root)).replaceAll('\\', '/');
+    return options.secrets.isSecret(relativeToRoot(realRoot, real) ?? real);
+  } catch {
+    return false;
+  }
+}
+
 /** 도구 입력에서 비밀 파일을 찾는다. 경로는 작업 폴더 기준으로 바꿔 본다. 없으면 null. */
-function secretTouched(options: ToolGuardOptions, tool: string, toolInput: Record<string, unknown>): string | null {
+async function secretTouched(options: ToolGuardOptions, tool: string, toolInput: Record<string, unknown>): Promise<string | null> {
   if (tool === 'Bash' || tool === 'PowerShell') {
     const command = toolInput['command'];
     return typeof command === 'string' ? options.secrets.secretIn(command, { root: options.root, secretFiles: options.secretFiles() }) : null;
@@ -65,6 +78,7 @@ function secretTouched(options: ToolGuardOptions, tool: string, toolInput: Recor
     if (typeof value !== 'string') continue;
     const rel = relativeToRoot(options.root, value) ?? value;
     if (options.secrets.isSecret(rel)) return value;
+    if (await linksToSecret(options, value)) return value;
   }
   return tool === 'Grep' ? grepIntoSecrets(options, toolInput) : null;
 }
@@ -85,7 +99,7 @@ function grepIntoSecrets(options: ToolGuardOptions, toolInput: Record<string, un
 }
 
 /** 명령 여러 개를 이은 글인지(&& || ; | & 줄바꿈 $( 백틱) */
-const isChained = (detail: string): boolean => /&&|\|\||[;|&\n`]|\$\(/.test(detail);
+const isChained = (detail: string): boolean => /&&|\|\||[;|&\n\r`]|\$\(|[<>]\(/.test(detail);
 
 function decide(permissionDecision: 'allow' | 'deny', reason: string) {
   return {
@@ -105,7 +119,7 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
     if (input.hook_event_name !== 'PreToolUse') return {};
     const toolInput = (input.tool_input ?? {}) as Record<string, unknown>;
 
-    const secret = secretTouched(options, input.tool_name, toolInput);
+    const secret = await secretTouched(options, input.tool_name, toolInput);
     if (secret !== null) {
       return decide('deny', `비밀 파일(${secret})은 rauha 팀원이 읽거나 쓸 수 없습니다(.rauhaignore와 기본 목록). 그 값 없이 할 수 있는 방법을 쓰세요.`);
     }

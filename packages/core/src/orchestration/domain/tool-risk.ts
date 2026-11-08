@@ -10,7 +10,13 @@ export interface ToolVerdict {
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
 
 /** rauha는 커밋하지 않는다. 커밋은 언제나 사용자가 직접 한다. */
-const GIT_ALWAYS_DENY = new Set(['commit', 'push']);
+const GIT_ALWAYS_DENY = new Set(['commit', 'push', 'send-pack', 'http-push']);
+/** 안에 다른 명령(git push 같은)을 품을 수 있는 git 하위 명령 */
+const GIT_NESTING = new Set(['submodule', 'rebase', 'bisect', 'filter-branch']);
+/** 만들어 두면 다음 git 실행 때 명령이 돌아가는 git 설정(별칭, ssh·pager·fsmonitor·hooks·자격 증명 도우미) */
+const GIT_EXEC_CONFIG = /^(alias\.|core\.(sshcommand|fsmonitor|hookspath|pager|editor|askpass)|credential\.helper|gpg\.program)/i;
+/** .git 안의 hooks·config를 만지는 셸 명령 */
+const GIT_INTERNALS = /(^|[\s"'=<>/\\])\.git[/\\](hooks|config)\b/i;
 const GIT_WRITES = new Set([
   'reset', 'checkout', 'restore', 'switch', 'clean', 'stash', 'rebase', 'merge', 'cherry-pick',
   'revert', 'tag', 'rm', 'mv', 'am', 'apply', 'update-ref', 'filter-branch', 'gc', 'prune',
@@ -23,7 +29,11 @@ const ask = (reason: string): ToolVerdict => ({ decision: 'ask', reason });
 const deny = (reason: string): ToolVerdict => ({ decision: 'deny', reason });
 
 /** 다른 명령을 인자로 받아 실행하는 프로그램. 뒤따르는 단어들을 하나의 명령으로 다시 검사한다. */
-const WRAPPERS = new Set(['bash', 'sh', 'zsh', 'cmd', 'powershell', 'pwsh', 'env', 'xargs', 'nohup', 'time', 'npx', 'exec', 'eval']);
+const WRAPPERS = new Set([
+  'bash', 'sh', 'zsh', 'cmd', 'powershell', 'pwsh', 'env', 'xargs', 'nohup', 'time', 'npx', 'exec', 'eval',
+  'timeout', 'command', 'builtin', 'nice', 'ionice', 'setsid', 'doas', 'stdbuf', 'watch', 'busybox', 'unbuffer',
+  'iex', 'invoke-expression', 'invoke-command', 'icm', 'start-process', 'start', 'call',
+]);
 /** 값을 하나 받는 git 전역 옵션. 하위 명령을 찾을 때 그 값까지 건너뛴다. */
 const GIT_VALUE_OPTIONS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env']);
 
@@ -33,6 +43,8 @@ const GIT_VALUE_OPTIONS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--na
  */
 function segments(command: string): string[][] {
   return command
+    // 공백이 든 따옴표 경로의 git("C:\Program Files\Git\cmd\git.exe")는 공백을 붙여 한 단어로 읽는다
+    .replace(/"([^"]*[\\/]git(?:\.exe)?)"/gi, (_, path: string) => path.replace(/\s+/g, ''))
     .replace(/\$\(|[()`]/g, ' ; ')
     .replace(/["']/g, ' ')
     .split(/&&|\|\||;|\||&|\n/)
@@ -43,6 +55,20 @@ function segments(command: string): string[][] {
       return words.slice(i);
     })
     .filter((words) => words.length > 0);
+}
+
+/** `git -c alias.p=push p origin` → 풀어 쓴 명령 [git, push, origin]. 별칭이 아니면 null. */
+function aliasOf(args: readonly string[], sub: string): readonly string[] | null {
+  const at = args.indexOf(sub);
+  for (let i = 0; i + 1 < at; i += 1) {
+    const m = args[i] === '-c' ? /^alias\.([^=]+)=(.*)$/i.exec(args[i + 1] as string) : null;
+    if (m === null || m[1] !== sub) continue;
+    const value = (m[2] as string).trim();
+    // 따옴표가 공백으로 바뀐 뒤라 값이 여러 단어로 흩어져 있을 수 있다: 하위 명령 앞 단어들이 전부 별칭 값이다
+    const words = value.startsWith('!') ? value.slice(1).split(/\s+/) : ['git', ...value.split(/\s+/)];
+    return [...words.filter((w) => w !== ''), ...args.slice(at + 1)];
+  }
+  return null;
 }
 
 /** `/usr/bin/git.exe` → `git` */
@@ -122,11 +148,12 @@ function assessSegment(words: readonly string[]): ToolVerdict {
   const args = words.slice(1);
 
   // 감싸는 프로그램(bash -c, cmd /c, xargs …)은 옵션을 건너뛰고 나머지를 명령으로 다시 본다.
-  if (WRAPPERS.has(program)) {
+  // 옵션 값(timeout 30, nice -n 5)이 끼어 있어도 놓치지 않게 뒤쪽 어느 단어부터든 명령으로 읽어 본다.
+  if (WRAPPERS.has(program) || program === 'sudo') {
     const rest = args.filter((a) => !/^[-/][A-Za-z]+$/.test(a));
-    return rest.length > 0 ? assessSegment(rest) : ALLOW;
+    const inner = rest.map((_, i) => assessSegment(rest.slice(i)));
+    return worst(program === 'sudo' ? [ask('sudo 실행'), ...inner] : inner);
   }
-  if (program === 'sudo') return ask('sudo 실행');
   if (DELETE_COMMANDS.has(program)) return ask(`파일 지우기 (${program})`);
   if (program === 'find') {
     if (args.includes('-delete')) return ask('파일 지우기 (find -delete)');
@@ -137,7 +164,17 @@ function assessSegment(words: readonly string[]): ToolVerdict {
   if (program === 'git') {
     const sub = gitSubcommand(args);
     if (sub === undefined) return ALLOW;
+    // 한 줄짜리 별칭(-c alias.p=push p, 또는 !명령)은 풀어서 다시 본다.
+    const alias = aliasOf(args, sub);
+    if (alias !== null) return assessSegment(alias);
     if (GIT_ALWAYS_DENY.has(sub)) return deny(`git ${sub}: 커밋과 push는 사용자가 직접 합니다`);
+    if (sub === 'config' && args.some((a) => GIT_EXEC_CONFIG.test(a))) return ask('git 설정: 다음 git 실행 때 명령이 돌아갈 수 있는 값이에요');
+    if (GIT_NESTING.has(sub)) {
+      const after = args.slice(args.indexOf(sub) + 1);
+      const nested = after.flatMap((w, i) => (programName(w) === 'git' ? [assessSegment(after.slice(i))] : []));
+      const own: ToolVerdict = GIT_WRITES.has(sub) ? ask(`git 쓰기 (git ${sub})`) : ALLOW;
+      return worst([own, ...nested]);
+    }
     if (GIT_WRITES.has(sub)) return ask(`git 쓰기 (git ${sub})`);
     if (sub === 'branch' && args.some((a) => /^-(d|D|-delete)$/.test(a))) return ask('git 쓰기 (브랜치 삭제)');
     return ALLOW;
@@ -167,6 +204,7 @@ export class ToolRisk {
   static assess(tool: string, input: Record<string, unknown>, root: string): ToolVerdict {
     if (WRITE_TOOLS.has(tool)) {
       const path = input['file_path'] ?? input['notebook_path'];
+      if (typeof path === 'string' && path.split(/[\\/]/).some((part) => part.toLowerCase() === '.git')) return deny('.git 안쪽(hooks·설정)은 팀원이 쓰지 않아요. 다음 git 실행 때 명령이 돌아갈 수 있어요');
       if (typeof path === 'string' && relativeToRoot(root, path) === null) {
         return ask(`작업 폴더 밖에 쓰기 (${path})`);
       }
@@ -175,7 +213,7 @@ export class ToolRisk {
     if (tool === 'Bash' || tool === 'PowerShell') {
       const command = input['command'];
       if (typeof command !== 'string') return ALLOW;
-      return worst(segments(command).map(assessSegment));
+      return worst([GIT_INTERNALS.test(command) ? ask('.git 안쪽(hooks·설정)을 건드리는 명령') : ALLOW, ...segments(command).map(assessSegment)]);
     }
     return ALLOW;
   }
