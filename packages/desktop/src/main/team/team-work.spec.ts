@@ -139,3 +139,72 @@ describe('teamWork', () => {
     expect(job.result).toContain('테스트를 못 만들었어요');
   });
 });
+
+describe('teamWork — 분석 질문 카드', () => {
+  const card = { runId: 'r1', title: '결제', symptom: 's', options: [], recommendedId: 'a', recommendedReason: 'r', canGoOn: false, docPath: null };
+
+  function withCards(handle: (io: TeamIo) => Promise<TurnOutcome>, askCard?: NonNullable<Parameters<typeof teamWork>[0]['askCard']>) {
+    const ios: TeamIo[] = [];
+    const runner = JobRunner.start({
+      work: teamWork({ newSession: (io) => (ios.push(io), { handle: () => handle(io) }), askUser: async () => ({ kind: 'allow' }), ...(askCard !== undefined ? { askCard } : {}) }),
+      newId: () => 'j1',
+      now: () => '2026-11-08T00:00:00.000Z',
+    });
+    return { runner, ios };
+  }
+
+  it('질문 카드를 보이는 쪽이 없으면 분석에 물어볼 화면이 없다고 알린다 (방향 비교까지만 한다)', async () => {
+    const { runner, ios } = withCards(async () => answer('x'));
+    runner.submit('A');
+    await runner.idle();
+    expect(ios[0]!.user.analysis).toBeUndefined();
+  });
+
+  it('방향 고르기 카드를 기다리는 동안 작업은 기다림이고, 답이 오면 이어서 간다', async () => {
+    let reply!: (r: { kind: 'pick'; id: string }) => void;
+    const seen: string[] = [];
+    const { runner } = withCards(
+      async (io) => {
+        const r = await io.user.analysis!.chooseDirection(card, new AbortController().signal);
+        return answer(r.kind);
+      },
+      (jobId, payload) => (seen.push(`${jobId}:${payload.kind}`), new Promise((resolve) => (reply = resolve as never))),
+    );
+    runner.submit('A');
+    await flush();
+    expect(runner.board.find('j1')?.status).toBe('waiting');
+    expect(seen).toEqual(['j1:directions']);
+    reply({ kind: 'pick', id: 'a' });
+    await runner.idle();
+    expect(runner.board.find('j1')?.result).toBe('pick');
+  });
+
+  it('승인 카드는 approval 종류로 보낸다', async () => {
+    const seen: string[] = [];
+    const { runner } = withCards(
+      async (io) => {
+        await io.user.analysis!.decide({ runId: 'r1', title: 't', chosen: 'c', goal: 'g', steps: [], risks: [], docPath: null }, new AbortController().signal);
+        return answer('끝');
+      },
+      async (_id, payload) => (seen.push(payload.kind), { kind: 'proceed' }),
+    );
+    runner.submit('A');
+    await runner.idle();
+    expect(seen).toEqual(['approval']);
+  });
+
+  it('승인한 계획의 구현이 멈췄으면 작업도 멈춤이고, 사용자가 그만둔 분석은 끝이다', async () => {
+    const base = { kind: 'analysis', title: 't', path: null, summary: '분석 요약', stopped: false, choice: null, durationMs: 1 };
+    const stoppedWork = { status: 'stopped', title: '고치기', guide: { stopMessage: () => '테스트가 안 돼요' }, changedInRun: [], assumptions: [], facts: { unconfirmed: [] } };
+    const a = withCards(async () => ({ ...base, implemented: stoppedWork }) as unknown as TurnOutcome);
+    a.runner.submit('A');
+    await a.runner.idle();
+    expect(a.runner.board.find('j1')?.status).toBe('stopped');
+
+    const b = withCards(async () => ({ ...base, stopped: true, implemented: null }) as unknown as TurnOutcome);
+    b.runner.submit('A');
+    await b.runner.idle();
+    expect(b.runner.board.find('j1')?.status).toBe('done');
+    expect(b.runner.board.find('j1')?.result).toBe('분석 요약');
+  });
+});

@@ -23,6 +23,6 @@ export function recordInputOf(job: JobView, trail: Trail, now: string): RecordIn
     repo: trail.repo,
     files: trail.files ?? [],
     approvals: trail.approvals,
-    direction: null,
+    direction: trail.direction,
   };
 }

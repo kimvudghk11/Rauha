@@ -21,9 +21,17 @@ describe('작업 중 모아 두는 기록거리', () => {
     trail.files('a', ['x.ts']);
     trail.repo('a', 'api');
     trail.approval('b', note);
-    expect(trail.take('a')).toEqual({ approvals: [note, { ...note, headline: 'merge' }], files: ['x.ts'], repo: 'api' });
-    expect(trail.take('a')).toEqual({ approvals: [], files: null, repo: null });
+    expect(trail.take('a')).toEqual({ approvals: [note, { ...note, headline: 'merge' }], files: ['x.ts'], repo: 'api', direction: null });
+    expect(trail.take('a')).toEqual({ approvals: [], files: null, repo: null, direction: null });
     expect(trail.take('b').approvals).toHaveLength(1);
+  });
+
+  it('분석에서 고른 방향을 작업마다 모으고, 다시 오면 마지막 것을 남긴다', () => {
+    const trail = new JobTrail();
+    trail.direction('a', { recommended: '멱등 키', chosen: '멱등 키', reason: '쉽다' });
+    trail.direction('a', { recommended: '멱등 키', chosen: '락', reason: null });
+    expect(trail.take('a').direction).toEqual({ recommended: '멱등 키', chosen: '락', reason: null });
+    expect(trail.take('b').direction).toBeNull();
   });
 
   it('바뀐 파일을 알아내지 못했으면 null이다(없음과 구분)', () => {

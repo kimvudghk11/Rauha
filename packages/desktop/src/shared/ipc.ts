@@ -1,4 +1,5 @@
 import type { ApprovalSummary } from './approval-summary.js';
+import type { AskView } from './ask-card.js';
 import type { ChangeReview } from './branch-impact.js';
 import type { RuleView } from './rules-form.js';
 import type { FolderKind } from './folder-kind.js';
@@ -138,10 +139,23 @@ export interface ApprovalView {
   readonly summary: ApprovalSummary;
   /** 운영 팀원이 함께 낸 인프라 위험도(없으면 null → 모름) */
   readonly risk: InfraRisk | null;
+  /** 분석의 질문 카드(방향 고르기·계획 승인)이면 그 내용. 허락 요청이면 null */
+  readonly ask: AskView | null;
 }
 
-/** 허락 화면의 네 버튼 */
-export type ApprovalChoice = { readonly kind: 'once' } | { readonly kind: 'job' } | { readonly kind: 'revise'; readonly note: string } | { readonly kind: 'deny' };
+/**
+ * 허락 화면의 네 버튼과 질문 카드의 답. 질문 카드에서 revise는 고칠 점, pick은 보여 준 방향 중 하나,
+ * custom은 직접 쓴 방향, goOn은 방향 비교까지만 하던 분석을 설계·계획까지 이어 달라는 뜻이다.
+ */
+export type ApprovalChoice =
+  | { readonly kind: 'once' }
+  | { readonly kind: 'job' }
+  | { readonly kind: 'revise'; readonly note: string }
+  | { readonly kind: 'deny' }
+  | { readonly kind: 'pick'; readonly id: string; readonly reason: string; readonly goOn: boolean }
+  | { readonly kind: 'custom'; readonly text: string; readonly reason: string; readonly goOn: boolean }
+  | { readonly kind: 'proceed' }
+  | { readonly kind: 'stop' };
 
 /** preload가 화면에 열어 주는 API(window.rauha) */
 export interface RauhaApi {

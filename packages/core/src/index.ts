@@ -147,3 +147,4 @@ export type { AnalysisDocsPort, AnalysisInput, AnalysisPort, AnalysisResult, Ana
 export type { DirectionAnswer, DirectionOption } from './analysis/domain/direction.js';
 export { FileAnalysisDocs, realAskTimer } from './analysis/infrastructure/file-analysis-docs.js';
 export type { AnalysisChoice } from './orchestration/application/turn-outcome.js';
+export { DirectionChoice, DirectionSet } from './analysis/domain/direction.js';
