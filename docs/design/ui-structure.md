@@ -145,6 +145,26 @@ section.settings
  └─ .pane 「팀 설정」(team-view)  .team > .tlist > .tm(.tmtop(canvas.sp b .ds select .tg .btn.sec 자세히) · .tmbody(.tf .tools textarea)) · .tfoot .btn.sec 팀 전체 기본값으로
 ```
 
+### 답답한 점 적기 (`bug-view.ts`, `data-tabs.css` 끝, 설정의 「내 AWS」)
+
+새 탭이 아니라 어느 탭에서나 열리는 창이다. 여는 곳: 단축키 Ctrl/Cmd+Shift+B(`shared/bug-shortcut.ts`, 물리 키 B), 탭 막대 맨 끝의 `button.bug-open`(탭이 아니라서 `#tabs button` 순서의 끝에 둔다).
+
+```
+.veil.bugs-veil > .dialog.bugs(폭 min(640, 100vw-32), 안에서 세로 스크롤)
+ ├─ .bar            b 제목 · .hint 단축키 · .btn.icon.sm.ghost 닫기
+ ├─ .bug-form       input.bug-title(80자) · textarea.bug-memo-input(2000자)
+ ├─ .bar            .hint 자동 첨부 안내 · .btn.primary 적어 두기   ← 이 화면의 강조는 이것 하나
+ ├─ .tabs           .tab 미해결 n · .tab 해결 n
+ ├─ .bug-list       .item.bug-item × n (.bar[b.bug-name · .chip 올림/안 올림] · .bug-memo · .hint.bug-meta · .btns[.btn.sm × 3 · .btn.icon.sm.danger])
+ └─ .bar.bug-sync   .btn.sm 내 AWS로 올리기 · .btn.sm 받아오기 · (막혔으면 .hint 이유) · .hint/.err 상태 한 줄
+미리보기 단계: 같은 창 안에서 목록 대신 .bug-list(가린 글) + .btns.end[.btn 돌아가기 · .btn.primary 확인하고 올리기]
+```
+
+- 지우기는 공통 확인 창(`askDialog`, `.dialog` 위에 한 겹 더). Esc는 미리보기에서 목록으로, 목록에서 창 닫기. Enter는 `isEnterKey`(한글 조합 중 무시), 메모 칸은 Ctrl/Cmd+Enter.
+- 올리기·받기 단추는 설정의 프로필 이름 등 네 칸이 올바를 때만 켜진다. 막혔으면 단추 툴팁과 아래 한 줄이 이유를 말한다.
+- 설정 탭의 「내 AWS (답답한 점 올리기)」 `.pane.sec`: `.srow` input × 4(프로필 이름·버킷·리전·개인 계정 번호) + 상태 한 줄(`.hint.pad`/`.err.pad`) + 키를 적지 않는다는 안내.
+- 측정 장면: `bug-dialog`, `bug-saved`, `bug-preview`, `bug-delete-ask`, `bug-done`(폭 1700·1100·720·600 모두 규칙 위반 0건).
+
 ### 제목줄·배너·상태 줄·탭 막대
 
 ```
