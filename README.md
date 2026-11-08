@@ -43,9 +43,9 @@
 
 | 내 컴퓨터 | 내려받기 | 크기 |
 | --- | --- | --- |
-| Windows | [rauha-Setup-0.1.7-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.1.7/rauha-Setup-0.1.7-x64.exe) | 221MB |
-| Mac (Apple 칩, M1 이상) | [rauha-0.1.7-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.7/rauha-0.1.7-mac-arm64.dmg) | 239MB |
-| Mac (인텔) | [rauha-0.1.7-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.7/rauha-0.1.7-mac-x64.dmg) | 251MB |
+| Windows | [rauha-Setup-0.1.7-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.1.7/rauha-Setup-0.1.7-x64.exe) | 222MB |
+| Mac (Apple 칩, M1 이상) | [rauha-0.1.7-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.7/rauha-0.1.7-mac-arm64.dmg) | 241MB |
+| Mac (인텔) | [rauha-0.1.7-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.7/rauha-0.1.7-mac-x64.dmg) | 253MB |
 
 내 맥의 칩은 Apple 메뉴 → 이 Mac에 관하여에서 볼 수 있다. 다른 버전은 [Releases 페이지](https://github.com/kimvudghk11/rauha/releases)에 있다.
 
