@@ -30,6 +30,7 @@
 .err:empty { display: none; }
 .lbl { color: var(--muted); font-size: var(--fs-sm); }
 .pad { padding: var(--s3) var(--s4); }
+.tg { display: flex; align-items: center; gap: var(--s1); flex: none; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 
 /* ── 버튼: 기본(보조) · .primary(강조, 한 화면에 한 동작) · .danger(위험) · .ghost(테두리 없음) ──
    높이는 고정하고 안쪽을 flex로 가운데 맞춘다. 글자가 위아래로 쏠리지 않는다. */

@@ -124,7 +124,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     const counts = book.tagCounts();
     tagBar.replaceChildren();
     const chip = (label: string, on: boolean, onClick: () => void) => {
-      const b = el('button', `rtag${on ? ' on' : ''}`, label);
+      const b = el('button', `chip${on ? ' on' : ''}`, label);
       b.type = 'button';
       b.addEventListener('click', onClick);
       tagBar.append(b);
@@ -142,7 +142,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     }
   }
 
-  const notice = el('div', 'tnotice');
+  const notice = el('div', 'notice');
   notice.hidden = true;
   root.insertBefore(notice, body);
   function say(text: string): void {
@@ -232,7 +232,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     const tagRow = el('div', 'rtags edit');
     for (const t of RECORD_TAGS) {
       const on = e.tags.includes(t.id);
-      const b = el('button', `rtag${on ? ' on' : ''}`, t.label);
+      const b = el('button', `chip${on ? ' on' : ''}`, t.label);
       b.type = 'button';
       b.addEventListener('click', () => {
         const next = on ? e.tags.filter((x) => x !== t.id) : [...e.tags, t.id];

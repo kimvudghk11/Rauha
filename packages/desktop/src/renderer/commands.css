@@ -29,7 +29,6 @@
 .cmd .top b { color: var(--bright); flex: 0 0 auto; font-family: var(--mono); font-weight: 600; }
 .cmd .top .ds { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmd .top .btn { padding: 1px 8px; font-size: 11.5px; flex: 0 0 auto; }
-.cmd .tg { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); flex: 0 0 auto; }
 .cmd .body { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; color: var(--text); }
 .cmd .args { color: var(--muted); font-size: 12px; }
 .cmd .tpl { margin: 0; white-space: pre-wrap; word-break: break-word; background: var(--well); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
@@ -42,7 +41,7 @@
 .rule.default { border-color: #2f4a63; }
 .rule.default.off { opacity: .55; }
 .rule .dtop { display: flex; align-items: center; gap: 5px; }
-.rule .dtop .tg { margin-left: auto; display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); }
+.rule .dtop .tg { margin-left: auto; }
 .rule .row { display: flex; gap: 6px; }
 .rule textarea { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); padding: 5px 8px; font: inherit; resize: none; outline: none; }
 .rule textarea:focus { border-color: var(--accent); }

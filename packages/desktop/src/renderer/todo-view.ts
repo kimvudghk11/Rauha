@@ -151,7 +151,7 @@ export function buildTodo(deps: TodoViewDeps) {
   }
 
   /** 카드 위쪽 안내 줄(맡기기가 막혔을 때 이유 등) */
-  const notice = el('div', 'tnotice');
+  const notice = el('div', 'notice');
   notice.hidden = true;
   root.insertBefore(notice, board);
   function say(text: string): void {
@@ -183,7 +183,7 @@ export function buildTodo(deps: TodoViewDeps) {
   }
 
   function card(todo: Todo, today: string): HTMLElement {
-    const box = el('div', `tcard p-${todo.priority}${todo.status === 'done' ? ' done' : ''}`);
+    const box = el('div', `item tcard p-${todo.priority}${todo.status === 'done' ? ' done' : ''}`);
     const top = el('div', 'ttop');
     const check = el('input');
     check.type = 'checkbox';
@@ -205,13 +205,13 @@ export function buildTodo(deps: TodoViewDeps) {
     if (todo.note !== '') box.append(el('div', 'tnote', todo.note));
 
     const buttons = el('div', 'tbtns');
-    const button = (label: string, onClick: () => void, cls = 'btn') => {
+    const button = (label: string, onClick: () => void, cls = 'btn sm') => {
       const b = el('button', cls, label);
       b.type = 'button';
       b.addEventListener('click', onClick);
       buttons.append(b);
     };
-    if (todo.canDelegate()) button('팀에 맡기기', () => void act({ kind: 'delegate', id: todo.id }), 'btn primary');
+    if (todo.canDelegate()) button('팀에 맡기기', () => void act({ kind: 'delegate', id: todo.id }), 'btn sm');
     if (todo.status === 'todo') button('시작', () => void act({ kind: 'move', id: todo.id, status: 'doing' }));
     if (todo.status === 'doing') {
       if (todo.jobId !== null) button('진행 보기', () => deps.openJob(todo.jobId!));
@@ -224,7 +224,7 @@ export function buildTodo(deps: TodoViewDeps) {
       button('정말 지울까요?', () => {
         confirming = null;
         void act({ kind: 'remove', id: todo.id });
-      }, 'btn danger');
+      }, 'btn sm danger');
       button('아니요', () => {
         confirming = null;
         renderBoard();
@@ -233,7 +233,7 @@ export function buildTodo(deps: TodoViewDeps) {
       button('지우기', () => {
         confirming = todo.id;
         renderBoard();
-      }, 'btn danger');
+      }, 'btn sm danger');
     }
     box.append(buttons);
     return box;

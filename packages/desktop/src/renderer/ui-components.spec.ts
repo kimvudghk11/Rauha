@@ -78,7 +78,7 @@ const rule = (selector: string): Readonly<Record<string, string>> => {
 const otherCss = readdirSync(dir).filter((f) => f.endsWith('.css') && f !== 'ui.css' && f !== 'styles.css');
 
 /** 아직 공통 부품으로 옮기지 못한 CSS 파일. 화면을 하나씩 옮길 때마다 여기서 뺀다(끝나면 비어야 한다). */
-const NOT_MIGRATED: readonly string[] = ['commands.css', 'data-tabs.css', 'code.css'];
+const NOT_MIGRATED: readonly string[] = ['commands.css', 'code.css'];
 
 describe('공통 토큰', () => {
   const root = rule(':root');
