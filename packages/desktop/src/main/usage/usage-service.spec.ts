@@ -88,4 +88,26 @@ describe('한도 읽기 서비스', () => {
     await p;
     expect(t.changes).toHaveLength(1);
   });
+
+  it('읽기에 실패하면 이유를 기억하고, 성공하면 지운다', async () => {
+    const t = setup([null, usage(40)]);
+    expect(t.service.health()).toEqual({ readAt: null, failure: null });
+    const failed = t.service.refresh('interval');
+    t.gates[0]!();
+    await failed;
+    expect(t.service.health().readAt).toBeNull();
+    expect(t.service.health().failure).toContain('값을 받지 못');
+    t.advance(60_000);
+    const ok = t.service.refresh('focus');
+    t.gates[1]!();
+    await ok;
+    expect(t.service.health().failure).toBeNull();
+    expect(t.service.health().readAt).not.toBeNull();
+  });
+
+  it('읽다가 오류가 나면 오류 글을 이유로 남긴다', async () => {
+    const service = new UsageService({ read: () => Promise.reject(new Error('spawn EACCES')), now: () => 1, onChange: () => undefined });
+    await service.refresh('interval');
+    expect(service.health().failure).toContain('spawn EACCES');
+  });
 });

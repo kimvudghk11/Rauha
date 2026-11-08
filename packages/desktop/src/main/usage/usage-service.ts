@@ -22,6 +22,7 @@ export interface UsageServiceDeps {
 export class UsageService {
   private snapshot: UsageSnapshot = { plan: null, readAt: null };
   private inFlight: Promise<UsageSnapshot> | null = null;
+  private failure: string | null = null;
 
   constructor(private readonly deps: UsageServiceDeps) {}
 
@@ -43,12 +44,22 @@ export class UsageService {
     }
   }
 
+  /** 진단용: 마지막 성공 시각(epoch ms)과, 마지막 읽기가 실패였다면 그 이유 */
+  health(): { readonly readAt: number | null; readonly failure: string | null } {
+    return { readAt: this.snapshot.readAt, failure: this.failure };
+  }
+
   private start(): Promise<UsageSnapshot> {
     if (this.inFlight !== null) return this.inFlight;
+    let thrown: string | null = null;
     const run = this.deps
       .read()
-      .catch(() => null)
+      .catch((error: unknown) => {
+        thrown = error instanceof Error ? error.message : String(error);
+        return null;
+      })
       .then((plan) => {
+        this.failure = plan !== null ? null : (thrown ?? '값을 받지 못했어요(시간 초과이거나 로그인·실행 파일 문제일 수 있어요)');
         if (plan !== null) {
           this.snapshot = { plan, readAt: this.deps.now() };
           this.deps.onChange(this.snapshot);
