@@ -4,7 +4,7 @@
 
 **일을 맡기면 팀이 알아서 하고, 나는 그동안 다른 일을 하는 데스크톱 앱.** 메인 채팅 칸에 일을 적으면 돌고래 Delfi와 친구들(도트 캐릭터 22종)이 역할을 나눠 각자 팀 방에서 일한다. 일이 도는 동안에도 메인에서 다음 일을 바로 맡길 수 있고, 위험한 일만 정리된 화면을 보고 허락한다. [Claude Agent SDK](https://docs.claude.com) 위에서 내 Claude 구독으로 돈다. macOS(Apple 칩·인텔)와 Windows에서 쓴다.
 
-- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-Setup-0.1.1-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-x64.dmg) — 설치 방법은 아래 "설치"
+- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.1.2/rauha-Setup-0.1.2-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.1.2/rauha-0.1.2-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.1.2/rauha-0.1.2-mac-x64.dmg) — 설치 방법은 아래 "설치"
 - 사용 안내(한 장): [docs/desktop-guide.md](docs/desktop-guide.md) · 되는 것과 아직 안 되는 것: [docs/release-checklist.md](docs/release-checklist.md)
 
 ## 무엇을 하나
@@ -27,9 +27,9 @@
 
 | 내 컴퓨터 | 내려받기 | 크기 |
 | --- | --- | --- |
-| Windows | [rauha-Setup-0.1.1-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-Setup-0.1.1-x64.exe) | 210MB |
-| Mac (Apple 칩, M1 이상) | [rauha-0.1.1-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-arm64.dmg) | 228MB |
-| Mac (인텔) | [rauha-0.1.1-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.1/rauha-0.1.1-mac-x64.dmg) | 239MB |
+| Windows | [rauha-Setup-0.1.2-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.1.2/rauha-Setup-0.1.2-x64.exe) | 221MB |
+| Mac (Apple 칩, M1 이상) | [rauha-0.1.2-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.2/rauha-0.1.2-mac-arm64.dmg) | 239MB |
+| Mac (인텔) | [rauha-0.1.2-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.1.2/rauha-0.1.2-mac-x64.dmg) | 251MB |
 
 내 맥의 칩은 Apple 메뉴 → 이 Mac에 관하여에서 볼 수 있다. 다른 버전은 [Releases 페이지](https://github.com/kimvudghk11/rauha/releases)에 있다.
 
