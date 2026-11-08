@@ -1,27 +1,12 @@
 /* git 탭. 색은 styles.css 토큰만 쓴다. 창이 좁으면(s·xs) 목록과 diff가 위아래로 쌓인다. */
 .git { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 8px; gap: 6px; }
-.ghead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gfill { flex: 1; }
-.gfillbtn { margin-left: auto; }
-.gselect, .ginput { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); font: inherit; padding: 4px 8px; outline: none; min-width: 0; }
 .gselect { max-width: 260px; }
-.ginput:focus, .gselect:focus { border-color: var(--accent); }
-textarea.ginput { resize: none; width: 100%; }
-input.ginput { width: 100%; }
-.gbranch { background: var(--input); border: 1px solid var(--border2); border-radius: 4px; padding: 3px 10px; color: var(--bright); font-family: var(--mono); font-size: 12px; }
-.gbranch:hover { border-color: var(--accentfg); }
-.gbar { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); }
-.gtab { background: none; border: none; border-bottom: 2px solid transparent; padding: 5px 12px; color: var(--muted); }
-.gtab:hover { color: var(--text); }
-.gtab.on { color: var(--bright); border-bottom-color: var(--accent); }
-.gtab.red { color: var(--red); }
+textarea.ginput, input.ginput { width: 100%; }
+.gbranch { font-family: var(--mono); color: var(--bright); }
 .gmsg { min-height: 0; font-size: 12px; white-space: pre-wrap; }
 .gmsg.ok { color: var(--green); padding: 2px 0; } .gmsg.bad { color: var(--red); padding: 2px 0; }
 .gbody { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .gbody > * { flex: 1; min-height: 0; }
-.pad { padding: 14px; }
-.dim { color: var(--muted); }
-.mono { font-family: var(--mono); }
 .gpre { white-space: pre-wrap; word-break: break-word; }
 .gsplit { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: 8px; min-height: 0; }
 .app[data-tier=s] .gsplit, .app[data-tier=xs] .gsplit { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.2fr); }
@@ -29,25 +14,20 @@ input.ginput { width: 100%; }
 .gmain { overflow: auto; }
 .gfiles { flex: 1; min-height: 0; overflow: auto; }
 .gall { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }
-.gf { display: flex; align-items: center; gap: 7px; padding: 4px 10px; cursor: pointer; }
-.gf:hover { background: var(--card); }
-.gf.on { background: var(--sel); }
+.gf { cursor: pointer; gap: 7px; padding-top: 4px; padding-bottom: 4px; }
 .gname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gname b { color: var(--bright); font-weight: 500; }
 .gb { font-family: var(--mono); font-size: 11px; width: 14px; text-align: center; font-weight: 700; }
 .gb.yellow { color: var(--yellow); } .gb.green { color: var(--green); } .gb.red { color: var(--red); } .gb.blue { color: var(--accentfg); } .gb.dim { color: var(--muted); }
-.gx { background: none; border: none; color: var(--dim); font-size: 14px; padding: 0 4px; }
 .gx:hover:not(:disabled) { color: var(--red); }
-.gx:disabled { opacity: .3; cursor: default; }
 .gcommit { border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-.gcommit .btn:disabled, .gdbar .btn:disabled, .head .btn:disabled, .ghead .btn:disabled { opacity: .45; cursor: default; }
-.gmh { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; flex-wrap: wrap; }
+.gmh { box-sizing: border-box; min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; flex-wrap: wrap; }
 .gmh b { color: var(--bright); font-family: var(--mono); font-size: 12px; word-break: break-all; }
 .gdiff { font-family: var(--mono); font-size: 12px; min-width: min-content; }
 .gdbar { position: sticky; top: 0; display: flex; align-items: center; gap: 10px; padding: 5px 10px; background: var(--card); border-bottom: 1px solid var(--border); font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif; font-size: 12px; z-index: 1; }
-.gmh + .gdiff .gdbar { top: 38px; }
-.gh { display: flex; align-items: center; gap: 8px; padding: 3px 10px; background: #1c2a38; color: var(--accentfg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.gh .btn { margin-left: auto; font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif; padding: 1px 8px; font-size: 11px; }
+.gmh + .gdiff .gdbar { top: 40px; }
+.gh .btn { margin-left: auto; }
+.gh { display: flex; align-items: center; gap: 8px; min-height: var(--h-md); padding: 2px 10px; background: #1c2a38; color: var(--accentfg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .gl { display: flex; white-space: pre; line-height: 1.5; }
 .gl .gc { flex: 0 0 22px; text-align: center; }
 .gl .gn { flex: 0 0 42px; text-align: right; padding-right: 8px; color: var(--dim); user-select: none; }
@@ -59,6 +39,5 @@ input.ginput { width: 100%; }
 .gtools { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
 .gtools .ginput { flex: 1; }
 .gpanel { overflow: hidden; }
-.gpanel .gf .btn { padding: 1px 8px; font-size: 11px; }
 .gcm { align-items: flex-start; }
 .gconf { flex: 1; min-height: 300px; width: 100%; border: none; border-radius: 0; font-family: var(--mono); font-size: 12px; white-space: pre; resize: none; }

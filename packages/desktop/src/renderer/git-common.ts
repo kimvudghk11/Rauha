@@ -78,7 +78,7 @@ export function renderDiff(diff: DiffView, options: DiffOptions): HTMLElement {
   const picked = new Map<number, Set<number>>();
   const bar = el('div', 'gdbar');
   const count = el('span', 'dim', '');
-  const applyBtn = el('button', 'btn primary', options.mode === 'stage' ? '고른 줄 스테이지' : '고른 줄 스테이지 해제');
+  const applyBtn = el('button', 'btn', options.mode === 'stage' ? '고른 줄 스테이지' : '고른 줄 스테이지 해제');
   const refreshBar = () => {
     const n = [...picked.values()].reduce((s, v) => s + v.size, 0);
     count.textContent = n === 0 ? '줄 번호 옆 칸을 눌러 줄을 고르거나, hunk의 버튼으로 덩어리째 옮겨요.' : `고른 줄 ${n}개`;
@@ -98,7 +98,7 @@ export function renderDiff(diff: DiffView, options: DiffOptions): HTMLElement {
     head.append(...(selectable ? [hcheck] : []), el('span', 'mono', h.header.replace(/\r$/, '')));
     const rows: { box: HTMLInputElement; li: number }[] = [];
     if (selectable) {
-      const hb = el('button', 'btn', options.mode === 'stage' ? '이 덩어리 스테이지' : '이 덩어리 스테이지 해제');
+      const hb = el('button', 'btn sm', options.mode === 'stage' ? '이 덩어리 스테이지' : '이 덩어리 스테이지 해제');
       hb.addEventListener('click', () => finish({ hunks: [hi] }));
       head.appendChild(hb);
     }

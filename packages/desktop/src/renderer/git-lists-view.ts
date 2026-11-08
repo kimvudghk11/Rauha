@@ -10,7 +10,7 @@ export function buildBranches(ctx: GitCtx) {
   const tools = el('div', 'gtools');
   const filter = el('input', 'ginput');
   filter.placeholder = '브랜치 검색 · 새 이름 입력';
-  const create = el('button', 'btn primary', '현재 브랜치에서 새로 만들기');
+  const create = el('button', 'btn', '현재 브랜치에서 새로 만들기');
   tools.append(filter, create);
   const list = el('div', 'gfiles');
   root.append(tools, list);
@@ -35,7 +35,7 @@ export function buildBranches(ctx: GitCtx) {
       if (rows.length === 0) continue;
       list.appendChild(el('div', 'gall', remote ? `원격 ${rows.length}` : `로컬 ${rows.length}`));
       for (const b of rows) {
-        const row = el('div', `gf${b.current ? ' on' : ''}`);
+        const row = el('div', `gf row-item${b.current ? ' on' : ''}`);
         const name = el('span', 'gname');
         name.append(el('b', 'mono', b.name));
         row.appendChild(name);
@@ -44,7 +44,7 @@ export function buildBranches(ctx: GitCtx) {
         if (ctx.isProtected(b.name)) row.appendChild(el('span', 'chip red', '보호'));
         if (b.track !== '') row.appendChild(el('span', 'dim', b.track));
         const btn = (label: string, fn: () => void, danger = false) => {
-          const x = el('button', danger ? 'btn danger' : 'btn', label);
+          const x = el('button', danger ? 'btn sm danger' : 'btn sm', label);
           x.addEventListener('click', fn);
           row.appendChild(x);
         };
@@ -98,7 +98,7 @@ export function buildHistory(ctx: GitCtx) {
     const list = el('div', 'gfiles');
     const now = Math.floor(Date.now() / 1000);
     for (const r of rows) {
-      const row = el('div', `gf gcm${r.hash === selected ? ' on' : ''}`);
+      const row = el('div', `gf row-item gcm${r.hash === selected ? ' on' : ''}`);
       const info = el('span', 'gname');
       info.append(el('b', undefined, r.subject), el('div', 'dim', `${r.author} · ${ago(r.at, now)} · ${r.short}`));
       row.appendChild(info);
@@ -155,7 +155,7 @@ export function buildConflicts(ctx: GitCtx) {
     const list = el('div', 'gfiles');
     list.appendChild(el('div', 'gall', s.conflicts.length === 0 ? '풀 충돌이 없어요' : `충돌 ${s.conflicts.length}개`));
     for (const p of s.conflicts) {
-      const row = el('div', `gf${p === selected ? ' on' : ''}`);
+      const row = el('div', `gf row-item${p === selected ? ' on' : ''}`);
       row.append(el('span', 'gname', p), el('span', 'gb red', '!'));
       row.addEventListener('click', () => void edit(p).then(refreshMarks));
       list.appendChild(row);

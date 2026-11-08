@@ -110,9 +110,9 @@ const SCENES = [
   ['records-detail', 'records', ['.ri']],
   ['repos', 'repos', []],
   ['git-changes', 'git', []],
-  ['git-branches', 'git', [byText('.gtab', '브랜치')]],
-  ['git-history', 'git', [byText('.gtab', '히스토리')]],
-  ['git-conflicts', 'git', [byText('.gtab', '충돌')]],
+  ['git-branches', 'git', [byText('.tabs .tab', '브랜치')]],
+  ['git-history', 'git', [byText('.tabs .tab', '히스토리')]],
+  ['git-conflicts', 'git', [byText('.tabs .tab', '충돌')]],
   ['commands', 'commands', [byText('button', '자세히')]],
   ['rules', 'rules', []],
   ['settings', 'settings', [byText('button', '자세히')]],
@@ -142,10 +142,10 @@ async function run(win) {
       }
       await resize(1100);
       const next = step.startsWith('1/3')
-        ? `(() => { const n = document.querySelector('.dialog .btn.sec'); n.disabled = false; n.click(); })()`
+        ? `(() => { const n = document.querySelector('.dialog .btn:not(.primary)'); n.disabled = false; n.click(); })()`
         : step.startsWith('2/3') || step.startsWith('3/3')
           ? q('.dialog .btn.primary')
-          : q('.dialog .btn.sec');
+          : q('.dialog .btn:not(.primary)');
       await ev(next);
       await sleep(1500);
     }

@@ -57,7 +57,7 @@ export function buildChanges(ctx: GitCtx) {
     all.append(allBox, el('span', undefined, files.length === 0 ? '바뀐 파일이 없어요' : `바뀐 파일 ${files.length}개`), el('span', 'dim', stagedCount > 0 ? `· 스테이지 ${stagedCount}` : ''));
     side.appendChild(all);
     for (const f of files) {
-      const row = el('div', 'gf');
+      const row = el('div', 'gf row-item');
       row.classList.toggle('on', f.path === selected);
       const box = el('input');
       box.type = 'checkbox';
@@ -73,7 +73,7 @@ export function buildChanges(ctx: GitCtx) {
       info.append(el('b', undefined, name), el('span', 'dim', dir === '' ? '' : ` ${dir}`));
       info.title = f.oldPath === null ? f.path : `${f.oldPath} → ${f.path}`;
       const label = el('span', `gb ${LABEL_CLASS[f.label] ?? ''}`, f.label);
-      const x = el('button', 'gx', '×');
+      const x = el('button', 'btn ghost icon sm gx', '×');
       x.title = '변경 버리기';
       x.disabled = f.conflict;
       x.addEventListener('click', (e) => {
@@ -101,7 +101,7 @@ export function buildChanges(ctx: GitCtx) {
     desc.rows = 3;
     desc.value = body;
     const blocked = view?.files.some((f) => f.conflict) === true;
-    const go = el('button', primaryGitAction({ staged: stagedCount, conflicts: blocked, merging: false, ahead: null, behind: null, hasRemote: false }) === 'commit' ? 'btn primary' : 'btn', stagedCount > 0 ? `커밋 (${stagedCount}개 파일)` : '커밋');
+    const go = el('button', primaryGitAction({ staged: stagedCount, conflicts: blocked, merging: false, ahead: null, behind: null, hasRemote: false }) === 'commit' ? 'btn block primary' : 'btn block', stagedCount > 0 ? `커밋 (${stagedCount}개 파일)` : '커밋');
     const sync = () => {
       subject = title.value;
       body = desc.value;

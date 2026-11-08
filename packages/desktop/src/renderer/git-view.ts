@@ -34,8 +34,8 @@ type CallFn = <K extends GitFn>(fn: K, arg: GitArg<K>) => Promise<GitData<K> | n
  */
 export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protectedNames: () => Promise<readonly string[]>, extra: (ctx: GitCtx) => Partial<Record<ViewId, SubView>> = () => ({})) {
   const root = el('section', 'git');
-  const head = el('div', 'ghead');
-  const bar = el('div', 'gbar');
+  const head = el('div', 'bar');
+  const bar = el('div', 'tabs');
   const msg = el('div', 'gmsg');
   const body = el('div', 'gbody');
   root.append(head, bar, msg, body);
@@ -116,14 +116,14 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     select.addEventListener('change', () => void pickRepo(select.value));
     head.appendChild(select);
     if (overview === null) return;
-    const branch = el('button', 'gbranch', `⎇ ${overview.branch ?? '(분리된 HEAD)'}`);
+    const branch = el('button', 'btn gbranch', `⎇ ${overview.branch ?? '(분리된 HEAD)'}`);
     branch.title = '브랜치 보기';
     branch.addEventListener('click', () => void open('branches'));
     head.append(branch);
     for (const c of syncChips(overview.ahead, overview.behind)) head.appendChild(el('span', `chip${c.startsWith('앞섬') ? ' green' : c.startsWith('뒤처짐') ? ' yellow' : ''}`, c));
     if (overview.branch !== null && protectedList.has(overview.branch)) head.appendChild(el('span', 'chip red', '보호 브랜치'));
     if (overview.merging) head.appendChild(el('span', 'chip red', '머지 중'));
-    head.appendChild(el('span', 'gfill'));
+    head.appendChild(el('span', 'grow'));
     const act = (label: string, fn: () => Promise<void>, primary = false, disabled = false) => {
       const b = el('button', primary ? 'btn primary' : 'btn', label);
       b.disabled = disabled || busy;
@@ -180,11 +180,11 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     if (overview?.merging === true || overview?.files.some((f) => f.conflict) === true) show.push('conflicts');
     if (!show.includes(current)) current = 'changes';
     for (const id of show) {
-      const b = el('button', `gtab${id === current ? ' on' : ''}${id === 'conflicts' ? ' red' : ''}`, VIEW_LABEL[id]);
+      const b = el('button', `tab${id === current ? ' on' : ''}${id === 'conflicts' ? ' danger' : ''}`, VIEW_LABEL[id]);
       b.addEventListener('click', () => void open(id));
       bar.appendChild(b);
     }
-    const reread = el('button', 'btn gfillbtn', '다시 읽기');
+    const reread = el('button', 'btn sm tab-end', '다시 읽기');
     reread.addEventListener('click', () => void refreshAll());
     bar.appendChild(reread);
   }
