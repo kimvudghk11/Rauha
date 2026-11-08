@@ -3,6 +3,9 @@ import { primaryGitAction } from '../shared/git-primary.js';
 import type { FileChangeView } from '../shared/git-changes.js';
 import { el } from './dom.js';
 import { type GitCtx, renderDiff } from './git-common.js';
+import { gitIcon } from './git-icons.js';
+import { commitBlockReason, stageSummary, subjectState, SUBJECT_LIMIT } from '../shared/git-toolbar.js';
+import type { ConventionsView } from '../shared/git-conventions-view.js';
 
 const LABEL_CLASS: Readonly<Record<string, string>> = { M: 'yellow', A: 'green', D: 'red', R: 'blue', '?': 'dim', '!': 'red' };
 
@@ -17,6 +20,8 @@ export function buildChanges(ctx: GitCtx) {
   let diffSide: 'staged' | 'unstaged' = 'unstaged';
   let subject = '';
   let body = '';
+  /** 방금 한 커밋(되돌리기 안내용). 다른 동작을 하면 사라진다 */
+  let justCommitted: { hash: string; subject: string } | null = null;
 
   const file = (path: string) => view?.files.find((f) => f.path === path);
 
@@ -36,6 +41,105 @@ export function buildChanges(ctx: GitCtx) {
       if (selected === f.path) selected = null;
       await refresh();
     }
+  }
+
+  let guide: ConventionsView | null = null;
+  void ctx.conventions().then((v) => {
+    guide = v;
+    if (view !== null) renderList();
+  });
+
+  /** 제목 앞의 말머리(feat(범위): 또는 [태그])를 걷어 낼 때 쓴다 */
+  const PREFIX = /^([a-z]+(\([^)]*\))?!?: ?|\[[^\]]+\] ?)/;
+
+  /** 커밋 입력: 제목(한 줄, 글자 수) · 설명(선택) · 이 레포 방식 안내와 말머리 칩 · 스테이지 요약과 커밋 버튼 · 커밋 뒤 되돌리기 */
+  function renderCommit(stagedCount: number): HTMLElement {
+    const box = el('div', 'gcommit');
+    const blocked = view?.files.some((f) => f.conflict) === true;
+    if (guide !== null) {
+      box.append(el('div', 'hint', guide.commit.text));
+      if (guide.commit.chips.length > 0) {
+        const chips = el('div', 'chips');
+        for (const p of guide.commit.chips) {
+          const chip = el('button', 'chip', p.trim());
+          chip.type = 'button';
+          chip.title = '제목 앞에 넣기';
+          chip.addEventListener('click', () => {
+            title.value = p + title.value.replace(PREFIX, "");
+            title.focus();
+            sync();
+          });
+          chips.append(chip);
+        }
+        box.append(chips);
+      }
+    }
+    const subjectRow = el('div', 'gfield');
+    const title = el('input');
+    title.placeholder = guide === null ? '커밋 제목 (한 줄)' : `제목 · 예: ${guide.commit.example}`;
+    title.value = subject;
+    const count = el('span', 'fld-count');
+    const head = el('div', 'gsub');
+    head.append(el('span', 'lbl', '제목'), count);
+    subjectRow.append(head, title);
+    const descRow = el('div', 'gfield');
+    const desc = el('textarea');
+    desc.placeholder = '설명 (선택) — 왜 바꿨는지';
+    desc.rows = 2;
+    desc.value = body;
+    descRow.append(desc);
+
+    const act = el('div', 'gact');
+    const go = el('button', primaryGitAction({ staged: stagedCount, conflicts: blocked, merging: false, ahead: null, behind: null, hasRemote: false }) === 'commit' ? 'btn primary' : 'btn');
+    go.textContent = '커밋';
+    const sum = el('span', 'hint', '');
+    const why = el('div', 'hint', '');
+    act.append(go, sum);
+    const sync = (): void => {
+      subject = title.value;
+      body = desc.value;
+      const st = subjectState(subject);
+      count.textContent = `${st.length}/${SUBJECT_LIMIT}`;
+      count.className = st.warn ? 'fld-count warn' : 'fld-count';
+      count.title = st.warn ? '제목이 길어요. 72자 안쪽이 읽기 좋아요(커밋은 할 수 있어요).' : '';
+      sum.textContent = stagedCount > 0 ? stageSummary(stagedCount, view?.staged?.added ?? null, view?.staged?.removed ?? null) : '';
+      const reason = commitBlockReason({ staged: stagedCount, subject, conflicts: blocked });
+      go.disabled = reason !== null;
+      why.textContent = reason ?? (st.warn ? `제목이 ${SUBJECT_LIMIT}자를 넘었어요. 줄이면 좋지만 커밋은 할 수 있어요.` : '');
+      why.className = reason === null && st.warn ? 'err' : 'hint';
+    };
+    title.addEventListener('input', sync);
+    desc.addEventListener('input', sync);
+    go.addEventListener('click', async () => {
+      const done = await ctx.call('commit', { subject, body });
+      if (done === null) return;
+      justCommitted = { hash: done.hash ?? '', subject: subject.trim() };
+      subject = '';
+      body = '';
+      ctx.say(done.message);
+      await refresh();
+    });
+    sync();
+    box.append(subjectRow, descRow, act, why);
+    if (justCommitted !== null) {
+      const done = justCommitted;
+      const note = el('div', 'gnote');
+      const undo = el('button', 'btn sm');
+      undo.append(gitIcon('undo'), el('span', undefined, '직전 커밋 취소'));
+      undo.title = '커밋만 취소하고 바뀐 내용은 스테이지에 그대로 둬요';
+      undo.addEventListener('click', async () => {
+        const a = await ctx.ask({ title: '직전 커밋을 취소할까요?', body: `${done.hash.slice(0, 7)} ${done.subject}\n\n커밋만 없던 일로 하고, 바뀐 내용은 스테이지에 그대로 남아요(soft reset). 이미 원격에 올린 커밋은 취소할 수 없어요.`, okLabel: '커밋 취소' });
+        if (!a.ok) return;
+        if (await ctx.call('undoCommit', undefined as never)) {
+          justCommitted = null;
+          subject = done.subject;
+          await refresh();
+        }
+      });
+      note.append(el('span', 'hint grow', `커밋했어요 ${done.hash.slice(0, 7)}`), undo);
+      box.append(note);
+    }
+    return box;
   }
 
   function renderList(): void {
@@ -92,34 +196,7 @@ export function buildChanges(ctx: GitCtx) {
     }
     side.appendChild(list);
 
-    const commit = el('div', 'gcommit');
-    const title = el('input', 'ginput');
-    title.placeholder = '커밋 제목';
-    title.value = subject;
-    const desc = el('textarea', 'ginput');
-    desc.placeholder = '설명 (선택)';
-    desc.rows = 3;
-    desc.value = body;
-    const blocked = view?.files.some((f) => f.conflict) === true;
-    const go = el('button', primaryGitAction({ staged: stagedCount, conflicts: blocked, merging: false, ahead: null, behind: null, hasRemote: false }) === 'commit' ? 'btn block primary' : 'btn block', stagedCount > 0 ? `커밋 (${stagedCount}개 파일)` : '커밋');
-    const sync = () => {
-      subject = title.value;
-      body = desc.value;
-      go.disabled = stagedCount === 0 || subject.trim() === '' || blocked;
-    };
-    title.addEventListener('input', sync);
-    desc.addEventListener('input', sync);
-    go.addEventListener('click', async () => {
-      const done = await ctx.call('commit', { subject, body });
-      if (done === null) return;
-      subject = '';
-      body = '';
-      ctx.say(done.message);
-      await refresh();
-    });
-    sync();
-    commit.append(title, desc, go);
-    side.appendChild(commit);
+    side.appendChild(renderCommit(stagedCount));
   }
 
   async function renderMain(): Promise<void> {

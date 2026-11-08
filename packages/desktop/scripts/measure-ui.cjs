@@ -18,7 +18,7 @@ const WIDTHS = (rest[1] ?? '1700,1100,720,600').split(',').map(Number);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const MEASURE = `(() => {
-  const sel = 'button, select, input, textarea, .chip, .rtag, .gtab, .tree-row, .act button, .dtabs button, .ltoggle button, [role=button], svg.fi';
+  const sel = 'button, select, input, textarea, .chip, .rtag, .gtab, .tree-row, .act button, .dtabs button, .ltoggle button, [role=button], svg.fi, .sbadge';
   const rows = [];
   const trail = (n) => { const p = []; for (let e = n; e && e !== document.body && p.length < 4; e = e.parentElement) p.unshift(e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : '')); return p.join(' > '); };
   for (const n of document.querySelectorAll(sel)) {
@@ -37,7 +37,8 @@ const MEASURE = `(() => {
   const over = [];
   const clipped = (n) => { for (let e = n.parentElement; e && e !== document.body; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o !== 'visible') return true; } return false; };
   for (const n of document.querySelectorAll('.main *')) { const r = n.getBoundingClientRect(); if (r.width > 0 && r.right > window.innerWidth + 1 && !clipped(n)) over.push(trail(n)); if (over.length > 8) break; }
-  const cm = document.querySelector('.cm-content'); return { cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
+  const gt = document.querySelector('.gtool'); const tool = gt ? { sw: gt.scrollWidth, cw: gt.clientWidth, tops: [...gt.querySelectorAll('.gbranch, .gsync .btn')].filter((n) => n.getBoundingClientRect().width > 0).map((n) => Math.round(n.getBoundingClientRect().top)) } : null;
+  const cm = document.querySelector('.cm-content'); return { tool, cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
 })()`;
 
 app.on('browser-window-created', (_e, win) => {
@@ -91,6 +92,19 @@ function sandbox() {
   } catch {
     /* 충돌이 나야 한다 */
   }
+  // 원격보다 2커밋 뒤처진 레포: 다른 복제본에서 올린 뒤 fetch만 한다
+  const d = path.join(root, 'app-three');
+  git(root, 'clone', bare, d);
+  const e = path.join(root, 'clone-e');
+  git(root, 'clone', bare, e);
+  w(e, 'e1.txt', '1\n');
+  git(e, 'add', '.');
+  git(e, 'commit', '-m', 'feat(ui): 가져올 첫 커밋');
+  w(e, 'e2.txt', '2\n');
+  git(e, 'add', '.');
+  git(e, 'commit', '-m', 'fix(ui): 가져올 둘째 커밋');
+  git(e, 'push');
+  git(d, 'fetch');
   return root;
 }
 
@@ -98,6 +112,9 @@ const q = (sel) => `document.querySelector(${JSON.stringify(sel)})?.click()`;
 const byText = (sel, text) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find((n) => n.textContent.includes(${JSON.stringify(text)}))?.click()`;
 const TAB = { chat: 0, code: 1, todo: 2, records: 3, repos: 4, git: 5, commands: 6, rules: 7, settings: 8 };
 // [이름, 탭, 그 탭에서 먼저 할 클릭들(CSS 선택자 또는 완성된 JS)]
+// 레포 이름으로 git 탭의 레포를 고른다(기억된 레포가 장면마다 달라지지 않게 장면마다 먼저 고른다)
+const pickRepo = (name) => `(() => { const s = document.querySelector('.gselect'); const o = [...s.options].find((o) => o.text.startsWith(${JSON.stringify(name)})); s.value = o.value; s.dispatchEvent(new Event('change')); })()`;
+const typeInto = (sel, text) => `(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.focus(); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
@@ -115,10 +132,19 @@ const SCENES = [
   ['records', 'records', []],
   ['records-detail', 'records', ['.ri']],
   ['repos', 'repos', []],
-  ['git-changes', 'git', []],
-  ['git-branches', 'git', [byText('.tabs .tab', '브랜치')]],
-  ['git-history', 'git', [byText('.tabs .tab', '히스토리')]],
-  ['git-conflicts', 'git', [byText('.tabs .tab', '충돌')]],
+  ['git-changes', 'git', [pickRepo('app-one')]],
+  ['git-branches', 'git', [pickRepo('app-one'), byText('.tabs .tab', '브랜치')]],
+  ['git-history', 'git', [pickRepo('app-one'), byText('.tabs .tab', '히스토리')]],
+  ['git-conflicts', 'git', [pickRepo('app-two'), byText('.tabs .tab', '충돌')]],
+  // 동기화 툴바 상태 변형: 커밋이 강조된 상태(app-one) · 뒤처져 pull이 강조된 상태(app-three) · 원격 없음(app-two)
+  ['git-toolbar-pull', 'git', [pickRepo('app-three')]],
+  ['git-toolbar-noremote', 'git', [pickRepo('app-two')]],
+  // 동작 중(Fetch를 누른 직후)과 결과 한 줄
+  ['git-fetch-done', 'git', [pickRepo('app-three'), byText('.gsync .btn', 'Fetch')]],
+  ['git-branch-menu', 'git', [pickRepo('app-one'), q('.gbranch')]],
+  ['git-new-branch', 'git', [pickRepo('app-one'), q('.gbranch'), byText('.menu button', '새 브랜치')]],
+  ['git-new-branch-bad', 'git', [pickRepo('app-one'), q('.gbranch'), byText('.menu button', '새 브랜치'), typeInto('.gnew input', 'my branch')]],
+  ['git-commit-long', 'git', [pickRepo('app-one'), typeInto('.gcommit input', 'feat(ui): ' + '아주 긴 제목 '.repeat(10))]],
   ['commands', 'commands', [byText('button', '자세히')]],
   ['rules', 'rules', []],
   ['settings', 'settings', [byText('button', '자세히')]],
@@ -133,7 +159,12 @@ function check(results) {
     const where = s.name + '@' + s.width;
     if (s.hscroll > 0) bad.push(where + ' 가로 스크롤 ' + s.hscroll + 'px');
     for (const o of s.over) bad.push(where + ' 창 밖으로 나감: ' + o);
+    if (s.tool) {
+      if (s.tool.sw > s.tool.cw + 1) bad.push(where + ' git 툴바가 넘쳐요 ' + s.tool.sw + '>' + s.tool.cw);
+      if (s.tool.tops.length > 1 && Math.max(...s.tool.tops) - Math.min(...s.tool.tops) > 6) bad.push(where + ' git 툴바가 줄바꿈돼요 ' + s.tool.tops.join(','));
+    }
     for (const r of s.rows) {
+      if (r.cls.split(' ').includes('sbadge') && !r.cls.includes('faint') && (parseFloat(r.fs) < 12 || parseInt(r.fw, 10) < 700)) bad.push(where + ' 방향 배지는 12px 이상 굵게여야 해요 ' + r.fs + '/' + r.fw + ' "' + r.text + '"');
       const id = r.tag + '.' + r.cls.replace(/ /g, '.') + ' "' + r.text + '"';
       const [pt, , pb] = r.pad.split(' ').map(px);
       const cls = r.cls.split(' ');

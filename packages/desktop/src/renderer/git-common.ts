@@ -1,5 +1,6 @@
 import type { GitArg, GitData, GitFn } from '../shared/git-api.js';
 import type { DiffView } from '../shared/git-api.js';
+import type { ConventionsView } from '../shared/git-conventions-view.js';
 import type { Selection } from '../shared/git-diff.js';
 import { el } from './dom.js';
 
@@ -16,6 +17,12 @@ export interface GitCtx {
   goto(view: 'changes' | 'branches' | 'history' | 'conflicts'): void;
   /** 보호 브랜치 이름인지(칩 표시용) */
   isProtected(name: string): boolean;
+  /** 지금 브랜치 이름(분리된 HEAD면 null) */
+  branch(): string | null;
+  /** 이 레포의 커밋·브랜치 이름 방식 안내(못 읽으면 null). 레포마다 한 번만 읽는다. */
+  conventions(): Promise<ConventionsView | null>;
+  /** 헤더와 지금 화면을 모두 다시 읽는다 */
+  reload(): Promise<void>;
 }
 
 export interface AskOptions {

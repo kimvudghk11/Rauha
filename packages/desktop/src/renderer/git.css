@@ -9,7 +9,7 @@ textarea.ginput, input.ginput { width: 100%; }
 .gbody > * { flex: 1; min-height: 0; }
 .gpre { white-space: pre-wrap; word-break: break-word; }
 .gsplit { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: 8px; min-height: 0; }
-.app[data-tier=s] .gsplit, .app[data-tier=xs] .gsplit { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.2fr); }
+.app[data-tier=s] .gsplit, .app[data-tier=xs] .gsplit { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr); }
 .gside, .gmain, .glist { border: 1px solid var(--border); border-radius: 6px; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
 .gmain { overflow: auto; }
 .gfiles { flex: 1; min-height: 0; overflow: auto; }
@@ -41,3 +41,36 @@ textarea.ginput, input.ginput { width: 100%; }
 .gpanel { overflow: hidden; }
 .gcm { align-items: flex-start; }
 .gconf { flex: 1; min-height: 300px; width: 100%; border: none; border-radius: 0; font-family: var(--mono); font-size: 12px; white-space: pre; resize: none; }
+
+/* 동기화 툴바(Fetch·Pull·Push): 배치만 정한다. 좁으면 글자는 숨기고 아이콘과 ↑↓ 숫자만 남는다 */
+.gtool { gap: var(--s2); flex-wrap: nowrap; min-width: 0; }
+.gtool .gselect { max-width: 200px; min-width: 0; flex: 0 1 200px; }
+.gbranchname { font-size: var(--fs-lg); font-weight: 600; color: var(--bright); font-family: var(--mono); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsync { flex-wrap: nowrap; flex: none; }
+.gsync .glabel { white-space: nowrap; }
+.gbranch { min-width: 0; flex: 0 1 auto; }
+.gstatus { min-height: 20px; display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.gstatus .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app[data-tier=m] .gtool .gselect { max-width: 150px; }
+.app[data-tier=s] .gsync .glabel, .app[data-tier=xs] .gsync .glabel, .app[data-tier=s] .gsync .fbadge, .app[data-tier=xs] .gsync .fbadge { display: none; }
+.app[data-tier=s] .gtool .gselect { max-width: 110px; }
+.app[data-tier=xs] .gtool .gselect { max-width: 80px; }
+.app[data-tier=xs] .gbranchname { max-width: 90px; }
+.app[data-tier=xs] .gsync .prbtn { display: none; }
+
+/* 브랜치 고르기 팝업 */
+.gbm { min-width: 300px; max-width: 360px; }
+.gbm > input { position: sticky; top: 0; flex: none; margin: 0 0 var(--s1); }
+.gbm > button .grow { overflow: hidden; text-overflow: ellipsis; }
+
+/* 새 브랜치 대화상자·커밋 입력 */
+.gnew { width: 420px; max-width: calc(100vw - 48px); }
+.gnew .chips, .gcommit .chips { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.gfield { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.gfield > .row { display: flex; align-items: center; gap: var(--s2); }
+.gcheck { display: flex; align-items: center; gap: var(--s2); font-size: var(--fs-sm); }
+.gcommit .gsub { display: flex; align-items: center; gap: var(--s2); }
+.gcommit .gact { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.gcommit .gact .hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gcommit .gnote { display: flex; align-items: center; gap: var(--s2); }
+.gcommit .gnote .grow { min-width: 0; }

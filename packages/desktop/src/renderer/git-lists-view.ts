@@ -3,14 +3,18 @@ import type { BranchView, LogRow } from '../shared/git-lists.js';
 import { el } from './dom.js';
 import { type GitCtx, renderDiff } from './git-common.js';
 import { ago } from './git-format.js';
+import { gitIcon } from './git-icons.js';
+import { openNewBranchDialog, trackBadgeEl } from './git-branch-ui.js';
+import { sortBranchesRecent } from '../shared/git-lists.js';
 
 /** 브랜치 탭: 로컬·원격 목록, 새로 만들기(지금 브랜치에서), 전환, 현재 브랜치로 머지, 안전한 삭제(-d) */
 export function buildBranches(ctx: GitCtx) {
   const root = el('div', 'glist gpanel');
   const tools = el('div', 'gtools');
   const filter = el('input', 'ginput');
-  filter.placeholder = '브랜치 검색 · 새 이름 입력';
-  const create = el('button', 'btn', '현재 브랜치에서 새로 만들기');
+  filter.placeholder = '브랜치 검색';
+  const create = el('button', 'btn primary');
+  create.append(gitIcon('plus'), el('span', undefined, '새 브랜치'));
   tools.append(filter, create);
   const list = el('div', 'gfiles');
   root.append(tools, list);
@@ -31,9 +35,9 @@ export function buildBranches(ctx: GitCtx) {
     list.replaceChildren();
     const q = filter.value.trim().toLowerCase();
     for (const remote of [false, true]) {
-      const rows = all.filter((b) => b.remote === remote && b.name.toLowerCase().includes(q));
+      const rows = sortBranchesRecent(all.filter((b) => b.remote === remote && b.name.toLowerCase().includes(q)));
       if (rows.length === 0) continue;
-      list.appendChild(el('div', 'gall', remote ? `원격 ${rows.length}` : `로컬 ${rows.length}`));
+      list.appendChild(el('div', 'gall', remote ? `원격 ${rows.length}` : `로컬 ${rows.length} · 최근 커밋 순`));
       for (const b of rows) {
         const row = el('div', `gf row-item${b.current ? ' on' : ''}`);
         const name = el('span', 'gname');
@@ -41,8 +45,13 @@ export function buildBranches(ctx: GitCtx) {
         row.appendChild(name);
         if (b.current) row.appendChild(el('span', 'chip', '현재'));
         if (b.team) row.appendChild(el('span', 'chip purple', '팀 작업'));
-        if (ctx.isProtected(b.name)) row.appendChild(el('span', 'chip red', '보호'));
-        if (b.track !== '') row.appendChild(el('span', 'dim', b.track));
+        if (ctx.isProtected(b.name)) {
+          const lock = el('span', 'chip red');
+          lock.append(gitIcon('lock'), '보호');
+          row.appendChild(lock);
+        }
+        const tb = trackBadgeEl(b);
+        if (tb !== null) row.appendChild(tb);
         const btn = (label: string, fn: () => void, danger = false) => {
           const x = el('button', danger ? 'btn sm danger' : 'btn sm', label);
           x.addEventListener('click', fn);
@@ -56,14 +65,7 @@ export function buildBranches(ctx: GitCtx) {
     }
   }
   filter.addEventListener('input', draw);
-  create.addEventListener('click', async () => {
-    if (filter.value.trim() === '') return ctx.say('만들 브랜치 이름을 입력해 주세요.', true);
-    if (await ctx.call('createBranch', { name: filter.value })) {
-      filter.value = '';
-      await refresh();
-      await ctx.changed();
-    }
-  });
+  create.addEventListener('click', () => void openNewBranchDialog(ctx, filter.value.trim()));
   async function refresh(): Promise<void> {
     all = (await ctx.call('branches', undefined as never)) ?? [];
     draw();

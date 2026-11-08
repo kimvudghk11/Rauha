@@ -27,7 +27,7 @@ export function parseLog(text: string): LogRow[] {
 }
 
 /** `for-each-ref`에 넘기는 형식(refname, 짧은 이름, HEAD 표시, upstream, 앞섬/뒤처짐) */
-export const BRANCH_FORMAT = '%(refname)%1f%(refname:short)%1f%(HEAD)%1f%(upstream:short)%1f%(upstream:track)';
+export const BRANCH_FORMAT = '%(refname)%1f%(refname:short)%1f%(HEAD)%1f%(upstream:short)%1f%(upstream:track)%1f%(committerdate:unix)';
 const TEAM_PREFIX = 'rauha/job-';
 
 export class BranchInfo {
@@ -37,10 +37,11 @@ export class BranchInfo {
     readonly current: boolean,
     readonly upstream: string | null,
     readonly track: string,
+    readonly at: number,
   ) {}
 
-  static of(name: string, remote: boolean, current: boolean, upstream: string | null, track: string): BranchInfo {
-    return new BranchInfo(name, remote, current, upstream, track);
+  static of(name: string, remote: boolean, current: boolean, upstream: string | null, track: string, at = 0): BranchInfo {
+    return new BranchInfo(name, remote, current, upstream, track, at);
   }
 
   /** rauha 팀원이 남긴 작업 브랜치(원격에 올라가 있으면 origin/ 이 붙는다) */
@@ -55,6 +56,8 @@ export interface BranchView {
   readonly current: boolean;
   readonly upstream: string | null;
   readonly track: string;
+  /** 마지막 커밋 시각(초). 모르면 0 */
+  readonly at: number;
   readonly team: boolean;
 }
 
@@ -62,11 +65,23 @@ export function parseBranches(text: string): BranchInfo[] {
   const out: BranchInfo[] = [];
   for (const line of text.split('\n')) {
     if (line.trim() === '') continue;
-    const [ref = '', short = '', head = '', upstream = '', track = ''] = line.split(US);
-    if (ref.startsWith('refs/heads/')) out.push(BranchInfo.of(short, false, head === '*', upstream === '' ? null : upstream, track));
-    else if (ref.startsWith('refs/remotes/') && !ref.endsWith('/HEAD')) out.push(BranchInfo.of(short, true, false, null, ''));
+    const [ref = '', short = '', head = '', upstream = '', track = '', at = '0'] = line.split(US);
+    if (ref.startsWith('refs/heads/')) out.push(BranchInfo.of(short, false, head === '*', upstream === '' ? null : upstream, track, Number(at) || 0));
+    else if (ref.startsWith('refs/remotes/') && !ref.endsWith('/HEAD')) out.push(BranchInfo.of(short, true, false, null, '', Number(at) || 0));
   }
   return out;
 }
 
-export const branchView = (b: BranchInfo): BranchView => ({ name: b.name, remote: b.remote, current: b.current, upstream: b.upstream, track: b.track, team: b.isTeamJob() });
+export const branchView = (b: BranchInfo): BranchView => ({ name: b.name, remote: b.remote, current: b.current, upstream: b.upstream, track: b.track, at: b.at, team: b.isTeamJob() });
+
+/** upstream:track 글("[ahead 2, behind 1]")에서 앞섬·뒤처짐 수. 원격 연결이 없으면 null */
+export function parseTrack(track: string | null): { ahead: number; behind: number } | null {
+  if (track === null) return null;
+  const num = (word: string) => Number(new RegExp(word + " ([0-9]+)").exec(track)?.[1] ?? 0);
+  return { ahead: num('ahead'), behind: num('behind') };
+}
+
+/** 현재 브랜치가 맨 위, 나머지는 최근 커밋 순(같으면 이름 순) */
+export function sortBranchesRecent<T extends { name: string; at: number; current: boolean }>(list: readonly T[]): T[] {
+  return [...list].sort((a, b) => Number(b.current) - Number(a.current) || b.at - a.at || a.name.localeCompare(b.name));
+}

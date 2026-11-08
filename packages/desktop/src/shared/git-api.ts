@@ -42,6 +42,8 @@ export interface Done {
   readonly conflicts?: boolean;
   /** fetch·pull이 알려 주는 받은(받을 수 있는) 새 커밋 수 */
   readonly received?: number;
+  /** 커밋한 직후의 전체 해시 */
+  readonly hash?: string;
 }
 
 export interface ConfirmArg {

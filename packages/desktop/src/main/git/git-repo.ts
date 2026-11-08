@@ -145,7 +145,8 @@ export class GitRepo {
     if (title === '') throw new GitFailure('INVALID', '커밋 제목을 적어 주세요.');
     if (!(await this.status()).files.some((f) => f.isStaged())) throw new GitFailure('INVALID', '스테이지한 파일이 없어요.');
     await this.git(['commit', '-q', '-m', title, ...(body.trim() === '' ? [] : ['-m', body.trim()])]);
-    return ok(`커밋했어요 ${(await this.git(['rev-parse', '--short', 'HEAD'])).trim()}  ${title}`);
+    const hash = (await this.git(['rev-parse', 'HEAD'])).trim();
+    return ok(`커밋했어요 ${hash.slice(0, 7)}  ${title}`, { hash });
   }
 
   async branches() {

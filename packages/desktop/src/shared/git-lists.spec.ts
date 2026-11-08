@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LOG_FORMAT, parseBranches, parseLog } from './git-lists.js';
+import { LOG_FORMAT, parseBranches, parseLog, parseTrack, sortBranchesRecent } from './git-lists.js';
 
 const US = '\x1f';
 const RS = '\x1e';
@@ -38,5 +38,29 @@ describe('parseBranches', () => {
     expect(list[0]!.current).toBe(true);
     expect(list[1]!.isTeamJob()).toBe(true);
     expect(list[0]!.isTeamJob()).toBe(false);
+  });
+});
+
+describe('parseTrack', () => {
+  it('[ahead 2, behind 1]에서 앞섬·뒤처짐 수를 읽는다', () => {
+    expect(parseTrack('[ahead 2, behind 1]')).toEqual({ ahead: 2, behind: 1 });
+    expect(parseTrack('[ahead 3]')).toEqual({ ahead: 3, behind: 0 });
+    expect(parseTrack('[behind 4]')).toEqual({ ahead: 0, behind: 4 });
+  });
+  it('비어 있거나 gone이면 0, 연결이 없으면 모른다(null)', () => {
+    expect(parseTrack('')).toEqual({ ahead: 0, behind: 0 });
+    expect(parseTrack('[gone]')).toEqual({ ahead: 0, behind: 0 });
+    expect(parseTrack(null)).toBeNull();
+  });
+});
+
+describe('sortBranchesRecent', () => {
+  const b = (name: string, at: number, current = false, remote = false) => ({ name, at, current, remote });
+  it('현재 브랜치가 맨 위, 나머지는 최근 커밋 순이다', () => {
+    const out = sortBranchesRecent([b('old', 1), b('cur', 5, true), b('new', 9)]);
+    expect(out.map((x) => x.name)).toEqual(['cur', 'new', 'old']);
+  });
+  it('시각이 같으면 이름 순이다', () => {
+    expect(sortBranchesRecent([b('b', 1), b('a', 1)]).map((x) => x.name)).toEqual(['a', 'b']);
   });
 });

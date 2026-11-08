@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commitBlockReason, fetchedLabel, friendlyGitError, pullDoneMessage, stageSummary, subjectState, syncBadge } from './git-toolbar.js';
+import { commitBlockReason, directionText, fetchedLabel, friendlyGitError, pullDoneMessage, stageSummary, subjectState, syncBadge } from './git-toolbar.js';
 
 describe('Fetch 배지 글', () => {
   it('한 번도 안 했으면 "아직 안 함"이다', () => {
@@ -82,5 +82,15 @@ describe('커밋 버튼을 못 누르는 이유', () => {
     expect(commitBlockReason({ ...base, conflicts: true })).toMatch(/충돌/);
     expect(commitBlockReason({ ...base, staged: 0 })).toMatch(/스테이지/);
     expect(commitBlockReason({ ...base, subject: ' ' })).toMatch(/제목/);
+  });
+});
+
+describe('앞섬·뒤처짐 표기', () => {
+  it('↑앞선 수 ↓뒤처진 수 모양으로 같은 기호를 쓴다', () => {
+    expect(directionText(1, 3)).toBe('↑1 ↓3');
+    expect(directionText(2, 0)).toBe('↑2');
+    expect(directionText(0, 4)).toBe('↓4');
+    expect(directionText(0, 0)).toBe('');
+    expect(directionText(null, null)).toBe('');
   });
 });

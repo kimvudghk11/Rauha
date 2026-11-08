@@ -64,3 +64,8 @@ export function commitBlockReason(i: CommitInput): string | null {
   if (i.subject.trim() === '') return '커밋 제목을 적어 주세요.';
   return null;
 }
+
+/** 브랜치 목록·툴바에서 쓰는 앞섬·뒤처짐 표기: "↑1 ↓3" (0이거나 모르면 비운다) */
+export function directionText(ahead: number | null, behind: number | null): string {
+  return [syncBadge('up', ahead), syncBadge('down', behind)].filter((x) => x !== '').join(' ');
+}
