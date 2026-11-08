@@ -10,7 +10,10 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const flag = process.argv.includes('--mac') ? ['--mac'] : process.argv.includes('--win') ? ['--win'] : [];
 const run = (cmd, args, signing = false) => {
   // 서명할 때만 인증서 자동 탐색을 켠다(CSC_LINK 인증서를 쓴다). 아니면 끈다
-  const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env: { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: signing ? 'true' : 'false' } });
+  // GitHub Actions는 등록되지 않은 비밀을 빈 문자열 환경 변수로 넘긴다. 빈 CSC_LINK 같은 값은 electron-builder가 "빈 인증서"로 읽다 실패하므로 지운다.
+  const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: signing ? 'true' : 'false' };
+  for (const key of ['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID', 'CSC_LINK', 'CSC_KEY_PASSWORD']) if (env[key] === '' || !signing) delete env[key];
+  const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env });
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
 run(process.execPath, [join(root, 'scripts', 'build.mjs')]);
