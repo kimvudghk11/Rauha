@@ -1,4 +1,4 @@
-import { query, startup, type Options, type SDKMessage, type SDKResultMessage, type WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import { query, startup, type HookCallback, type Options, type SDKMessage, type SDKResultMessage, type WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { SecretPolicy } from '../domain/secret-policy.js';
 import { MODEL_ID } from '../domain/team.js';
 import type { AccountBlock, MemberCall, MemberResult, MemberUsage, PreparedCall, TeamMemberPort } from '../application/ports.js';
@@ -6,6 +6,7 @@ import type { PromptLibrary } from './prompt-library.js';
 import { kitServers } from './tool-kits.js';
 import { createFetchLog } from './fetch-log.js';
 import { createToolGuard, type PermissionAsker } from './tool-guard.js';
+import { ToolTally } from '../domain/tool-tally.js';
 import { accountBlock } from './usage-limit.js';
 
 export interface AgentSdkTeamMemberOptions {
@@ -31,6 +32,7 @@ export interface AgentSdkTeamMemberOptions {
 interface Session {
   readonly controller: AbortController;
   readonly fetchLog: ReturnType<typeof createFetchLog>;
+  readonly tally: ToolTally;
   readonly stderr: string[];
 }
 
@@ -105,7 +107,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     } catch (error) {
       return { output: null, error: (error as Error).message, usage: emptyUsage(model, Date.now() - started), fetched: [], blocked: accountBlock((error as Error).message) };
     }
-    const { controller, fetchLog, stderr } = opened;
+    const { controller, fetchLog, stderr, tally } = opened;
     const stop = () => controller.abort();
     call.signal?.addEventListener('abort', stop, { once: true });
     this.running.add(controller);
@@ -122,7 +124,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       return {
         output: null,
         error: message,
-        usage: emptyUsage(model, Date.now() - started),
+        usage: { ...emptyUsage(model, Date.now() - started), tools: tally.entries() },
         fetched: fetchLog.entries(),
         blocked: controller.signal.aborted ? CANCELLED : accountBlock(message),
       };
@@ -136,7 +138,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const fetched = fetchLog.entries();
     if (controller.signal.aborted) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, Date.now() - started), fetched, blocked: CANCELLED };
     if (result === null) return { output: null, error: '결과 메시지를 받지 못했습니다.', usage: emptyUsage(model, Date.now() - started), fetched };
-    const usage = toUsage(model, result);
+    const usage = { ...toUsage(model, result), tools: tally.entries() };
     if (result.subtype !== 'success') {
       const error = `${result.subtype}: ${result.errors.join(' / ')}`;
       return { output: null, error, usage, fetched, blocked: accountBlock(error), partial };
@@ -202,7 +204,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
         PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
-        PostToolUse: [{ hooks: [session.fetchLog.hook] }],
+        PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally)] }],
       },
       stderr: (data) => {
         session.stderr.push(data);
@@ -215,12 +217,20 @@ export class AgentSdkTeamMember implements TeamMemberPort {
 const CANCELLED: AccountBlock = { reason: 'cancelled', message: '사용자가 작업을 멈췄습니다.' };
 
 function newSession(): Session {
-  return { controller: new AbortController(), fetchLog: createFetchLog(), stderr: [] };
+  return { controller: new AbortController(), fetchLog: createFetchLog(), tally: ToolTally.empty(), stderr: [] };
 }
 
 /** 미리 띄운 프로세스는 띄울 때의 설정이 고정되므로, 역할·설정·출력 형식이 모두 같을 때만 쓴다. */
 function spareKey(call: PreparedCall): string {
   return JSON.stringify([call.role, call.setting, call.outputSchema]);
+}
+
+/** 도구를 쓸 때마다 이름만 센다(입력·경로는 보지 않는다). */
+export function toolCountHook(tally: ToolTally): HookCallback {
+  return async (input) => {
+    if (input.hook_event_name === 'PostToolUse') tally.record(input.tool_name);
+    return {};
+  };
 }
 
 /** assistant 메시지 내용에서 마지막 글 블록. 없으면 null. */

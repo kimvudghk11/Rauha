@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { MemberRole } from '../application/dto/role-settings.dto.js';
 import type { MemberCall, MemberResult, RunLogPort } from '../application/ports.js';
+import { ToolTally } from '../domain/tool-tally.js';
 import type { CheckResult } from '../domain/verification.js';
 
 const pad = (n: number, width = 2) => String(n).padStart(width, '0');
@@ -33,6 +34,8 @@ export class FileRunLog implements RunLogPort {
       userMessage: call.userMessage,
       output: result.output,
       error: result.error,
+      /** 찾아본 것(도구 이름과 횟수만). 팀원이 폴더를 실제로 훑었는지 한눈에 본다. */
+      toolsLine: ToolTally.line(result.usage.tools ?? []),
       usage: result.usage,
     });
   }

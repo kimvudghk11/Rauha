@@ -27,4 +27,15 @@ describe('FileRunLog', () => {
     expect(readFileSync(join(dir, 'guide.md'), 'utf8')).toBe('# 안내서');
     expect(readdirSync(dir)).toContain('checks-red-1.json');
   });
+
+  it('팀원 호출 기록에 찾아본 도구를 한 줄로 남긴다', async () => {
+    const runs = mkdtempSync(join(tmpdir(), 'rauha-runs-'));
+    dirs.push(runs);
+    const log = new FileRunLog(runs, 'abcdef123456', new Date(2026, 9, 25, 14, 2, 3), 'deadbeef');
+    const call = { role: 'answerer' as const, setting: RoleSettingsDto.defaults().get('answerer'), userMessage: 'm', outputSchema: {}, canWrite: () => false };
+    const usage = { model: 'm', durationMs: 1, costUsd: 0, turns: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, denials: [], endReason: 'success', tools: [{ name: 'Grep', count: 3 }, { name: 'Read', count: 5 }] };
+    await log.recordCall('answerer', 1, call, { output: null, error: null, usage, fetched: [] });
+    const dir = await log.finish({}, '');
+    expect(JSON.parse(readFileSync(join(dir, 'calls', '01-answerer-1.json'), 'utf8'))).toMatchObject({ toolsLine: 'Grep 3 · Read 5' });
+  });
 });

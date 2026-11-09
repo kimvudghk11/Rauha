@@ -3,6 +3,7 @@ import type { DesignApproval, DesignPlan, DesignQuestion } from '../../design/ap
 import type { LearningBook } from '../domain/learning-book.js';
 import type { CompanyBook } from '../domain/company-book.js';
 import type { CheckedClaim } from '../domain/fact-check.js';
+import type { ToolCount } from '../domain/tool-tally.js';
 import type { TestRun } from '../domain/test-run.js';
 import type { ToolKit } from '../domain/tool-kit.js';
 import type { CheckResult } from '../domain/verification.js';
@@ -38,6 +39,8 @@ export interface MemberUsage {
   readonly cacheReadTokens: number;
   readonly denials: readonly string[];
   readonly endReason: string;
+  /** 이번 호출이 쓴 도구의 이름별 횟수(내용·경로 없음). 어댑터가 모으지 않으면 없다. */
+  readonly tools?: readonly ToolCount[];
 }
 
 export interface FetchedPage {
