@@ -110,3 +110,26 @@ describe('저장된 값에서 다시 만들기', () => {
     expect(() => Columns.restore([k, k])).toThrow(/겹/);
   });
 });
+
+describe('칸 숨기기', () => {
+  it('칸을 숨기면 hidden이 되고 다시 보이게 할 수 있다', () => {
+    const c = Columns.defaults().hide('done', true);
+    expect(c.get('done')?.hidden).toBe(true);
+    expect(c.visible().map((k) => k.id)).toEqual(['todo', 'doing']);
+    expect(c.hide('done', false).visible()).toHaveLength(3);
+  });
+
+  it('보이는 칸이 하나도 안 남게 숨길 수는 없다', () => {
+    const c = Columns.defaults().hide('todo', true).hide('doing', true);
+    expect(() => c.hide('done', true)).toThrow(/하나는/);
+  });
+
+  it('새 카드가 들어가는 첫 칸은 숨긴 칸을 건너뛴다', () => {
+    expect(Columns.defaults().hide('todo', true).entry().id).toBe('doing');
+  });
+
+  it('옛 저장 파일처럼 hidden이 없는 칸은 보이는 칸이다', () => {
+    const old = Columns.defaults().items.map(({ hidden: _h, ...k }) => k);
+    expect(Columns.restore(old as never).visible()).toHaveLength(3);
+  });
+});

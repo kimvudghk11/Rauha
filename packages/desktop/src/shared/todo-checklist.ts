@@ -1,3 +1,4 @@
+import { reorder } from './todo-order.js';
 /** 카드 안 체크리스트. 값은 불변이고, 바꾸는 메서드는 새 체크리스트를 돌려준다. */
 
 export const CHECKLIST_MAX = 50;
@@ -48,6 +49,20 @@ export class Checklist {
   add(text: string, id: string): Checklist {
     if (this.items.length >= CHECKLIST_MAX) throw new ChecklistError(`체크리스트는 ${CHECKLIST_MAX}개까지예요.`);
     return Checklist.restore([...this.items, { id, text, done: false }]);
+  }
+
+  /** afterId 항목 바로 뒤에 새 항목을 끼운다(null이면 맨 앞). Enter로 이어 쓸 때 쓴다. */
+  addAfter(afterId: string | null, text: string, id: string): Checklist {
+    if (this.items.length >= CHECKLIST_MAX) throw new ChecklistError(`체크리스트는 ${CHECKLIST_MAX}개까지예요.`);
+    if (afterId !== null) this.require(afterId);
+    const at = afterId === null ? 0 : this.items.findIndex((i) => i.id === afterId) + 1;
+    return Checklist.restore([...this.items.slice(0, at), { id, text, done: false }, ...this.items.slice(at)]);
+  }
+
+  /** id 항목을 beforeId 항목 앞(null이면 맨 끝)으로 옮긴다. */
+  move(id: string, beforeId: string | null): Checklist {
+    this.require(id);
+    return new Checklist(reorder(this.items, id, beforeId));
   }
 
   toggle(id: string): Checklist {

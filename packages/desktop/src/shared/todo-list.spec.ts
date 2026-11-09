@@ -329,3 +329,52 @@ describe('마감과 정렬·필터', () => {
     expect(list.labels()).toEqual([{ name: '버그', color: 'red' }, { name: '문서', color: 'gray' }]);
   });
 });
+
+describe('노션식 보드 규칙', () => {
+  it('칸 머리의 +로 만든 카드는 칸 맨 위에 붙는다', () => {
+    const list = add(add(TodoList.empty(), 'a'), 'b', { top: true });
+    expect(titles(list, 'todo')).toEqual(['b', 'a']);
+  });
+
+  it('카드를 복제하면 바로 아래에 같은 내용으로 생기고 팀 작업·끝낸 시각은 따라오지 않는다', () => {
+    let list = add(add(TodoList.empty(), 'a', { note: '메모', labels: [{ name: '버그', color: 'red' }], checklist: [{ id: 'c1', text: '일', done: true }] }), 'b');
+    list = list.duplicate(idOf(list, 'a'), newId, at);
+    expect(titles(list, 'todo')).toEqual(['a', 'a', 'b']);
+    const copy = list.cardsIn('todo')[1]!;
+    expect(copy.id).not.toBe(list.cardsIn('todo')[0]!.id);
+    expect(copy).toMatchObject({ note: '메모', jobId: null, completedAt: null });
+    expect(copy.labels).toEqual([{ name: '버그', color: 'red' }]);
+    expect(copy.checklist.items.map((i) => i.text)).toEqual(['일']);
+  });
+
+  it('복제도 카드 개수 상한을 지킨다', () => {
+    let list = TodoList.empty();
+    for (let i = 0; i < MAX_TODOS; i += 1) list = add(list, `일 ${i}`);
+    expect(() => list.duplicate(list.items[0]!.id, newId, at)).toThrow(/500개/);
+  });
+
+  it('칸을 지울 때 카드를 옮길 칸을 직접 고를 수 있다', () => {
+    let list = add(add(TodoList.empty(), 'a', { columnId: 'doing' }), 'b');
+    list = list.removeColumn('doing', 'merge', at, 'done');
+    expect(titles(list, 'done')).toEqual(['a']);
+    expect(list.cardsIn('done')[0]!.completedAt).toBe(at);
+  });
+
+  it('지우는 칸 자신이나 없는 칸으로는 옮기지 못한다', () => {
+    const list = add(TodoList.empty(), 'a', { columnId: 'doing' });
+    expect(() => list.removeColumn('doing', 'merge', at, 'doing')).toThrow(/칸/);
+    expect(() => list.removeColumn('doing', 'merge', at, '없음')).toThrow(/칸/);
+  });
+
+  it('칸을 숨겨도 카드는 그대로 남고, 숨긴 칸의 카드 수를 알 수 있다', () => {
+    const list = add(add(TodoList.empty(), 'a', { columnId: 'done' }), 'b').hideColumn('done', true);
+    expect(list.columns.visible().map((c) => c.id)).toEqual(['todo', 'doing']);
+    expect(titles(list, 'done')).toEqual(['a']);
+    expect(list.counts()['done']).toBe(1);
+  });
+
+  it('검색·필터에 걸린 카드 수를 칸마다 센다', () => {
+    const list = add(add(TodoList.empty(), '환불'), '로그인', { columnId: 'done' });
+    expect(list.countMatching({ ...all, text: '로그인' }, '2026-11-08')).toEqual({ todo: 0, doing: 0, done: 1 });
+  });
+});

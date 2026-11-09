@@ -72,9 +72,11 @@ export interface TodoDraft {
   readonly checklist?: readonly ChecklistItem[];
   /** 넣을 칸. 비우면 새 카드가 들어가는 첫 칸 */
   readonly columnId?: string;
+  /** true면 칸 맨 위에 넣는다(칸 머리의 +). 기본은 맨 아래 */
+  readonly top?: boolean;
 }
 
-export type TodoPatch = Partial<Omit<TodoDraft, 'columnId'>>;
+export type TodoPatch = Partial<Omit<TodoDraft, 'columnId' | 'top'>>;
 
 export interface TodoFilter {
   /** 칸 번호 또는 'all' */
@@ -296,7 +298,18 @@ export class TodoList {
     const columnId = draft.columnId ?? this.columns.entry().id;
     this.requireColumn(columnId);
     const made = Todo.create(draft, newId(), columnId, at);
-    return this.withItems(place([...this.items, made], made.id, columnId, null, (t) => t));
+    const first = draft.top === true ? (this.cardsIn(columnId)[0]?.id ?? null) : null;
+    return this.withItems(place([...this.items, made], made.id, columnId, first, (t) => t));
+  }
+
+  /** 카드를 복제해 원본 바로 아래에 둔다. 팀 작업 번호와 끝낸 시각은 따라오지 않는다. */
+  duplicate(id: string, newId: () => string, at: string): TodoList {
+    if (this.items.length >= MAX_TODOS) throw new TodoError(`할 일은 최대 ${MAX_TODOS}개까지예요. 끝난 것부터 지워 주세요.`);
+    const src = this.require(id);
+    const copy = Todo.create({ title: src.title, note: src.note, priority: src.priority, due: src.due, repo: src.repo, team: src.team, labels: src.labels, checklist: src.checklist.items }, newId(), src.columnId, at);
+    const mine = this.cardsIn(src.columnId);
+    const after = mine[mine.findIndex((t) => t.id === id) + 1];
+    return this.withItems(place([...this.items, copy], copy.id, src.columnId, after?.id ?? null, (t) => t));
   }
 
   edit(id: string, patch: TodoPatch, at: string): TodoList {
@@ -372,6 +385,10 @@ export class TodoList {
     return this.withColumns(() => this.columns.setWork(id, work));
   }
 
+  hideColumn(id: string, hidden: boolean): TodoList {
+    return this.withColumns(() => this.columns.hide(id, hidden));
+  }
+
   collapseColumn(id: string, collapsed: boolean): TodoList {
     return this.withColumns(() => this.columns.collapse(id, collapsed));
   }
@@ -380,10 +397,11 @@ export class TodoList {
     return this.withColumns(() => this.columns.move(id, beforeId));
   }
 
-  /** 칸을 지운다. 카드는 앞 칸(첫 칸이면 다음 칸) 맨 아래로 옮기거나 함께 지운다. */
-  removeColumn(id: string, cards: RemoveCards, at: string): TodoList {
+  /** 칸을 지운다. 카드는 into 칸(안 정하면 앞 칸, 첫 칸이면 다음 칸) 맨 아래로 옮기거나 함께 지운다. */
+  removeColumn(id: string, cards: RemoveCards, at: string, into: string | null = null): TodoList {
     const landing = this.withColumns(() => this.columns.remove(id)).columns;
-    const landingId = this.columns.landingFor(id);
+    const landingId = into ?? this.columns.landingFor(id);
+    if (cards === 'merge' && (landingId === id || !landing.has(landingId))) throw new TodoError('카드를 옮길 칸을 찾지 못했어요.');
     const mine = this.cardsIn(id);
     if (cards === 'delete') return new TodoList(landing, this.items.filter((t) => t.columnId !== id));
     const done = landing.isDone(landingId);
@@ -410,6 +428,14 @@ export class TodoList {
     };
     // 정렬은 안정적이라 같은 값이면 보드 순서가 남는다.
     return [...kept].sort(compare);
+  }
+
+  /** 검색·필터에 걸린 카드 수를 칸마다 센다 */
+  countMatching(filter: TodoFilter, today: string): Readonly<Record<string, number>> {
+    const c: Record<string, number> = {};
+    for (const col of this.columns.items) c[col.id] = 0;
+    for (const t of this.items) if (t.matches({ ...filter, column: 'all' }, today, this.isDone(t))) c[t.columnId] = (c[t.columnId] ?? 0) + 1;
+    return c;
   }
 
   /** 칸마다 카드 수 */

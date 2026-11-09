@@ -20,6 +20,7 @@ export interface ColumnPatch {
   readonly done?: boolean;
   readonly work?: boolean;
   readonly collapsed?: boolean;
+  readonly hidden?: boolean;
 }
 
 /** 화면이 main에 보내는 요청. 어떤 모양이든 DTO가 검사해서 이 모양이 된다. */
@@ -28,12 +29,13 @@ export type TodoOp =
   | { readonly kind: 'edit'; readonly id: string; readonly patch: TodoPatch }
   | { readonly kind: 'move'; readonly id: string; readonly columnId: string; readonly beforeId: string | null }
   | { readonly kind: 'remove'; readonly id: string }
+  | { readonly kind: 'duplicate'; readonly id: string }
   | { readonly kind: 'delegate'; readonly id: string }
   | { readonly kind: 'label-remove'; readonly name: string }
   | { readonly kind: 'column-add'; readonly name: string; readonly color: ColumnColor }
   | { readonly kind: 'column-edit'; readonly id: string; readonly patch: ColumnPatch }
   | { readonly kind: 'column-move'; readonly id: string; readonly beforeId: string | null }
-  | { readonly kind: 'column-remove'; readonly id: string; readonly cards: RemoveCards };
+  | { readonly kind: 'column-remove'; readonly id: string; readonly cards: RemoveCards; readonly into: string | null };
 
 /** main이 화면에 돌려주는 결과 */
 export type TodoResult = { readonly ok: true; readonly list: TodoListJson; readonly jobId: string | null } | { readonly ok: false; readonly error: string };
@@ -108,6 +110,7 @@ function columnPatchOf(input: unknown): ColumnPatch {
   if (input['done'] !== undefined) out.done = flag(input['done'], '완료로 취급');
   if (input['work'] !== undefined) out.work = flag(input['work'], '일하는 칸');
   if (input['collapsed'] !== undefined) out.collapsed = flag(input['collapsed'], '접기');
+  if (input['hidden'] !== undefined) out.hidden = flag(input['hidden'], '숨기기');
   return out;
 }
 
@@ -121,7 +124,7 @@ function columnsFrom(raw: unknown): Columns | null {
     return Columns.restore(
       listOf(raw, '칸').map((c) => {
         if (!isObject(c)) throw new TodoError('칸 모양이 올바르지 않아요.');
-        return { id: text(c['id'], '칸 번호'), name: text(c['name'], '칸 이름'), color: color(c['color']), done: flag(c['done'], '완료로 취급'), work: flag(c['work'] ?? false, '일하는 칸'), collapsed: flag(c['collapsed'] ?? false, '접기') };
+        return { id: text(c['id'], '칸 번호'), name: text(c['name'], '칸 이름'), color: color(c['color']), done: flag(c['done'], '완료로 취급'), work: flag(c['work'] ?? false, '일하는 칸'), collapsed: flag(c['collapsed'] ?? false, '접기'), hidden: flag(c['hidden'] ?? false, '숨기기') };
       }),
     );
   } catch (error) {
@@ -213,6 +216,7 @@ export class TodoOpDto {
       case 'add': {
         const draft: { -readonly [K in keyof TodoDraft]: TodoDraft[K] } = { ...patchOf(input), title: text(input['title'], '제목') };
         if (input['columnId'] !== undefined) draft.columnId = text(input['columnId'], '칸 번호');
+        if (input['top'] !== undefined) draft.top = flag(input['top'], '맨 위에 넣기');
         return new TodoOpDto({ kind, draft });
       }
       case 'edit':
@@ -222,6 +226,7 @@ export class TodoOpDto {
       case 'remove':
         return new TodoOpDto({ kind, id: id() });
       case 'delegate':
+      case 'duplicate':
         return new TodoOpDto({ kind, id: id() });
       case 'label-remove':
         return new TodoOpDto({ kind, name: text(input['name'], '라벨 이름') });
@@ -234,7 +239,9 @@ export class TodoOpDto {
       case 'column-remove': {
         const cards = input['cards'];
         if (cards !== 'merge' && cards !== 'delete') throw new TodoError('칸을 지울 때 카드를 어떻게 할지 골라 주세요.');
-        return new TodoOpDto({ kind, id: str('id', '칸 번호가 없어요.'), cards });
+        const into = input['into'];
+        if (into !== undefined && into !== null && (typeof into !== 'string' || into === '')) throw new TodoError('카드를 옮길 칸 값이 올바르지 않아요.');
+        return new TodoOpDto({ kind, id: str('id', '칸 번호가 없어요.'), cards, into: typeof into === 'string' ? into : null });
       }
       default:
         throw new TodoError('모르는 요청이에요.');
@@ -262,6 +269,8 @@ export class TodoOpDto {
         return board.move(op.id, op.columnId, op.beforeId, at);
       case 'remove':
         return board.remove(op.id);
+      case 'duplicate':
+        return board.duplicate(op.id, newId, at);
       case 'label-remove':
         return board.removeLabel(op.name, at);
       case 'delegate':
@@ -276,12 +285,13 @@ export class TodoOpDto {
         if (p.done !== undefined) next = next.setColumnDone(op.id, p.done);
         if (p.work !== undefined) next = next.setColumnWork(op.id, p.work);
         if (p.collapsed !== undefined) next = next.collapseColumn(op.id, p.collapsed);
+        if (p.hidden !== undefined) next = next.hideColumn(op.id, p.hidden);
         return next;
       }
       case 'column-move':
         return board.moveColumn(op.id, op.beforeId);
       case 'column-remove':
-        return board.removeColumn(op.id, op.cards, at);
+        return board.removeColumn(op.id, op.cards, at, op.into);
     }
   }
 }

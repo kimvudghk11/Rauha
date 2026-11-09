@@ -18,7 +18,12 @@ export interface Column {
   /** 팀에 맡기면 카드가 가는 칸(하나만) */
   readonly work: boolean;
   readonly collapsed: boolean;
+  /** 보드에서 숨김(카드는 그대로 남는다). 맨 오른쪽 "숨긴 칸"에서 다시 꺼낸다. 보이는 칸은 늘 하나 이상 */
+  readonly hidden: boolean;
 }
+
+/** 저장 파일에는 hidden이 없을 수 있다(옛 파일) */
+export type ColumnInput = Omit<Column, 'hidden'> & { readonly hidden?: boolean };
 
 export function isColumnColor(v: unknown): v is ColumnColor {
   return typeof v === 'string' && (COLUMN_COLORS as readonly string[]).includes(v);
@@ -42,13 +47,13 @@ export class Columns {
 
   static defaults(): Columns {
     return new Columns([
-      { id: 'todo', name: '할 일', color: 'gray', done: false, work: false, collapsed: false },
-      { id: 'doing', name: '진행 중', color: 'blue', done: false, work: true, collapsed: false },
-      { id: 'done', name: '완료', color: 'green', done: true, work: false, collapsed: false },
+      { id: 'todo', name: '할 일', color: 'gray', done: false, work: false, collapsed: false, hidden: false },
+      { id: 'doing', name: '진행 중', color: 'blue', done: false, work: true, collapsed: false, hidden: false },
+      { id: 'done', name: '완료', color: 'green', done: true, work: false, collapsed: false, hidden: false },
     ]);
   }
 
-  static restore(items: readonly Column[]): Columns {
+  static restore(items: readonly ColumnInput[]): Columns {
     if (items.length === 0) throw new TodoColumnError('칸이 한 칸은 있어야 해요.');
     if (items.length > COLUMN_MAX) throw new TodoColumnError(`칸은 ${COLUMN_MAX}개까지예요.`);
     const seen = new Set<string>();
@@ -58,9 +63,11 @@ export class Columns {
       if (seen.has(k.id)) throw new TodoColumnError('칸 번호가 겹쳐요.');
       seen.add(k.id);
       if (k.work) works += 1;
-      return { id: k.id, name: cleanName(k.name), color: checkedColor(k.color), done: k.done, work: k.work, collapsed: k.collapsed };
+      return { id: k.id, name: cleanName(k.name), color: checkedColor(k.color), done: k.done, work: k.work, collapsed: k.collapsed, hidden: k.hidden === true };
     });
     if (works > 1) throw new TodoColumnError('팀이 일하는 칸은 하나만 둘 수 있어요.');
+    // 파일에서 모두 숨겨져 있으면 첫 칸을 다시 보이게 한다(칸이 사라져 보이는 것을 막는다)
+    if (clean.every((k) => k.hidden)) clean[0] = { ...clean[0]!, hidden: false };
     return new Columns(clean);
   }
 
@@ -80,18 +87,23 @@ export class Columns {
     return this.items.find((k) => k.work) ?? null;
   }
 
+  /** 보드에 보이는 칸들(숨긴 칸 빼고) */
+  visible(): readonly Column[] {
+    return this.items.filter((k) => !k.hidden);
+  }
+
   firstDone(): Column | null {
     return this.items.find((k) => k.done) ?? null;
   }
 
-  /** 새 카드가 들어가는 칸: 완료 칸이 아닌 첫 칸(모두 완료 칸이면 첫 칸) */
+  /** 새 카드가 들어가는 칸: 보이는 칸 중 완료 칸이 아닌 첫 칸(없으면 완료 아닌 첫 칸, 그것도 없으면 첫 칸) */
   entry(): Column {
-    return this.items.find((k) => !k.done) ?? this.items[0]!;
+    return this.items.find((k) => !k.done && !k.hidden) ?? this.items.find((k) => !k.done) ?? this.items[0]!;
   }
 
   add(name: string, color: ColumnColor, id: string): Columns {
     if (this.items.length >= COLUMN_MAX) throw new TodoColumnError(`칸은 ${COLUMN_MAX}개까지예요.`);
-    return Columns.restore([...this.items, { id, name, color, done: false, work: false, collapsed: false }]);
+    return Columns.restore([...this.items, { id, name, color, done: false, work: false, collapsed: false, hidden: false }]);
   }
 
   rename(id: string, name: string): Columns {
@@ -110,6 +122,13 @@ export class Columns {
   setWork(id: string, work: boolean): Columns {
     this.require(id);
     return new Columns(this.items.map((k) => (k.id === id ? { ...k, work } : work ? { ...k, work: false } : k)));
+  }
+
+  /** 숨기거나 다시 보이게 한다. 보이는 칸이 하나도 안 남게는 못 숨긴다. */
+  hide(id: string, hidden: boolean): Columns {
+    const found = this.require(id);
+    if (hidden && !found.hidden && this.visible().length <= 1) throw new TodoColumnError('보이는 칸이 하나는 있어야 해요.');
+    return this.change(id, (k) => ({ ...k, hidden }));
   }
 
   collapse(id: string, collapsed: boolean): Columns {

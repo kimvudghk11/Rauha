@@ -52,3 +52,27 @@ describe('체크리스트', () => {
     expect(() => Checklist.restore([{ id: '', text: 'x', done: false }])).toThrow(/번호/);
   });
 });
+
+describe('체크리스트 편집 흐름', () => {
+  it('항목 뒤에 새 항목을 끼워 넣는다(Enter로 이어 쓰기)', () => {
+    const list = Checklist.empty().add('a', 'a').add('c', 'c').addAfter('a', 'b', 'b');
+    expect(list.items.map((i) => i.text)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('앞 항목을 비우면 맨 앞에 끼운다', () => {
+    expect(Checklist.empty().add('a', 'a').addAfter(null, 'z', 'z').items.map((i) => i.id)).toEqual(['z', 'a']);
+  });
+
+  it('끼워 넣어도 50개 한도는 지킨다', () => {
+    let list = Checklist.empty();
+    for (let i = 0; i < CHECKLIST_MAX; i += 1) list = list.add(`일 ${i}`, `k${i}`);
+    expect(() => list.addAfter('k0', 'x', 'z')).toThrow(/50개/);
+  });
+
+  it('항목을 다른 항목 앞으로 옮겨 순서를 바꾼다', () => {
+    const list = Checklist.empty().add('a', 'a').add('b', 'b').add('c', 'c');
+    expect(list.move('c', 'a').items.map((i) => i.id)).toEqual(['c', 'a', 'b']);
+    expect(list.move('a', null).items.map((i) => i.id)).toEqual(['b', 'c', 'a']);
+    expect(() => list.move('없음', null)).toThrow(/찾지/);
+  });
+});

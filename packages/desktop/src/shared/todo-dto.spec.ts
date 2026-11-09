@@ -184,3 +184,33 @@ describe('라벨 지우기 요청', () => {
     }
   });
 });
+
+describe('노션식 보드 요청', () => {
+  const apply = (list: TodoList, op: unknown) => TodoOpDto.from(op).applyTo(list, newId, at);
+
+  it('칸 숨기기와 다시 보이기를 받는다', () => {
+    const hidden = apply(TodoList.empty(), { kind: 'column-edit', id: 'done', patch: { hidden: true } });
+    expect(hidden.columns.get('done')?.hidden).toBe(true);
+    expect(() => TodoOpDto.from({ kind: 'column-edit', id: 'done', patch: { hidden: 'yes' } })).toThrow(TodoError);
+  });
+
+  it('복제 요청과 맨 위에 더하기 요청을 받는다', () => {
+    let list = apply(TodoList.empty(), { kind: 'add', title: 'a' });
+    list = apply(list, { kind: 'add', title: 'b', top: true });
+    list = apply(list, { kind: 'duplicate', id: list.items[0]!.id });
+    expect(list.cardsIn('todo').map((t) => t.title)).toEqual(['b', 'b', 'a']);
+  });
+
+  it('칸을 지울 때 옮길 칸을 받는다', () => {
+    let list = apply(TodoList.empty(), { kind: 'add', title: 'a', columnId: 'doing' });
+    list = apply(list, { kind: 'column-remove', id: 'doing', cards: 'merge', into: 'done' });
+    expect(list.cardsIn('done').map((t) => t.title)).toEqual(['a']);
+  });
+
+  it('옛 저장 파일(칸에 hidden이 없는)도 그대로 읽는다', () => {
+    const json = JSON.parse(JSON.stringify(TodoListDto.fromEntity(TodoList.empty()).toJSON()));
+    for (const c of json.columns) delete c.hidden;
+    expect(TodoListDto.from(json).skipped).toBe(0);
+    expect(TodoListDto.from(json).toEntity().columns.visible()).toHaveLength(3);
+  });
+});
