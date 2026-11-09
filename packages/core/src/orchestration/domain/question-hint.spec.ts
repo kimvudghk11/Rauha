@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerDepthOf, isSmallTalk, onlyDocuments, sameQuestionKey, wantsToProceed } from './question-hint.js';
+import { answerDepthOf, isSmallTalk, pointsAtRepository, onlyDocuments, sameQuestionKey, wantsToProceed } from './question-hint.js';
 
 describe('isSmallTalk', () => {
   it('짧은 인사·맞장구는 인사로 본다', () => {
@@ -42,9 +42,30 @@ describe('answerDepthOf', () => {
     expect(answerDepthOf('deep', '안녕')).toBe('light');
   });
 
+  it('저장소 파일·폴더·구조를 가리키는 말은 라우터가 light라 해도 deep이다', () => {
+    expect(answerDepthOf('light', '이 레포 폴더 구조 정리해줘')).toBe('deep');
+    expect(answerDepthOf('light', '아까 그 파일 보여줘')).toBe('deep');
+    expect(answerDepthOf('light', '그 파일')).toBe('deep');
+    expect(answerDepthOf('light', 'src/money.ts 뭐 해?')).toBe('deep');
+  });
+
   it('인사가 아니면 라우터 판정을 따른다', () => {
     expect(answerDepthOf('light', '1+1은 얼마야?')).toBe('light');
     expect(answerDepthOf('deep', '이 함수 어디서 써?')).toBe('deep');
+  });
+});
+
+describe('pointsAtRepository', () => {
+  it('파일 경로·확장자·폴더·구조를 말하면 저장소를 가리킨다', () => {
+    for (const text of ['src/money.ts 보여줘', 'package.json 뭐야', '이 레포 폴더 구조 정리해줘', '디렉터리 구조 알려줘', 'repo 구조가 어때?']) expect(pointsAtRepository(text)).toBe(true);
+  });
+
+  it('"그 파일"·"방금 만든 폴더"처럼 지시어로 파일을 가리키면 저장소를 가리킨다', () => {
+    for (const text of ['아까 그 파일 보여줘', '그 파일', '방금 만든 폴더 어디 있어?', '어디에 있어?']) expect(pointsAtRepository(text)).toBe(true);
+  });
+
+  it('일반 상식·산수·인사는 저장소를 가리키지 않는다', () => {
+    for (const text of ['1+1은 얼마야?', '안녕', 'REST와 GraphQL 차이가 뭐야?', '지금 몇 시야?']) expect(pointsAtRepository(text)).toBe(false);
   });
 });
 

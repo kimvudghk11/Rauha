@@ -9,8 +9,16 @@ export function isSmallTalk(input: string): boolean {
   return text.length <= SMALL_TALK_CHARS && !ACTION.test(text) && !QUESTION.test(text);
 }
 
-/** 질문에 얼마나 깊이 답할지. 인사는 라우터가 뭐라 하든 가볍게, 그 밖에는 라우터 판정을 따른다. */
+const REPO_WORDS = /폴더|디렉터리|디렉토리|구조|레포|저장소|파일|경로|\b(repo|repository|folder|directory|files?|path)\b|\w\.(ts|tsx|js|jsx|mjs|cjs|py|java|kt|go|rs|rb|php|cs|swift|sql|sh|css|scss|html|json|ya?ml|toml|md|mdx|txt)\b|\w\/\w|어디\s?(에|서|있|쯤)/i;
+
+/** 요청이 이 저장소의 파일·폴더·구조를 가리키는지. 가리키면 지도 없이 가볍게 답하면 안 되고 직접 훑어야 한다. */
+export function pointsAtRepository(input: string): boolean {
+  return REPO_WORDS.test(input);
+}
+
+/** 질문에 얼마나 깊이 답할지. 저장소를 가리키는 말은 라우터가 light라 해도 deep, 인사는 가볍게, 그 밖에는 라우터 판정을 따른다. */
 export function answerDepthOf(routed: 'light' | 'deep', input: string): 'light' | 'deep' {
+  if (pointsAtRepository(input)) return 'deep';
   return isSmallTalk(input) ? 'light' : routed;
 }
 
