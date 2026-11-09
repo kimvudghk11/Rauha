@@ -24,6 +24,22 @@ export class ConversationMerge {
     return snapshot.turns.length === 0 && snapshot.carried.length === 0;
   }
 
+  /**
+   * 같은 작업 공간의 다른 레포 대화를 이 레포 대화와 한 흐름으로 본 대화(없으면 null).
+   * - 턴: 저장 시각이 이른 대화부터 통째로 잇고(같으면 이 레포가 뒤), 다른 레포 턴은 질문 앞에 `[레포 이름]`을 붙인다. 최근 MAX_KEPT_TURNS개
+   * - 이어 일할 파일: 파일 경로는 레포 기준이라 이 레포 것만 쓴다
+   */
+  static alongside(own: ChatSnapshot | null, others: readonly { readonly name: string; readonly snapshot: ChatSnapshot }[]): ChatSnapshot | null {
+    const parts = [
+      ...others.map(({ name, snapshot }) => ({ snapshot, label: name as string | null })),
+      ...(own !== null ? [{ snapshot: own, label: null as string | null }] : []),
+    ].sort((a, b) => a.snapshot.savedAt.localeCompare(b.snapshot.savedAt));
+    const turns = parts.flatMap(({ snapshot, label }) => snapshot.turns.map((t) => (label === null ? t : { input: `[${label}] ${t.input}`, result: t.result })));
+    const carried = own?.carried ?? [];
+    if (turns.length === 0 && carried.length === 0) return null;
+    return { version: 1, turns: turns.slice(-MAX_KEPT_TURNS), carried, lastTitle: own?.lastTitle ?? null, savedAt: own?.savedAt ?? parts[parts.length - 1]?.snapshot.savedAt ?? '' };
+  }
+
   /** 업무가 시작할 때 읽은 대화(없으면 null)로 규칙을 연다. */
   static startingFrom(base: ChatSnapshot | null): ConversationMerge {
     return new ConversationMerge(base?.turns.length ?? 0, new Set((base?.carried ?? []).map(([path]) => path)));

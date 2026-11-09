@@ -75,4 +75,27 @@ describe('ConversationMerge', () => {
     expect(merged.lastTitle).toBe('옛 제목');
     expect(merged.savedAt).toBe('2026-11-09T11:00:00.000Z');
   });
+
+  it('같은 작업 공간의 다른 레포 대화는 저장 시각 순으로 앞에 놓고 레포 이름을 붙이며, 이어 일할 파일은 이 레포 것만 쓴다', () => {
+    const own = snap(['내것'], [['own.ts', 'h1']], null, '2026-11-09T10:00:00.000Z');
+    const beta = snap(['베타 구조'], [['beta.ts', 'h2']], null, '2026-11-09T09:00:00.000Z');
+    const gamma = snap(['감마'], [], null, '2026-11-09T11:00:00.000Z');
+    const view = ConversationMerge.alongside(own, [{ name: 'beta-api', snapshot: beta }, { name: 'gamma', snapshot: gamma }]);
+    expect(view?.turns.map((t) => t.input)).toEqual(['[beta-api] 베타 구조', '내것', '[gamma] 감마']);
+    expect(view?.carried).toEqual([['own.ts', 'h1']]);
+  });
+
+  it('다른 레포 대화만 있어도 이어 받을 대화가 되고, 모두 비면 null이다', () => {
+    const beta = snap(['b']);
+    expect(ConversationMerge.alongside(null, [{ name: 'beta', snapshot: beta }])?.carried).toEqual([]);
+    expect(ConversationMerge.alongside(null, [{ name: 'beta', snapshot: ConversationMerge.blank('2026-11-09T09:00:00.000Z') }])).toBeNull();
+    expect(ConversationMerge.alongside(null, [])).toBeNull();
+  });
+
+  it('함께 본 다른 레포 턴은 이 레포 저장본에 다시 쓰지 않는다', () => {
+    const view = ConversationMerge.alongside(snap(['내것']), [{ name: 'beta', snapshot: snap(['b'], [], null, '2026-11-09T09:00:00.000Z') }])!;
+    const merge = ConversationMerge.startingFrom(view);
+    const final = { ...view, turns: [...view.turns, { input: '새것', result: 'r' }] };
+    expect(inputs(merge.finishedWith(snap(['내것']), final))).toEqual(['내것', '새것']);
+  });
 });

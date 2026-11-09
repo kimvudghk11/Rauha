@@ -206,9 +206,12 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
   };
   // 앞 대화는 레포(keyRoot)마다 파일에 이어 둔다: 업무가 열 때 받아 오고, 끝나면 새로 생긴 대화만 합쳐 저장한다.
   const conversations = RepoConversations.under(profile.sessionsDir(home));
+  // 레포가 여럿인 작업 공간이면 다른 레포 대화도 함께 이어 받는다(읽기만; 파일 목록은 레포별).
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const siblings = scope.repos.length > 1 ? scope.repos.filter((r) => norm(r.root) !== norm(keyRoot)) : [];
   return {
     handle: async (input, depth) => {
-      const conversation = await conversations.open(keyRoot).catch(() => null);
+      const conversation = await conversations.open(keyRoot, siblings).catch(() => null);
       const session = conversation?.base != null ? ChatSession.resume(deps, conversation.base) : ChatSession.start(deps);
       try {
         return await session.handle(input, also, depth);

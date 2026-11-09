@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { FileChatSnapshots, type ChatSnapshot } from '@rauha/core';
+import { DoubtedAnswers } from './doubted-answers.js';
 import { ConversationMerge } from './conversation-merge.js';
 import { ConversationResets } from './conversation-resets.js';
 
@@ -30,13 +31,21 @@ export class RepoConversations {
     return known;
   }
 
-  async open(keyRoot: string): Promise<OpenConversation> {
+  /**
+   * others: 같은 작업 공간의 다른 레포. 그 레포들의 앞 대화도 최근 순으로 함께 이어 받는다(읽기만 하고 저장은 이 레포 파일에만 한다).
+   * 이어 일할 파일 목록은 레포 기준이라 이 레포 것만 받는다.
+   */
+  async open(keyRoot: string, others: readonly { readonly name: string; readonly root: string }[] = []): Promise<OpenConversation> {
     const files = new FileChatSnapshots(this.dir, keyRoot);
     // 초기화 표식을 먼저 받고, 대화는 저장 줄을 거쳐 읽는다(앞서 요청된 초기화가 끝난 뒤의 모습을 본다).
     const mark = this.resets.watch(keyRoot);
     const loaded = await this.inLine(keyRoot, () => files.load());
-    const base = loaded !== null && !ConversationMerge.isBlank(loaded) ? loaded : null;
-    const merge = ConversationMerge.startingFrom(base);
+    const own = loaded !== null && !ConversationMerge.isBlank(loaded) ? loaded : null;
+    const beside = await Promise.all(others.map(async ({ name, root }) => ({ name, snapshot: await new FileChatSnapshots(this.dir, root).load() })));
+    const seen = ConversationMerge.alongside(own, beside.filter((o): o is { name: string; snapshot: ChatSnapshot } => o.snapshot !== null && !ConversationMerge.isBlank(o.snapshot)));
+    // 합치는 규칙은 사실 그대로의 대화로 세고, 다음 업무에는 믿으면 안 되는 답을 걸러서 싣는다(턴 수는 같다).
+    const base = seen === null ? null : { ...seen, turns: DoubtedAnswers.mark(seen.turns) };
+    const merge = ConversationMerge.startingFrom(seen);
     return {
       base,
       finish: (final) => this.inLine(keyRoot, () => mark.ifCurrent(async () => files.save(merge.finishedWith(await files.load(), final)))),

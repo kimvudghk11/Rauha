@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ChatSnapshot } from '@rauha/core';
@@ -96,5 +96,52 @@ describe('RepoConversations', () => {
     await Promise.all([a.finish(snap(['A'])), b.finish(snap(['B']))]);
     const turns = (await store.open('E:/work/app')).base?.turns.map((t) => t.input) ?? [];
     expect([...turns].sort()).toEqual(['A', 'B']);
+  });
+
+  describe('같은 작업 공간의 다른 레포', () => {
+    const alpha = { name: 'alpha', root: 'E:/ws/alpha' };
+    const beta = { name: 'beta-api', root: 'E:/ws/beta-api' };
+
+    it('다른 레포에서 한 질문과 답을 이 레포의 다음 업무가 함께 이어 받는다', async () => {
+      const store = new RepoConversations(newDir());
+      await (await store.open(beta.root)).finish(snap(['beta-api 구조 알려줘']));
+      const next = await store.open(alpha.root, [beta]);
+      expect(next.base?.turns.map((t) => t.input)).toEqual(['[beta-api] beta-api 구조 알려줘']);
+    });
+
+    it('다른 레포의 이어 일할 파일은 섞지 않는다', async () => {
+      const store = new RepoConversations(newDir());
+      await (await store.open(beta.root)).finish(snap(['b'], [['b.ts', 'h']]));
+      expect((await store.open(alpha.root, [beta])).base?.carried).toEqual([]);
+    });
+
+    it('이어 받은 다른 레포 턴은 이 레포 저장 파일에 쌓이지 않는다', async () => {
+      const store = new RepoConversations(newDir());
+      await (await store.open(beta.root)).finish(snap(['b']));
+      const job = await store.open(alpha.root, [beta]);
+      await job.finish({ ...snap(['x']), turns: [...(job.base?.turns ?? []), { input: '새것', result: 'r' }] });
+      expect((await store.open(alpha.root)).base?.turns.map((t) => t.input)).toEqual(['새것']);
+    });
+
+    it('작업 공간 전체 초기화 뒤에는 다른 레포 대화도 남지 않는다', async () => {
+      const store = new RepoConversations(newDir());
+      await (await store.open(beta.root)).finish(snap(['b']));
+      await store.clearAll([alpha.root, beta.root]);
+      expect((await store.open(alpha.root, [beta])).base).toBeNull();
+    });
+
+    it('찾지 못했다고 끝난 앞 답은 사실로 싣지 않고 다시 확인할 것으로 싣는다', async () => {
+      const store = new RepoConversations(newDir());
+      await (await store.open(alpha.root)).finish({ ...snap(['x']), turns: [{ input: 'beta-api 알려줘', result: '그 폴더는 찾지 못했어요' }] });
+      expect((await store.open(alpha.root)).base?.turns[0]?.result).toBe('(이전에 찾지 못함: 다시 확인할 것)');
+    });
+
+    it('깨진 옛 저장 파일이어도 빈 대화로 시작한다', async () => {
+      const dir = newDir();
+      const store = new RepoConversations(dir);
+      await (await store.open(beta.root)).finish(snap(['b']));
+      for (const f of readdirSync(dir)) writeFileSync(join(dir, f), '{깨짐');
+      expect((await store.open(alpha.root, [beta])).base).toBeNull();
+    });
   });
 });
