@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { cpus, homedir, release, userInfo } from 'node:os';
 import { basename, join } from 'node:path';
-import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
+import { accessSync, constants as fsConstants, existsSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
@@ -43,6 +43,8 @@ import { createInstaller } from './update/installer.js';
 import { ClaudeLogin } from './auth/claude-login.js';
 import { AppLog } from './diagnostics/app-log.js';
 import { collectSnapshot } from './diagnostics/collect.js';
+import { startupFailure } from './diagnostics/startup-failure.js';
+import { workFolderProblem } from '../shared/work-folder.js';
 import { DiagnosticReport, Redactor } from '../shared/diagnostics.js';
 import type { AccountCheck } from '../shared/account-state.js';
 import type { UpdateView } from '../shared/update-record.js';
@@ -122,6 +124,15 @@ const currentWorkDir = (): string => process.env['RAUHA_WORK_DIR'] ?? settings.w
 
 /** 확인용 실행(RAUHA_FAKE_TEAM)에서 모델 대신 돌려주는 블로그 초안 */
 const FAKE_BLOG_DRAFT = (tone: string): string => `# 가짜 초안\n\n(${tone}) 모델을 부르지 않고 만든 글이에요.`;
+
+/** 폴더가 지금 있는지(지워지거나 옮겨졌을 수 있다) */
+function folderFacts(path: string): { exists: boolean; isDirectory: boolean } {
+  try {
+    return { exists: true, isDirectory: statSync(path).isDirectory() };
+  } catch {
+    return { exists: false, isDirectory: false };
+  }
+}
 
 /** 일을 맡길 수 있는 폴더들: 작업 폴더 안의 레포. 레포가 없으면 작업 폴더 하나. */
 function folders(): TargetFolder[] {
@@ -232,6 +243,8 @@ async function startRunner(): Promise<JobRunner> {
         return {
           note: () => note,
           handle: async (_input, depth) => {
+            const problem = workFolderProblem(root, folderFacts(root));
+            if (problem !== null) throw new Error(problem);
             // 같은 레포에 두 번째로 오는 작업은 자기 worktree에서 일한다(첫 작업은 원래 폴더)
             const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`));
             ledger = claim.ledger;
@@ -636,6 +649,14 @@ function installMenu(): void {
   Menu.setApplicationMenu(template === null ? null : Menu.buildFromTemplate(template));
 }
 
+/** 시작 중 하나라도 던지면 창이 안 뜬 채 조용히 꺼진 것처럼 보인다. 로그에 남기고 오류 창으로 알린 뒤 끝낸다. */
+function reportStartupFailure(error: unknown): void {
+  appLog.record('main', `시작하다 멈춤: ${errorText(error)}`);
+  const failure = startupFailure(error, join(app.getPath('userData'), 'logs', 'app.log'));
+  dialog.showErrorBox(failure.title, failure.body);
+  app.exit(1);
+}
+
 void app.whenReady().then(async () => {
   // Finder·Dock으로 연 앱은 셸 PATH를 못 받는다. 로그인 셸에서 읽어 합친다(Windows는 그대로).
   await adoptShellPath();
@@ -816,7 +837,7 @@ void app.whenReady().then(async () => {
   ipcMain.handle(IPC.diagnosticsCopy, copyDiagnostics);
   startUpdates();
   open(runner);
-});
+}).catch(reportStartupFailure);
 app.on('window-all-closed', () => {
   if (quitWhenAllClosed(process.platform)) app.quit();
 });
