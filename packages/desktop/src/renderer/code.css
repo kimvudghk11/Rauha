@@ -66,7 +66,7 @@
 
 /* git 변경 표시 */
 .tree-badge { flex: none; margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); padding-left: 6px; }
-.tree-badge.dot { font-size: 8px; color: var(--yellow); }
+.tree-row.chg-dir .tree-name { color: var(--yellow); }
 .tree-row.chg-M .tree-name, .tree-row.chg-M .tree-badge, .qo-row .tree-badge.chg-M { color: var(--yellow); }
 .tree-row.chg-A .tree-name, .tree-row.chg-A .tree-badge, .tree-row.chg-U .tree-name, .tree-row.chg-U .tree-badge, .qo-row .tree-badge.chg-A, .qo-row .tree-badge.chg-U { color: var(--green); }
 .tree-row.chg-D .tree-name, .tree-row.chg-D .tree-badge, .qo-row .tree-badge.chg-D { color: var(--red); }

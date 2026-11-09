@@ -5,8 +5,8 @@ import { repoNodeText } from '../shared/repo-node.js';
 import type { RepoRow } from '../shared/ipc.js';
 import { el, icon, isEnterKey } from './dom.js';
 import { iconByName } from './file-icons.js';
+import { changeTitle, folderMark } from './tree-mark.js';
 
-const CHANGE_TITLE: Readonly<Record<ChangeCode, string>> = { M: '수정됨', A: '추가됨', D: '삭제됨', R: '이름 바뀜', U: '새 파일(추적 안 함)', '!': '충돌' };
 
 /** 오른쪽 클릭·키보드로 고른 대상. 빈 곳이면 kind가 'root'(작업 폴더). */
 export interface TreeTarget {
@@ -161,18 +161,27 @@ export class CodeTreeView {
   private decorate(row: HTMLElement): void {
     const path = row.dataset['path'] ?? '';
     row.querySelector('.tree-badge')?.remove();
+    row.querySelector('.tree-name')?.removeAttribute('title');
     for (const c of ['chg-M', 'chg-A', 'chg-D', 'chg-R', 'chg-U', 'chg-!', 'chg-dir']) row.classList.remove(c);
     if (row.dataset['kind'] === 'dir') {
-      if (!this.changes.dirHasChange(path)) return;
-      row.classList.add('chg-dir');
-      row.append(el('span', 'tree-badge dot', '●'));
+      const mark = folderMark(this.changes, path);
+      if (mark === null) return;
+      if (mark.badge === null) {
+        row.classList.add('chg-dir');
+        row.querySelector('.tree-name')?.setAttribute('title', mark.title);
+        return;
+      }
+      row.classList.add(`chg-${mark.badge}`);
+      const b = el('span', 'tree-badge', mark.badge);
+      b.title = mark.title;
+      row.append(b);
       return;
     }
     const code = this.changes.statusOf(path);
     if (code === null) return;
     row.classList.add(`chg-${code}`);
     const badge = el('span', 'tree-badge', code);
-    badge.title = CHANGE_TITLE[code];
+    badge.title = changeTitle(code);
     row.append(badge);
   }
 
