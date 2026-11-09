@@ -1,9 +1,9 @@
 import { codeFailText, type CodeApi, type NodeKind, type TreeEntry } from '../shared/code-api.js';
 import { ChangeMap, type ChangeCode } from '../shared/code-changes.js';
 import { checkName, nameOf, parentOf, planMove, stemEnd } from '../shared/code-ops.js';
-import { repoNodeText } from '../shared/repo-node.js';
+import { repoNodeMark } from '../shared/repo-node.js';
 import type { RepoRow } from '../shared/ipc.js';
-import { el, icon, isEnterKey } from './dom.js';
+import { el, isEnterKey } from './dom.js';
 import { iconByName } from './file-icons.js';
 import { changeTitle, folderMark } from './tree-mark.js';
 
@@ -38,7 +38,6 @@ export interface TreeHooks {
 const MORE = '항목이 너무 많아 일부만 보여요.';
 const DRAG_TYPE = 'text/x-rauha-path';
 
-const REFRESH_ICON = 'M20 12a8 8 0 1 1-2.6-5.9 M20 4v5h-5';
 
 /**
  * 파일 탐색기. 폴더는 펼칠 때 그 폴더만 읽는다(지연 로딩). 생성물 폴더(node_modules·dist …)는 흐리게 접어 두고,
@@ -133,8 +132,6 @@ export class CodeTreeView {
     const top = el('div', 'tree-children');
     const listing = new Map<string, readonly TreeEntry[]>();
     const containers = new Map<string, HTMLElement>([['', top]]);
-    const rootRepo = this.repos.get('.');
-    if (rootRepo !== undefined) top.append(this.repoLine(rootRepo, 12));
     await this.fill(top, '', 0, gen, listing, containers);
     if (gen !== this.generation) return;
     this.listing = listing;
@@ -153,9 +150,6 @@ export class CodeTreeView {
   setRepos(rows: readonly RepoRow[]): void {
     this.repos = new Map(rows.map((r) => [r.relative.replace(/\\/g, '/'), r]));
     for (const row of this.root.querySelectorAll<HTMLElement>('.tree-row')) this.decorateRepo(row);
-    this.root.querySelector(':scope > .tree-children > .repo-line.is-root')?.remove();
-    const rootRepo = this.repos.get('.');
-    if (rootRepo !== undefined) this.root.querySelector(':scope > .tree-children')?.prepend(this.repoLine(rootRepo, 12));
   }
 
   private decorate(row: HTMLElement): void {
@@ -185,68 +179,15 @@ export class CodeTreeView {
     row.append(badge);
   }
 
-  /** 레포·문서 폴더면 줄 오른쪽에 작은 정보를, 줄 아래에 자세한 줄을 붙인다 */
+  /** 레포·문서 폴더 줄: 이름만 두고, 바뀐 것이 있으면 이름 색으로, 자세한 상태는 툴팁으로만 알린다 */
   private decorateRepo(row: HTMLElement): void {
-    row.querySelector('.tree-sync')?.remove();
-    const next = row.nextElementSibling;
-    if (next?.classList.contains('repo-line')) next.remove();
-    row.classList.remove('repo-node');
+    row.classList.remove('repo-node', 'repo-dirty');
     const info = this.repos.get(row.dataset['path'] ?? '');
     if (info === undefined || row.dataset['kind'] !== 'dir') return;
+    const mark = repoNodeMark(info);
     row.classList.add('repo-node');
-    row.querySelector('.tree-name')?.after(this.syncSmall(info));
-    row.after(this.repoLine(info, Number.parseInt(row.style.paddingLeft, 10) + 18));
-  }
-
-  /** 줄 오른쪽의 작은 정보: 브랜치와 ↑↓(좁은 창에서도 남는다) + 바뀐 파일 수 */
-  private syncSmall(info: RepoRow): HTMLElement {
-    const t = repoNodeText(info);
-    const box = el('span', 'tree-sync');
-    if (info.kind === 'repo') {
-      box.append(el('span', 'tree-branch', t.branch));
-      box.append(...this.syncBadges(info));
-      if (info.status !== null && info.status.changed > 0) box.append(el('span', 'tree-changed', String(info.status.changed)));
-    }
-    box.title = [t.kind, t.branch, t.sync, t.changed, t.working].filter((x) => x !== null && x !== '').join(' · ');
-    return box;
-  }
-
-  private syncBadges(info: RepoRow): HTMLElement[] {
-    const s = info.status;
-    if (s === null || s.ahead === null || s.behind === null) return [];
-    const out: HTMLElement[] = [];
-    if (s.ahead > 0) out.push(el('span', 'sbadge up', `↑${s.ahead}`));
-    if (s.behind > 0) out.push(el('span', 'sbadge down', `↓${s.behind}`));
-    return out;
-  }
-
-  /** 레포 노드 아래 자세한 줄: 브랜치 · ↑↓ · 변경 수 · 작업 중 · git 탭에서 보기 · 다시 읽기 */
-  private repoLine(info: RepoRow, pad: number): HTMLElement {
-    const t = repoNodeText(info);
-    const line = el('div', info.relative === '.' ? 'repo-line is-root' : 'repo-line');
-    line.style.paddingLeft = `${pad}px`;
-    if (info.kind === 'repo') {
-      line.append(el('span', 'chip blue', t.branch), ...this.syncBadges(info));
-      const s = info.status;
-      if (s === null || s.ahead === null || s.behind === null || (s.ahead === 0 && s.behind === 0)) line.append(el('span', 'sbadge faint', t.sync));
-      line.append(el('span', info.status !== null && info.status.changed > 0 ? 'chip yellow repo-extra' : 'chip repo-extra', t.changed));
-    } else {
-      line.append(el('span', 'chip', t.kind));
-    }
-    if (t.working !== null) line.append(el('span', 'chip yellow repo-extra', t.working));
-    if (info.kind === 'repo') {
-      const git = el('button', 'link repo-extra', 'git 탭에서 보기');
-      git.type = 'button';
-      git.addEventListener('click', () => this.hooks.openGit(info.root));
-      line.append(git);
-    }
-    const again = el('button', 'btn ghost icon sm repo-extra', '');
-    again.type = 'button';
-    again.title = '레포 다시 읽기';
-    again.append(icon(REFRESH_ICON));
-    again.addEventListener('click', () => this.hooks.reloadRepos());
-    line.append(again);
-    return line;
+    row.classList.toggle('repo-dirty', mark.dirty);
+    row.title = mark.title;
   }
 
   /** 지금 열려 있는 파일 표시를 바꾼다 */

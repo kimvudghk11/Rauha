@@ -34,3 +34,18 @@ export function repoNodeText(row: RepoNodeInput): RepoNodeText {
   if (s === null) return { kind: KIND_LABEL.repo, branch: '모름', sync: '모름', changed: '모름', working };
   return { kind: KIND_LABEL.repo, branch: s.branch ?? '(분리된 HEAD)', sync: syncText(s.ahead, s.behind), changed: s.changed > 0 ? `변경 ${s.changed}` : '깨끗함', working };
 }
+
+export interface RepoNodeMark {
+  /** 커밋 안 한 변경이 있다(이름 색으로만 알린다) */
+  readonly dirty: boolean;
+  /** 마우스를 올렸을 때만 보이는 설명 */
+  readonly title: string;
+}
+
+/** 폴더 줄에는 진짜 이름만 두고, 상태는 이름 색과 툴팁으로만 알린다. */
+export function repoNodeMark(row: RepoNodeInput): RepoNodeMark {
+  const t = repoNodeText(row);
+  const sync = row.status === null || row.status.ahead === null || row.status.behind === null || (row.status.ahead === 0 && row.status.behind === 0) ? '' : t.sync;
+  const title = [t.kind, t.branch, sync, row.status !== null && row.status.changed > 0 ? t.changed : '', t.working].filter((x) => x !== null && x !== '').join(' · ');
+  return { dirty: row.kind === 'repo' && row.status !== null && row.status.changed > 0, title };
+}

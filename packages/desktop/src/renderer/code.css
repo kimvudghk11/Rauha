@@ -120,7 +120,7 @@
 
 /* 탐색기 도구줄(새 파일·새 폴더·이름 바꾸기·복제·옮기기·삭제) */
 .code-tools { display: flex; align-items: center; gap: 2px; flex: none; padding: 0 6px 4px; }
-.code-tools .btn svg, .repo-line .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.code-tools .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 /* 고른 줄 · 끌어 놓을 곳 */
 .tree-row.picked { background: var(--row-hover); }
@@ -128,15 +128,9 @@
 .tree-row.on.picked { background: var(--sel); }
 .tree-row.drop, .tree.drop { outline: 1px dashed var(--accent); outline-offset: -1px; background: var(--sel); }
 
-/* 레포 노드: 줄 오른쪽 작은 정보 + 줄 아래 자세한 줄 */
+/* 레포 노드: 이름만 보인다. 커밋 안 한 변경이 있으면 이름 색으로만 알린다(자세한 글은 툴팁) */
 .tree-row.repo-node .tree-name { font-weight: 600; color: var(--bright); }
-.tree-sync { flex: 0 1 auto; min-width: 0; margin-left: auto; padding-left: 8px; display: inline-flex; align-items: center; gap: 4px; overflow: hidden; color: var(--muted); font-size: 11px; }
-.tree-branch { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.tree-changed { flex: none; color: var(--yellow); }
-.tree-sync + .tree-badge { margin-left: 6px; }
-.repo-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 26px; padding-top: 2px; padding-bottom: 4px; padding-right: 8px; color: var(--muted); font-size: 11px; }
-.repo-line.is-root { padding-left: 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
-.app[data-tier=s] .repo-line:not(.is-root), .app[data-tier=xs] .repo-line:not(.is-root), .app[data-tier=s] .repo-extra, .app[data-tier=xs] .repo-extra, .app[data-tier=s] .tree-changed, .app[data-tier=xs] .tree-changed { display: none; }
+.tree-row.repo-node.repo-dirty .tree-name { color: var(--yellow); }
 
 /* 이름 바꾸기·새로 만들기 입력 */
 .tree-edit-box { display: flex; flex-direction: column; }

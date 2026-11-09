@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { repoNodeText, syncText } from './repo-node.js';
+import { repoNodeMark, repoNodeText, syncText } from './repo-node.js';
 
 describe('syncText', () => {
   it('앞섬·뒤처짐을 화살표로 쓴다', () => {
@@ -42,5 +42,23 @@ describe('탐색기 레포 노드 글', () => {
   it('worktree에서 일하는 작업이 있으면 그것을 먼저, 아니면 작업 중 수를 쓴다', () => {
     expect(repoNodeText(row({ working: 2, worktrees: 1 })).working).toBe('worktree 작업 중 1');
     expect(repoNodeText(row({ working: 2 })).working).toBe('작업 중 2');
+  });
+});
+
+describe('탐색기 폴더 줄 표시(이름만 보이고 색으로만 구분)', () => {
+  const base = { kind: 'repo' as const, status: { branch: 'main', ahead: 0, behind: 0, changed: 0 }, working: 0, worktrees: 0 };
+
+  it('변경이 있는 레포만 바뀜으로 표시하고 상태 글은 이름 옆에 붙이지 않는다', () => {
+    expect(repoNodeMark({ ...base, status: { ...base.status, changed: 2 } }).dirty).toBe(true);
+    expect(repoNodeMark(base).dirty).toBe(false);
+  });
+
+  it('상태 글은 마우스를 올렸을 때의 툴팁에만 담는다', () => {
+    expect(repoNodeMark({ ...base, status: { branch: 'dev', ahead: 1, behind: 0, changed: 2 } }).title).toBe('레포 · dev · ↑1 · 변경 2');
+  });
+
+  it('문서 폴더이거나 상태를 못 읽었으면 바뀜으로 보지 않는다', () => {
+    expect(repoNodeMark({ ...base, kind: 'docs', status: null }).dirty).toBe(false);
+    expect(repoNodeMark({ ...base, status: null }).dirty).toBe(false);
   });
 });
