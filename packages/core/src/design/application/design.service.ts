@@ -3,6 +3,7 @@ import type { AccountBlock, ProgressPort, TeamMemberPort } from '../../orchestra
 import type { ModelTier } from '../../orchestration/domain/team.js';
 import { ToolKits } from '../../orchestration/domain/tool-kit.js';
 import type { RoleSettingsDto } from '../../orchestration/application/dto/role-settings.dto.js';
+import { stoppedMember } from '../../orchestration/application/member-stop-note.js';
 import { DomainError } from '../../shared/domain-error.js';
 import { DESIGN_SCHEMA } from './dto/design-schema.js';
 import { DesignDocDto, DesignReplyDto, type DesignReply } from './dto/design.dto.js';
@@ -38,6 +39,8 @@ export type DesignResult = (
   | { readonly kind: 'approved'; readonly design: Design; readonly path: string }
   | { readonly kind: 'cancelled' }
   | { readonly kind: 'failed'; readonly message: string }
+  /** 설계 팀원이 한도·도구 거절로 멈춤. message는 SDK가 준 이유와 부분 결과 */
+  | { readonly kind: 'stopped'; readonly message: string }
   | { readonly kind: 'blocked'; readonly block: AccountBlock }
 ) & { readonly cost: DesignCost };
 
@@ -93,6 +96,8 @@ export class DesignService implements DesignPort {
       cost.calls += 1;
       cost.costUsd += result.usage.costUsd;
       if (result.blocked) return { kind: 'blocked', block: result.blocked, cost: total() };
+      const halt = stoppedMember(result);
+      if (halt !== null) return { kind: 'stopped', message: halt.report(result.partial ?? null), cost: total() };
 
       let reply: DesignReply;
       try {

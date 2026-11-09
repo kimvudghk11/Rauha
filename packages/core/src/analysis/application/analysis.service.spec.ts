@@ -331,6 +331,32 @@ describe('AnalysisService', () => {
     expect(result.brief).toBeNull();
   });
 
+  it('팀원이 턴 한도로 멈추면 다시 부르지 않고 이유와 부분 결과를 남기며 멈춘다', async () => {
+    const limited: MemberResult = { output: null, error: null, fetched: [], usage: { ...usage, turns: 25, endReason: 'error_max_turns' }, partial: '결제 재시도 코드까지 읽었어요' };
+    const team = new FakeTeam([limited]);
+    const docs = new FakeDocs();
+    const result = await service(team, docs).run(input({ reach: 'investigate' }));
+    expect(team.calls).toHaveLength(1);
+    expect(result.run.stopped?.reason).toBe('unreadable');
+    expect(result.run.stopNote()).toContain('25턴');
+    expect(result.run.stopNote()).toContain('턴 한도');
+    expect(result.run.stopNote()).toContain('결제 재시도 코드까지 읽었어요');
+    expect(result.summary).toContain('턴 한도');
+    expect(result.summary).not.toContain('$');
+  });
+
+  it('도구 거절로 멈추면 거절된 도구를 멈춘 이유에 보인다', async () => {
+    const denied: MemberResult = { output: null, error: null, fetched: [], usage: { ...usage, denials: ['Bash: rm -rf x'] } };
+    const result = await service(new FakeTeam([denied]), new FakeDocs()).run(input({ reach: 'investigate' }));
+    expect(result.run.stopNote()).toContain('Bash 호출 1번');
+  });
+
+  it('SDK가 멈춘 이유를 주지 않은 빈 출력은 지금처럼 형식 오류로 다시 받는다', async () => {
+    const team = new FakeTeam([null, investigationOut()]);
+    await service(team, new FakeDocs()).run(input({ reach: 'investigate' }));
+    expect(team.calls).toHaveLength(2);
+  });
+
   it('함께 읽는 다른 저장소 폴더는 조사 팀원에게 읽기 폴더로 열어 주되 쓰기는 막는다', async () => {
     const team = new FakeTeam([investigationOut()]);
     await service(team, new FakeDocs()).run(input({ reach: 'investigate', readDirs: ['E:/w/shop-web'] }));

@@ -130,6 +130,19 @@ describe('ReadingGuideDto — 근거와 추측', () => {
     expect(ReadingGuideDto.create(base).stopMessage()).toBeNull();
   });
 
+  it('팀원이 한도·거절로 멈췄으면 그 이유를 멈춘 이유 뒤에 이어 보인다', () => {
+    const stopped = { ...base, status: 'stopped' as const, stopReason: 'needs-support' as const, memberStop: '일을 30턴 하다가 턴 한도에 닿아 멈췄어요.' };
+    expect(ReadingGuideDto.create(stopped).stopMessage()).toContain('구현 시니어(sonnet)까지 실패했습니다.');
+    expect(ReadingGuideDto.create(stopped).stopMessage()).toContain('턴 한도에 닿아 멈췄어요');
+    expect(ReadingGuideDto.create(stopped).toMarkdown()).toContain('턴 한도에 닿아 멈췄어요');
+  });
+
+  it('끝까지 마친 작업에는 팀원이 멈춘 이유를 붙이지 않는다', () => {
+    const done = ReadingGuideDto.create({ ...base, memberStop: '일을 30턴 하다가 턴 한도에 닿아 멈췄어요.' });
+    expect(done.stopMessage()).toBeNull();
+    expect(done.toMarkdown()).not.toContain('턴 한도');
+  });
+
   it('머리줄에 달러 비용을 쓰지 않는다', () => {
     const head = ReadingGuideDto.create({ ...base, costUsd: 0.123 }).toMarkdown().split('\n')[0]!;
     expect(head).not.toContain('$');

@@ -8,6 +8,8 @@ import { OpsReportDto } from './dto/ops-report.dto.js';
 import type { Route } from './dto/route.dto.js';
 import { ANALYSIS_SCHEMA, COMPANY_PLAN_SCHEMA, OPS_SCHEMA } from './dto/schemas.js';
 import type { DeskHost } from './desk-host.js';
+import type { MemberStop } from '../domain/member-stop.js';
+import { stoppedMember } from './member-stop-note.js';
 import type { CompanyBookPort, MemberResult, ProgressPort } from './ports.js';
 import { conversationBlock } from './prompt-blocks.js';
 import type { TurnOutcome } from './turn-outcome.js';
@@ -22,6 +24,12 @@ const HANDOFF_CHARS = 700;
 /** 런칭 계획에서 부서별로 앞 대화에 남기는 글자 수(다섯 부서를 합쳐도 대화에 남기는 한도 안에 든다) */
 const LAUNCH_KEPT_CHARS = 190;
 const UNREADABLE = '보고를 읽지 못했어요';
+
+/** 멈춘 팀원 호출의 사용자용 글과 앞 대화에 남길 글 */
+interface StoppedText {
+  readonly text: string;
+  readonly note: string;
+}
 
 export interface DeskDeps {
   readonly today: () => string;
@@ -64,6 +72,7 @@ export class CompanyDesk {
     const book = await this.loadBook();
     const done = await this.report(role, label, input, this.reportParts(input, conversation, book));
     if ('blocked' in done) return { kind: 'blocked', ...done.blocked };
+    if ('stopped' in done) return this.host.settle(`${label} 보고를 끝내지 못함`, input, done.stopped.text, done.stopped.note, started, costBefore);
     const answer = AnalysisReportDto.read({ answer: done.answer, files: done.files }, label).toAnswer();
     if (department !== null) await this.record(department, answer);
     return this.host.settle(label, input, answer, answer, started, costBefore);
@@ -86,30 +95,45 @@ export class CompanyDesk {
     // 계획은 짧은 분배라 sonnet이면 충분하다. 부서장의 상위 모델은 팀원 보고를 모으는 종합과 런칭 섹션에 쓴다.
     const planned = await this.host.member('chief', ['<job>plan</job>', members, ...known], COMPANY_PLAN_SCHEMA, { tier: 'sonnet' });
     if (planned.blocked) return { kind: 'blocked', ...planned.blocked };
+    const planStop = this.stopOf(planned);
+    if (planStop !== null) return this.host.settle(`${department.label} 일 나누기를 끝내지 못함`, input, planStop.text, planStop.note, started, costBefore);
     const { assignments } = CompanyPlanDto.read(planned.output, department);
 
     const reports = await Promise.all(assignments.map((a) => this.report(a.role, label(a.role), input, this.reportParts(input, conversation, book, a.brief))));
     const done: { role: ReportRole; answer: string; files: readonly string[] }[] = [];
+    // 멈춘 팀원의 이유는 종합에 섞지 않고, 끝난 답 뒤에 그대로 붙인다(이유가 묻히지 않게).
+    const stops: { label: string; text: string; note: string }[] = [];
     for (const [i, r] of reports.entries()) {
       if ('blocked' in r) return { kind: 'blocked', ...r.blocked };
-      done.push({ role: assignments[i]!.role, answer: r.answer, files: r.files });
+      if ('stopped' in r) stops.push({ label: label(assignments[i]!.role), ...r.stopped });
+      else done.push({ role: assignments[i]!.role, answer: r.answer, files: r.files });
     }
+    const withStops = (answer: string) => [answer, ...stops.map((x) => `■ ${x.label}\n${x.text}`)].join('\n\n');
+    const stoppedNote = stops.map((x) => `${x.label}: ${x.note}`).join(' / ');
+    if (done.length === 0) return this.host.settle(`${department.label} 보고를 끝내지 못함`, input, withStops('').trim(), stoppedNote, started, costBefore);
     if (done.length === 1) {
       const only = done[0]!;
       const answer = AnalysisReportDto.read({ answer: only.answer, files: only.files }, label(only.role)).toAnswer();
       await this.record(department.id, answer);
-      return this.host.settle(department.label, input, answer, answer, started, costBefore);
+      return this.host.settle(department.label, input, withStops(answer), stops.length === 0 ? answer : `${answer} / ${stoppedNote}`, started, costBefore);
     }
 
     const body = done.map((d) => `<report member="${d.role}">\n${d.answer}\n</report>`).join('\n');
     const merged = await this.host.member('chief', ['<job>merge</job>', ...known, `<reports>\n${body}\n</reports>`], ANALYSIS_SCHEMA, this.chiefPace()());
     if (merged.blocked) return { kind: 'blocked', ...merged.blocked };
+    const mergeStop = this.stopOf(merged);
+    if (mergeStop !== null) {
+      // 종합이 멈췄어도 팀원들이 끝낸 보고는 사라지지 않게 그대로 보인다.
+      const shown = done.map((d) => `■ ${label(d.role)}\n${d.answer}`).join('\n\n');
+      const note = [mergeStop.note, stoppedNote].filter((t) => t !== '').join(' / ');
+      return this.host.settle(`${department.label} 종합을 끝내지 못함`, input, withStops(`${mergeStop.text}\n\n${shown}`), note, started, costBefore);
+    }
     const read = AnalysisReportDto.read(merged.output, department.label);
     // 팀원이 읽은 파일은 부서장이 빠뜨려도 사라지지 않게 합친다.
     const files = [...new Set([...read.files, ...done.flatMap((d) => d.files)])];
     const answer = AnalysisReportDto.read({ answer: read.answer, files }, department.label).toAnswer();
     await this.record(department.id, answer);
-    return this.host.settle(department.label, input, answer, answer, started, costBefore);
+    return this.host.settle(department.label, input, withStops(answer), stops.length === 0 ? answer : `${answer} / ${stoppedNote}`, started, costBefore);
   }
 
   /**
@@ -142,6 +166,12 @@ export class CompanyDesk {
         pace(),
       );
       if (result.blocked) return { kind: 'blocked', ...result.blocked };
+      const stop = this.stopOf(result);
+      if (stop !== null) {
+        const earlierText = sections.map((x) => `━━ ${x.label} ━━\n${x.answer}`);
+        const text = [...earlierText, `━━ ${department.label} ━━\n${stop.text}`].join('\n\n');
+        return this.host.settle(`런칭 계획 ${department.label}을 끝내지 못함`, input, text, stop.note, started, costBefore);
+      }
       const section = AnalysisReportDto.read(result.output, department.label).answer;
       sections.push({ label: department.label, answer: section });
       await this.record(id, section);
@@ -153,15 +183,25 @@ export class CompanyDesk {
   }
 
   /** 운영 팀원만 명령을 실행해 보고 모양이 달라 그것만 따로 읽는다. 나머지는 읽기 보고다. */
-  private async report(role: ReportRole, label: string, input: string, parts: readonly string[]): Promise<{ blocked: NonNullable<MemberResult['blocked']> } | { answer: string; files: readonly string[] }> {
+  private async report(role: ReportRole, label: string, input: string, parts: readonly string[]): Promise<{ blocked: NonNullable<MemberResult['blocked']> } | { stopped: StoppedText } | { answer: string; files: readonly string[] }> {
     if (role === 'operator') {
       const result = await this.host.member(role, parts, OPS_SCHEMA, { kits: ToolKits.for(role, input) });
-      return result.blocked ? { blocked: result.blocked } : { answer: OpsReportDto.read(result.output).toAnswer(), files: [] };
+      if (result.blocked) return { blocked: result.blocked };
+      const stop = this.stopOf(result);
+      return stop !== null ? { stopped: stop } : { answer: OpsReportDto.read(result.output).toAnswer(), files: [] };
     }
     const result = await this.host.member(role, parts, ANALYSIS_SCHEMA, { kits: ToolKits.for(role, input) });
     if (result.blocked) return { blocked: result.blocked };
+    const stop = this.stopOf(result);
+    if (stop !== null) return { stopped: stop };
     const read = AnalysisReportDto.read(result.output, label);
     return { answer: read.answer, files: read.files };
+  }
+
+  /** 팀원이 한도·도구 거절로 결과 없이 멈췄으면 사용자에게 보일 글(text)과 앞 대화에 남길 글(note). 아니면 null. */
+  private stopOf(result: MemberResult): StoppedText | null {
+    const stop: MemberStop | null = stoppedMember(result);
+    return stop === null ? null : { text: stop.report(result.partial ?? null), note: stop.turnNote(result.partial ?? null) };
   }
 
   /** 팀원에게 보내는 공통 입력. brief가 있으면 부서장이 이 팀원에게 준 지시다. */

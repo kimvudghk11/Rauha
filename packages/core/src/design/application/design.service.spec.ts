@@ -145,6 +145,24 @@ describe('DesignService', () => {
     expect(result).toMatchObject({ kind: 'blocked', block: { reason: 'usage-limit' } });
   });
 
+  it('설계 팀원이 턴 한도로 멈추면 다시 부르지 않고 이유와 부분 결과를 알린다', async () => {
+    const designer = new FakeDesigner([]);
+    designer.run = async (call) => (designer.calls.push(call), { output: null, error: null, fetched: [], usage: { ...usage, turns: 25, endReason: 'error_max_turns' }, partial: '구조 초안까지 했어요' });
+    const result = await service(designer, user({}).port).run(input);
+    expect(designer.calls).toHaveLength(1);
+    expect(result).toMatchObject({ kind: 'stopped' });
+    const message = result.kind === 'stopped' ? result.message : '';
+    expect(message).toContain('턴 한도');
+    expect(message).toContain('구조 초안까지 했어요');
+  });
+
+  it('설계 팀원이 도구 거절로 멈추면 거절된 도구를 알린다', async () => {
+    const designer = new FakeDesigner([]);
+    designer.run = async (call) => (designer.calls.push(call), { output: null, error: null, fetched: [], usage: { ...usage, denials: ['Write: a.md'] } });
+    const result = await service(designer, user({}).port).run(input);
+    expect(result).toMatchObject({ kind: 'stopped', message: expect.stringContaining('Write 호출 1번') });
+  });
+
   it('설계 팀원은 지식·기억·앞 대화를 받고 읽기만 한다', async () => {
     const designer = new FakeDesigner([draft()]);
     await service(designer, user({ approvals: [{ kind: 'approve' }] }).port).run({ ...input, memory: '<memory>지난 결정</memory>', conversation: '- 사용자: 안녕' });

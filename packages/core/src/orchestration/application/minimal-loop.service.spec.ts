@@ -445,6 +445,43 @@ describe('MinimalLoopService', () => {
     expect(outcome.snapshotAfter.get('src/cart.ts')).toBe('prev');
   });
 
+  it('구현 팀원이 턴 한도로 멈추면 결과와 안내서에 그 이유를 담고 달러는 보이지 않는다', async () => {
+    const ws = new FakeWorkspace();
+    const steps: string[] = [];
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implementWrong] });
+    const run = team.run.bind(team);
+    team.run = async (call) => {
+      const result = await run(call);
+      return call.role !== 'implementer' ? result : { ...result, output: null, usage: { ...result.usage, turns: 30, endReason: 'error_max_turns' } };
+    };
+    const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog(), new FakeUser(false), { step: (m) => steps.push(m) }).run('Money에 할인 추가');
+    expect(outcome.status).toBe('stopped');
+    expect(outcome.memberStop).toContain('30턴');
+    expect(outcome.memberStop).toContain('턴 한도');
+    expect(outcome.guide.stopMessage()).toContain('턴 한도');
+    expect(steps.some((s) => s.includes('턴 한도'))).toBe(true);
+    expect(`${outcome.guide.toMarkdown()}${outcome.memberStop}`).not.toContain('$');
+  });
+
+  it('도구 거절로 output이 비면 거절된 도구를 멈춘 이유에 담는다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implementWrong] });
+    const run = team.run.bind(team);
+    team.run = async (call) => {
+      const result = await run(call);
+      return call.role !== 'implementer' ? result : { ...result, output: null, usage: { ...result.usage, denials: ['Bash: rm -rf x'] } };
+    };
+    const outcome = await service(ws, team, new FakeChecks(ws)).run('Money에 할인 추가');
+    expect(outcome.memberStop).toContain('Bash 호출 1번');
+  });
+
+  it('팀원이 끝까지 마친 작업은 멈춘 이유가 없다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const outcome = await service(ws, team, new FakeChecks(ws)).run('Money에 할인 추가');
+    expect(outcome.memberStop).toBeNull();
+  });
+
   it('구독 사용 한도에 걸리면 더 부르지 않고 바로 멈춘다', async () => {
     const ws = new FakeWorkspace();
     const steps: string[] = [];

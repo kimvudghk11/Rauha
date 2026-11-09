@@ -54,6 +54,10 @@ export class DesignDesk {
       this.host.noteTurn(input, '설계를 그만둠');
       return { kind: 'notice', message: '설계를 그만뒀어요. 필요하면 다시 말씀해 주세요.' };
     }
+    if (result.kind === 'stopped') {
+      this.host.noteTurn(input, `설계를 끝내지 못함: ${result.message.slice(0, 300)}`);
+      return { kind: 'notice', message: `설계를 끝내지 못했어요. ${result.message}` };
+    }
     if (result.kind === 'failed') return { kind: 'notice', message: `설계를 끝내지 못했어요: ${result.message} 요청을 조금 더 구체적으로 다시 해 주세요.` };
 
     const { design, path } = result;

@@ -1,4 +1,4 @@
-import type { TurnOutcome } from '@rauha/core';
+import { ReadingGuideDto, type TurnOutcome } from '@rauha/core';
 import { describe, expect, it } from 'vitest';
 import { describeOutcome } from './describe-outcome.js';
 
@@ -34,6 +34,28 @@ describe('describeOutcome', () => {
     const text = describeOutcome(work({ status: 'stopped', guide: { stopMessage: () => '로그인이 필요해요' } }));
     expect(text).toContain('멈췄어요');
     expect(text).toContain('로그인이 필요해요');
+  });
+
+  it('팀원이 턴 한도로 멈춘 작업은 그 이유도 결과 카드에 보인다', () => {
+    const guide = ReadingGuideDto.create({
+      badge: '[personal]',
+      title: '결제 타임아웃 고침',
+      status: 'stopped',
+      stopReason: 'needs-support',
+      durationMs: 1000,
+      costUsd: 1.23,
+      tierCalls: { haiku: 1, sonnet: 1, opus: 0 },
+      explanation: null,
+      verdict: null,
+      changes: [],
+      assumptions: [],
+      logDir: null,
+      memberStop: '일을 30턴 하다가 턴 한도에 닿아 멈췄어요.',
+    });
+    const text = describeOutcome(work({ status: 'stopped', guide }));
+    expect(text).toContain('턴 한도에 닿아 멈췄어요');
+    expect(text).not.toContain("$");
+    expect(text).not.toContain("1.23");
   });
 
   it('답은 답 글만 돌려준다', () => {

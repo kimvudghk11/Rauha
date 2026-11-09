@@ -1,6 +1,7 @@
 import type { MemberRole } from '../../orchestration/application/dto/role-settings.dto.js';
 import { RoleSettingsDto, type RoleSetting } from '../../orchestration/application/dto/role-settings.dto.js';
 import type { MemberResult, ProgressPort, TeamMemberPort } from '../../orchestration/application/ports.js';
+import { stoppedMember } from '../../orchestration/application/member-stop-note.js';
 import { conversationBlock } from '../../orchestration/application/prompt-blocks.js';
 import { SessionBudget } from '../../orchestration/domain/session-budget.js';
 import type { ModelTier } from '../../orchestration/domain/team.js';
@@ -163,6 +164,12 @@ export class AnalysisService implements AnalysisPort {
       if (result.blocked) {
         if (result.blocked.reason === 'cancelled') s.run.stop('user', '작업을 멈춰서 여기서 멈췄어요.');
         else s.run.stop('blocked', result.blocked.message);
+        return null;
+      }
+      // 한도·도구 거절로 멈춘 호출은 다시 불러도 같다. SDK가 준 이유와 부분 결과를 그대로 남기고 멈춘다.
+      const halt = stoppedMember(result);
+      if (halt !== null) {
+        s.run.stop('unreadable', halt.report(result.partial ?? null));
         return null;
       }
       try {

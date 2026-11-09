@@ -12,6 +12,7 @@ import { WritePolicy } from '../domain/write-policy.js';
 import { MemberReportDto, type ExplanationDto } from './dto/explanation.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { IntakeDto, type SettledAssumptionChoice } from './dto/intake.dto.js';
+import { stoppedMember } from './member-stop-note.js';
 import { ReadingGuideDto, type FactsSummary, type RunStopReason, type SettledAssumption } from './dto/reading-guide.dto.js';
 
 export type { FactsSummary };
@@ -66,6 +67,8 @@ export interface RunOutcome {
   readonly logDir: string;
   /** 작업을 시작할 때 본 기준(`main (a1b2c3d)`). 저장소 지식이 없으면 null. */
   readonly basis: string | null;
+  /** 마지막 팀원 호출이 한도·도구 거절로 멈춘 이유 문장. 그런 일이 없었거나 그 뒤 호출이 잘 끝났으면 null. */
+  readonly memberStop?: string | null;
 }
 
 /** 대화 세션이 접수 팀장에게 함께 넘기는 맥락 */
@@ -164,6 +167,8 @@ class RunTally {
   };
   costUsd = 0;
   calls = 0;
+  /** 마지막 팀원 호출이 멈춘 이유 문장(잘 끝났으면 null) */
+  memberStop: string | null = null;
   readonly attempts: Record<MemberRole, number> = { intake: 0, tester: 0, implementer: 0, reviewer: 0, router: 0, answerer: 0, surveyor: 0, writer: 0, designer: 0, operator: 0, debugger: 0, riskchecker: 0, planner: 0, chief: 0, bm: 0, marketer: 0, growth: 0, uxdesigner: 0, brand: 0, securitychecker: 0, releaser: 0, splitter: 0 };
   readonly implementerTiers: ModelTier[] = [];
   /** 승격된 업무에서 구현 팀원을 부른 적이 있는지(모델 고정 실험과 구분하려고 모델 이름이 아니라 업무 상태로 센다) */
@@ -567,6 +572,9 @@ export class MinimalLoopService {
       this.deps.progress.step(`${BLOCK_STEP[result.blocked.reason]}: ${result.blocked.message}`);
       throw new AccountBlocked(result.blocked);
     }
+    const stop = stoppedMember(result);
+    tally.memberStop = stop?.sentence() ?? null;
+    if (stop !== null) this.deps.progress.step(`${ROLE_INFO[role].stepName}: ${stop.sentence()}`);
     if (result.error !== null) this.deps.progress.step(`${ROLE_INFO[role].stepName} 오류: ${result.error}`);
     return result.output;
   }
@@ -616,6 +624,7 @@ export class MinimalLoopService {
       assumptions: props.assumptions,
       facts,
       basis: this.basis,
+      memberStop: props.status === 'stopped' ? tally.memberStop : null,
     };
     const summary = {
       title: props.title,
@@ -650,6 +659,7 @@ export class MinimalLoopService {
       explanation: props.explanation ?? null,
       logDir,
       basis: this.basis,
+      memberStop: guideProps.memberStop,
     };
   }
 }

@@ -26,6 +26,8 @@ export interface ReadingGuideProps {
   readonly assumptions: readonly SettledAssumption[];
   /** 사실 점검 결과. 3단 작업이 아니면 없음. */
   readonly facts?: FactsSummary;
+  /** 마지막 팀원 호출이 한도·도구 거절로 멈춘 이유 문장(MemberStop.sentence). 멈춘 작업에만 보인다. */
+  readonly memberStop?: string | null;
 }
 
 /** 사실 점검 결과. 3단 작업이 아니면(--quick) 비어 있다. */
@@ -115,7 +117,8 @@ export class ReadingGuideDto {
 
   /** 멈췄으면 그 이유 문장, 아니면 null */
   stopMessage(): string | null {
-    return this.props.status === 'stopped' && this.props.stopReason !== null ? STOP_MESSAGE[this.props.stopReason] : null;
+    if (this.props.status !== 'stopped' || this.props.stopReason === null) return null;
+    return [STOP_MESSAGE[this.props.stopReason], this.props.memberStop ?? ''].filter((t) => t !== '').join(' ');
   }
 
   toMarkdown(): string {
@@ -162,7 +165,7 @@ export class ReadingGuideDto {
     }
 
     if (p.status === 'stopped' && p.stopReason !== null) {
-      lines.push('', `멈춘 이유: ${STOP_MESSAGE[p.stopReason]}`);
+      lines.push('', `멈춘 이유: ${this.stopMessage()}`);
     }
 
     const verifiedBy = new Map((facts?.checked ?? []).filter((c) => !c.isGuess).map((c) => [c.text, c.verified[0] as Evidence]));
