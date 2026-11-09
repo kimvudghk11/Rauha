@@ -1,4 +1,5 @@
 import type { BranchView } from '../shared/git-lists.js';
+import { branchMark } from '../shared/git-branch-mark.js';
 import { parseTrack, sortBranchesRecent } from '../shared/git-lists.js';
 import { checkBranchName } from '../shared/branch-name-check.js';
 import { el, isEnterKey } from './dom.js';
@@ -43,8 +44,11 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
     const row = el('button');
     row.type = 'button';
     row.setAttribute('role', 'menuitem');
+    const mark = branchMark(b.name, b.current);
+    row.className = mark.className;
+    row.title = mark.title;
     row.append(el('span', 'grow mono', b.name));
-    if (b.current) row.append(el('span', 'chip blue', '현재'));
+    if (mark.badge !== null) row.append(el('span', 'chip blue', mark.badge));
     if (ctx.isProtected(b.name)) {
       const lock = gitIcon('lock');
       lock.setAttribute('aria-label', '보호 브랜치');

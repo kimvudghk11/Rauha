@@ -90,3 +90,10 @@ textarea.ginput, input.ginput { width: 100%; }
 .gwbranch { color: var(--bright); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .gwsub { font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gbauthor { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+
+/* 지금 체크아웃한 브랜치: 파란 강조색 + 굵은 글씨 + 왼쪽 가는 막대(색만으로 알리지 않도록 "현재" 배지·툴팁도 둔다) */
+.gbranch.is-current { box-shadow: inset 3px 0 0 var(--accent); }
+.gbranch.is-current .gbranchname { color: var(--accentfg); font-weight: 700; }
+.gf.is-current { box-shadow: inset 3px 0 0 var(--accent); }
+.gf.is-current .gname b { color: var(--accentfg); font-weight: 700; }
+.bmenu .is-current, .menu .is-current { box-shadow: inset 3px 0 0 var(--accent); color: var(--accentfg); font-weight: 700; }

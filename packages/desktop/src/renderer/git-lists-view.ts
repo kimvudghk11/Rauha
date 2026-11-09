@@ -1,4 +1,5 @@
 import type { FileDiffView } from '../shared/git-api.js';
+import { branchMark } from '../shared/git-branch-mark.js';
 import type { BranchView, LogRow } from '../shared/git-lists.js';
 import { el } from './dom.js';
 import { type GitCtx, renderDiff } from './git-common.js';
@@ -39,11 +40,13 @@ export function buildBranches(ctx: GitCtx) {
       if (rows.length === 0) continue;
       list.appendChild(el('div', 'gall', `내 브랜치 ${rows.length} · 최근 커밋 순`));
       for (const b of rows) {
-        const row = el('div', `gf row-item${b.current ? ' on' : ''}`);
+        const mark = branchMark(b.name, b.current);
+        const row = el('div', `gf row-item${b.current ? ' on' : ''} ${mark.className}`);
+        row.title = mark.title;
         const name = el('span', 'gname');
         name.append(el('b', 'mono', b.name));
         row.appendChild(name);
-        if (b.current) row.appendChild(el('span', 'chip', '현재'));
+        if (mark.badge !== null) row.appendChild(el('span', 'chip blue', mark.badge));
         if (b.author !== '') row.appendChild(el('span', 'gbauthor', b.author));
         if (b.team) row.appendChild(el('span', 'chip purple', '팀 작업'));
         if (ctx.isProtected(b.name)) {

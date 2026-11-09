@@ -10,6 +10,7 @@ import { gitIcon } from './git-icons.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
 import { directionText, fetchedLabel } from '../shared/git-toolbar.js';
 import { primaryGitAction } from '../shared/git-primary.js';
+import { branchMark } from '../shared/git-branch-mark.js';
 
 type ViewId = 'changes' | 'branches' | 'history' | 'conflicts';
 interface SubView {
@@ -136,8 +137,9 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     head.appendChild(select);
     if (overview === null) return;
     // 현재 브랜치를 크게: 누르면 검색·전환·새 브랜치 팝업
-    const branch = el('button', 'btn gbranch');
-    branch.title = '브랜치 바꾸기 · 새 브랜치';
+    const mark = branchMark(overview.branch, true);
+    const branch = el('button', `btn gbranch ${mark.className}`);
+    branch.title = `${mark.title} · 눌러서 브랜치 바꾸기·새 브랜치`;
     branch.append(gitIcon('branch'), el('span', 'gbranchname', overview.branch ?? '(분리된 HEAD)'));
     if (overview.branch !== null && protectedList.has(overview.branch)) {
       const lock = gitIcon('lock');
@@ -248,9 +250,6 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
       b.addEventListener('click', () => void open(id));
       bar.appendChild(b);
     }
-    const reread = el('button', 'btn sm tab-end', '다시 읽기');
-    reread.addEventListener('click', () => void refreshAll());
-    bar.appendChild(reread);
   }
 
   async function refreshAll(): Promise<void> {
