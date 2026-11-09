@@ -331,6 +331,19 @@ describe('AnalysisService', () => {
     expect(result.brief).toBeNull();
   });
 
+  it('함께 읽는 다른 저장소 폴더는 조사 팀원에게 읽기 폴더로 열어 주되 쓰기는 막는다', async () => {
+    const team = new FakeTeam([investigationOut()]);
+    await service(team, new FakeDocs()).run(input({ reach: 'investigate', readDirs: ['E:/w/shop-web'] }));
+    expect(team.calls[0]!.additionalDirectories).toEqual(['E:/w/shop-web']);
+    expect(team.calls[0]!.canWrite('E:/w/shop-web/a.ts')).toBe(false);
+  });
+
+  it('읽기 폴더를 주지 않으면 팀원 호출에 추가 폴더를 싣지 않는다', async () => {
+    const team = new FakeTeam([investigationOut()]);
+    await service(team, new FakeDocs()).run(input({ reach: 'investigate' }));
+    expect(team.calls[0]!.additionalDirectories).toBeUndefined();
+  });
+
   it('근거 없는 사실이 든 조사 보고는 받아들이지 않는다', async () => {
     const bad = { ...investigationOut(), facts: [{ text: '아마 그럴 것', evidence: ' ' }] };
     const team = new FakeTeam([bad, investigationOut()]);

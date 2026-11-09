@@ -124,7 +124,7 @@ export {
 } from './memory/domain/work-memory.js';
 export type { MemoryPort } from './memory/application/memory.port.js';
 export { projectMemoryFile, SqliteMemory } from './memory/infrastructure/sqlite-memory.js';
-export { ChatSession, workMemoryFrom, type ChatSessionDeps, type TurnOutcome } from './orchestration/application/chat-session.js';
+export { ChatSession, workMemoryFrom, type AlsoRepo, type ChatSessionDeps, type TurnOutcome } from './orchestration/application/chat-session.js';
 export type { RunContextBlocks } from './orchestration/application/minimal-loop.service.js';
 export { DesignService, type DesignPort, type DesignInput, type DesignResult } from './design/application/design.service.js';
 export type { DesignApproval, DesignPlan, DesignQuestion } from './design/application/ports.js';

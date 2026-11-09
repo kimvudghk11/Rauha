@@ -153,6 +153,7 @@ export class AnalysisService implements AnalysisPort {
         setting,
         outputSchema: schema,
         canWrite: () => false,
+        ...(s.input.readDirs !== undefined && s.input.readDirs.length > 0 ? { additionalDirectories: s.input.readDirs } : {}),
         ...(kits.length > 0 ? { kits } : {}),
         userMessage: [...parts, feedback === null ? '' : `<previous_attempt>\n지난 보고가 거부됐습니다: ${feedback}\n</previous_attempt>`].filter((p) => p !== '').join('\n\n'),
       });

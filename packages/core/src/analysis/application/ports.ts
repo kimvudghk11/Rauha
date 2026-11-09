@@ -70,6 +70,8 @@ export interface AnalysisInput {
   readonly conversation: string | null;
   readonly workspace: string;
   readonly basis: string | null;
+  /** 함께 읽는 다른 저장소 폴더. 팀원에게 읽기로만 열어 준다(쓰기 범위는 그대로). */
+  readonly readDirs?: readonly string[];
 }
 
 export interface AnalysisCost {

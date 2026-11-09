@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { basename, join } from 'node:path';
 import {
+  type AlsoRepo,
   AgentSdkTeamMember,
   AnalysisService,
   ChatSession,
@@ -100,8 +101,6 @@ export interface ComposeOptions {
   /** 분석 단계(조사 → 방향 비교 → 설계·계획)를 쓸지. 부를 때마다 최신 설정을 돌려준다. 없으면 쓴다. */
   readonly analysis?: (() => boolean) | undefined;
 }
-
-type AlsoRepo = NonNullable<Parameters<ChatSession['handle']>[1]>[number];
 
 /** 작업 공간(rauha가 여는 폴더)과 그 안의 레포들, 그리고 이번 요청이 가리킨 다른 레포들(읽기만) */
 export interface SessionScope {

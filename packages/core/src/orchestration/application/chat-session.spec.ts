@@ -380,6 +380,20 @@ describe('ChatSession — 여러 저장소', () => {
     expect(call.dirs).toEqual(['E:/w/shop-web']);
   });
 
+  it('저장소가 2개 이상인 작업 공간에서는 레포 하나만 가리켜도 답변 팀원에게 작업 공간 폴더를 열어 준다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '구조는…', claims: [] })] });
+    const folder = { root: 'E:/w', repos: [{ name: 'shop-api', root: 'E:/w/shop-api' }, { name: 'shop-web', root: 'E:/w/shop-web' }] };
+    await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api', folder }).handle('폴더 구조 훑어줘');
+    expect(team.calls.find((c) => c.role === 'answerer')!.dirs).toEqual(['E:/w']);
+  });
+
+  it('저장소가 하나뿐인 작업 공간이면 답변 팀원에게 작업 공간 폴더를 열지 않는다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
+    const folder = { root: 'E:/w', repos: [{ name: 'shop-api', root: 'E:/w/shop-api' }] };
+    await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api', folder }).handle('Money는 뭐야?');
+    expect(team.calls.find((c) => c.role === 'answerer')!.dirs).toBeUndefined();
+  });
+
   it('여러 저장소를 고치는 작업은 하지 않고 알린다', async () => {
     const loops = new FakeLoops();
     const team = new FakeTeam({ router: [route('work')] });
@@ -1395,6 +1409,14 @@ describe('ChatSession — 분석 흐름', () => {
     const team = new FakeTeam({ router: [route('debug')], debugger: [() => ({ answer: '원인', files: [] })] });
     const turn = await session({ team }).handle('결제가 왜 두 번 깎여?');
     expect(turn.kind).toBe('answer');
+  });
+
+  it('다른 저장소를 함께 가리킨 분석은 그 저장소 폴더를 읽기 폴더로 분석 흐름에 넘긴다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
+    const team = new FakeTeam({ router: [route('debug', false, null, { reach: 'compare' })] });
+    const also = [{ name: 'shop-web', root: 'E:/w/shop-web', knowledge: null }];
+    await ChatSession.start({ ...sessionDeps({ team }), analyst }).handle('결제가 왜 두 번 깎여? shop-web과 원인 비교 분석해줘', also);
+    expect(analyst.inputs[0]!.readDirs).toEqual(['E:/w/shop-web']);
   });
 
   it('단순 수정 요청(work)과 질문은 분석 낱말이 있어도 분석 흐름을 타지 않는다', async () => {
