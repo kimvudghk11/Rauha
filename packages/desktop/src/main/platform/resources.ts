@@ -38,3 +38,11 @@ export function claudeBinaryPath(env: ResourceEnv, platform: NodeJS.Platform, ar
     : [join(env.appPath, 'node_modules', pkg, file), join(env.appPath, '..', '..', 'node_modules', pkg, file)];
   return candidates.find((c) => env.exists(c)) ?? null;
 }
+
+/**
+ * 작업 폴더를 아직 안 골랐을 때 쓸 폴더. 개발 실행은 실행한 폴더, 설치본은 앱 데이터 아래 빈 폴더다.
+ * 맥에서 Finder로 연 앱의 실행 폴더는 `/`라서, 그대로 쓰면 첫 화면이 컴퓨터 전체를 훑고 문서·데스크톱 접근 권한 창이 줄줄이 뜬다.
+ */
+export function fallbackWorkDir(env: { readonly packaged: boolean; readonly userDataPath: string; readonly cwd: string }): string {
+  return env.packaged ? join(env.userDataPath, 'no-work-folder') : env.cwd;
+}

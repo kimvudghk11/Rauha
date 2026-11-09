@@ -30,7 +30,7 @@ import { fakeTeam } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { teamWork } from './team/team-work.js';
 import { appMenuTemplate, quitWhenAllClosed, windowChrome } from './platform/app-menu.js';
-import { claudeBinaryPath, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
+import { claudeBinaryPath, fallbackWorkDir, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
 import { displayKey, parseWindowFile, restoreBounds, type Rect } from './platform/window-state.js';
 import { adoptShellPath } from './platform/shell-path.js';
 import { findTerminalRauha, removeTerminalRauha, type TerminalRauhaFile } from './platform/terminal-rauha.js';
@@ -119,8 +119,8 @@ const commandStore = new CommandStore(join(homedir(), '.rauha', 'desktop', 'comm
 const settingsStore = new SettingsStore(join(homedir(), '.rauha', 'desktop', 'settings.json'));
 let settings: Settings = DEFAULT_SETTINGS;
 
-/** 작업 폴더: 환경 변수(확인용) → 설정에서 고른 폴더 → 실행한 폴더 */
-const currentWorkDir = (): string => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? process.cwd();
+/** 작업 폴더: 환경 변수(확인용) → 설정에서 고른 폴더 → (개발) 실행한 폴더 / (설치본) 빈 폴더 */
+const currentWorkDir = (): string => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? fallbackWorkDir({ packaged: app.isPackaged, userDataPath: app.getPath('userData'), cwd: process.cwd() });
 
 /** 확인용 실행(RAUHA_FAKE_TEAM)에서 모델 대신 돌려주는 블로그 초안 */
 const FAKE_BLOG_DRAFT = (tone: string): string => `# 가짜 초안\n\n(${tone}) 모델을 부르지 않고 만든 글이에요.`;

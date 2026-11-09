@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { claudeBinaryPath, promptsDir, sdkBinaryPackage, unpackedPath, type ResourceEnv } from './resources.js';
+import { claudeBinaryPath, promptsDir, sdkBinaryPackage, unpackedPath, type ResourceEnv, fallbackWorkDir } from './resources.js';
 
 const dev = (exists: (p: string) => boolean = () => true): ResourceEnv => ({ packaged: false, resourcesPath: '/none', appPath: join('/repo', 'packages', 'desktop'), exists });
 const packaged = (exists: (p: string) => boolean = () => true): ResourceEnv => ({
@@ -51,5 +51,15 @@ describe('unpackedPath', () => {
   it('asar 안 경로를 asar.unpacked로 바꾼다', () => {
     expect(unpackedPath('/r/app.asar/node_modules/x')).toBe('/r/app.asar.unpacked/node_modules/x');
     expect(unpackedPath('/r/app.asar.unpacked/x')).toBe('/r/app.asar.unpacked/x');
+  });
+});
+
+describe('fallbackWorkDir', () => {
+  it('설치본에서 작업 폴더를 안 골랐으면 실행 폴더(맥 Finder에선 /) 대신 앱 데이터 아래 빈 폴더를 쓴다', () => {
+    expect(fallbackWorkDir({ packaged: true, userDataPath: '/Users/a/Library/Application Support/rauha', cwd: '/' })).toBe(join('/Users/a/Library/Application Support/rauha', 'no-work-folder'));
+  });
+
+  it('개발 실행은 실행한 폴더를 그대로 쓴다', () => {
+    expect(fallbackWorkDir({ packaged: false, userDataPath: '/ud', cwd: '/dev/repo' })).toBe('/dev/repo');
   });
 });
