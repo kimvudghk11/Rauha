@@ -116,7 +116,8 @@ export interface SessionScope {
 export function scopeDeps(scope: SessionScope): { folder: ChatSessionDeps['folder']; also: AlsoRepo[] } {
   return {
     folder: scope.repos.length > 1 ? { root: scope.workspaceRoot, repos: scope.repos.map((r) => ({ name: r.name, root: r.root })) } : undefined,
-    also: scope.also.map((r) => ({ name: r.name, root: r.root, knowledge: null })),
+    // read: 답의 근거가 다른 레포 파일일 때 그 레포의 규칙(비밀 파일 제외)으로 읽어 확인한다.
+    also: scope.also.map((r) => ({ name: r.name, root: r.root, knowledge: null, read: (path: string) => new GitWorkspace(r.root, loadSecretPolicy(r.root)).readFile(path) })),
   };
 }
 
@@ -157,6 +158,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
   const deps: ChatSessionDeps = {
     knowledge,
     repoName: basename(keyRoot),
+    workRoot: root,
     folder,
     designer: new DesignService({
       team,
