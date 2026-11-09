@@ -101,11 +101,31 @@ export interface ComposeOptions {
   readonly analysis?: (() => boolean) | undefined;
 }
 
+type AlsoRepo = NonNullable<Parameters<ChatSession['handle']>[1]>[number];
+
+/** 작업 공간(rauha가 여는 폴더)과 그 안의 레포들, 그리고 이번 요청이 가리킨 다른 레포들(읽기만) */
+export interface SessionScope {
+  readonly workspaceRoot: string;
+  readonly repos: readonly { readonly name: string; readonly root: string }[];
+  readonly also: readonly { readonly name: string; readonly root: string }[];
+}
+
+/**
+ * 작업 공간 정보를 ChatSession에 넘길 모양으로. 레포가 둘 이상일 때만 folder가 의미 있다.
+ * 함께 읽을 레포는 work 없이 넘겨 읽기 전용이다(여러 저장소를 한 번에 고치지 않는다).
+ */
+export function scopeDeps(scope: SessionScope): { folder: ChatSessionDeps['folder']; also: AlsoRepo[] } {
+  return {
+    folder: scope.repos.length > 1 ? { root: scope.workspaceRoot, repos: scope.repos.map((r) => ({ name: r.name, root: r.root })) } : undefined,
+    also: scope.also.map((r) => ({ name: r.name, root: r.root, knowledge: null })),
+  };
+}
+
 /**
  * 폴더 하나에서 일하는 팀 세션을 만든다(조립만 한다). 작업마다 새로 만들지만 앞 대화(turns·남긴 파일)는 레포별 파일로 이어진다.
  * 기억·지식·학습 노트도 폴더(저장소) 단위로 파일에 있어 작업끼리 이어진다.
  */
-export function composeSession(options: ComposeOptions, root: string, io: TeamIo, keyRoot: string = root): TeamSession {
+export function composeSession(options: ComposeOptions, root: string, io: TeamIo, keyRoot: string = root, scope: SessionScope = { workspaceRoot: root, repos: [], also: [] }): TeamSession {
   const { home, prompts } = options;
   // keyRoot: 기억·지식·학습·규칙이 매이는 원래 레포 폴더. root는 팀원이 실제로 일하는 폴더(worktree면 임시 폴더)다.
   const profile = options.profileFor(keyRoot);
@@ -134,9 +154,11 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
   const budget = () => SessionBudget.fromWindows([options.plan()?.session ?? null, options.plan()?.weekly ?? null]);
   const runId = randomUUID();
   const memory = SqliteMemory.open(projectMemoryFile(profile.memoryDir(home), projectRoot(keyRoot)));
+  const { folder, also } = scopeDeps(scope);
   const deps: ChatSessionDeps = {
     knowledge,
     repoName: basename(keyRoot),
+    folder,
     designer: new DesignService({
       team,
       roles,
@@ -190,7 +212,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
       const conversation = await conversations.open(keyRoot).catch(() => null);
       const session = conversation?.base != null ? ChatSession.resume(deps, conversation.base) : ChatSession.start(deps);
       try {
-        return await session.handle(input, [], depth);
+        return await session.handle(input, also, depth);
       } finally {
         memory.close();
         // 저장에 실패해도 업무 결과는 그대로 보인다.

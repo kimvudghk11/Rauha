@@ -214,8 +214,9 @@ async function startRunner(): Promise<JobRunner> {
     const profileFor = await profileResolver(home, settings.account);
     work = teamWork({
       newSession: (io, job) => {
-        const target = parseTarget(job.request, folders());
-        const root = target.folder?.root ?? folders()[0]?.root ?? currentWorkDir();
+        const all = folders();
+        const target = parseTarget(job.request, all);
+        const root = target.folder?.root ?? all[0]?.root ?? currentWorkDir();
         let note: string | null = null;
         return {
           note: () => note,
@@ -230,7 +231,7 @@ async function startRunner(): Promise<JobRunner> {
             try {
               if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
               before = await snapshotChanges(cwd);
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow }, cwd, io, root);
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               return await session.handle(target.text, depth);
             } finally {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
