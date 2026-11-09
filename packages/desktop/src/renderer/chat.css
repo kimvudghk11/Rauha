@@ -173,3 +173,7 @@
 .approval.ask .opts { display: flex; flex-direction: column; gap: var(--s2); }
 .approval.ask .opt { display: flex; flex-direction: column; gap: var(--s1); }
 .approval.ask .opt.rec { border-color: var(--accent); }
+
+/* 메인 칸 머리: 라벨은 꺾이지 않고, 안내 글이 남는 폭만 쓴다 */
+.mainp .ph b { flex: 0 0 auto; white-space: nowrap; }
+.mainp .ph .hint { flex: 1 1 0; min-width: 0; }
