@@ -5,7 +5,7 @@ import { accessSync, constants as fsConstants, existsSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
-import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
+import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
@@ -16,6 +16,8 @@ import { TeamSettings } from '../shared/team-settings.js';
 import { DefaultRulesStore, applyDefaultRuleOp } from './default-rules-store.js';
 import { scanWorkFolder } from './workspace/scan.js';
 import { addWorktree, cleanupLeftovers, finishWorktree } from './workspace/git-worktree.js';
+import { carryFiles } from './workspace/carry-files.js';
+import { RepoConversations } from './team/repo-conversations.js';
 import { WorktreeLedger } from './workspace/worktree-ledger.js';
 import { dispatchGit } from './git/git-dispatch.js';
 import { RepoGate } from './git/repo-gate.js';
@@ -205,6 +207,14 @@ async function smokeCompose(): Promise<void> {
   app.quit();
 }
 
+/** 레포의 앞 대화가 가리키는 파일(원래 폴더에 커밋 안 한 채 있는 것)을 새 worktree로 복사한다. 원래 폴더는 건드리지 않는다. */
+async function carryPreviousFiles(root: string, worktree: string): Promise<void> {
+  const profile = (await profileResolver(home, settings.account))(root);
+  const conversation = await RepoConversations.under(profile.sessionsDir(home)).open(root);
+  const paths = (conversation.base?.carried ?? []).map(([path]) => path);
+  if (paths.length > 0) await carryFiles(root, worktree, paths, loadSecretPolicy(root));
+}
+
 async function startRunner(): Promise<JobRunner> {
   let work;
   if (FAKE) {
@@ -229,7 +239,11 @@ async function startRunner(): Promise<JobRunner> {
             trail.repo(job.id, basename(root));
             let before: Map<string, string> | null = null;
             try {
-              if (claim.place.kind === 'worktree') await addWorktree(root, cwd);
+              if (claim.place.kind === 'worktree') {
+                await addWorktree(root, cwd);
+                // worktree는 HEAD에서 만들어져 앞 업무가 남긴 커밋 안 한 파일이 없다 → 앞 대화가 가리키는 파일만(비밀·링크 제외) 복사해 이어 일하게 한다
+                await carryPreviousFiles(root, cwd).catch(() => undefined);
+              }
               before = await snapshotChanges(cwd);
               const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               return await session.handle(target.text, depth);
