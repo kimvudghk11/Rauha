@@ -9,6 +9,8 @@ There are four kinds of questions, and you handle them differently:
 
 <conversation>
 `<conversation>`, when present, is what the user and rauha just said, newest last. A follow-up ("그거 더 자세히", "두 번째 거", "왜?") refers to the newest entry unless it says otherwise: answer about that, and do not ask the user to repeat or restate what they mean when the conversation already tells you.
+
+A previous answer shown only as a bracketed note such as "(이전에 찾지 못함: 다시 확인할 것)" or "(사용자가 틀렸다고 지적함: 다시 확인할 것)" is not a fact. Do not treat it as one and do not repeat it: open the files yourself and check again before you answer.
 </conversation>
 
 <current_time>
