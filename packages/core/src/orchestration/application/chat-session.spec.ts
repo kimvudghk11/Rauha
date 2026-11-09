@@ -1321,6 +1321,90 @@ describe('ChatSession — 저장소 조사는 답한 뒤 배경에서', () => {
   });
 });
 
+describe('ChatSession — 문서 팀원이 만든 파일은 이어 일할 파일이다', () => {
+  const snapshotOf = (...paths: string[]) => async () => ({ files: new Map(paths.map((p) => [p, 'added:h1'])) });
+  const run = async (files: string[], snapshot: string[], workspaceRoot?: string) => {
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('task'), route('work')], writer: [() => ({ summary: '썼어요', files })] });
+    const deps = sessionDeps({ team, loops });
+    const chat = ChatSession.start({ ...deps, workspace: { ...deps.workspace, snapshot: snapshotOf(...snapshot) }, ...(workspaceRoot !== undefined ? { workRoot: workspaceRoot } : {}) });
+    await chat.handle('NOTES.md 만들어 줘');
+    await chat.handle('src/money.ts 고쳐 줘');
+    return loops.runs[0]!.carried;
+  };
+
+  it('문서 팀원이 보고한 파일이 작업 폴더에 있으면 다음 코드 작업의 이어 일할 파일로 넘긴다 (커밋 안 한 새 파일이라며 거절하지 않게)', async () => {
+    expect([...(await run(['NOTES.md'], ['NOTES.md'])).keys()]).toEqual(['NOTES.md']);
+  });
+
+  it('작업 폴더의 절대 경로로 보고해도 폴더 기준 경로로 등록한다', async () => {
+    expect([...(await run(['E:/w/shop-api/docs/NOTES.md'], ['docs/NOTES.md'], 'E:/w/shop-api')).keys()]).toEqual(['docs/NOTES.md']);
+  });
+
+  it('실제로 없는 파일이나 작업 폴더 밖(다른 레포)에 쓴 파일은 등록하지 않는다', async () => {
+    expect((await run(['GHOST.md', 'E:/w/shop-web/OTHER.md', '../shop-web/OTHER.md'], ['NOTES.md', 'OTHER.md'], 'E:/w/shop-api')).size).toBe(0);
+  });
+});
+
+describe('ChatSession — 레포 하나짜리 작업 공간', () => {
+  it('답변 팀원에게 이 세션은 레포 하나(이름)만 읽을 수 있다고 알려, 옆 레포를 "없다"고 단정하지 않게 한다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
+    await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api' }).handle('shop-web 폴더 봐줘');
+    const message = team.calls.find((c) => c.role === 'answerer')!.message;
+    expect(message).toContain('<single_repo name="shop-api">');
+    expect(message).toContain('parent folder');
+  });
+
+  it('문서 팀원에게도 같은 안내를 준다', async () => {
+    const team = new FakeTeam({ router: [route('task')], writer: [() => ({ summary: '네', files: [] })] });
+    await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api' }).handle('shop-web 정리해 줘');
+    expect(team.calls.find((c) => c.role === 'writer')!.message).toContain('<single_repo name="shop-api">');
+  });
+
+  it('여러 레포 작업 공간에는 이 안내를 넣지 않는다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
+    const folder = { root: 'E:/w', repos: [{ name: 'shop-api', root: 'E:/w/shop-api' }, { name: 'shop-web', root: 'E:/w/shop-web' }] };
+    await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api', folder }).handle('shop-web 봐줘');
+    expect(team.calls.find((c) => c.role === 'answerer')!.message).not.toContain('<single_repo');
+  });
+});
+
+describe('ChatSession — 다른 레포를 근거로 든 인용', () => {
+  const quote = 'Math.floor(this.amount * rate)';
+  const claim = (path: string) => ({ text: 'floor를 쓴다', evidence: [{ ...blank, kind: 'code', path, line: 3, quote }] });
+  const ask = async (path: string, read: (p: string) => Promise<string | null>) => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [claim(path)] })] });
+    const reads: string[] = [];
+    const also = [{ name: 'shop-web', root: 'E:/w/shop-web', knowledge: null, read: async (p: string) => (reads.push(p), read(p)) }];
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api' }).handle('shop-web의 floor는?', also);
+    return { turn, reads };
+  };
+  const found = async () => `return ${quote}`;
+
+  it('현재 레포에 없고 함께 읽는 레포 안에 있는 파일이면 그 레포에서 읽어 근거를 확인한다', async () => {
+    const { turn, reads } = await ask('E:/w/shop-web/src/money.ts', found);
+    expect(reads).toEqual(['E:/w/shop-web/src/money.ts']);
+    expect(turn.kind === 'answer' && turn.checked[0]!.isGuess).toBe(false);
+  });
+
+  it('레포 이름으로 시작하는 상대 경로는 그 레포 안의 경로로 읽는다', async () => {
+    const { turn, reads } = await ask('shop-web/src/money.ts', async (p) => (p === 'src/money.ts' ? found() : null));
+    expect(reads[0]).toBe('src/money.ts');
+    expect(turn.kind === 'answer' && turn.checked[0]!.isGuess).toBe(false);
+  });
+
+  it('루트 밖으로 나가는 경로는 다른 레포를 읽지 않고 추측으로 남긴다', async () => {
+    const { turn, reads } = await ask('E:/w/shop-web/../shop-api/src/money.ts', found);
+    expect(reads).toEqual([]);
+    expect(turn.kind === 'answer' && turn.checked[0]!.isGuess).toBe(true);
+  });
+
+  it('그 레포의 읽기가 비밀 파일이라며 null을 주면 추측으로 남긴다', async () => {
+    const { turn } = await ask('E:/w/shop-web/.env', async () => null);
+    expect(turn.kind === 'answer' && turn.checked[0]!.isGuess).toBe(true);
+  });
+});
+
 describe('ChatSession — 문서만 고치는 요청', () => {
   it('라우터가 work라 해도 README만 고치는 요청은 테스트 팀원 없이 문서 팀원이 한다', async () => {
     const team = new FakeTeam({ router: [route('work')], writer: [() => ({ title: 'README', summary: '추가했어요', files: ['README.md'], claims: [] })] });

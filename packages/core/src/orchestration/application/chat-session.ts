@@ -7,6 +7,7 @@ import type { MemoryPort } from '../../memory/application/memory.port.js';
 import { continuable, recallBlock, WorkMemory, type MemoryEntry, type Recall } from '../../memory/domain/work-memory.js';
 import { citedPaths, FactCheck, normalizeUrl, type CheckedClaim } from '../domain/fact-check.js';
 import { LearningBook } from '../domain/learning-book.js';
+import { RepoPaths } from '../domain/repo-paths.js';
 import type { CompanyEntry } from '../domain/company-book.js';
 import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
@@ -66,6 +67,8 @@ export interface ChatSessionDeps {
   /** 작업 공간에서 이 세션의 저장소 이름. 여러 저장소 답의 기준에 쓴다. */
   readonly repoName?: string;
   /** 작업 공간 폴더(rauha를 띄운 폴더)와 그 안의 저장소들. 저장소가 둘 이상이면 답변·문서 팀원에게 알려 폴더 위치를 잘못 말하지 않게 한다. */
+  /** 팀원이 일하는 작업 폴더. 문서 팀원이 절대 경로로 보고한 파일을 작업 폴더 기준으로 풀 때 쓴다(없으면 상대 경로로 보고한 것만 받는다). */
+  readonly workRoot?: string | undefined;
   readonly folder?: { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
   /** 분석 흐름(조사 → 방향 비교 → 설계·계획 → 승인하면 구현). 없으면 디버깅·위험 점검은 지금처럼 팀원 한 번 호출이다. */
   readonly analyst?: AnalysisPort | undefined;
@@ -89,6 +92,8 @@ export interface AlsoRepo {
   readonly knowledge: KnowledgePort | null;
   /** 그 저장소의 세션으로 작업 하나를 한다(여러 저장소를 함께 고칠 때). 없으면 그 저장소는 고칠 수 없다. */
   readonly work?: (request: string, block: string) => Promise<TurnOutcome>;
+  /** 그 저장소의 파일 읽기(근거 확인용, 읽기 전용). 비밀 파일·그 저장소 밖은 null. 없으면 그 저장소를 근거로 든 인용은 확인하지 못한다. */
+  readonly read?: (path: string) => Promise<string | null>;
 }
 
 /** 함께 읽을 저장소와 그 지식(없으면 null) */
@@ -97,6 +102,10 @@ interface AlsoKnown {
   readonly root: string;
   readonly known: Known | null;
 }
+
+/** 레포 하나만 열린 세션의 팀원 안내. 옆 레포를 "없다"고 단정하지 않고 상위 폴더를 열도록 돕게 한다. */
+const SINGLE_REPO_NOTE =
+  "This session can read only this one repository's folder. If the user names another repository or folder that is not inside it, do not say it does not exist or that you cannot find it: it is outside the folder this session can read. Say so, and tell the user to open the parent folder as the working folder so both repositories can be read. Answer in the user's language (Korean for a Korean user).";
 
 const MANY_REPO_WORK = '여러 저장소를 한 번에 고치는 일은 아직 하지 않아요. 저장소마다 나눠서 요청해 주세요.';
 
@@ -187,7 +196,7 @@ export class ChatSession {
             },
             { designer: deps.designer, repoName: deps.repoName, progress: deps.progress, now: deps.now },
           );
-    this.documents = new DocumentDesk({ ...host, titled: (title) => (this.lastTitle = title) }, { today: deps.today, progress: deps.progress, repoName: deps.repoName, folder: () => this.deps.folder });
+    this.documents = new DocumentDesk({ ...host, titled: (title) => (this.lastTitle = title), wrote: (files) => this.carryWritten(files) }, { today: deps.today, progress: deps.progress, repoName: deps.repoName, folder: () => this.deps.folder });
   }
 
   /** 팀원을 미리 띄우지 않는다: 쓰이지 않을 호출이 한도를 쓰지 않게, 라우터 판정이 끝난 뒤에만 부른다. */
@@ -250,7 +259,7 @@ export class ChatSession {
     const depth = answerDepthOf(route.depth, input);
     const known = await this.knowledgeFor(depth);
     const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth));
-    const answered = await this.answer(input, asked, started, depth);
+    const answered = await this.answer(input, asked, started, depth, also);
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
     if (answered.kind === 'answer' && depth === 'deep') this.surveyInBackground();
     return answered;
@@ -309,6 +318,11 @@ export class ChatSession {
     this.lastTitle = outcome.title;
     this.turns.push({ input, result: `작업 "${outcome.title}" ${outcome.status === 'complete' ? '완료' : `멈춤(${outcome.stopReason})`}, 바뀐 파일 ${outcome.changedInRun.map((c) => c.path).join(', ') || '없음'}` });
     return { kind: 'work', outcome };
+  }
+
+  /** 이 저장소의 파일 읽기(다른 저장소 세션이 근거 확인에 빌려 쓴다). 비밀 파일·저장소 밖·없는 파일은 null. */
+  readFile(path: string): Promise<string | null> {
+    return this.deps.workspace.readFile(path);
   }
 
   /** 여러 저장소를 함께 고칠 때 다른 저장소의 세션이 이 저장소 몫의 작업을 맡긴다. block: 저장소 사이 약속 */
@@ -391,6 +405,27 @@ export class ChatSession {
     }
   }
 
+  /** 문서 팀원이 보고한 파일 중 작업 폴더에 실제로 있는 것을 세션이 남긴 파일로 등록한다. 작업 폴더 밖(다른 레포)에 쓴 파일은 등록하지 않는다. */
+  private async carryWritten(files: readonly string[]): Promise<void> {
+    const snapshot = this.deps.workspace.snapshot;
+    if (snapshot === undefined || files.length === 0) return;
+    const root = this.deps.workRoot ?? null;
+    const inside = files.flatMap((f) => {
+      const rel = RepoPaths.relativeIn(root, f);
+      return rel === null ? [] : [rel];
+    });
+    if (inside.length === 0) return;
+    try {
+      const present = (await snapshot.call(this.deps.workspace)).files;
+      for (const path of inside) {
+        const value = present.get(path);
+        if (value !== undefined) this.carried.set(path, value);
+      }
+    } catch {
+      // 못 읽으면 등록하지 않는다. 다음 코드 작업은 "커밋 안 한 변경이 있다"는 안내로 멈출 수 있다.
+    }
+  }
+
   // ── 설계 대화 ─────────────────────────────────────────────
 
   private canDesign(): boolean {
@@ -443,10 +478,15 @@ export class ChatSession {
     return held.route.mode === 'launch' ? this.desk.launch(held.input, conversation, started) : this.desk.company(held.input, conversation, held.route, started);
   }
 
-  /** 여러 저장소 작업 공간에서 rauha를 띄운 폴더와 저장소 목록. 저장소가 하나뿐이면 빈 글. */
+  /**
+   * 여러 저장소 작업 공간에서 rauha를 띄운 폴더와 저장소 목록.
+   * 저장소가 하나뿐이면 이 세션이 그 하나만 읽을 수 있다는 안내(옆 레포 이름을 들으면 "없다"고 잘못 답하지 않게).
+   */
   private workspaceBlock(): string {
     const folder = this.deps.folder;
-    if (folder === undefined || folder.repos.length < 2) return '';
+    if (folder === undefined || folder.repos.length < 2) return `<single_repo name="${this.deps.repoName ?? 'this repository'}">
+${SINGLE_REPO_NOTE}
+</single_repo>`;
     return `<workspace root="${folder.root}">\n이 폴더 아래의 저장소 ${folder.repos.length}개: ${folder.repos.map((r) => r.name).join(', ')}\n</workspace>`;
   }
 
@@ -522,12 +562,12 @@ export class ChatSession {
     }
   }
 
-  private async answer(input: string, asked: Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }>, started: number, depth: 'light' | 'deep'): Promise<TurnOutcome> {
+  private async answer(input: string, asked: Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }>, started: number, depth: 'light' | 'deep', also: readonly AlsoRepo[] = []): Promise<TurnOutcome> {
     const { result, recalls, basis } = await asked;
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const dto = this.tryRead(() => AnswerDto.from(result.output));
     const claims = dto?.claims() ?? [];
-    const files = new Map(await Promise.all(citedPaths(claims).map(async (path) => [path, await this.deps.workspace.readFile(path)] as const)));
+    const files = new Map(await Promise.all(citedPaths(claims).map(async (path) => [path, await this.readCited(path, also)] as const)));
     const checked = FactCheck.of(claims, {
       files,
       passedTests: [],
@@ -540,6 +580,17 @@ export class ChatSession {
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: citedPaths(claims), basis }));
     this.turns.push({ input, result: stop === null ? `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` : `답을 끝내지 못함: ${stop.turnNote(result.partial ?? null)}` });
     return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light' };
+  }
+
+  /** 인용한 파일 읽기. 현재 레포에 없으면 경로가 가리키는 함께 읽는 레포에서 읽는다(읽기 전용, 비밀·루트 밖은 그 레포의 읽기가 막는다). */
+  private async readCited(path: string, also: readonly AlsoRepo[]): Promise<string | null> {
+    const own = await this.deps.workspace.readFile(path);
+    if (own !== null) return own;
+    for (const hit of RepoPaths.ownersOf(path, also)) {
+      const content = (await also.find((r) => r.name === hit.name)?.read?.(hit.path)) ?? null;
+      if (content !== null) return content;
+    }
+    return null;
   }
 
   // ── 내 변경 검토 (/review) ───────────────────────────────

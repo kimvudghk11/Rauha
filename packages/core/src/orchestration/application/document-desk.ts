@@ -23,6 +23,8 @@ export interface DocumentDeps {
 export interface DocumentHost extends DeskHost {
   /** 마지막 작업 이름(다음 대화의 "그 작업"이 가리킨다) */
   titled(title: string): void;
+  /** 문서 팀원이 보고한 파일. 세션이 이어 일할 파일로 등록한다. */
+  wrote(files: readonly string[]): Promise<void>;
 }
 
 /**
@@ -64,6 +66,7 @@ export class DocumentDesk {
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const report = WriterReportDto.read(result.output);
     this.host.titled(input.slice(0, 60));
+    await this.host.wrote(report.files);
     const stop = stoppedMember(result);
     if (stop !== null) return this.host.settle('문서를 끝내지 못함', input, stop.report(result.partial ?? null), stop.turnNote(result.partial ?? null), started, costBefore);
     return this.host.settle('문서', input, report.toAnswer(), report.files.join(', ') || '없음', started, costBefore, report.files);
