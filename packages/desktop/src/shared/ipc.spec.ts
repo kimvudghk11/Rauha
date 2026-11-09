@@ -52,6 +52,11 @@ describe('jobView 더 깊게', () => {
     expect(view).toMatchObject({ canGoDeeper: true, knowledgeMissing: false });
     expect(jobView(job()).canGoDeeper).toBe(false);
   });
+
+  it('찾아본 도구 한 줄은 있을 때만 담고 없으면 null이다', () => {
+    expect(jobView(job().start().withResult('답', { canGoDeeper: false, knowledgeMissing: false, toolsLine: 'Grep 3 · Read 5' }).finish(AT)).toolsLine).toBe('Grep 3 · Read 5');
+    expect(jobView(job()).toolsLine).toBeNull();
+  });
 });
 
 describe('stepsOf', () => {

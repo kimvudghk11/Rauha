@@ -52,6 +52,8 @@ class FakeTeam implements TeamMemberPort {
   readonly prepared: MemberRole[] = [];
   /** 라우터가 이 약속이 풀릴 때까지 답하지 않게 한다(동시에 도는지 보려고). */
   routerGate: Promise<void> = Promise.resolve();
+  /** 역할별로 호출이 쓴 도구(없으면 어댑터가 모으지 않은 것) */
+  tools: Partial<Record<MemberRole, { name: string; count: number }[]>> = {};
   constructor(
     private readonly scripts: Partial<Record<MemberRole, Script[]>>,
     private readonly limitOn: MemberRole | null = null,
@@ -72,7 +74,7 @@ class FakeTeam implements TeamMemberPort {
     return {
       output: script ? script(call) : null,
       error: null,
-      usage: { model: call.setting.tier, durationMs: 5, costUsd: 0.002, turns: 1, inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, denials: [], endReason: 'success' },
+      usage: { model: call.setting.tier, durationMs: 5, costUsd: 0.002, turns: 1, inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, denials: [], endReason: 'success', ...(this.tools[call.role] !== undefined ? { tools: this.tools[call.role] } : {}) },
       fetched: [],
     };
   }
@@ -696,6 +698,33 @@ describe('ChatSession — 사용 한도', () => {
     expect(turn).toMatchObject({ kind: 'blocked', reason: 'login' });
     expect(loops.runs).toEqual([]);
     expect(team.calls.filter((c) => c.role === 'answerer').every((c) => c.signal!.aborted)).toBe(true);
+  });
+});
+
+describe('ChatSession — 팀원이 찾아본 도구는 결과까지 남는다', () => {
+  const ask = async (role: 'answerer' | 'operator' | 'writer', tools: { name: string; count: number }[] | undefined, mode: 'question' | 'ops' | 'task') => {
+    const scripts = { answerer: () => ({ answer: '답', claims: [{ text: 'a', evidence: [] }] }), operator: () => ({ answer: '답', commands: [] }), writer: () => ({ summary: '썼어요', files: ['A.md'] }) };
+    const team = new FakeTeam({ router: [route(mode)], [role]: [scripts[role]] });
+    if (tools !== undefined) team.tools[role] = tools;
+    return session({ team }).handle('폴더 훑어 줘');
+  };
+  const grepRead = [{ name: 'Grep', count: 3 }, { name: 'Read', count: 5 }];
+
+  it('답변 팀원이 쓴 도구를 이름과 횟수 한 줄로 답 결과에 싣는다', async () => {
+    expect(await ask('answerer', grepRead, 'question')).toMatchObject({ kind: 'answer', toolsLine: 'Grep 3 · Read 5' });
+  });
+
+  it('운영 팀원이 쓴 도구도 답 결과에 싣는다', async () => {
+    expect(await ask('operator', grepRead, 'ops')).toMatchObject({ kind: 'answer', toolsLine: 'Grep 3 · Read 5' });
+  });
+
+  it('문서 팀원이 쓴 도구도 답 결과에 싣는다', async () => {
+    expect(await ask('writer', grepRead, 'task')).toMatchObject({ kind: 'answer', toolsLine: 'Grep 3 · Read 5' });
+  });
+
+  it('도구를 쓰지 않았거나 모으지 못한 호출은 줄 자체를 싣지 않는다', async () => {
+    expect(await ask('answerer', [], 'question')).not.toHaveProperty('toolsLine');
+    expect(await ask('answerer', undefined, 'question')).not.toHaveProperty('toolsLine');
   });
 });
 

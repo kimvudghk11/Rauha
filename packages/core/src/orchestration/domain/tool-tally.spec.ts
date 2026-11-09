@@ -26,6 +26,12 @@ describe('ToolTally', () => {
     expect(ToolTally.line(tally.entries())).toBe('Grep 3 · Read 1');
   });
 
+  it('화면에 보일 한 줄은 도구를 한 번이라도 썼을 때만 있고 쓰지 않았거나 모르면 없다', () => {
+    expect(ToolTally.shownLine(undefined)).toBeUndefined();
+    expect(ToolTally.shownLine([])).toBeUndefined();
+    expect(ToolTally.shownLine([{ name: 'Grep', count: 3 }, { name: 'Read', count: 5 }])).toBe('Grep 3 · Read 5');
+  });
+
   it('빈 이름은 도구 하나로 세지 않는다', () => {
     const tally = ToolTally.empty();
     tally.record('');

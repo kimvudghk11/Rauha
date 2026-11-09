@@ -1,3 +1,4 @@
+import type { ToolCount } from '../domain/tool-tally.js';
 import type { MemberRole } from '../domain/member-role.js';
 import type { ModelTier } from '../domain/team.js';
 import type { ToolKit } from '../domain/tool-kit.js';
@@ -27,7 +28,7 @@ export interface MemberOptions {
 export interface DeskHost {
   member(role: MemberRole, parts: readonly string[], outputSchema: Record<string, unknown>, options: MemberOptions): Promise<MemberResult>;
   /** 결과를 기억과 앞 대화에 남기고 답으로 돌려준다. cited: 답이 만들거나 읽은 파일 */
-  settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number, cited?: readonly string[]): Promise<TurnOutcome>;
+  settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number, cited?: readonly string[], tools?: readonly ToolCount[]): Promise<TurnOutcome>;
   /** 지금까지 쓴 비용(한 입력의 비용을 재려고 앞뒤로 읽는다) */
   spent(): number;
   workspaceBlock(): string;

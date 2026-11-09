@@ -28,4 +28,10 @@ export class ToolTally {
   static line(tools: readonly ToolCount[]): string {
     return tools.map((t) => `${t.name} ${t.count}`).join(' · ');
   }
+
+  /** 화면에 보일 한 줄. 도구를 쓰지 않았거나 모으지 못했으면 없다(작은 말 대화에 "없음" 소음을 만들지 않는다). */
+  static shownLine(tools: readonly ToolCount[] | undefined): string | undefined {
+    const line = ToolTally.line(tools ?? []);
+    return line === '' ? undefined : line;
+  }
 }

@@ -5,7 +5,7 @@ import type { AccountBlock } from './ports.js';
 export type TurnOutcome =
   | { readonly kind: 'work'; readonly outcome: RunOutcome }
   /** basis: 답이 읽은 기준(`main (a1b2c3d)`). 저장소 지식이 없으면 null. */
-  | { readonly kind: 'answer'; readonly answer: string; readonly checked: readonly CheckedClaim[]; readonly costUsd: number; readonly durationMs: number; readonly basis: string | null; /** light로 답했다: 같은 질문을 deep으로 다시 알아볼 수 있다(`handle(input, [], 'deep')`). */ readonly canGoDeeper?: boolean }
+  | { readonly kind: 'answer'; readonly answer: string; readonly checked: readonly CheckedClaim[]; readonly costUsd: number; readonly durationMs: number; readonly basis: string | null; /** light로 답했다: 같은 질문을 deep으로 다시 알아볼 수 있다(`handle(input, [], 'deep')`). */ readonly canGoDeeper?: boolean; /** 팀원이 쓴 도구의 이름과 횟수("Grep 3 · Read 5"). 도구를 쓰지 않았으면 없다. */ readonly toolsLine?: string }
   /** /review: 사용자의 변경을 리뷰어가 본 결과. target null = 커밋 안 한 변경. files가 비면 리뷰어를 부르지 않았다. */
   | { readonly kind: 'review'; readonly target: string | null; readonly files: readonly string[]; readonly checked: readonly CheckedClaim[]; readonly summary: string; readonly durationMs: number }
   /** 분석 흐름(조사 → 방향 비교 → 설계·계획)의 결과. path: 분석 문서(쓰지 못했으면 null). implemented: 승인된 계획으로 작업 루프를 돌린 결과(승인하지 않았으면 null). */

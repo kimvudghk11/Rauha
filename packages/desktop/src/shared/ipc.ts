@@ -119,6 +119,8 @@ export interface JobView {
   readonly canGoDeeper: boolean;
   /** 깊게 답했지만 저장소 정보를 아직 못 읽은 채였다 */
   readonly knowledgeMissing: boolean;
+  /** 팀원이 찾아본 도구 한 줄("Grep 3 · Read 5"). 쓰지 않았으면 null이라 화면에 안 보인다. */
+  readonly toolsLine: string | null;
   readonly notes: readonly NoteView[];
 }
 
@@ -362,6 +364,7 @@ export function jobView(job: Job): JobView {
     result: job.result,
     canGoDeeper: job.resultMeta.canGoDeeper,
     knowledgeMissing: job.resultMeta.knowledgeMissing,
+    toolsLine: job.resultMeta.toolsLine ?? null,
     notes: job.notes.map((n) => ({ role: n.role, roleName: n.role === null ? null : ROLE_INFO[n.role].name, message: n.message, at: n.at })),
   };
 }

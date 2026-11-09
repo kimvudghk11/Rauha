@@ -28,6 +28,7 @@ import type { DeskHost, Known, MemberOptions } from './desk-host.js';
 import { DesignDesk } from './design-desk.js';
 import { DocumentDesk } from './document-desk.js';
 import { ManyRepoDesk, type RepoRunner } from './many-repo-desk.js';
+import { ToolTally, type ToolCount } from '../domain/tool-tally.js';
 import type { CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
 import { stoppedMember } from './member-stop-note.js';
 import { conversationBlock } from './prompt-blocks.js';
@@ -40,6 +41,12 @@ export type { RunContextBlocks };
 const CONVERSATION_TURNS = 6;
 /** 결과 글을 얼마나 남기고 넘기는지. 바로 앞 턴은 길게("두 번째 거 더 자세히"가 가리키는 곳이 거기다), 그 전은 짧게. */
 const KEPT_RESULT_CHARS = 1200;
+
+/** 답 결과에 얹을 "찾아본 것" 한 줄. 도구를 쓰지 않았으면 키 자체가 없다. */
+function toolsPart(tools: readonly ToolCount[] | undefined): { toolsLine?: string } {
+  const toolsLine = ToolTally.shownLine(tools);
+  return toolsLine === undefined ? {} : { toolsLine };
+}
 const OLDER_RESULT_CHARS = 300;
 /** 기억 묶음 글자 수 상한 */
 const MEMORY_CHARS = 3000;
@@ -170,7 +177,7 @@ export class ChatSession {
   private constructor(private readonly deps: ChatSessionDeps) {
     const host: DeskHost = {
       member: (role, parts, schema, options) => this.member(role, parts, schema, options),
-      settle: (label, input, answer, remembered, started, costBefore, cited) => this.settle(label, input, answer, remembered, started, costBefore, cited),
+      settle: (label, input, answer, remembered, started, costBefore, cited, tools) => this.settle(label, input, answer, remembered, started, costBefore, cited, tools),
       spent: () => this.costUsd,
       workspaceBlock: () => this.workspaceBlock(),
     };
@@ -445,16 +452,16 @@ export class ChatSession {
     // 인프라가 바뀌었을 수 있어 앞의 같은 질문 답은 더 쓰지 않는다.
     this.answered.clear();
     const answer = stoppedMember(result)?.report(result.partial ?? null) ?? OpsReportDto.read(result.output).toAnswer();
-    return this.settle('운영', input, answer, answer, started, costBefore);
+    return this.settle('운영', input, answer, answer, started, costBefore, [], result.usage.tools);
   }
 
   // ── 회사 부서(CompanyDesk)·문서(DocumentDesk)가 쓰는 것 ───────────────────────
 
   /** 결과를 기억과 앞 대화에 남기고 답으로 돌려준다. label: 다음 대화의 말머리 */
-  private async settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number, cited: readonly string[] = []): Promise<TurnOutcome> {
+  private async settle(label: string, input: string, answer: string, remembered: string, started: number, costBefore: number, cited: readonly string[] = [], tools?: readonly ToolCount[]): Promise<TurnOutcome> {
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: [...cited], basis: null }));
     this.turns.push({ input, result: `${label}: ${remembered.slice(0, KEPT_RESULT_CHARS)}` });
-    return { kind: 'answer', answer, checked: [], costUsd: this.costUsd - costBefore, durationMs: this.deps.now() - started, basis: null };
+    return { kind: 'answer', answer, checked: [], costUsd: this.costUsd - costBefore, durationMs: this.deps.now() - started, basis: null, ...toolsPart(tools) };
   }
 
   /** 방금 한 질문을 그대로 다시 하면 앞 답(호출 없이). 코드를 바꾼 뒤이거나 오래됐으면 null. */
@@ -579,7 +586,7 @@ ${SINGLE_REPO_NOTE}
     const answer = dto?.answer ?? stop?.report(result.partial ?? null) ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.';
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: citedPaths(claims), basis }));
     this.turns.push({ input, result: stop === null ? `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` : `답을 끝내지 못함: ${stop.turnNote(result.partial ?? null)}` });
-    return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light' };
+    return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light', ...toolsPart(result.usage.tools) };
   }
 
   /** 인용한 파일 읽기. 현재 레포에 없으면 경로가 가리키는 함께 읽는 레포에서 읽는다(읽기 전용, 비밀·루트 밖은 그 레포의 읽기가 막는다). */

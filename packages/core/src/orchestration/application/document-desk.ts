@@ -69,7 +69,7 @@ export class DocumentDesk {
     await this.host.wrote(report.files);
     const stop = stoppedMember(result);
     if (stop !== null) return this.host.settle('문서를 끝내지 못함', input, stop.report(result.partial ?? null), stop.turnNote(result.partial ?? null), started, costBefore);
-    return this.host.settle('문서', input, report.toAnswer(), report.files.join(', ') || '없음', started, costBefore, report.files);
+    return this.host.settle('문서', input, report.toAnswer(), report.files.join(', ') || '없음', started, costBefore, report.files, result.usage.tools);
   }
 
   /**

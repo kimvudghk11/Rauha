@@ -15,6 +15,8 @@ export interface JobNote {
 export interface JobResultMeta {
   readonly canGoDeeper: boolean;
   readonly knowledgeMissing: boolean;
+  /** 팀원이 찾아본 도구 한 줄("Grep 3 · Read 5"). 도구를 쓰지 않았으면 없다. */
+  readonly toolsLine?: string;
 }
 
 /** 작업이 들고 있는 기록 수 상한(오래된 것부터 버린다) */

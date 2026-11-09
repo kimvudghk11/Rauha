@@ -17,6 +17,7 @@ const view = (over: Partial<JobView> = {}): JobView => ({
   result: '풀 크기를 늘렸어요.',
   canGoDeeper: false,
   knowledgeMissing: false,
+  toolsLine: null,
   notes: [
     { role: 'debugger', roleName: '디버거', message: '로그 확인', at: '2026-11-08T01:02:00.000Z' },
     { role: null, roleName: null, message: '알림', at: '2026-11-08T01:03:00.000Z' },

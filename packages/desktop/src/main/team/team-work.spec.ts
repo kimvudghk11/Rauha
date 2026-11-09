@@ -36,6 +36,15 @@ describe('teamWork', () => {
     expect(runner.board.find('j2')?.status).toBe('done');
   });
 
+  it('답이 쓴 도구 한 줄이 있으면 결과 꼬리표에 싣고 없으면 싣지 않는다', async () => {
+    const { runner } = setup(async (_io, input) => ({ ...answer('답'), ...(input === 'A' ? { toolsLine: 'Grep 3 · Read 5' } : {}) }));
+    runner.submit('A');
+    runner.submit('B');
+    await runner.idle();
+    expect(runner.board.find('j1')?.resultMeta.toolsLine).toBe('Grep 3 · Read 5');
+    expect(runner.board.find('j2')?.resultMeta.toolsLine).toBeUndefined();
+  });
+
   it('팀원이 일을 시작했다고 알리면 그 줄과 역할이 작업에 남는다', async () => {
     const { runner } = setup(async (io) => {
       io.progress.step('테스트를 쓰는 중', 'tester');

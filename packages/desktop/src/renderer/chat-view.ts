@@ -226,6 +226,8 @@ export function buildChat(actions: ChatActions) {
     if (job.status === 'stopped' && needsLogin(`${text} ${job.stopReason ?? ''}`)) card.appendChild(loginCard());
     // 지식 없이 먼저 답한 깊은 답: 그 답 카드 안에 작게 알린다(알림·로그가 아니다)
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));
+    // 팀원이 찾아본 도구(Grep·Read 횟수): 폴더를 제대로 훑었는지 보이게 작게 한 줄. 쓴 도구가 없으면 줄이 없다.
+    if (job.toolsLine !== null) card.appendChild(el('div', 'kn', `찾아본 것: ${job.toolsLine}`));
     // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
     if (job.canGoDeeper) {
       const deeper = el('button', 'btn sm deeper', '더 깊게');

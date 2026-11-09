@@ -42,7 +42,7 @@ const quietUser: UserPort = {
 export function resultMetaOf(outcome: TurnOutcome): JobResultMeta {
   if (outcome.kind !== 'answer') return { canGoDeeper: false, knowledgeMissing: false };
   const canGoDeeper = outcome.canGoDeeper === true;
-  return { canGoDeeper, knowledgeMissing: !canGoDeeper && outcome.basis === null };
+  return { canGoDeeper, knowledgeMissing: !canGoDeeper && outcome.basis === null, ...(outcome.toolsLine !== undefined ? { toolsLine: outcome.toolsLine } : {}) };
 }
 
 /**
