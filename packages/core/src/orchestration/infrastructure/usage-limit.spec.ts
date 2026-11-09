@@ -36,6 +36,17 @@ describe('accountBlock', () => {
     expect(accountBlock('Not logged in')!.message).toContain('rauha login');
   });
 
+  it('로그인 안내는 앱 사용자에게 설정의 계정 칸을, 터미널 사용자에게 명령을 알려 준다', () => {
+    const message = accountBlock('Not logged in')!.message;
+    expect(message).toContain('설정');
+    expect(message).toContain('계정');
+  });
+
+  it('인증 오류의 다른 표기(authentication_error, invalid x-api-key)도 로그인 필요로 본다', () => {
+    expect(accountBlock('API Error: 401 {"type":"authentication_error"}')).toMatchObject({ reason: 'login' });
+    expect(accountBlock('401 invalid x-api-key')).toMatchObject({ reason: 'login' });
+  });
+
   it('사용 한도 오류는 한도 문장과 함께 사용 한도로 본다', () => {
     expect(accountBlock("You've hit your session limit · resets 5:40pm")).toEqual({ reason: 'usage-limit', message: "You've hit your session limit · resets 5:40pm" });
   });

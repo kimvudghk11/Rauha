@@ -14,12 +14,12 @@ export function usageLimitMessage(error: string | null): string | null {
 
 /** Claude Code가 로그인이 안 됐거나 인증이 풀렸을 때 내는 오류 */
 const LOGIN =
-  /Not logged in|Please run \/login|authentication_failed|Failed to authenticate|Invalid authentication credentials|Invalid API key|OAuth (?:token|session) (?:has )?expired|could not be refreshed/i;
+  /Not logged in|Please run \/login|authentication_failed|Failed to authenticate|Invalid authentication credentials|Invalid API key|invalid x-api-key|authentication_error|OAuth (?:token|session) (?:has )?expired|could not be refreshed/i;
 
 /** 팀원 호출 오류가 계정 문제(사용 한도, 로그인 안 됨)인지. 아니면 null. */
 export function accountBlock(error: string | null): AccountBlock | null {
   const limit = usageLimitMessage(error);
   if (limit !== null) return { reason: 'usage-limit', message: limit };
-  if (error !== null && LOGIN.test(error)) return { reason: 'login', message: '이 프로필은 Claude에 로그인되어 있지 않거나 로그인이 만료됐어요. /exit로 나간 뒤 터미널에서 rauha login(프로필을 쓰면 rauha login --profile 이름)을 실행해 주세요.' };
+  if (error !== null && LOGIN.test(error)) return { reason: 'login', message: '이 프로필은 Claude에 로그인되어 있지 않거나 로그인이 만료됐어요. 앱에서는 설정의 계정 칸에서 "Claude 로그인"을 누르고, 터미널에서는 /exit로 나간 뒤 rauha login(프로필을 쓰면 rauha login --profile 이름)을 실행해 주세요.' };
   return null;
 }
