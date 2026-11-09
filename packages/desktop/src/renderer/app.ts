@@ -9,7 +9,7 @@ import { buildRecords, copyText } from './records-view.js';
 import { buildCode } from './code-view.js';
 import { TodoDto } from '../shared/todo-dto.js';
 import { buildCommands, commandsApi } from './commands-view.js';
-import { useLooks } from './characters.js';
+import { useCharacterSet, useLooks } from './characters.js';
 import { buildTeam } from './team-view.js';
 import { TeamSettings } from '../shared/team-settings.js';
 import { createRunner } from './command-runner.js';
@@ -130,7 +130,7 @@ function show(id: TabId): void {
   if (id === 'chat') screen.replaceChildren(chat.root);
   else if (id === 'code') (screen.replaceChildren(code.root), void code.onShow());
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
-  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
+  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), onCharacterSet: (id) => (useCharacterSet(id), chat.repaintCharacters()), team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
   else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
   else if (id === 'records') screen.replaceChildren(buildRecords({ api: window.rauha.records, now: () => Date.now(), copy: copyText, blog: { api: window.rauha.blog, names: { get: async () => (await window.rauha.getSettings()).blogNames, set: async (names) => (await window.rauha.updateSettings({ blogNames: names })).blogNames } } }).root);
   else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);
@@ -161,6 +161,7 @@ const runner = createRunner({
   board: () => lastBoard,
   api: window.rauha,
 });
+void window.rauha.getSettings().then((s) => useCharacterSet(s.characterSet));
 void window.rauha.getTeam().then((v) => useLooks(TeamSettings.from(v.settings).looks()));
 void window.rauha.getCommands().then((json) => (commandBook = CommandBookDto.from(json).toEntity()));
 

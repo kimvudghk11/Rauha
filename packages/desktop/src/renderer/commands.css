@@ -58,3 +58,12 @@
 .tfoot { display: flex; justify-content: flex-end; padding: 0 10px; }
 .app[data-tier=s] .tmtop, .app[data-tier=xs] .tmtop { flex-wrap: wrap; }
 .app[data-tier=s] .tmtop .ds, .app[data-tier=xs] .tmtop .ds { flex: 1 1 100%; order: 9; white-space: normal; }
+
+/* 설정 탭: 캐릭터 테마 카드 */
+.cset-list { display: flex; flex-wrap: wrap; gap: var(--s2); padding: 0 var(--s3); }
+.cset { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s1); flex: 1 1 220px; max-width: 360px; text-align: left; cursor: pointer; border: 1px solid var(--border2); }
+.cset:hover { background: var(--row-hover); }
+.cset.on { border-color: var(--accent); background: var(--sel); }
+.cset b { color: var(--bright); font-size: var(--fs-md); }
+.cset-faces { display: flex; align-items: flex-end; gap: var(--s2); }
+.cset-faces .sp { flex: 0 0 auto; }

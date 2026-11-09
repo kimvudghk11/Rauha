@@ -9,6 +9,12 @@ import { createLoginControl } from './login-view.js';
 import { usageTooltip, type UsageFeed } from './usage-feed.js';
 import { diagnosticsText } from './diagnostics-text.js';
 import { syncBlockReason } from '../shared/bug-sync.js';
+import { CHARACTER_SETS } from './character-sets/index.js';
+import { setSprite, type CharacterRole } from './characters.js';
+import { paintSpriteFace } from './pixel-art.js';
+
+/** 테마 카드 미리보기에 보여 줄 역할(팀장 포함 앞 몇 명) */
+const PREVIEW_ROLES: readonly CharacterRole[] = ['intake', 'tester', 'implementer', 'reviewer', 'bm'];
 
 export interface SettingsApi {
   get(): Promise<Settings>;
@@ -24,6 +30,8 @@ export interface SettingsApi {
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown>; install(): Promise<unknown> };
   /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
   team?: { build(): HTMLElement };
+  /** 캐릭터 테마가 바뀌었을 때(화면의 캐릭터에 바로 반영) */
+  onCharacterSet?: (id: string) => void;
   /** 진단 정보 복사(없으면 도움말 구역을 그리지 않는다) */
   diagnostics?: () => Promise<DiagnosticsResult>;
 }
@@ -181,6 +189,24 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     flow.checked = s.analysisFlow;
     flow.addEventListener('change', () => void api.update({ analysisFlow: flow.checked }));
     root.appendChild(section('분석', row('분석 단계 쓰기(조사 → 방향 비교 → 설계·계획)', flow), el('div', 'hint pad', '원인·위험·방법을 분석해 달라는 요청에서만 써요. 끄면 분석은 팀원 한 번 호출이고 질문 카드도 나오지 않아요. 다음 요청부터 적용돼요.')));
+
+    // 캐릭터 테마: 22역할의 그림이 한 번에 바뀐다
+    const sets = el('div', 'cset-list');
+    for (const set of CHARACTER_SETS) {
+      const card = el('button', set.id === s.characterSet ? 'item cset on' : 'item cset');
+      card.type = 'button';
+      card.setAttribute('aria-pressed', String(set.id === s.characterSet));
+      const faces = el('span', 'cset-faces');
+      for (const role of PREVIEW_ROLES) {
+        const face = el('canvas', 'sp');
+        paintSpriteFace(face, setSprite(set, role), 3);
+        faces.appendChild(face);
+      }
+      card.append(faces, el('b', undefined, set.name), el('span', 'hint', set.blurb));
+      card.addEventListener('click', () => void api.update({ characterSet: set.id }).then((next) => (api.onCharacterSet?.(next.characterSet), render())));
+      sets.appendChild(card);
+    }
+    root.appendChild(section('캐릭터 테마', sets, el('div', 'hint pad', '누르면 팀원 22명의 그림이 한 번에 바뀌어요. 팀 설정에서 팀원마다 따로 고른 캐릭터는 그대로 남아요.')));
 
     if (api.team !== undefined) root.appendChild(section('팀 설정', api.team.build()));
     // 내 AWS: 답답한 점 메모를 올리고 받는 곳. 키는 받지도 저장하지도 않고, 터미널에서 등록한 프로필 이름만 적는다.

@@ -71,7 +71,10 @@ export function buildChat(actions: ChatActions) {
   const headFace = el('canvas', 'sp');
   paintOnce(headFace, 'intake', 2);
   const layoutToggle = el('div', 'seg ltoggle');
-  head.append(headFace, el('b', undefined, '메인'), el('span', 'hint', `${leadName()}에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.`), layoutToggle);
+  const leadHint = el('span', 'hint');
+  const leadHintText = (): string => `${leadName()}에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.`;
+  leadHint.textContent = leadHintText();
+  head.append(headFace, el('b', undefined, '메인'), leadHint, layoutToggle);
   if (actions.resetConversation !== undefined) {
     const resetConversation = actions.resetConversation;
     const reset = el('button', 'btn sm reset-conv', '대화 초기화');
@@ -546,6 +549,12 @@ export function buildChat(actions: ChatActions) {
   return {
     root,
     layoutButtons,
+    /** 캐릭터 테마가 바뀌었을 때 메인 칸의 얼굴과 이름 안내를 새로 그린다(이미 쌓인 말풍선은 그대로) */
+    repaintCharacters(): void {
+      paintOnce(headFace, 'intake', 2);
+      paintOnce(emptyFace, 'intake', 5);
+      leadHint.textContent = leadHintText();
+    },
     /** 명령 결과 같은 안내를 메인 칸에 말풍선으로 보인다 */
     notice(content: string | HTMLElement): void {
       empty.remove();

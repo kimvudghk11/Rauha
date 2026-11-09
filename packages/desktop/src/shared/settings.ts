@@ -1,4 +1,5 @@
 import { DEFAULT_PROTECTED_BRANCHES } from './approval-summary.js';
+import { DEFAULT_CHARACTER_SET, toCharacterSetId, type CharacterSetId } from './character-set-ids.js';
 
 /** 알림을 켜고 끄는 항목. 단계 넘어감은 기본 꺼짐이다. */
 export interface NotifySettings {
@@ -37,6 +38,8 @@ export interface Settings {
   readonly awsBucket: string | null;
   readonly awsRegion: string | null;
   readonly awsAccount: string | null;
+  /** 캐릭터 테마(세트) id. 모르는 값은 기본(바다 친구들)이다. */
+  readonly characterSet: CharacterSetId;
 }
 
 export const CONCURRENCY_MIN = 1;
@@ -59,6 +62,7 @@ export const DEFAULT_SETTINGS: Settings = {
   awsBucket: null,
   awsRegion: null,
   awsAccount: null,
+  characterSet: DEFAULT_CHARACTER_SET,
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -100,6 +104,7 @@ export function parseSettings(input: unknown): Settings {
     awsBucket: text(input['awsBucket']),
     awsRegion: text(input['awsRegion']),
     awsAccount: text(input['awsAccount']),
+    characterSet: toCharacterSetId(input['characterSet']),
   };
 }
 

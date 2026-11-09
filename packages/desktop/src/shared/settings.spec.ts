@@ -78,3 +78,16 @@ describe('canWork', () => {
     expect(canWork({ ...DEFAULT_SETTINGS, workFolder: 'C:/w', folderApproved: true })).toBe(true);
   });
 });
+
+describe('캐릭터 테마(characterSet)', () => {
+  it('기본은 바다 친구들(ocean)이고 알려진 id만 받는다', () => {
+    expect(DEFAULT_SETTINGS.characterSet).toBe('ocean');
+    expect(parseSettings({ characterSet: 'forest' }).characterSet).toBe('forest');
+    for (const bad of ['nope', 'constructor', '__proto__', 3, null, undefined]) expect(parseSettings({ characterSet: bad }).characterSet).toBe('ocean');
+    expect(parseSettings({}).characterSet).toBe('ocean');
+  });
+  it('일부만 바꿀 때도 모르는 id는 기본으로 돌아간다', () => {
+    expect(updateSettings(DEFAULT_SETTINGS, { characterSet: 'forest' }).characterSet).toBe('forest');
+    expect(updateSettings(DEFAULT_SETTINGS, { characterSet: 'zzz' as never }).characterSet).toBe('ocean');
+  });
+});

@@ -142,6 +142,7 @@ section.settings
  ├─ .pane.sec 「한도」    .limits > .limit(.lbl .bar > i · .pct · .dim)
  ├─ .pane.sec 일반         .srow(label + select/input) × 여러 줄 · .hint
  ├─ .pane.sec 「업데이트」 .btn.sec 업데이트 확인 · .btn.primary 지금 업데이트
+ ├─ .pane.sec 「캐릭터 테마」 .cset-list > button.item.cset(.on)(.cset-faces canvas.sp × 5 · b 이름 · .hint 한 줄 소개). 누르면 22역할 그림이 한 번에 바뀐다(우선순위: 팀 설정에서 따로 고른 캐릭터 > 테마 > 기본 바다 친구들)
  └─ .pane 「팀 설정」(team-view)  .team > .tlist > .tm(.tmtop(canvas.sp b .ds select .tg .btn.sec 자세히) · .tmbody(.tf .tools textarea)) · .tfoot .btn.sec 팀 전체 기본값으로
 ```
 

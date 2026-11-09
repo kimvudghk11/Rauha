@@ -1,5 +1,5 @@
 import { motionFor } from './character-motion.js';
-import { FRAME, spriteFor, type CharacterArt, type CharacterRole, type CharacterState, type DrawOptions } from './characters.js';
+import { FRAME, spriteFor, type CharacterArt, type Sprite, type CharacterRole, type CharacterState, type DrawOptions } from './characters.js';
 
 const GLYPH: Readonly<Record<string, readonly string[]>> = {
   q: ['.###.', '#...#', '....#', '...#.', '..#..', '.....', '..#..'],
@@ -23,6 +23,28 @@ function glyph(ctx: CanvasRenderingContext2D, k: number, name: string, x: number
   );
 }
 
+/** 격자 한 장을 칸마다 칠한다(캐릭터 그리기와 테마 미리보기가 같이 쓴다). */
+function fillRows(ctx: CanvasRenderingContext2D, rows: readonly string[], palette: Readonly<Record<string, string>>, ox: number, oy: number, k: number, flip: boolean): void {
+  const w = rows[0]!.length;
+  rows.forEach((row, r) => {
+    for (let c = 0; c < w; c += 1) {
+      const ch = row[flip ? w - 1 - c : c]!;
+      if (ch === '.') continue;
+      ctx.fillStyle = palette[ch] ?? '#f0f';
+      ctx.fillRect((ox + c) * k, (oy + r) * k, k, k);
+    }
+  });
+}
+
+/** 역할과 상관없이 스프라이트 하나의 기본 얼굴을 캔버스에 한 번 그린다(캐릭터 테마 미리보기). */
+export function paintSpriteFace(canvas: HTMLCanvasElement, sprite: Sprite, scale: number): void {
+  const rows = sprite.frames[FRAME.idle]!;
+  canvas.width = rows[0]!.length * scale;
+  canvas.height = rows.length * scale;
+  const ctx = canvas.getContext('2d');
+  if (ctx !== null) fillRows(ctx, rows, sprite.palette, 0, 0, scale, false);
+}
+
 /** 픽셀 격자로 그리는 공급자. 상태별 덧그림(말풍선 타자·물음표·느낌표·반짝이·땀방울·z)까지 한 곳에서 그린다. */
 export const pixelArt: CharacterArt = {
   size(role) {
@@ -44,14 +66,7 @@ export const pixelArt: CharacterArt = {
     const sh = m.dy < -1 ? 4 : 2;
     ctx.fillRect((o.x + Math.floor(sh / 2)) * k, (o.y + h) * k, (w - sh) * k, k);
 
-    rows.forEach((row, r) => {
-      for (let c = 0; c < w; c += 1) {
-        const ch = row[flip ? w - 1 - c : c]!;
-        if (ch === '.') continue;
-        ctx.fillStyle = sprite.palette[ch] ?? '#f0f';
-        ctx.fillRect((o.x + m.dx + c) * k, (o.y + m.dy + r) * k, k, k);
-      }
-    });
+    fillRows(ctx, rows, sprite.palette, o.x + m.dx, o.y + m.dy, k, flip);
     if (o.effects === false) return;
 
     const { x: x0, y: y0 } = o;

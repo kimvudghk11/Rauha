@@ -1,4 +1,6 @@
 import { EXTRA_CHARACTER_IDS } from '../shared/character-ids.js';
+import { characterSetById, DEFAULT_SET, type CharacterSet } from './character-sets/index.js';
+import { resolveCharacter } from './character-sets/resolve.js';
 import { PIXEL_CHARACTERS, type PixelCharacter } from './characters-data.js';
 import { EXTRA_CHARACTERS } from './characters-extra.js';
 
@@ -41,6 +43,12 @@ export function useLooks(next: Looks): void {
 /** 캐릭터 고르기 목록: base는 기본 22마리(역할 id), extra는 역할에 배정되지 않고 고를 수만 있는 새 캐릭터 */
 export const CHARACTER_CHOICES = { base: [...CHARACTER_ROLES] as readonly string[], extra: [...EXTRA_CHARACTER_IDS] as readonly string[] };
 
+let currentSet: CharacterSet = DEFAULT_SET;
+/** 캐릭터 테마(세트)를 적용한다. 모르는 id는 기본(바다) 세트다. 시작할 때와 설정에서 바뀔 때 부른다. */
+export function useCharacterSet(id: string): void {
+  currentSet = characterSetById(id);
+}
+
 const toSprite = (c: PixelCharacter): Sprite => ({ name: c.name, animal: c.animal, palette: c.colors, frames: c.frames });
 const own = (table: Readonly<Record<string, PixelCharacter>>, id: string): PixelCharacter | undefined => (Object.hasOwn(table, id) ? table[id] : undefined);
 
@@ -59,9 +67,20 @@ export function defaultSprite(role: CharacterRole): Sprite {
   return toSprite(PIXEL_CHARACTERS[role]!);
 }
 
+/** 개별로 고르지 않았을 때 그리는 캐릭터: 현재 세트 > 기본 세트 */
+/** 세트 미리보기용: 이 세트의 그 역할(없으면 기본 세트) */
+export function setSprite(set: CharacterSet, role: CharacterRole): Sprite {
+  return toSprite(resolveCharacter(role, undefined, set.characters, PIXEL_CHARACTERS)!);
+}
+
+export function baseSprite(role: CharacterRole): Sprite {
+  return toSprite(resolveCharacter(role, undefined, currentSet.characters, PIXEL_CHARACTERS)!);
+}
+
+/** 우선순위: 역할별로 고른 캐릭터 > 현재 세트 > 기본 세트 */
 export function spriteFor(role: CharacterRole): Sprite {
   const picked = looks.characters[role];
-  const art = picked !== undefined && isCharacterId(picked) ? characterSprite(picked) : defaultSprite(role);
+  const art = picked !== undefined && isCharacterId(picked) ? characterSprite(picked) : baseSprite(role);
   const name = looks.names[role];
   return name === undefined ? art : { ...art, name };
 }

@@ -1,7 +1,7 @@
 import { ROLE_TOOLS, type MemberRole } from '@rauha/core/jobs';
 import type { TeamMemberInfo, TeamOp, TeamResult, TeamView } from '../shared/ipc.js';
 import { EFFORTS, NAME_LIMIT, TIERS, type Effort, type MemberSetting, type Tier } from '../shared/team-settings.js';
-import { CHARACTER_CHOICES, characterSprite, defaultSprite, isCharacterId, type CharacterRole } from './characters.js';
+import { baseSprite, CHARACTER_CHOICES, characterSprite, defaultSprite, isCharacterId, type CharacterRole } from './characters.js';
 import { el } from './dom.js';
 import { paintOnce } from './stage.js';
 
@@ -56,7 +56,7 @@ export function buildTeam(api: TeamApi) {
     const top = el('div', 'tmtop');
     const face = el('canvas', 'sp');
     paintOnce(face, info.role as CharacterRole, 2);
-    const sprite = characterSprite(s.character !== undefined && isCharacterId(s.character) ? s.character : info.role);
+    const sprite = s.character !== undefined && isCharacterId(s.character) ? characterSprite(s.character) : baseSprite(info.role as CharacterRole);
     const name = el('b', undefined, s.name ?? sprite.name);
     const title = el('span', 'ds', `${info.title}${info.stage !== null ? ` · ${info.stage}` : ''}`);
     top.append(face, name, title);
