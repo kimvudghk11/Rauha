@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loginShellArgs, mergePath, needsShellPath, parseShellPath, PATH_MARK } from './shell-path.js';
+import { fallbackDirs, loginShellArgs, mergePath, needsShellPath, parseShellPath, PATH_MARK } from './shell-path.js';
 
 describe('parseShellPath', () => {
   it('표시 사이의 PATH만 꺼낸다 — rc 파일이 찍은 다른 글은 무시한다', () => {
@@ -43,5 +43,21 @@ describe('needsShellPath · loginShellArgs', () => {
     const args = loginShellArgs();
     expect(args[0]).toBe('-ilc');
     expect(args[1]).toContain('$PATH');
+  });
+});
+
+describe('fallbackDirs', () => {
+  it('맥은 로그인 셸을 못 읽어도 Homebrew·/usr/local 폴더를 PATH 뒤에 붙인다', () => {
+    const merged = mergePath('/usr/bin:/bin', null, ':', fallbackDirs('darwin'));
+    expect(merged).toBe('/usr/bin:/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin');
+  });
+
+  it('이미 PATH에 있는 폴더는 다시 붙이지 않고, 셸이 읽은 순서가 우선이다', () => {
+    expect(mergePath('/usr/bin', '/usr/local/bin:/opt/homebrew/bin', ':', fallbackDirs('darwin'))).toBe('/usr/local/bin:/opt/homebrew/bin:/usr/bin:/opt/homebrew/sbin');
+  });
+
+  it('맥이 아니면 붙일 폴더가 없다', () => {
+    expect(fallbackDirs('win32')).toEqual([]);
+    expect(fallbackDirs('linux')).toEqual([]);
   });
 });

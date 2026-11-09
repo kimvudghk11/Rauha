@@ -23,17 +23,20 @@ export function parseShellPath(output: string): string | null {
  * 지금 PATH에 셸 PATH를 합친다. 셸 쪽 순서를 앞에 두고(brew 등이 먼저 보이게) 겹치는 폴더는 한 번만 둔다.
  * 지금 PATH에만 있던 폴더는 뒤에 남는다. 셸 PATH가 없으면 지금 PATH 그대로다.
  */
-export function mergePath(current: string, fromShell: string | null, separator: string = delimiter): string {
-  if (fromShell === null) return current;
+export function mergePath(current: string, fromShell: string | null, separator: string = delimiter, fallback: readonly string[] = []): string {
+  if (fromShell === null && fallback.length === 0) return current;
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const dir of [...fromShell.split(separator), ...current.split(separator)]) {
+  for (const dir of [...(fromShell === null ? [] : fromShell.split(separator)), ...current.split(separator), ...fallback]) {
     if (dir === '' || seen.has(dir)) continue;
     seen.add(dir);
     out.push(dir);
   }
   return out.join(separator);
 }
+
+/** 로그인 셸을 못 읽었을 때도 도구(brew의 aws·gh·node)를 찾도록 PATH 뒤에 붙여 두는 맥의 흔한 폴더 */
+export const fallbackDirs = (platform: NodeJS.Platform): readonly string[] => (platform === 'darwin' ? ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin'] : []);
 
 /** 셸 PATH를 읽어야 하는 플랫폼인가. Windows는 앱이 이미 사용자 PATH를 받는다. */
 export const needsShellPath = (platform: NodeJS.Platform): boolean => platform === 'darwin' || platform === 'linux';
@@ -52,5 +55,5 @@ export async function adoptShellPath(env: NodeJS.ProcessEnv = process.env, platf
       resolve('');
     }
   });
-  env['PATH'] = mergePath(env['PATH'] ?? '', parseShellPath(out));
+  env['PATH'] = mergePath(env['PATH'] ?? '', parseShellPath(out), delimiter, fallbackDirs(platform));
 }
