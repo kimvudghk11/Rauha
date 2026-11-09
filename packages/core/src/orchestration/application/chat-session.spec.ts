@@ -1443,6 +1443,13 @@ describe('ChatSession — 분석 흐름', () => {
     expect(loops.runs[0]!.carried.get('docs/analysis/2026-10-25-결제.md')).toBe('added:h9');
   });
 
+  it('요약이 길어 잘려도 분석 문서 경로는 앞 대화에 남아 "아까 그 문서"를 알아듣는다', async () => {
+    const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false }), { summary: `${'긴 요약 '.repeat(500)}\n문서: docs/analysis/2026-10-25-결제.md` }));
+    const chat = ChatSession.start({ ...sessionDeps({ team: new FakeTeam({ router: [route('debug')] }) }), analyst });
+    await chat.handle('결제가 왜 두 번 깎여?');
+    expect(JSON.stringify(chat.snapshot('2026-10-27T10:00:00.000Z').turns)).toContain('docs/analysis/2026-10-25-결제.md');
+  });
+
   it('분석 결과는 기억에 남아 다음 질문이 그 분석을 찾을 수 있다', async () => {
     const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
     const memory = new FakeMemory();

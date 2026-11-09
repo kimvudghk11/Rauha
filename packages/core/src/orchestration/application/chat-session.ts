@@ -361,7 +361,9 @@ export class ChatSession {
     }
     await this.carryDocument(result.path);
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer: result.summary, citedFiles: result.run.investigation?.evidencePaths() ?? [], basis: known?.basis ?? null }));
-    this.turns.push({ input, result: `분석: ${result.summary.slice(0, KEPT_RESULT_CHARS)}` });
+    // 요약이 길어 잘려도 쓴 문서 경로는 남긴다("아까 그 분석 문서").
+    const kept = result.summary.slice(0, KEPT_RESULT_CHARS);
+    this.turns.push({ input, result: `분석: ${kept}${result.path === null || kept.includes(result.path) ? '' : `\n문서: ${result.path}`}` });
     const worked = result.brief === null ? null : await this.work(result.brief.request, null, null, result.brief.block);
     const choice = result.run.choice;
     return {

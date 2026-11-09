@@ -5,6 +5,7 @@ import {
   AgentSdkTeamMember,
   AnalysisService,
   ChatSession,
+  type ChatSessionDeps,
   DesignService,
   FileAnalysisDocs,
   FileCompanyBook,
@@ -36,6 +37,7 @@ import {
   type PromptLibrary,
   type TeamMemberPort,
 } from '@rauha/core';
+import { RepoConversations } from './repo-conversations.js';
 import type { TeamIo, TeamSession } from './team-work.js';
 
 /** 사용자 PC 시간대 기준 YYYY-MM-DD. */
@@ -100,8 +102,8 @@ export interface ComposeOptions {
 }
 
 /**
- * 폴더 하나에서 일하는 팀 세션을 만든다(조립만 한다). 작업마다 새로 만들어 대화 상태를 나눠 갖지 않는다.
- * 기억·지식·학습 노트는 폴더(저장소) 단위로 파일에 있어 작업끼리 이어진다.
+ * 폴더 하나에서 일하는 팀 세션을 만든다(조립만 한다). 작업마다 새로 만들지만 앞 대화(turns·남긴 파일)는 레포별 파일로 이어진다.
+ * 기억·지식·학습 노트도 폴더(저장소) 단위로 파일에 있어 작업끼리 이어진다.
  */
 export function composeSession(options: ComposeOptions, root: string, io: TeamIo, keyRoot: string = root): TeamSession {
   const { home, prompts } = options;
@@ -132,7 +134,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
   const budget = () => SessionBudget.fromWindows([options.plan()?.session ?? null, options.plan()?.weekly ?? null]);
   const runId = randomUUID();
   const memory = SqliteMemory.open(projectMemoryFile(profile.memoryDir(home), projectRoot(keyRoot)));
-  const session = ChatSession.start({
+  const deps: ChatSessionDeps = {
     knowledge,
     repoName: basename(keyRoot),
     designer: new DesignService({
@@ -180,13 +182,19 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
         ? undefined
         : new AnalysisService({ team, roles, docs: new FileAnalysisDocs(keyRoot), progress: io.progress, today: () => localDate(), newId: () => randomUUID(), timer: realAskTimer, user: io.user.analysis, budget }),
     nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
-  });
+  };
+  // 앞 대화는 레포(keyRoot)마다 파일에 이어 둔다: 업무가 열 때 받아 오고, 끝나면 새로 생긴 대화만 합쳐 저장한다.
+  const conversations = RepoConversations.under(profile.sessionsDir(home));
   return {
     handle: async (input, depth) => {
+      const conversation = await conversations.open(keyRoot).catch(() => null);
+      const session = conversation?.base != null ? ChatSession.resume(deps, conversation.base) : ChatSession.start(deps);
       try {
         return await session.handle(input, [], depth);
       } finally {
         memory.close();
+        // 저장에 실패해도 업무 결과는 그대로 보인다.
+        await conversation?.finish(session.snapshot(new Date().toISOString())).catch(() => undefined);
       }
     },
   };
