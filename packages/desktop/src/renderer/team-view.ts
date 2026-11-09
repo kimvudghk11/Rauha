@@ -1,7 +1,7 @@
 import { ROLE_TOOLS, type MemberRole } from '@rauha/core/jobs';
 import type { TeamMemberInfo, TeamOp, TeamResult, TeamView } from '../shared/ipc.js';
 import { EFFORTS, NAME_LIMIT, TIERS, type Effort, type MemberSetting, type Tier } from '../shared/team-settings.js';
-import { CHARACTER_ROLES, defaultSprite, type CharacterRole } from './characters.js';
+import { CHARACTER_CHOICES, characterSprite, defaultSprite, isCharacterId, type CharacterRole } from './characters.js';
 import { el } from './dom.js';
 import { paintOnce } from './stage.js';
 
@@ -16,7 +16,6 @@ const TIER_LABEL: Readonly<Record<Tier, string>> = { haiku: 'Haiku (가볍고 �
 const EFFORT_LABEL: Readonly<Record<Effort, string>> = { low: '낮음', medium: '보통', high: '높음', xhigh: '아주 높음', max: '최대' };
 const TOOL_LABEL: Readonly<Record<string, string>> = { Read: '읽기', Grep: '찾기', Glob: '파일 목록', WebSearch: '웹 검색', WebFetch: '웹 열기', Edit: '파일 고치기', Write: '파일 만들기', Bash: '명령 실행' };
 
-const isCharacter = (r: string): r is CharacterRole => (CHARACTER_ROLES as readonly string[]).includes(r);
 
 /**
  * 팀 설정(설정 탭 안): 팀원 22명 각각의 켜기·끄기, 모델 등급, 노력, 도구·쓰기, 추가 지시, 이름, 캐릭터, 기본값 복원.
@@ -56,8 +55,8 @@ export function buildTeam(api: TeamApi) {
     const card = el('div', enabled ? 'item tm' : 'item tm off');
     const top = el('div', 'tmtop');
     const face = el('canvas', 'sp');
-    paintOnce(face, (s.character ?? info.role) as CharacterRole, 2);
-    const sprite = defaultSprite((s.character ?? info.role) as CharacterRole);
+    paintOnce(face, info.role as CharacterRole, 2);
+    const sprite = characterSprite(s.character !== undefined && isCharacterId(s.character) ? s.character : info.role);
     const name = el('b', undefined, s.name ?? sprite.name);
     const title = el('span', 'ds', `${info.title}${info.stage !== null ? ` · ${info.stage}` : ''}`);
     top.append(face, name, title);
@@ -128,9 +127,16 @@ export function buildTeam(api: TeamApi) {
       nameInput.addEventListener('change', () => void change(info.role, { name: nameInput.value.trim() === '' ? null : nameInput.value }));
 
       const character = el('select');
-      for (const c of CHARACTER_ROLES) character.appendChild(new Option(`${defaultSprite(c).name} (${defaultSprite(c).animal})${c === info.role ? ' · 기본' : ''}`, c));
-      character.value = s.character ?? info.role;
-      character.addEventListener('change', () => void change(info.role, { character: isCharacter(character.value) ? character.value : null }));
+      const section = (title: string, ids: readonly string[]) => {
+        const group = document.createElement('optgroup');
+        group.label = title;
+        for (const c of ids) group.appendChild(new Option(`${characterSprite(c).name} (${characterSprite(c).animal})${c === info.role ? ' · 기본' : ''}`, c));
+        character.appendChild(group);
+      };
+      section('기본 캐릭터', CHARACTER_CHOICES.base);
+      section('새 캐릭터', CHARACTER_CHOICES.extra);
+      character.value = s.character !== undefined && isCharacterId(s.character) ? s.character : info.role;
+      character.addEventListener('change', () => void change(info.role, { character: isCharacterId(character.value) ? character.value : null }));
 
       const reset = el('button', 'btn sm', '이 팀원 기본값으로');
       reset.disabled = !changed;

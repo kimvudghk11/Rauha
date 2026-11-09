@@ -306,7 +306,7 @@ export interface TeamView {
 
 /** 팀 설정에 하는 일: 팀원 한 칸 바꾸기(null은 기본값으로) · 팀원 하나 기본값 · 모두 기본값 */
 export type TeamOp =
-  | { readonly kind: 'change'; readonly role: MemberRole; readonly patch: { readonly enabled?: boolean; readonly tier?: Tier | null; readonly effort?: Effort | null; readonly tools?: readonly string[] | null; readonly extraInstruction?: string | null; readonly name?: string | null; readonly character?: MemberRole | null } }
+  | { readonly kind: 'change'; readonly role: MemberRole; readonly patch: { readonly enabled?: boolean; readonly tier?: Tier | null; readonly effort?: Effort | null; readonly tools?: readonly string[] | null; readonly extraInstruction?: string | null; readonly name?: string | null; readonly character?: string | null } }
   | { readonly kind: 'reset'; readonly role: MemberRole }
   | { readonly kind: 'resetAll' };
 

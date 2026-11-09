@@ -1,3 +1,4 @@
+import { EXTRA_CHARACTER_IDS } from './character-ids.js';
 import { MEMBER_ROLES, REQUIRED_ROLES, ROLE_TOOLS, type MemberRole, type RoleOverrides } from '@rauha/core/jobs';
 
 export type Tier = 'haiku' | 'sonnet' | 'opus';
@@ -19,8 +20,8 @@ export interface MemberSetting {
   readonly extraInstruction?: string;
   /** 캐릭터 이름(화면에 보이는 이름) */
   readonly name?: string;
-  /** 어느 캐릭터 그림을 쓸지(캐릭터 22종의 역할 id) */
-  readonly character?: MemberRole;
+  /** 어느 캐릭터 그림을 쓸지(기본 22종의 역할 id 또는 고를 수 있는 새 캐릭터 id) */
+  readonly character?: string;
 }
 
 export type TeamSettingsJson = { readonly members: Readonly<Partial<Record<MemberRole, MemberSetting>>> };
@@ -34,6 +35,7 @@ export interface MemberDefaults {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x) => b.includes(x));
+const isCharacter = (v: unknown): v is string => isRole(v) || (typeof v === 'string' && (EXTRA_CHARACTER_IDS as readonly string[]).includes(v));
 const isRole = (v: unknown): v is MemberRole => typeof v === 'string' && (MEMBER_ROLES as readonly string[]).includes(v);
 
 /**
@@ -61,7 +63,7 @@ export class TeamSettings {
       if (Array.isArray(m['tools'])) s.tools = [...new Set(m['tools'].filter((t): t is string => typeof t === 'string' && ROLE_TOOLS.includes(t)))];
       if (typeof m['extraInstruction'] === 'string' && m['extraInstruction'].trim() !== '') s.extraInstruction = m['extraInstruction'].trim().slice(0, EXTRA_LIMIT);
       if (typeof m['name'] === 'string' && m['name'].trim() !== '') s.name = m['name'].trim().slice(0, NAME_LIMIT);
-      if (isRole(m['character'])) s.character = m['character'];
+      if (isCharacter(m['character'])) s.character = m['character'];
       if (Object.keys(s).length > 0) out[role] = s;
     }
     return new TeamSettings(out);
@@ -80,7 +82,7 @@ export class TeamSettings {
   }
 
   /** 팀원 하나를 바꾼다. null을 주면 그 칸을 기본값으로 되돌린다. 규칙을 어기면 이유를 알리고 바꾸지 않는다. */
-  change(role: MemberRole, patch: { readonly enabled?: boolean; readonly tier?: Tier | null; readonly effort?: Effort | null; readonly tools?: readonly string[] | null; readonly extraInstruction?: string | null; readonly name?: string | null; readonly character?: MemberRole | null }): TeamSettings {
+  change(role: MemberRole, patch: { readonly enabled?: boolean; readonly tier?: Tier | null; readonly effort?: Effort | null; readonly tools?: readonly string[] | null; readonly extraInstruction?: string | null; readonly name?: string | null; readonly character?: string | null }): TeamSettings {
     const cur = this.of(role);
     const next: { -readonly [K in keyof MemberSetting]: MemberSetting[K] } = { ...cur };
     if (patch.enabled !== undefined) {
@@ -112,7 +114,7 @@ export class TeamSettings {
       if (t.length > NAME_LIMIT) throw new TeamSettingsError(`이름은 ${NAME_LIMIT}자까지예요.`);
       put('name', t === '' ? null : t);
     } else put('name', patch.name);
-    if (patch.character !== undefined && patch.character !== null && !isRole(patch.character)) throw new TeamSettingsError('없는 캐릭터예요.');
+    if (patch.character !== undefined && patch.character !== null && !isCharacter(patch.character)) throw new TeamSettingsError('없는 캐릭터예요.');
     put('character', patch.character);
     const members = { ...this.members };
     if (Object.keys(next).length === 0) delete members[role];
@@ -165,9 +167,9 @@ export class TeamSettings {
   }
 
   /** 화면 캐릭터 덮어쓰기용: 역할 → 이름·그림 */
-  looks(): { readonly names: Readonly<Partial<Record<MemberRole, string>>>; readonly characters: Readonly<Partial<Record<MemberRole, MemberRole>>> } {
+  looks(): { readonly names: Readonly<Partial<Record<MemberRole, string>>>; readonly characters: Readonly<Partial<Record<MemberRole, string>>> } {
     const names: Partial<Record<MemberRole, string>> = {};
-    const characters: Partial<Record<MemberRole, MemberRole>> = {};
+    const characters: Partial<Record<MemberRole, string>> = {};
     for (const role of MEMBER_ROLES) {
       const s = this.of(role);
       if (s.name !== undefined) names[role] = s.name;

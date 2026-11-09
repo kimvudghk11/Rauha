@@ -65,6 +65,19 @@ describe('TeamSettings', () => {
     expect(s.toJSON()).toEqual({ members: { tester: { tier: 'opus' }, marketer: { enabled: false, tools: ['Read'] } } });
   });
 
+  it('고를 수 있는 새 캐릭터 id를 저장하고 읽는다', () => {
+    const s = TeamSettings.initial().change('tester', { character: 'penguin' });
+    expect(s.looks().characters).toEqual({ tester: 'penguin' });
+    expect(TeamSettings.from(JSON.parse(JSON.stringify(s.toJSON()))).looks().characters).toEqual({ tester: 'penguin' });
+  });
+
+  it('prototype 이름이나 모르는 캐릭터 id가 저장돼 있으면 버려 기본으로 돌아간다', () => {
+    for (const bad of ['constructor', 'toString', 'nobody']) {
+      expect(TeamSettings.from({ members: { tester: { character: bad } } }).toJSON()).toEqual({ members: {} });
+      expect(() => TeamSettings.initial().change('tester', { character: bad })).toThrow(/캐릭터/);
+    }
+  });
+
   it('저장했다 읽어도 같다', () => {
     const s = TeamSettings.initial().change('brand', { name: '이름', tier: 'haiku', extraInstruction: '짧게' });
     expect(TeamSettings.from(JSON.parse(JSON.stringify(s.toJSON()))).toJSON()).toEqual(s.toJSON());

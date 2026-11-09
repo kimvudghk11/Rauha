@@ -1,4 +1,6 @@
-import { PIXEL_CHARACTERS } from './characters-data.js';
+import { EXTRA_CHARACTER_IDS } from '../shared/character-ids.js';
+import { PIXEL_CHARACTERS, type PixelCharacter } from './characters-data.js';
+import { EXTRA_CHARACTERS } from './characters-extra.js';
 
 /**
  * 캐릭터 그림. 화면은 "역할 → 그림"을 이 파일의 spriteFor 한 곳에서만 얻는다.
@@ -36,15 +38,30 @@ export function useLooks(next: Looks): void {
   looks = next;
 }
 
-/** 바꾸기 전 원래 캐릭터(팀 설정의 캐릭터 고르기 목록이 쓴다) */
+/** 캐릭터 고르기 목록: base는 기본 22마리(역할 id), extra는 역할에 배정되지 않고 고를 수만 있는 새 캐릭터 */
+export const CHARACTER_CHOICES = { base: [...CHARACTER_ROLES] as readonly string[], extra: [...EXTRA_CHARACTER_IDS] as readonly string[] };
+
+const toSprite = (c: PixelCharacter): Sprite => ({ name: c.name, animal: c.animal, palette: c.colors, frames: c.frames });
+const own = (table: Readonly<Record<string, PixelCharacter>>, id: string): PixelCharacter | undefined => (Object.hasOwn(table, id) ? table[id] : undefined);
+
+/** 알려진 캐릭터 id(기본 22마리의 역할 id 또는 새 캐릭터 id)인지 */
+export const isCharacterId = (id: string): boolean => own(PIXEL_CHARACTERS, id) !== undefined || own(EXTRA_CHARACTERS, id) !== undefined;
+
+/** id로 캐릭터를 얻는다. 모르는 id면 오류(먼저 isCharacterId로 확인). */
+export function characterSprite(id: string): Sprite {
+  const c = own(PIXEL_CHARACTERS, id) ?? own(EXTRA_CHARACTERS, id);
+  if (c === undefined) throw new Error(`없는 캐릭터: ${id}`);
+  return toSprite(c);
+}
+
+/** 바꾸기 전 원래 캐릭터(역할 id 그대로) */
 export function defaultSprite(role: CharacterRole): Sprite {
-  const c = PIXEL_CHARACTERS[role]!;
-  return { name: c.name, animal: c.animal, palette: c.colors, frames: c.frames };
+  return toSprite(PIXEL_CHARACTERS[role]!);
 }
 
 export function spriteFor(role: CharacterRole): Sprite {
   const picked = looks.characters[role];
-  const art = defaultSprite(picked !== undefined && picked in PIXEL_CHARACTERS ? (picked as CharacterRole) : role);
+  const art = picked !== undefined && isCharacterId(picked) ? characterSprite(picked) : defaultSprite(role);
   const name = looks.names[role];
   return name === undefined ? art : { ...art, name };
 }
