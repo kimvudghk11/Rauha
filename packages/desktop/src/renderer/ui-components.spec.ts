@@ -205,3 +205,10 @@ describe('CSP(style-src)와 인라인 스타일', () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe('hidden 속성', () => {
+  it('display를 가진 부품(.btn 등)도 hidden이면 항상 사라진다', () => {
+    const rule = parseCss(read('ui.css')).find((r) => r.selector === '[hidden]');
+    expect(rule?.decls['display']).toMatch(/^none\s*!important$/);
+  });
+});

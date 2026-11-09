@@ -44,6 +44,8 @@
 .btn:hover:not(:disabled) { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
 .btn:focus-visible, .tab:focus-visible, .link:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .btn:disabled { opacity: .45; cursor: default; }
+/* display를 가진 부품(.btn 등)도 hidden이면 사라진다. 없으면 숨긴 "멈추기"·"지금 업데이트"가 그대로 보인다. */
+[hidden] { display: none !important; }
 .btn.sm { height: var(--h-sm); padding: 0 var(--s2); font-size: var(--fs-xs); }
 .btn.lg { height: var(--h-lg); padding: 0 var(--s4); font-size: var(--fs-md); }
 .btn.icon { width: var(--h-md); padding: 0; font-size: 14px; }
