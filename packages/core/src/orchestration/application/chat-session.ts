@@ -28,6 +28,7 @@ import { DesignDesk } from './design-desk.js';
 import { DocumentDesk } from './document-desk.js';
 import { ManyRepoDesk, type RepoRunner } from './many-repo-desk.js';
 import type { CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
+import { stoppedMember } from './member-stop-note.js';
 import { conversationBlock } from './prompt-blocks.js';
 import type { DesignTaskResult, TurnOutcome } from './turn-outcome.js';
 
@@ -405,7 +406,7 @@ export class ChatSession {
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     // 인프라가 바뀌었을 수 있어 앞의 같은 질문 답은 더 쓰지 않는다.
     this.answered.clear();
-    const answer = OpsReportDto.read(result.output).toAnswer();
+    const answer = stoppedMember(result)?.report(result.partial ?? null) ?? OpsReportDto.read(result.output).toAnswer();
     return this.settle('운영', input, answer, answer, started, costBefore);
   }
 
@@ -531,9 +532,10 @@ export class ChatSession {
       userStatements: [],
       records: recalls.flatMap((r) => r.neighbors.filter((n) => n.kind === 'decision' || n.kind === 'assumption').map((n) => n.text)),
     }).all();
-    const answer = dto?.answer ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.';
+    const stop = dto === null ? stoppedMember(result) : null;
+    const answer = dto?.answer ?? stop?.report(result.partial ?? null) ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.';
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: citedPaths(claims), basis }));
-    this.turns.push({ input, result: `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` });
+    this.turns.push({ input, result: stop === null ? `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` : `답을 끝내지 못함: ${stop.turnNote(result.partial ?? null)}` });
     return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light' };
   }
 

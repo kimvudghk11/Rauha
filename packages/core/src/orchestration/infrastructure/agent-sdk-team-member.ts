@@ -110,9 +110,11 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     call.signal?.addEventListener('abort', stop, { once: true });
     this.running.add(controller);
     let result: SDKResultMessage | null = null;
+    let partial: string | null = null;
     try {
       for await (const message of opened.messages) {
         if (message.type === 'result') result = message;
+        else if (message.type === 'assistant') partial = lastText(message.message.content) ?? partial;
       }
     } catch (error) {
       const detail = stderr.join('').trim().split('\n').slice(-5).join('\n');
@@ -137,9 +139,9 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const usage = toUsage(model, result);
     if (result.subtype !== 'success') {
       const error = `${result.subtype}: ${result.errors.join(' / ')}`;
-      return { output: null, error, usage, fetched, blocked: accountBlock(error) };
+      return { output: null, error, usage, fetched, blocked: accountBlock(error), partial };
     }
-    return { output: result.structured_output ?? null, error: result.structured_output === undefined ? '구조화 출력이 없습니다.' : null, usage, fetched };
+    return { output: result.structured_output ?? null, error: result.structured_output === undefined ? '구조화 출력이 없습니다.' : null, usage, fetched, partial };
   }
 
   /** 다른 폴더도 읽거나 도구 묶음을 붙이는 호출은 띄울 때의 설정이 달라서 미리 띄운 프로세스를 쓰지 않는다. */
@@ -219,6 +221,13 @@ function newSession(): Session {
 /** 미리 띄운 프로세스는 띄울 때의 설정이 고정되므로, 역할·설정·출력 형식이 모두 같을 때만 쓴다. */
 function spareKey(call: PreparedCall): string {
   return JSON.stringify([call.role, call.setting, call.outputSchema]);
+}
+
+/** assistant 메시지 내용에서 마지막 글 블록. 없으면 null. */
+function lastText(content: unknown): string | null {
+  if (!Array.isArray(content)) return null;
+  const texts = content.filter((b): b is { type: 'text'; text: string } => typeof b === 'object' && b !== null && (b as { type?: unknown }).type === 'text' && typeof (b as { text?: unknown }).text === 'string' && (b as { text: string }).text.trim() !== '');
+  return texts.length === 0 ? null : texts[texts.length - 1]!.text;
 }
 
 function emptyUsage(model: string, durationMs: number): MemberUsage {

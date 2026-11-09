@@ -1450,3 +1450,33 @@ describe('ChatSession — 분석 흐름', () => {
     expect([...memory.nodes.values()].some((n) => n.text.includes('분석: 결제가 왜 두 번 깎여?'))).toBe(true);
   });
 });
+
+describe('ChatSession — 한도에 닿아 멈춘 팀원', () => {
+  class StoppedTeam extends FakeTeam {
+    override async run(call: MemberCall): Promise<MemberResult> {
+      const ok = await super.run(call);
+      if (call.role !== 'answerer') return ok;
+      return { ...ok, output: null, error: 'error_max_turns: ', partial: 'src/a.ts까지 읽었어요', usage: { ...ok.usage, turns: 25, endReason: 'error_max_turns' } };
+    }
+  }
+
+  it('턴 한도로 멈추면 이유와 부분 결과를 답으로 보인다 ("질문을 구체적으로" 안내로 덮지 않는다)', async () => {
+    const team = new StoppedTeam({ router: [route('question')], answerer: [() => null] });
+    const out = await session({ team }).handle('전체 구조 설명해줘');
+    expect(out.kind).toBe('answer');
+    const answer = out.kind === 'answer' ? out.answer : '';
+    expect(answer).toContain('턴 한도');
+    expect(answer).toContain('src/a.ts까지 읽었어요');
+    expect(answer).not.toContain('구체적으로');
+  });
+
+  it("멈춘 이유와 마지막으로 한 일을 앞 대화에 남겨 '이어서'가 볼 수 있다", async () => {
+    const team = new StoppedTeam({ router: [route('question')], answerer: [() => null] });
+    const chat = session({ team });
+    await chat.handle('전체 구조 설명해줘');
+    await chat.handle('이어서');
+    const message = team.calls.filter((c) => c.role === 'router').at(-1)!.message;
+    expect(message).toContain('턴 한도');
+    expect(message).toContain('마지막으로 한 일: src/a.ts까지 읽었어요');
+  });
+});

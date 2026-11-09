@@ -55,6 +55,8 @@ export interface MemberResult {
   readonly fetched: readonly FetchedPage[];
   /** 계정 문제(사용 한도, 로그인 안 됨)로 막혔으면 그 내용. 다시 불러도 같은 오류라 바로 멈춘다. 아니면 null이나 없음. */
   readonly blocked?: AccountBlock | null;
+  /** 구조화 출력을 못 만들고 멈췄을 때 SDK가 마지막으로 낸 assistant 글(부분 결과). 없으면 null이나 없음. */
+  readonly partial?: string | null;
 }
 
 /**

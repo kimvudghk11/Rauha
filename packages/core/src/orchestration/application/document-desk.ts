@@ -2,6 +2,7 @@ import type { DeskHost } from './desk-host.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
 import { WRITER_SCHEMA } from './dto/schemas.js';
 import type { MemberResult, ProgressPort } from './ports.js';
+import { stoppedMember } from './member-stop-note.js';
 import { conversationBlock } from './prompt-blocks.js';
 import type { TurnOutcome } from './turn-outcome.js';
 
@@ -63,6 +64,8 @@ export class DocumentDesk {
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const report = WriterReportDto.read(result.output);
     this.host.titled(input.slice(0, 60));
+    const stop = stoppedMember(result);
+    if (stop !== null) return this.host.settle('문서를 끝내지 못함', input, stop.report(result.partial ?? null), stop.turnNote(result.partial ?? null), started, costBefore);
     return this.host.settle('문서', input, report.toAnswer(), report.files.join(', ') || '없음', started, costBefore, report.files);
   }
 
