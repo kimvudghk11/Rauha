@@ -100,7 +100,8 @@ describe('터미널 명령 실행', () => {
   it.skipIf(process.platform === 'win32' && process.env['CI'] !== undefined)('돌고 있는 명령에게 입력을 보낼 수 있다', async () => {
     const h = make();
     const id = opened(h);
-    await h.run(id, 'node -e "process.stdin.once(\'data\',d=>console.log(\'got:\'+String(d).trim()));console.log(\'ready\')"');
+    // 화살표 함수의 '>'는 yarn이 PATH 앞에 두는 node.cmd 셸에서 리다이렉션으로 읽혀 명령이 깨지므로 쓰지 않는다. 'ready'도 오류 메시지의 소스 인용과 겹치지 않게 쪼갠다.
+    await h.run(id, 'node -e "process.stdin.once(\'data\',function(d){console.log(\'got:\'+String(d).trim())});console.log(\'rea\'+\'dy\')"');
     await until(() => output(id).includes('ready'));
     await h.run(id, 'hi-there');
     await until(() => output(id).includes('got:hi-there'));
