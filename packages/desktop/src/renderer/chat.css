@@ -29,6 +29,8 @@
 
 /* 머리의 배치 토글 */
 .ltoggle { margin-left: auto; }
+.reset-conv { flex: none; white-space: nowrap; }
+.ltoggle + .reset-conv { margin-left: var(--s2); }
 
 /* 팀 방 */
 .room { flex: 0 0 auto; cursor: pointer; min-width: 0; transition: border-color .15s; overflow: hidden; }

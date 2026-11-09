@@ -33,7 +33,7 @@ body > .app  (grid: 52px 탭 막대 | 본문;  s·xs에서는 44px)
 section.chat  (grid: data-mode = xl 2열 방 · side 나란히 · rows 위아래 · xs 메인만+띠)
  ├─ .strip              (xs만) .stripchip 버튼들 [!]칩 모양 버튼이 따로 있음
  ├─ .pane.mainp         메인(팀장과 대화)
- │    ├─ .ph            머리: b 제목 · .hint · .ltoggle(배치 토글 버튼 2개) [!]
+ │    ├─ .ph            머리: b 제목 · .hint · .ltoggle(배치 토글 버튼 2개) · button.btn.sm.reset-conv「대화 초기화」(askDialog 확인 후 앞 대화·이어 일할 파일만 비우고 flash로 안내) [!]
  │    ├─ .msgs          .m(.av + .tx(.who)) · .m.me · .empty · .hand(일 카드: .dot .state .handline .go .stop .keep) [!]
  │    └─ .composer      textarea(채움, 9/10 여백) · .hint(.kbd)  · .cmd-suggest(/명령 자동완성)
  ├─ .rooms              팀 방 카드 목록

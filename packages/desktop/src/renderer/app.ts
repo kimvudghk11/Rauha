@@ -174,6 +174,7 @@ const chat = buildChat({
   deeper: (id) => window.rauha.goDeeper(id),
   answer: (id, choice) => window.rauha.answerApproval(id, choice),
   review: (id) => window.rauha.reviewApproval(id),
+  resetConversation: () => window.rauha.resetConversation(null),
 });
 function pickLayout(next: Layout): void {
   layout = next;

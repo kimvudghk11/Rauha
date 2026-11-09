@@ -28,6 +28,7 @@ const api: RauhaApi = {
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
   updateSettings: (patch) => ipcRenderer.invoke(IPC.settingsUpdate, patch),
   getUsage: () => ipcRenderer.invoke(IPC.usageGet),
+  resetConversation: (root) => ipcRenderer.invoke(IPC.conversationReset, { root }),
   listAccounts: () => ipcRenderer.invoke(IPC.accountsList),
   pickFolder: () => ipcRenderer.invoke(IPC.folderPick),
   listRepos: () => ipcRenderer.invoke(IPC.reposList),

@@ -11,6 +11,9 @@ import { el, isEnterKey } from './dom.js';
 import { needsLogin } from '../shared/claude-login.js';
 import { loginCard } from './login-view.js';
 import { characterStateOf, elapsedText } from './room.js';
+import { askDialog } from './git-common.js';
+import { flash } from './record-parts.js';
+import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { mountStage, paintOnce } from './stage.js';
 
 const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
@@ -40,6 +43,8 @@ export interface ChatActions {
   readonly intercept?: (text: string) => Promise<string | null>;
   /** `/`를 치는 동안 보일 명령 후보 */
   readonly suggest?: (text: string) => readonly Command[];
+  /** 지금 작업 폴더의 앞 대화를 비운다(기억·지식·파일은 그대로) */
+  readonly resetConversation?: () => Promise<ConversationResetResult>;
 }
 
 interface RoomEl {
@@ -67,6 +72,22 @@ export function buildChat(actions: ChatActions) {
   paintOnce(headFace, 'intake', 2);
   const layoutToggle = el('div', 'seg ltoggle');
   head.append(headFace, el('b', undefined, '메인'), el('span', 'hint', `${leadName()}에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.`), layoutToggle);
+  if (actions.resetConversation !== undefined) {
+    const resetConversation = actions.resetConversation;
+    const reset = el('button', 'btn sm reset-conv', '대화 초기화');
+    reset.title = '앞 대화와 이어 일할 파일 목록을 비워요. 기억은 남아요.';
+    reset.addEventListener('click', async () => {
+      const answer = await askDialog({ ...RESET_CONFIRM, danger: true });
+      if (!answer.ok) return;
+      reset.disabled = true;
+      try {
+        flash(resetNotice(await resetConversation()));
+      } finally {
+        reset.disabled = false;
+      }
+    });
+    head.appendChild(reset);
+  }
   const msgs = el('div', 'msgs');
   const empty = el('div', 'empty');
   const emptyFace = el('canvas', 'sp');

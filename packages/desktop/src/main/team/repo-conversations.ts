@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { FileChatSnapshots, type ChatSnapshot } from '@rauha/core';
 import { ConversationMerge } from './conversation-merge.js';
+import { ConversationResets } from './conversation-resets.js';
 
 /** 업무 하나가 연 앞 대화. base: 이어 받은 대화(없으면 null), finish: 끝난 세션의 대화를 레포 대화에 합쳐 저장 */
 export interface OpenConversation {
@@ -13,7 +14,8 @@ export interface OpenConversation {
  * 여기서는 불러오기 → 합치기 → 저장만 한다. 같은 레포의 저장은 한 줄로 세워 동시에 끝난 업무가 서로 덮어쓰지 않게 한다.
  */
 export class RepoConversations {
-  private readonly queues = new Map<string, Promise<void>>();
+  private readonly queues = new Map<string, Promise<unknown>>();
+  private readonly resets = new ConversationResets();
 
   /** dir: 대화 파일을 둘 폴더 */
   constructor(private readonly dir: string) {}
@@ -30,15 +32,29 @@ export class RepoConversations {
 
   async open(keyRoot: string): Promise<OpenConversation> {
     const files = new FileChatSnapshots(this.dir, keyRoot);
-    const base = await files.load();
+    // 초기화 표식을 먼저 받고, 대화는 저장 줄을 거쳐 읽는다(앞서 요청된 초기화가 끝난 뒤의 모습을 본다).
+    const mark = this.resets.watch(keyRoot);
+    const loaded = await this.inLine(keyRoot, () => files.load());
+    const base = loaded !== null && !ConversationMerge.isBlank(loaded) ? loaded : null;
     const merge = ConversationMerge.startingFrom(base);
     return {
       base,
-      finish: (final) => this.inLine(keyRoot, async () => files.save(merge.finishedWith(await files.load(), final))),
+      finish: (final) => this.inLine(keyRoot, () => mark.ifCurrent(async () => files.save(merge.finishedWith(await files.load(), final)))),
     };
   }
 
-  private inLine(keyRoot: string, run: () => Promise<void>): Promise<void> {
+  /** 레포 하나의 앞 대화와 이어 일할 파일 목록을 비운다. 이미 도는 업무의 결과는 이후 합치지 않는다. */
+  async clear(keyRoot: string): Promise<void> {
+    this.resets.reset(keyRoot);
+    const files = new FileChatSnapshots(this.dir, keyRoot);
+    await this.inLine(keyRoot, () => files.save(ConversationMerge.blank(new Date().toISOString())));
+  }
+
+  async clearAll(keyRoots: readonly string[]): Promise<void> {
+    await Promise.all(keyRoots.map((root) => this.clear(root)));
+  }
+
+  private inLine<T>(keyRoot: string, run: () => Promise<T>): Promise<T> {
     const key = keyRoot.replace(/\\/g, '/').toLowerCase();
     const result = (this.queues.get(key) ?? Promise.resolve()).then(run);
     this.queues.set(key, result.catch(() => undefined));

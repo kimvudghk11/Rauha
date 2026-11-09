@@ -17,6 +17,7 @@ import type { TerminalApi } from './terminal-api.js';
 import type { LoginView } from './claude-login.js';
 import type { AccountCheck } from './account-state.js';
 import type { DefaultRuleView, DefaultVariant, InfraRisk } from '@rauha/core/jobs';
+import type { ConversationResetResult } from './conversation-reset.js';
 import { ROLE_INFO, type Job, type JobBoard, type JobStatus, type MemberRole } from '@rauha/core/jobs';
 
 /** main ↔ 화면 IPC 채널. 화면은 이 채널로만 main과 이야기한다. */
@@ -40,6 +41,8 @@ export const IPC = {
   settingsGet: 'settings:get',
   settingsUpdate: 'settings:update',
   usageGet: 'usage:get',
+  /** 채팅 탭: 레포의 앞 대화(와 이어 일할 파일 목록)를 비운다. 기억·지식·사용자 파일은 그대로 */
+  conversationReset: 'conversation:reset',
   accountsList: 'accounts:list',
   folderPick: 'folder:pick',
   reposList: 'repos:list',
@@ -176,6 +179,8 @@ export interface RauhaApi {
   updateSettings(patch: SettingsPatch): Promise<Settings>;
   /** 구독 사용률(%)과 초기화 시각. 아직 못 읽었으면 null */
   getUsage(): Promise<UsageView | null>;
+  /** 앞 대화 초기화. root가 null이면 작업 폴더의 레포 전부 */
+  resetConversation(root: string | null): Promise<ConversationResetResult>;
   listAccounts(): Promise<AccountsView>;
   /** 폴더 고르기 창을 연다. 취소하면 null */
   pickFolder(): Promise<string | null>;

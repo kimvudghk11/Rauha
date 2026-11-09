@@ -14,6 +14,16 @@ export class ConversationMerge {
     private readonly baseCarried: ReadonlySet<string>,
   ) {}
 
+  /** 초기화한 레포에 남기는 빈 저장본(대화·이어 일할 파일 없음) */
+  static blank(savedAt: string): ChatSnapshot {
+    return { version: 1, turns: [], carried: [], lastTitle: null, savedAt };
+  }
+
+  /** 이어 받을 대화도 파일도 없는 저장본이면 true */
+  static isBlank(snapshot: ChatSnapshot): boolean {
+    return snapshot.turns.length === 0 && snapshot.carried.length === 0;
+  }
+
   /** 업무가 시작할 때 읽은 대화(없으면 null)로 규칙을 연다. */
   static startingFrom(base: ChatSnapshot | null): ConversationMerge {
     return new ConversationMerge(base?.turns.length ?? 0, new Set((base?.carried ?? []).map(([path]) => path)));

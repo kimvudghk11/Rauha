@@ -17,6 +17,7 @@ import { DefaultRulesStore, applyDefaultRuleOp } from './default-rules-store.js'
 import { scanWorkFolder } from './workspace/scan.js';
 import { addWorktree, cleanupLeftovers, finishWorktree } from './workspace/git-worktree.js';
 import { carryFiles } from './workspace/carry-files.js';
+import { ConversationResetDto, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { RepoConversations } from './team/repo-conversations.js';
 import { WorktreeLedger } from './workspace/worktree-ledger.js';
 import { dispatchGit } from './git/git-dispatch.js';
@@ -657,6 +658,16 @@ void app.whenReady().then(async () => {
   ipcMain.handle(IPC.usageGet, () => {
     const p = usage.current().plan;
     return p === null ? null : { session: p.session, weekly: p.weekly };
+  });
+  ipcMain.handle(IPC.conversationReset, async (_e, input: unknown): Promise<ConversationResetResult> => {
+    try {
+      const roots = ConversationResetDto.from(input).targets(folders().map((f) => f.root));
+      const profileFor = await profileResolver(home, settings.account);
+      for (const root of roots) await RepoConversations.under(profileFor(root).sessionsDir(home)).clear(root);
+      return { ok: true, cleared: roots.length };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : '대화를 비우지 못했어요.' };
+    }
   });
   registerUsageIpc(ipcMain, usage);
   ipcMain.handle(IPC.accountsList, async () => {

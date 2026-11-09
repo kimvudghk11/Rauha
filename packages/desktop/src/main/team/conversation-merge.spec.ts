@@ -12,6 +12,14 @@ const snap = (turns: string[], carried: [string, string][] = [], lastTitle: stri
 const inputs = (s: ChatSnapshot) => s.turns.map((t) => t.input);
 
 describe('ConversationMerge', () => {
+  it('초기화로 비운 저장본은 이어 받을 대화가 없는 것으로 본다', () => {
+    const blank = ConversationMerge.blank('2026-11-09T11:00:00.000Z');
+    expect(blank).toEqual({ version: 1, turns: [], carried: [], lastTitle: null, savedAt: '2026-11-09T11:00:00.000Z' });
+    expect(ConversationMerge.isBlank(blank)).toBe(true);
+    expect(ConversationMerge.isBlank(snap(['a']))).toBe(false);
+    expect(ConversationMerge.isBlank(snap([], [['a.ts', 'h1']]))).toBe(false);
+  });
+
   it('저장된 대화가 없으면 끝난 업무의 대화가 그대로 저장된다', () => {
     const merged = ConversationMerge.startingFrom(null).finishedWith(null, snap(['a'], [['a.ts', 'h1']], '제목'));
     expect(inputs(merged)).toEqual(['a']);
