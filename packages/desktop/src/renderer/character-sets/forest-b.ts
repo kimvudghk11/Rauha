@@ -7,13 +7,13 @@ export const FOREST_B: Partial<Record<CharacterRole, PixelCharacter>> = {
   writer: {
     name: "딱지",
     animal: "딱따구리",
-    colors: {"E":"#1D2B3A","W":"#FFFFFF","P":"#F7A9C2","M":"#1D2B3A","D":"#1D2B3A","B":"#F6EFE0","S":"#7B8399","H":"#FFFFFF","L":"#FFF9EC","R":"#E5484D","K":"#3B3F4F","Y":"#8E96A8","O":"#FFB347"},
+    colors: {"E":"#1D2B3A","W":"#FFFFFF","P":"#F7A9C2","M":"#1D2B3A","D":"#1D2B3A","S":"#2A2D3A","K":"#3A3D4A","L":"#FFFFFF","H":"#EFE3C6","R":"#E5484D","G":"#A7AFC2","O":"#6B7388","Y":"#8A8F9E"},
     frames: [
-      ['....SKRRKS....', '..SSKKRRKKSS..', '.SKKKBBBBKKKS.', '.SKBWEBBWEBKS.', '.SBBEEBBEEBBS.', '.SBPBYYYYBPBS.', '.SBBBBMMBBBBS.', '..SSBBBBBBSS..', '.SKKBLLLLBKKS.', '.SKHKLLLLKHKS.', '..SKKLLLLKKS..', '...OO....OO...'],
-      ['....SKRRKS....', '..SSKKRRKKSS..', '.SKKKBBBBKKKS.', '.SKBBBBBBBBKS.', '.SBBEEBBEEBBS.', '.SBPBYYYYBPBS.', '.SBBBBMMBBBBS.', '..SSBBBBBBSS..', '.SKKBLLLLBKKS.', '.SKHKLLLLKHKS.', '..SKKLLLLKKS..', '...OO....OO...'],
-      ['....SKRRKS....', '..SSKKRRKKSS..', '.SKKKBBBBKKKS.', '.SKBEEBBEEBKS.', '.SBBBBBBBBBBS.', '.SBPBYYYYBPBS.', '.SBBBMMMMBBBS.', '..SSBBBBBBSS..', '.SKKBLLLLBKKS.', '.SKHKLLLLKHKS.', '..SKKLLLLKKS..', '...OO....OO...'],
-      ['....SKRRKS....', '..SSKKRRKKSS..', '.SKKKBBBBKKKS.', '.SKBBEBBEBBKS.', '.SBBEBBBBEBBS.', '.SBPBYYYYBPBS.', '.SBBBBMMBBBBS.', '..SSBBBBBBSS..', '.SKKBLLLLBKKS.', '.SKHKLLLLKHKS.', '..SKKLLLLKKS..', '...OO....OO...'],
-      ['....SKRRKS....', '..SSKKRRKKSS..', '.SKKKBBBBKKKS.', '.SKBBBBBBBBKS.', '.SBBEEBBEEBBS.', '.SBPBYYYYBPBS.', '.SBBBBMBBBBBS.', '..SSBBBBBBSS..', '.SKKBLLLLBKKS.', '.SKHKLLLLKHKS.', '..SKKLLLLKKS..', '...OO....OO...'],
+      ['.......SSS....', '.....SSRRRSS..', '....SRRRRRRRS.', '....SRRRRRRKS.', 'SGGGSWELLKKKS.', '.OOOSEELKKKKS.', '....SHHHSLLLLS', '....SHHHSKKKKS', '....SHHHSLLLLS', '.....SHHSKKKKS', '......SSSSKKKS', '.....YY.YY.SSS'],
+      ['.......SSS....', '.....SSRRRSS..', '....SRRRRRRRS.', '....SRRRRRRKS.', 'SGGGSLLLLKKKS.', '.OOOSEELKKKKS.', '....SHHHSLLLLS', '....SHHHSKKKKS', '....SHHHSLLLLS', '.....SHHSKKKKS', '......SSSSKKKS', '.....YY.YY.SSS'],
+      ['.......SSS....', '.....SSRRRSS..', '....SRRRRRRRS.', '....SRRRRRRKS.', 'SGGGSEELLKKKS.', '.OOOSLLLKKKKS.', '....SHHHSLLLLS', '....SHHHSKKKKS', '....SHHHSLLLLS', '.....SHHSKKKKS', '......SSSSKKKS', '.....YY.YY.SSS'],
+      ['.......SSS....', '.....SSRRRSS..', '....SRRRRRRRS.', '....SRRRRRRKS.', 'SGGGSLELLKKKS.', '.OOOSELLKKKKS.', '....SHHHSLLLLS', '....SHHHSKKKKS', '....SHHHSLLLLS', '.....SHHSKKKKS', '......SSSSKKKS', '.....YY.YY.SSS'],
+      ['..............', '.....SSRRRSS..', '....SRRRRRRRS.', '....SRRRRRRKS.', 'SGGGSLLLLKKKS.', '.OOOSEELKKKKS.', '....SHHHSLLLLS', '....SHHHSKKKKS', '....SHHHSLLLLS', '.....SHHSKKKKS', '......SSSSKKKS', '.....YY.YY.SSS'],
     ],
   },
   designer: {
@@ -79,13 +79,13 @@ export const FOREST_B: Partial<Record<CharacterRole, PixelCharacter>> = {
   splitter: {
     name: "소소",
     animal: "오소리",
-    colors: {"E":"#1D2B3A","W":"#FFFFFF","P":"#F7A9C2","M":"#1D2B3A","D":"#1D2B3A","B":"#9AA0AE","S":"#6B7488","H":"#C9CEDA","L":"#F4F1EA","K":"#323646"},
+    colors: {"E":"#1D2B3A","W":"#FFFFFF","P":"#F7A9C2","M":"#1D2B3A","D":"#1D2B3A","B":"#8E95A3","S":"#4F5668","K":"#25272F","L":"#F2EFE8","C":"#C9CEDA"},
     frames: [
-      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SKKKLLLLKKKS.', '.SKKWELLWEKKS.', '.SKKEELLEEKKS.', '.SKPLLLLLLPKS.', '..SKKLMMLKKS..', '...SKLLLLKS...', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
-      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SKKKLLLLKKKS.', '.SKKLLLLLLKKS.', '.SKKEELLEEKKS.', '.SKPLLLLLLPKS.', '..SKKLMMLKKS..', '...SKLLLLKS...', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
-      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SKKKLLLLKKKS.', '.SKKEELLEEKKS.', '.SKKLLLLLLKKS.', '.SKPLLLLLLPKS.', '..SKKMMMMKKS..', '...SKLLLLKS...', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
-      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SKKKLLLLKKKS.', '.SKKLELLELKKS.', '.SKKELLLLEKKS.', '.SKPLLLLLLPKS.', '..SKKLMMLKKS..', '...SKLLLLKS...', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
-      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SKKKLLLLKKKS.', '.SKKLLLLLLKKS.', '.SKKEELLEEKKS.', '.SKPLLLLLLPKS.', '..SKKLMLLKKS..', '...SKLLLLKS...', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
+      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SBBKKLLKKBBS.', '.SBBKKLLKKBBS.', '.SBBWELLWEBBS.', '.SBBWELLWEBBS.', '.SLLKKLLKKLLS.', '..SLLKLLKLLS..', '..SLLLMMLLLS..', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
+      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SBBKKLLKKBBS.', '.SBBKKLLKKBBS.', '.SBBKKLLKKBBS.', '.SBBCCLLCCBBS.', '.SLLKKLLKKLLS.', '..SLLKLLKLLS..', '..SLLLMMLLLS..', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
+      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SBBKKLLKKBBS.', '.SBBKKLLKKBBS.', '.SBBCCLLCCBBS.', '.SBBKKLLKKBBS.', '.SLLKKLLKKLLS.', '..SLLKLLKLLS..', '..SLLMMMMLLS..', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
+      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SBBKKLLKKBBS.', '.SBBKKLLKKBBS.', '.SBBKWLLWKBBS.', '.SBBWKLLKWBBS.', '.SLLKKLLKKLLS.', '..SLLKLLKLLS..', '..SLLLMMLLLS..', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
+      ['..SS......SS..', '.SLLSSSSSSLLS.', '.SBBKKLLKKBBS.', '.SBBKKLLKKBBS.', '.SBBKKLLKKBBS.', '.SBBCCLLCCBBS.', '.SLLKKLLKKLLS.', '..SLLKLLKLLS..', '..SLLLMLLLLS..', '..SBBBLLBBBS..', '.SBBBBBBBBBBS.', '..SSS....SSS..'],
     ],
   },
 };
