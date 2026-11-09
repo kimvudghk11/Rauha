@@ -65,5 +65,5 @@
 .cset:hover { background: var(--row-hover); }
 .cset.on { border-color: var(--accent); background: var(--sel); }
 .cset b { color: var(--bright); font-size: var(--fs-md); }
-.cset-faces { display: flex; align-items: flex-end; gap: var(--s2); }
+.cset-faces { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s2); max-width: 100%; }
 .cset-faces .sp { flex: 0 0 auto; }
