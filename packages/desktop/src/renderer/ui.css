@@ -171,6 +171,7 @@ button.chip:hover { border-color: var(--accentfg); }
 /* ── 아이콘(인라인 SVG, 글꼴과 상관없이 같은 모양) · 방향 배지(↑↓) ── */
 .ico { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ico.lg { width: 20px; height: 20px; }
+.ico.fill { fill: currentColor; stroke: none; }
 .sbadge { flex: none; font-size: var(--fs-sm); font-weight: 700; line-height: 1; white-space: nowrap; }
 .sbadge.up { color: var(--green); }
 .sbadge.down { color: var(--yellow); }

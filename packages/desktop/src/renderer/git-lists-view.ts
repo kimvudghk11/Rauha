@@ -58,6 +58,7 @@ export function buildBranches(ctx: GitCtx) {
         if (tb !== null) row.appendChild(tb);
         const btn = (label: string, fn: () => void, danger = false) => {
           const x = el('button', danger ? 'btn sm danger' : 'btn sm', label);
+          if (label.includes('머지')) x.prepend(gitIcon('merge'));
           x.addEventListener('click', fn);
           row.appendChild(x);
         };

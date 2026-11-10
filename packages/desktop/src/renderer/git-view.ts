@@ -195,7 +195,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     const pr = el('button', 'btn prbtn');
     pr.disabled = !hasRemote || busy;
     pr.title = 'GitHub에서 PR 열기';
-    pr.append(gitIcon('external'), el('span', 'glabel', 'PR'));
+    pr.append(gitIcon('pr'), el('span', 'glabel', 'PR'));
     pr.addEventListener('click', async () => {
       busy = true;
       renderHead();

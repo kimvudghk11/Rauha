@@ -92,7 +92,7 @@ export function buildChanges(ctx: GitCtx) {
 
     const act = el('div', 'gact');
     const go = el('button', primaryGitAction({ staged: stagedCount, conflicts: blocked, merging: false, ahead: null, behind: null, hasRemote: false }) === 'commit' ? 'btn primary' : 'btn');
-    go.textContent = '커밋';
+    go.append(gitIcon('commit'), el('span', undefined, '커밋'));
     const sum = el('span', 'hint', '');
     const why = el('div', 'hint', '');
     act.append(go, sum);
