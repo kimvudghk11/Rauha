@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { protectedMessage } from './git-api.js';
 import { commitBlockReason, directionText, fetchedLabel, friendlyGitError, pullDoneMessage, stageSummary, subjectState, syncBadge } from './git-toolbar.js';
 
 describe('Fetch 배지 글', () => {
@@ -47,6 +48,25 @@ describe('실패 이유를 쉬운 말로', () => {
   });
   it('업스트림이 없으면 push로 연결하라고 알린다', () => {
     expect(friendlyGitError('fatal: The current branch x has no upstream branch.')).toMatch(/원격 브랜치/);
+  });
+  it('커밋에 쓸 이름·이메일이 없으면 git config로 정하라고 알린다', () => {
+    const raw = 'Author identity unknown\n\n*** Please tell me who you are.\n\nRun\n\n  git config --global user.email "you@example.com"';
+    expect(friendlyGitError(raw)).toMatch(/이름.*이메일/);
+    expect(friendlyGitError(raw)).toMatch(/git config/);
+    expect(friendlyGitError("fatal: unable to auto-detect email address (got 'a@b.(none)')")).toMatch(/이메일/);
+  });
+  it('갈라진 브랜치를 빨리감기할 수 없다는 힌트 줄들도 갈라졌다는 한 문장으로 바꾼다', () => {
+    expect(friendlyGitError("hint: Diverging branches can't be fast-forwarded, you need to either:\nhint: git merge --no-ff")).toMatch(/갈라졌/);
+    expect(friendlyGitError('fatal: Not possible to fast-forward, aborting.')).toMatch(/갈라졌/);
+  });
+  it('아직 합치지 않은 브랜치를 지우려 하면 먼저 머지하라고 알린다', () => {
+    const raw = "error: the branch 'feature/x' is not fully merged\nhint: If you are sure you want to delete it, run 'git branch -D feature/x'";
+    expect(friendlyGitError(raw)).toMatch(/합치지 않은 커밋/);
+    expect(friendlyGitError(raw)).not.toMatch(/hint/);
+  });
+  it('보호 브랜치 안내는 받침과 상관없이 맞는 조사를 쓴다', () => {
+    expect(protectedMessage('main')).toBe('main 브랜치는 보호 브랜치예요.');
+    expect(protectedMessage('release/한글')).toBe('release/한글 브랜치는 보호 브랜치예요.');
   });
   it('모르는 문장은 첫 줄을 그대로 둔다', () => {
     expect(friendlyGitError('something odd\nsecond')).toBe('something odd');

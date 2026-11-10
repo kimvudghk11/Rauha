@@ -20,16 +20,26 @@ export function pullDoneMessage(received: number | null): string {
   return received > 0 ? `새 커밋 ${received}개를 받았어요.` : '이미 최신이에요.';
 }
 
+/** 원격이 아닌 로컬 git 작업(커밋·전환·머지·브랜치 삭제)이 실패한 이유를 쉬운 말로. 아는 모양이 아니면 null. */
+export function knownLocalGitError(raw: string): string | null {
+  const t = raw.trim();
+  if (/Author identity unknown|unable to auto-detect email|empty ident name|Please tell me who you are/i.test(t)) return '커밋에 쓸 이름과 이메일이 아직 없어요. 터미널에서 git config --global user.name "내 이름" 과 git config --global user.email "내 메일" 을 한 번 실행한 뒤 다시 눌러 주세요.';
+  if (/not fully merged/i.test(t)) return '아직 합치지 않은 커밋이 있는 브랜치라서 지우지 않았어요. 먼저 머지하거나, 정말 필요 없다면 터미널에서 git branch -D 로 지워 주세요.';
+  if (/would be overwritten|commit your changes or stash/i.test(t)) return '아직 커밋하지 않은 내 변경이 덮어써질 수 있어요. 먼저 커밋하거나 변경을 정리해 주세요.';
+  return null;
+}
+
 /** git이 내는 영어 오류를 쉬운 한국어 한두 문장으로. 아는 모양이 아니면 null. */
 export function knownGitError(raw: string): string | null {
   const t = raw.trim();
+  const local = knownLocalGitError(t);
+  if (local !== null) return local;
   if (/non-fast-forward|rejected|fetch first|contains work that you do not have/i.test(t)) return '원격에 내 컴퓨터에 없는 새 커밋이 있어서 올릴 수 없어요. 먼저 pull로 받아 합친 뒤 다시 push해 주세요.';
   if (/Authentication failed|could not read Username|invalid credentials/i.test(t)) return '로그인(인증)이 안 됐어요. GitHub 로그인 정보나 토큰을 확인해 주세요.';
   if (/Permission denied|publickey|access denied|403/i.test(t)) return '이 저장소에 올릴 권한이 없거나 접속 열쇠(SSH 키)가 맞지 않아요.';
   if (/Could not resolve host|unable to access|Network is unreachable|timed out|Connection refused/i.test(t)) return '원격에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.';
-  if (/would be overwritten|commit your changes or stash/i.test(t)) return '아직 커밋하지 않은 내 변경이 덮어써질 수 있어요. 먼저 커밋하거나 변경을 정리해 주세요.';
   if (/no upstream branch|has no upstream/i.test(t)) return '이 브랜치에는 연결된 원격 브랜치가 없어요. push를 누르면 새로 만들어 연결해요.';
-  if (/Not possible to fast-forward|diverged/i.test(t)) return '내 브랜치와 원격 브랜치가 서로 갈라졌어요. 병합으로 합칠 수 있어요.';
+  if (/Not possible to fast-forward|diverged|Diverging branches|can't be fast-forwarded/i.test(t)) return '내 브랜치와 원격 브랜치가 서로 갈라졌어요. 병합으로 합칠 수 있어요.';
   return null;
 }
 

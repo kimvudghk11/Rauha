@@ -6,7 +6,7 @@ import { FileDiff, type PatchMode, type Selection } from '../../shared/git-diff.
 import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath } from '../../shared/git-guard.js';
 import { BRANCH_FORMAT, branchView, LOG_FORMAT, LOG_LIMIT, parseBranches, parseLog } from '../../shared/git-lists.js';
 import { parseWorktrees, type WorktreeView } from '../../shared/git-worktrees.js';
-import { knownGitError, pullDoneMessage } from '../../shared/git-toolbar.js';
+import { knownGitError, knownLocalGitError, pullDoneMessage } from '../../shared/git-toolbar.js';
 import { assertPlainFile } from './safe-file.js';
 import { belongsToRepo } from './worktree-owner.js';
 import { GitFailure, mustGit, runGit } from './git-run.js';
@@ -90,9 +90,23 @@ export class GitRepo {
     }
   }
 
+  /** 로컬 git 작업이 실패하면 git의 영어 이유를 쉬운 말로 바꿔 던진다(아는 모양일 때만) */
+  private async local<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (e) {
+      if (e instanceof GitFailure) {
+        const easy = knownLocalGitError(e.message);
+        if (easy !== null) throw new GitFailure(e.code, easy);
+      }
+      throw e;
+    }
+  }
+
   async overview(): Promise<Overview> {
-    const s = await this.status();
-    return { branch: s.branch, upstream: s.upstream, ahead: s.ahead, behind: s.behind, files: s.views(), merging: await this.isMerging(), hasRemote: (await this.remoteName()) !== null, fetchedAt: await this.fetchedAt(), staged: await this.stagedLines() };
+    // 서로 기다릴 필요 없는 git 호출은 한꺼번에 돌린다(윈도우는 프로세스 하나 띄우는 데 100ms 안팎이 든다)
+    const [s, merging, remote, fetchedAt, staged] = await Promise.all([this.status(), this.isMerging(), this.remoteName(), this.fetchedAt(), this.stagedLines()]);
+    return { branch: s.branch, upstream: s.upstream, ahead: s.ahead, behind: s.behind, files: s.views(), merging, hasRemote: remote !== null, fetchedAt, staged };
   }
 
   async diff(path: string, side: 'staged' | 'unstaged'): Promise<DiffView> {
@@ -146,7 +160,7 @@ export class GitRepo {
     const title = subject.trim();
     if (title === '') throw new GitFailure('INVALID', '커밋 제목을 적어 주세요.');
     if (!(await this.status()).files.some((f) => f.isStaged())) throw new GitFailure('INVALID', '스테이지한 파일이 없어요.');
-    await this.git(['commit', '-q', '-m', title, ...(body.trim() === '' ? [] : ['-m', body.trim()])]);
+    await this.local(() => this.git(['commit', '-q', '-m', title, ...(body.trim() === '' ? [] : ['-m', body.trim()])]));
     const hash = (await this.git(['rev-parse', 'HEAD'])).trim();
     return ok(`커밋했어요 ${hash.slice(0, 7)}  ${title}`, { hash });
   }
@@ -198,7 +212,7 @@ export class GitRepo {
   async switchBranch(name: string): Promise<Done> {
     const n = BranchName.parse(name).value;
     const remoteOnly = (await runGit(this.root, ['rev-parse', '-q', '--verify', `refs/remotes/${n}`])).code === 0 && (await runGit(this.root, ['rev-parse', '-q', '--verify', `refs/heads/${n}`])).code !== 0;
-    await mustGit(this.root, remoteOnly ? ['switch', '--track', n] : ['switch', n], undefined, 'BLOCKED');
+    await this.local(() => mustGit(this.root, remoteOnly ? ['switch', '--track', n] : ['switch', n], undefined, 'BLOCKED'));
     return ok(`${n} 브랜치로 옮겼어요.`);
   }
 
@@ -223,7 +237,7 @@ export class GitRepo {
     const n = BranchName.parse(name).value;
     if (n === (await this.currentBranch())) throw new GitFailure('BLOCKED', '지금 있는 브랜치는 지울 수 없어요.');
     if (this.protectedBranches.has(n)) throw new GitFailure('BLOCKED', `${protectedMessage(n)} 지우지 않아요.`);
-    await mustGit(this.root, ['branch', '-d', n], undefined, 'BLOCKED');
+    await this.local(() => mustGit(this.root, ['branch', '-d', n], undefined, 'BLOCKED'));
     return ok(`${n} 브랜치를 지웠어요.`);
   }
 
@@ -313,7 +327,7 @@ export class GitRepo {
   async finishMerge(): Promise<Done> {
     if (!(await this.isMerging())) throw new GitFailure('INVALID', '진행 중인 머지가 없어요.');
     if ((await this.mergeState()).conflicts.length > 0) throw new GitFailure('BLOCKED', '아직 풀지 않은 충돌이 있어요.');
-    await this.git(['commit', '--no-edit', '-q']);
+    await this.local(() => this.git(['commit', '--no-edit', '-q']));
     return ok('머지를 마쳤어요.');
   }
 
