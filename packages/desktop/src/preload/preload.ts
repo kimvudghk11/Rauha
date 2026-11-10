@@ -42,6 +42,7 @@ const api: RauhaApi = {
   listRules: () => ipcRenderer.invoke(IPC.rulesList),
   addRule: (rule) => ipcRenderer.invoke(IPC.rulesAdd, rule),
   removeRule: (id) => ipcRenderer.invoke(IPC.rulesRemove, id),
+  updateRule: (rule) => ipcRenderer.invoke(IPC.rulesUpdate, rule),
   reviewApproval: (id) => ipcRenderer.invoke(IPC.approvalReview, id),
   answerApproval: (id, choice) => ipcRenderer.send(IPC.approvalAnswer, id, choice),
   platform: process.platform,

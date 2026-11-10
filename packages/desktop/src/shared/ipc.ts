@@ -61,6 +61,7 @@ export const IPC = {
   rulesList: 'rules:list',
   rulesAdd: 'rules:add',
   rulesRemove: 'rules:remove',
+  rulesUpdate: 'rules:update',
   /** main → 화면: 알림을 눌러 그 작업의 팀 상세를 열어 달라 */
   openJob: 'ui:open-job',
   /** main → 화면: 앱 메뉴(Cmd+,)에서 탭을 열어 달라 */
@@ -202,6 +203,8 @@ export interface RauhaApi {
   /** 규칙을 더한다. 규칙이 안 맞으면 이유를 돌려준다(저장하지 않는다). */
   addRule(rule: RuleView): Promise<RulesResult>;
   removeRule(id: string): Promise<readonly RuleView[]>;
+  /** 같은 번호의 규칙을 제자리에서 고친다 */
+  updateRule(rule: RuleView): Promise<RulesResult>;
   onOpenJob(listener: (jobId: string) => void): void;
   onOpenTab(listener: (tab: string) => void): void;
   onFullScreen(listener: (on: boolean) => void): void;

@@ -112,19 +112,20 @@
 .dl.meta { color: var(--dim); }
 
 /* 규칙 탭 */
-.rules { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 12px; min-width: 0; min-height: 0; overflow: auto; }
-.rhead { display: flex; align-items: baseline; gap: 10px; }
-.rhead b { color: var(--bright); font-size: 16px; }
-.ruleform { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
-.ruleform .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.rules { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3); min-width: 0; min-height: 0; overflow: auto; }
+.rhead { display: flex; align-items: center; gap: var(--s3); }
+.rhead b { color: var(--bright); font-size: var(--fs-lg); font-weight: 600; }
+.ruleform { padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); flex: 0 0 auto; }
+.ruleform .row { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
 .ruleform .row:first-child input { flex: 1; }
 .ruleform .row:nth-child(2) input { flex: 1 1 160px; }
-.ruleform .err { color: var(--red); font-size: 12px; min-height: 0; }
-.rcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; min-height: 0; align-items: start; }
+.ruleform .err { min-height: 0; }
+.rcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); min-height: 0; align-items: start; }
 .app[data-tier=s] .rcols, .app[data-tier=xs] .rcols { grid-template-columns: minmax(0, 1fr); }
-.rcol { padding-bottom: 8px; }
+.rcol { padding-bottom: var(--s3); }
 .rule { margin: var(--s2) var(--s3) 0; display: flex; flex-direction: column; gap: var(--s2); }
-.rule .meta { display: flex; gap: 5px; flex-wrap: wrap; }
+.rule .meta { display: flex; gap: var(--s1); flex-wrap: wrap; }
+.rule.editing input, .rule.editing select, .rule.editing textarea { width: 100%; }
 .rule .btn { align-self: flex-start; }
 
 /* 설정·마법사·한도 막대 */
@@ -157,7 +158,7 @@
 .m .tx .kn { margin-top: 6px; font-size: 11px; color: var(--muted); }
 .m .tx .deeper, .m .tx .retry { margin-top: 6px; display: flex; width: fit-content; }
 
-.ruletalk { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.ruletalk { padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); flex: 0 0 auto; }
 
 /* Claude 로그인 칸(설정·첫 실행·오류 카드) */
 .login { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 0 0 2px; }

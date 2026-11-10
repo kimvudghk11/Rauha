@@ -209,6 +209,10 @@ const SCENES = [
   ['bug-done', 'chat', [q('.bug-open'), typeInto('.bug-title', '해결할 메모'), byText('.bugs .btn', '적어 두기'), byText('.bugs .btn', '해결'), byText('.bugs .tab', '해결')]],
   ['commands', 'commands', [byText('button', '자세히')]],
   ['rules', 'rules', []],
+  // 내 규칙을 하나 넣고 제자리 고치기 칸을 연다(그 규칙 카드에서 Edit)
+  // 고친 글을 넣고 Save를 연달아 두 번 눌러도 한 번만 저장되고 카드에 새 글이 보인다
+  ['rules-edit-save', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[6].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); const i = document.querySelector('.rule.editing input'); i.value = '고친 규칙 글'; i.dispatchEvent(new Event('input', { bubbles: true })); const s = [...document.querySelectorAll('.rule.editing .btn')].find((n) => n.textContent === 'Save'); s.click(); s.click(); await new Promise((r) => setTimeout(r, 600)); document.body.dataset.ruleCards = String([...document.querySelectorAll('.rule:not(.default)')].map((n) => n.firstChild.textContent)); })() /* querySelector */"]],
+  ['rules-edit', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[6].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); })() /* querySelector */"]],
   ['settings', 'settings', [byText('button', '자세히')]],
 ];
 const SCENE_FILTER = process.env.MEASURE_SCENES ? process.env.MEASURE_SCENES.split(',') : null;

@@ -34,3 +34,21 @@ export function ruleFromForm(form: RuleForm, newId: () => string): FormResult {
   const scope = form.scope === 'global' ? ({ kind: 'global' } as const) : ({ kind: form.scope, path: form.path.trim() } as const);
   return { ok: true, rule: { id: newId(), text, bucket: form.bucket, scope, tools: form.tool === '' ? [] : [form.tool], includes: form.bucket === 'always' ? [] : includes } };
 }
+
+/** 규칙 → 고치는 칸 값(ruleFromForm의 반대). 제자리에서 고칠 때 칸을 미리 채운다. */
+export function ruleToForm(rule: RuleView): RuleForm {
+  return {
+    text: rule.text,
+    bucket: rule.bucket,
+    scope: rule.scope.kind,
+    path: rule.scope.kind === 'global' ? '' : rule.scope.path,
+    includes: rule.includes.join(', '),
+    tool: rule.tools[0] ?? '',
+  };
+}
+
+/** 같은 번호의 규칙을 그 자리에서 바꾼 목록. 그 번호가 없으면(그 사이에 지웠으면) null. */
+export function replaceRule(rules: readonly RuleView[], next: RuleView): RuleView[] | null {
+  if (!rules.some((r) => r.id === next.id)) return null;
+  return rules.map((r) => (r.id === next.id ? next : r));
+}

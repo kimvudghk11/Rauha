@@ -7,6 +7,7 @@ import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
+import { replaceRule, type RuleView } from '../shared/rules-form.js';
 import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
@@ -783,6 +784,19 @@ void app.whenReady().then(async () => {
   ipcMain.handle(IPC.rulesAdd, async (_e, rule: unknown) => {
     try {
       const next = RuleBookDto.from({ rules: [...rulesView(), rule] }).toEntity();
+      await ruleStore.save(next);
+      ruleBook = next;
+      return { ok: true, rules: rulesView() };
+    } catch (error) {
+      return { ok: false, error: error instanceof DomainError ? error.message : '규칙을 저장하지 못했어요.' };
+    }
+  });
+  ipcMain.handle(IPC.rulesUpdate, async (_e, rule: unknown) => {
+    try {
+      const id = (rule as { id?: unknown } | null)?.id;
+      const replaced = typeof id === 'string' ? replaceRule(rulesView(), rule as RuleView) : null;
+      if (replaced === null) return { ok: false, error: '고치려던 규칙이 없어요. 지웠거나 이미 바뀌었어요.' };
+      const next = RuleBookDto.from({ rules: replaced }).toEntity();
       await ruleStore.save(next);
       ruleBook = next;
       return { ok: true, rules: rulesView() };

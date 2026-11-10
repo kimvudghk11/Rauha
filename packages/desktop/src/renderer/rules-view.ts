@@ -2,8 +2,8 @@ import type { RuleBucket } from '@rauha/core/jobs';
 import type { DefaultRuleView } from '@rauha/core/jobs';
 import { variantsFromText, variantsToText } from '../shared/default-rules-form.js';
 import type { DefaultRuleOp, DefaultRulesResult } from '../shared/ipc.js';
-import { ruleFromForm, type RuleView } from '../shared/rules-form.js';
-import { el } from './dom.js';
+import { ruleFromForm, ruleToForm, type RuleView } from '../shared/rules-form.js';
+import { el, isEnterKey } from './dom.js';
 
 const COLUMNS: readonly { bucket: RuleBucket; title: string; hint: string }[] = [
   { bucket: 'always', title: '항상 지킬 것', hint: '팀원 프롬프트에 들어가요.' },
@@ -17,7 +17,7 @@ const SCOPE_LABEL = (r: RuleView): string => (r.scope.kind === 'global' ? '전�
  * 규칙 탭: 칸 셋(항상 지킬 것 / 묻지 않고 할 것 / 꼭 허락받을 것)과 범위(전체·작업 폴더·폴더).
  * 묻지 않음·허락 규칙은 명령이나 경로에서 찾을 글로 판정한다. 비밀 파일·역할 권한·git push 거절은 규칙보다 앞서 늘 지켜진다.
  */
-export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]>; defaults?: { list: () => Promise<readonly DefaultRuleView[]>; apply: (op: DefaultRuleOp) => Promise<DefaultRulesResult> } }) {
+export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]>; update?: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; defaults?: { list: () => Promise<readonly DefaultRuleView[]>; apply: (op: DefaultRuleOp) => Promise<DefaultRulesResult> } }) {
   const root = el('section', 'rules');
   const head = el('div', 'rhead');
   head.append(el('b', undefined, 'Rules'), el('span', 'hint', '내 규칙을 적어 두면 팀원이 따라요. 비밀 파일과 git push 거절은 규칙과 상관없이 늘 지켜져요.'));
@@ -67,6 +67,8 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
   let defaults: readonly DefaultRuleView[] = [];
   let editingDefault: string | null = null;
   let mine: readonly RuleView[] = [];
+  /** 제자리에서 고치는 중인 내 규칙 번호 */
+  let editingRule: string | null = null;
   root.append(head, talk, form, grid, el('div', 'rfoot'));
   root.lastElementChild!.append(defaultsNote, resetAll);
 
@@ -125,6 +127,87 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
     return card;
   }
 
+  /** 내 규칙을 그 자리에서 고치는 카드: 칸을 미리 채우고 Save·Cancel(Enter는 저장, Esc는 취소). 저장 중에는 단추를 잠가 중복 클릭이 한 번만 저장된다. */
+  function ruleEditCard(r: RuleView): HTMLElement {
+    const f = ruleToForm(r);
+    const card = el('div', 'item rule editing');
+    const t = el('input');
+    t.value = f.text;
+    t.setAttribute('aria-label', 'Rule text');
+    const b = el('select');
+    for (const c of COLUMNS) b.appendChild(new Option(c.title, c.bucket));
+    b.value = f.bucket;
+    const s = el('select');
+    s.append(new Option('범위: 전체', 'global'), new Option('범위: 작업 폴더', 'workspace'), new Option('범위: 특정 폴더', 'folder'));
+    s.value = f.scope;
+    const p = el('input');
+    p.placeholder = '폴더 경로';
+    p.value = f.path;
+    const tl = el('select');
+    tl.append(new Option('모든 도구', ''), new Option('Bash(명령)', 'Bash'), new Option('Write·Edit(파일)', 'Write'));
+    tl.value = f.tool;
+    const inc = el('input');
+    inc.placeholder = '찾을 글(쉼표로 여러 개)';
+    inc.value = f.includes;
+    const sync = (): void => {
+      p.hidden = s.value === 'global';
+      inc.hidden = b.value === 'always';
+      tl.hidden = b.value === 'always';
+    };
+    sync();
+    s.addEventListener('change', sync);
+    b.addEventListener('change', sync);
+    const err = el('div', 'err');
+    const save = el('button', 'btn primary', 'Save');
+    save.type = 'button';
+    const cancel = el('button', 'btn', 'Cancel');
+    cancel.type = 'button';
+    let saving = false;
+    const doSave = (): void => {
+      if (saving || api.update === undefined) return;
+      const made = ruleFromForm({ text: t.value, bucket: b.value as RuleBucket, scope: s.value as 'global' | 'workspace' | 'folder', path: p.value, includes: inc.value, tool: tl.value }, () => r.id);
+      if (!made.ok) {
+        err.textContent = made.error;
+        return;
+      }
+      saving = true;
+      save.disabled = true;
+      cancel.disabled = true;
+      void api.update(made.rule).then((res) => {
+        if (!res.ok) {
+          saving = false;
+          save.disabled = false;
+          cancel.disabled = false;
+          err.textContent = res.error;
+          return;
+        }
+        editingRule = null;
+        render(res.rules);
+      });
+    };
+    const doCancel = (): void => {
+      if (saving) return;
+      editingRule = null;
+      render(mine);
+    };
+    save.addEventListener('click', doSave);
+    cancel.addEventListener('click', doCancel);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        doCancel();
+      } else if (isEnterKey(e) && (e.target instanceof HTMLInputElement)) {
+        e.preventDefault();
+        doSave();
+      }
+    });
+    const row = el('div', 'row');
+    row.append(save, cancel);
+    card.append(t, b, s, p, tl, inc, err, row);
+    queueMicrotask(() => t.focus());
+    return card;
+  }
+
   async function apply(op: DefaultRuleOp, err?: HTMLElement): Promise<void> {
     const res = await api.defaults!.apply(op);
     if (!res.ok) {
@@ -156,14 +239,28 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
       for (const d of defaults.filter((x) => x.bucket === col.bucket)) pane.appendChild(defaultCard(d));
       if (own.length === 0 && defaults.every((d) => d.bucket !== col.bucket)) pane.appendChild(el('div', 'dim pad', '아직 없어요.'));
       for (const r of own) {
+        if (editingRule === r.id) {
+          pane.appendChild(ruleEditCard(r));
+          continue;
+        }
         const card = el('div', 'item rule');
         card.appendChild(el('div', undefined, r.text));
         const meta = el('div', 'meta');
         meta.appendChild(el('span', 'chip', SCOPE_LABEL(r)));
         if (r.includes.length > 0) meta.appendChild(el('span', 'chip', `${r.tools.join('·') || '모든 도구'}: ${r.includes.join(' + ')}`));
-        const del = el('button', 'btn sm danger', '지우기');
+        const del = el('button', 'btn sm danger', 'Delete');
         del.addEventListener('click', () => void api.remove(r.id).then(render));
-        card.append(meta, del);
+        const acts = el('div', 'row');
+        if (api.update !== undefined) {
+          const edit = el('button', 'btn sm', 'Edit');
+          edit.addEventListener('click', () => {
+            editingRule = r.id;
+            render(mine);
+          });
+          acts.append(edit);
+        }
+        acts.append(del);
+        card.append(meta, acts);
         pane.appendChild(card);
       }
       grid.appendChild(pane);
