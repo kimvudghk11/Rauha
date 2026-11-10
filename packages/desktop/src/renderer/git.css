@@ -48,9 +48,9 @@ textarea.ginput, input.ginput { width: 100%; }
 .gconfside { border-left: 3px solid transparent; padding: 2px 0; }
 .gconfside .gconfcode { color: var(--text); }
 .gconfwho { padding: 0 var(--s3); font-weight: 600; }
-.gconfside.ours { background: #16283a; border-left-color: var(--accent); } .gconfside.ours .gconfwho { color: var(--accentfg); }
-.gconfside.theirs { background: #33290f; border-left-color: var(--yellow); } .gconfside.theirs .gconfwho { color: var(--yellow); }
-.btn.gours { border-left: 3px solid var(--accent); } .btn.gtheirs { border-left: 3px solid var(--yellow); }
+.gconfside.ours { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); border-left-color: var(--accent); } .gconfside.ours .gconfwho { color: var(--accentfg); }
+.gconfside.theirs { background: color-mix(in srgb, var(--yellow) 16%, var(--bg)); border-left-color: var(--yellow); } .gconfside.theirs .gconfwho { color: var(--yellow); }
+.gours::before, .gtheirs::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; } .gours::before { background: var(--accent); } .gtheirs::before { background: var(--yellow); }
 .gconf { flex: 1; min-height: 300px; width: 100%; border: none; border-radius: 0; font-family: var(--mono); font-size: 12px; white-space: pre; resize: none; }
 
 /* 동기화 툴바(Fetch·Pull·Push): 배치만 정한다. 좁으면 글자는 숨기고 아이콘과 ↑↓ 숫자만 남는다 */
