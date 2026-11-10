@@ -61,57 +61,100 @@ export async function offerTerminalCleanup(): Promise<void> {
   document.body.appendChild(veil);
 }
 
+interface WizardApi {
+  pickFolder(): Promise<string | null>;
+  accounts(): Promise<{ names: readonly string[] }>;
+  auth?: AuthApi;
+  /** 폴더 안에서 찾은 레포 목록(작업 폴더로 저장된 뒤에 읽는다). 없으면 레포 경고를 건너뛴다. */
+  listRepos?(): Promise<readonly { readonly kind: string }[]>;
+  update(patch: { workFolder?: string; folderApproved?: boolean; account?: string | null; firstRunDone?: boolean }): Promise<unknown>;
+}
+
 /**
- * 첫 실행 마법사: 작업 폴더 고르기 → 그 폴더에서 일해도 되는지 허락 → 계정 고르기 → 정보 저장(건너뛰기, 곧).
+ * 첫 실행 마법사: 작업 폴더 고르기 → 그 폴더에서 일해도 되는지 허락 → 계정 고르기.
+ * 단계마다 첫 단추에 포커스가 가고, Esc는 한 단계 앞으로 돌아간다(1단계에서는 아무것도 안 한다).
  * 끝나면 설정에 저장하고 resolve한다. 폴더를 고르고 허락하기 전에는 일을 맡길 수 없다.
  */
-export function runWizard(api: { pickFolder(): Promise<string | null>; accounts(): Promise<{ names: readonly string[] }>; auth?: AuthApi; update(patch: { workFolder?: string; folderApproved?: boolean; account?: string | null; firstRunDone?: boolean }): Promise<unknown> }): Promise<void> {
+export function runWizard(api: WizardApi): Promise<void> {
   return new Promise((resolve) => {
     const veil = el('div', 'veil');
     const box = el('div', 'dialog wizard');
     veil.appendChild(box);
     document.body.appendChild(veil);
     let folder: string | null = null;
+    /** Esc를 눌렀을 때 돌아갈 곳(1단계는 없음) */
+    let goBack: (() => void) | null = null;
+    veil.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || goBack === null) return;
+      e.preventDefault();
+      goBack();
+    });
+    const focusFirst = (target: HTMLElement) => queueMicrotask(() => target.focus());
+    const row = (...children: HTMLElement[]) => {
+      const r = el('div', 'btns');
+      r.append(...children);
+      return r;
+    };
 
     const folderStep = () => {
+      goBack = null;
       const pick = el('button', 'btn primary', '폴더 고르기');
       const next = el('button', 'btn', '다음');
-      next.disabled = true;
-      const shown = el('div', 'dim', '아직 안 골랐어요.');
+      next.disabled = folder === null;
+      const shown = el('div', 'dim path', folder ?? '아직 안 골랐어요.');
       pick.addEventListener('click', async () => {
         const p = await api.pickFolder();
         if (p === null) return;
         folder = p;
         shown.textContent = p;
         next.disabled = false;
+        next.classList.add('primary');
+        next.focus();
       });
-      next.addEventListener('click', approveStep);
+      next.addEventListener('click', () => void approveStep());
       box.replaceChildren(el('b', undefined, '1/3 · 일할 폴더를 골라요'), el('p', undefined, '레포와 문서 폴더가 들어 있는 폴더 하나를 골라 주세요. rauha가 그 안을 훑어서 레포와 문서 폴더를 알아서 구분해요. 파일 내용은 일을 맡았을 때 필요한 만큼만 읽어요.'), shown, row(pick, next));
+      focusFirst(pick);
     };
-    const approveStep = () => {
+    const approveStep = async () => {
+      goBack = folderStep;
       const yes = el('button', 'btn primary', '허락해요');
       const back = el('button', 'btn', '다른 폴더 고르기');
-      yes.addEventListener('click', accountStep);
+      const warn = el('p', 'warn-note');
+      warn.hidden = true;
+      yes.addEventListener('click', () => void accountStep());
       back.addEventListener('click', folderStep);
-      box.replaceChildren(el('b', undefined, '2/3 · 이 폴더에서 일해도 될까요?'), el('p', undefined, `${folder ?? ''}\n팀원이 이 안의 파일을 읽고 고칠 수 있어요. 위험한 일(보호 브랜치 push, 운영 인프라 변경 등)은 그때마다 허락을 물어요.`), row(yes, back));
+      box.replaceChildren(el('b', undefined, '2/3 · 이 폴더에서 일해도 될까요?'), el('div', 'dim path', folder ?? ''), el('p', undefined, '팀원이 이 안의 파일을 읽고 고칠 수 있어요. 위험한 일(보호 브랜치 push, 운영 인프라 변경 등)은 그때마다 허락을 물어요.'), warn, row(yes, back));
+      focusFirst(yes);
+      // 레포가 하나도 없는 폴더면 미리 알린다(코드 작업은 레포가 있어야 한다)
+      if (api.listRepos === undefined || folder === null) return;
+      try {
+        await api.update({ workFolder: folder });
+        const found = await api.listRepos();
+        if (found.some((r) => r.kind === 'repo')) return;
+        warn.textContent = '이 폴더에서 git 레포를 찾지 못했어요. 질문·문서 일은 할 수 있지만 코드 작업은 레포가 있는 폴더가 필요해요. 다른 폴더를 고르거나 그대로 진행해도 돼요.';
+        warn.hidden = false;
+      } catch {
+        /* 확인 못 하면 경고 없이 진행한다 */
+      }
     };
     const accountStep = async () => {
+      goBack = () => void approveStep();
       const { names } = await api.accounts();
       const select = el('select');
       select.appendChild(new Option('폴더 규칙에 맡기기(기본)', ''));
       for (const n of names) select.appendChild(new Option(n, n));
       const done = el('button', 'btn primary', '시작하기');
+      const prev = el('button', 'btn', '이전');
+      prev.addEventListener('click', () => void approveStep());
       done.addEventListener('click', async () => {
+        if (done.disabled) return;
+        done.disabled = true;
         await api.update({ ...(folder !== null ? { workFolder: folder } : {}), folderApproved: true, account: select.value === '' ? null : select.value, firstRunDone: true });
         veil.remove();
         resolve();
       });
-      box.replaceChildren(el('b', undefined, '3/3 · 쓸 Claude 계정'), el('p', undefined, '쓸 계정을 골라요. 아직 로그인하지 않았다면 아래 버튼으로 브라우저에서 로그인해요. 토큰은 읽지 않아요. 정보 저장(내 AWS)은 곧 열려요 — 지금은 건너뛰어요.'), select, ...(api.auth === undefined ? [] : [createLoginControl(api.auth).root]), row(done));
-    };
-    const row = (...children: HTMLElement[]) => {
-      const r = el('div', 'btns');
-      r.append(...children);
-      return r;
+      box.replaceChildren(el('b', undefined, '3/3 · 쓸 Claude 계정'), el('p', undefined, '쓸 계정을 골라요. 아직 로그인하지 않았다면 아래 버튼으로 브라우저에서 로그인해요. 토큰은 읽지 않아요.'), select, ...(api.auth === undefined ? [] : [createLoginControl(api.auth).root]), row(prev, done));
+      focusFirst(select);
     };
     folderStep();
   });

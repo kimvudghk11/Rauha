@@ -42,7 +42,8 @@
   font: inherit; font-size: var(--fs-sm); line-height: 1; font-weight: 400; text-align: center; white-space: nowrap; cursor: pointer; user-select: none;
 }
 .btn:hover:not(:disabled) { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
-.btn:focus-visible, .tab:focus-visible, .link:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.btn:focus-visible, .tab:focus-visible, .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:where(input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .btn:disabled { opacity: .45; cursor: default; }
 /* display를 가진 부품(.btn 등)도 hidden이면 사라진다. 없으면 숨긴 "멈추기"·"지금 업데이트"가 그대로 보인다. */
 [hidden] { display: none !important; }

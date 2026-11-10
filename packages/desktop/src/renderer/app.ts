@@ -278,7 +278,7 @@ void (async () => {
   chrome.setFolder(settings.workFolder);
   if (settings.layout !== layout) pickLayout(settings.layout);
   if (!settings.firstRunDone) {
-    await runWizard({ pickFolder: () => window.rauha.pickFolder(), accounts: () => window.rauha.listAccounts(), auth: window.rauha.auth, update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)) });
+    await runWizard({ pickFolder: () => window.rauha.pickFolder(), accounts: () => window.rauha.listAccounts(), listRepos: () => window.rauha.listRepos(), auth: window.rauha.auth, update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)) });
   }
   await offerTerminalCleanup();
 })();

@@ -457,6 +457,9 @@ export function buildChat(actions: ChatActions) {
   function approvalCard(a: ApprovalView): HTMLElement {
     if (a.ask !== null) return askCard(a, actions.answer);
     const card = el('div', `approval ${a.summary.kind}`);
+    card.tabIndex = 0;
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-label', '허락 요청');
     card.appendChild(el('div', 'ah', `허락이 필요해요 · ${a.summary.headline}`));
     card.appendChild(el('div', 'who', `요청한 팀원: ${a.roleName}`));
     if (a.summary.risks.length > 0) {
