@@ -165,6 +165,12 @@ export class UpdateService {
       const view = await this.check();
       if (abort.signal.aborted) return fail(new InstallFailure('cancelled'));
       if (view.failed) return fail(new InstallFailure('network'));
+      // 저장된 기록(파일)이 높은 버전을 말했더라도, 방금 새로 확인한 결과가 "이미 최신"이면 설치하지 않는다
+      if (!this.view().newer) {
+        this.abort = null;
+        set(IDLE_INSTALL);
+        return false;
+      }
     }
     const url = this.record.downloadUrl();
     const sha256 = this.sha256;

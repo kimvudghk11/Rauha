@@ -2,6 +2,7 @@
 
 export const RELEASES_URL = 'https://api.github.com/repos/kimvudghk11/rauha/releases?per_page=10';
 export const DOWNLOAD_PREFIX = 'https://github.com/kimvudghk11/rauha/releases/download/';
+const SAFE_RELEASE_PATH = /^[A-Za-z0-9][A-Za-z0-9._+~-]{0,99}[/][A-Za-z0-9][A-Za-z0-9._+~-]{0,199}$/;
 
 const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 
@@ -63,7 +64,8 @@ export function isAllowedDownload(url: unknown): url is string {
   // GitHub는 저장소 이름을 바꾸면 응답의 주소에 새 대소문자(Rauha)를 쓴다. 호스트·소유자·저장소 이름은 대소문자를 가리지 않고 비교한다.
   if (typeof url !== 'string' || !url.toLowerCase().startsWith(DOWNLOAD_PREFIX.toLowerCase())) return false;
   const rest = url.slice(DOWNLOAD_PREFIX.length);
-  return rest !== '' && !/[\s\\]/.test(rest) && !rest.split('/').some((seg) => seg === '..' || seg === '.');
+  // 릴리스 태그 한 칸과 파일 이름 한 칸뿐이어야 한다. 인코딩(%2e%2e·%2f)·쿼리·조각·콜론(Windows 대체 데이터 스트림)·상위 이동은 모두 거절한다.
+  return SAFE_RELEASE_PATH.test(rest);
 }
 
 export interface ReleaseAsset {
