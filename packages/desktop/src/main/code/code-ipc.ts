@@ -50,6 +50,7 @@ export function registerCodeIpc(ipc: Pick<IpcMain, 'handle'>, workFolder: () => 
   ipc.handle(CODE_IPC.reveal, (_e, req: unknown) => ops.reveal(req as never));
   ipc.handle(CODE_IPC.tree, (_e, path: unknown) => files.tree(path));
   ipc.handle(CODE_IPC.read, (_e, path: unknown) => files.read(path));
+  ipc.handle(CODE_IPC.image, (_e, path: unknown) => files.readImage(path));
   ipc.handle(CODE_IPC.write, (_e, req: unknown) => files.write(req));
   ipc.handle(CODE_IPC.stat, (_e, paths: unknown) => files.stat(paths));
   ipc.handle(CODE_IPC.changes, () => git.changes());

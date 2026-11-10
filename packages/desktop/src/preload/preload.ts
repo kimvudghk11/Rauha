@@ -74,6 +74,7 @@ const api: RauhaApi = {
   code: {
     tree: (path) => ipcRenderer.invoke(CODE_IPC.tree, path),
     read: (path) => ipcRenderer.invoke(CODE_IPC.read, path),
+    readImage: (path) => ipcRenderer.invoke(CODE_IPC.image, path),
     write: (req) => ipcRenderer.invoke(CODE_IPC.write, req),
     stat: (paths) => ipcRenderer.invoke(CODE_IPC.stat, paths),
     changes: () => ipcRenderer.invoke(CODE_IPC.changes),

@@ -20,11 +20,12 @@ export const CODE_IPC = {
   move: 'code:move',
   inspect: 'code:inspect',
   reveal: 'code:reveal',
+  image: 'code:image',
 } as const;
 
 /** 못 하는 까닭. 화면이 문장으로 바꿔 보인다(codeFailText). */
 export type CodeFail = 'bad-path' | 'outside' | 'secret' | 'too-big' | 'binary' | 'encoding' | 'missing' | 'not-file' | 'not-dir' | 'conflict' | 'deleted' | 'read-only' | 'no-folder' | 'error'
-  | 'bad-name' | 'exists' | 'protected' | 'too-long' | 'too-many' | 'link' | 'trash-failed' | 'same-folder' | 'into-self';
+  | 'bad-name' | 'exists' | 'protected' | 'too-long' | 'too-many' | 'link' | 'trash-failed' | 'same-folder' | 'into-self' | 'not-image' | 'image-too-big';
 
 export interface TreeEntry {
   readonly name: string;
@@ -61,6 +62,11 @@ export type ReadResult =
     }
   | { readonly ok: false; readonly reason: CodeFail };
 
+/** 이미지 뷰어용 읽기 결과. 그림은 작업 폴더 안 파일만, data: URL로 보낸다. */
+export type ImageResult =
+  | { readonly ok: true; readonly path: string; readonly mime: string; readonly bytes: number; readonly dataUrl: string }
+  | { readonly ok: false; readonly reason: CodeFail };
+
 export interface WriteRequest {
   readonly path: string;
   readonly text: string;
@@ -80,6 +86,8 @@ export type StatResult = Readonly<Record<string, string | null>>;
 export interface CodeApi extends CodeApi2 {
   tree(path: string): Promise<TreeResult>;
   read(path: string): Promise<ReadResult>;
+  /** 그림 파일을 data: URL로 읽는다(이미지 뷰어와 마크다운 미리보기) */
+  readImage(path: string): Promise<ImageResult>;
   write(req: WriteRequest): Promise<WriteResult>;
   stat(paths: readonly string[]): Promise<StatResult>;
 }
@@ -108,6 +116,8 @@ const FAIL_TEXT: Readonly<Record<CodeFail, string>> = {
   'trash-failed': '휴지통으로 옮기지 못했어요. 파일은 그대로 있어요(영구 삭제는 하지 않아요).',
   'same-folder': '이미 그 폴더에 있어요.',
   'into-self': '폴더를 자기 자신 안으로는 옮길 수 없어요.',
+  'not-image': '그림 파일이 아니에요.',
+  'image-too-big': '5MB를 넘는 그림은 열지 않아요.',
 };
 
 export const codeFailText = (reason: CodeFail): string => FAIL_TEXT[reason];

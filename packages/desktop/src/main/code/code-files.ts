@@ -1,10 +1,11 @@
 import { constants } from 'node:fs';
 import { access, lstat, open, readdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
-import type { CodeFail, FilesResult, ReadResult, SearchResult, StatResult, TreeEntry, TreeResult, WriteResult } from '../../shared/code-api.js';
+import type { CodeFail, FilesResult, ImageResult, ReadResult, SearchResult, StatResult, TreeEntry, TreeResult, WriteResult } from '../../shared/code-api.js';
 import { decodeFile, encodeFile, MAX_OPEN_BYTES } from '../../shared/code-text.js';
 import { applicableConfigs, editorConfigFor, parseEditorConfig, type EditorConfigFile } from '../../shared/editor-config.js';
 import { SKIPPED_FOLDERS } from '../../shared/folder-kind.js';
+import { imageMimeOf, MAX_IMAGE_BYTES } from '../../shared/preview-kind.js';
 import { cleanRelative, isInside } from './code-path.js';
 import { searchWorkspace } from './code-search.js';
 import { walkFiles } from './code-walk.js';
@@ -245,6 +246,39 @@ export class CodeFiles {
         editorConfig: await this.configFor(rootReal, clean),
         readOnly,
       };
+    } catch {
+      return { ok: false, reason: 'error' };
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /**
+   * 그림 파일을 data: URL로 읽는다. 글 파일 읽기와 같은 길(작업 폴더 밖·비밀 파일·바로가기 검사)을 지나고,
+   * 그림 확장자만 열며 5MB를 넘으면 열지 않는다. 내용(SVG 안의 스크립트 등)은 해석하지 않고 그대로 넘긴다 — 화면은 <img>로만 그린다.
+   */
+  async readImage(rawPath: unknown): Promise<ImageResult> {
+    if (typeof rawPath !== 'string') return { ok: false, reason: 'bad-path' };
+    const mime = imageMimeOf(rawPath);
+    if (mime === null) return { ok: false, reason: 'not-image' };
+    const r = await this.resolve(rawPath);
+    if (!r.ok) return r;
+    const { clean, real } = r.value;
+    if (clean === '') return { ok: false, reason: 'not-file' };
+    let handle;
+    try {
+      if (!(await stat(real)).isFile()) return { ok: false, reason: 'not-file' };
+      handle = await open(real, 'r');
+    } catch {
+      return { ok: false, reason: 'error' };
+    }
+    try {
+      const before = await handle.stat();
+      if (!before.isFile()) return { ok: false, reason: 'not-file' };
+      if (before.size > MAX_IMAGE_BYTES) return { ok: false, reason: 'image-too-big' };
+      const bytes = await handle.readFile();
+      if (bytes.length > MAX_IMAGE_BYTES) return { ok: false, reason: 'image-too-big' };
+      return { ok: true, path: clean, mime, bytes: bytes.length, dataUrl: `data:${mime};base64,${bytes.toString('base64')}` };
     } catch {
       return { ok: false, reason: 'error' };
     } finally {
