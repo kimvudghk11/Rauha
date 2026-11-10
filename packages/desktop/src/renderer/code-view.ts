@@ -15,6 +15,8 @@ import { buildTerminal } from './terminal-view.js';
 import type { TerminalApi } from '../shared/terminal-api.js';
 import { el, isEnterKey } from './dom.js';
 import { iconByName } from './file-icons.js';
+import { CodePreview } from './code-preview.js';
+import { previewKindOf } from '../shared/preview-kind.js';
 
 export interface CodeDeps {
   readonly api: CodeApi;
@@ -134,7 +136,16 @@ export function buildCode(deps: CodeDeps) {
   status.append(sPath, sRight);
   const term = buildTerminal(deps.terminal);
   termBtn.addEventListener('click', () => void term.toggle());
-  main.append(bar, notice, host, empty, term.root, status);
+  const preview = new CodePreview(host, {
+    api: deps.api,
+    textOf: (p) => editor.textOf(p),
+    narrow: () => tierNarrow(),
+    changed: () => paintAll(),
+  });
+  bar.insertBefore(preview.modeBar, termBtn);
+  // 창 크기 단계(data-tier)가 바뀐 뒤에 다시 계산한다
+  window.addEventListener('resize', () => window.setTimeout(() => root.isConnected && preview.relayout(), 60));
+  main.append(bar, notice, preview.body, empty, term.root, status);
 
   let tabs = OpenFiles.empty();
   const info = new Map<string, FileInfo>();
@@ -146,7 +157,10 @@ export function buildCode(deps: CodeDeps) {
   let repos: readonly RepoInfo[] = [];
 
   const editor = new CodeEditor(host, {
-    onChange: () => paintDirty(),
+    onChange: () => {
+      paintDirty();
+      preview.textChanged();
+    },
     onCursor: (line, column) => {
       cursor = { line, column };
       paintStatus();
@@ -177,7 +191,7 @@ export function buildCode(deps: CodeDeps) {
 
   function paintNotice(): void {
     notice.replaceChildren();
-    const active = tabs.active === null ? undefined : tabs.get(tabs.active);
+    const active = tabs.active === null || preview.activeImage() !== null ? undefined : tabs.get(tabs.active);
     const lines: HTMLElement[] = [];
     if (flash !== null) lines.push(el('div', 'note warn', flash.text));
     if (active !== undefined) {
@@ -202,7 +216,7 @@ export function buildCode(deps: CodeDeps) {
     strip.replaceChildren();
     for (const f of tabs.files) {
       const t = el('div', 'code-tab');
-      t.classList.toggle('on', f.path === tabs.active);
+      t.classList.toggle('on', f.path === tabs.active && preview.activeImage() === null);
       t.title = f.path;
       t.dataset['path'] = f.path;
       const dirty = isDirty(f.path);
@@ -218,6 +232,24 @@ export function buildCode(deps: CodeDeps) {
       t.addEventListener('click', () => activate(f.path));
       t.addEventListener('auxclick', (e) => {
         if (e.button === 1) void closeTab(f.path);
+      });
+      strip.append(t);
+    }
+    for (const img of preview.images()) {
+      const t = el('div', 'code-tab');
+      t.classList.toggle('on', preview.activeImage()?.path === img.path);
+      t.title = img.path;
+      t.dataset['path'] = img.path;
+      const close = el('button', 'btn ghost icon sm code-x', '×');
+      close.title = '닫기';
+      close.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeImageTab(img.path);
+      });
+      t.append(iconByName(baseName(img.path), false), el('span', 'code-tab-name', baseName(img.path)), close);
+      t.addEventListener('click', () => void openImage(img.path));
+      t.addEventListener('auxclick', (e) => {
+        if (e.button === 1) closeImageTab(img.path);
       });
       strip.append(t);
     }
@@ -240,9 +272,16 @@ export function buildCode(deps: CodeDeps) {
   function paintStatus(): void {
     const path = tabs.active;
     const f = path === null ? undefined : tabs.get(path);
-    empty.hidden = f !== undefined;
+    const img = preview.activeImage();
+    empty.hidden = f !== undefined || img !== null;
     host.hidden = f === undefined;
-    status.hidden = f === undefined;
+    preview.body.hidden = f === undefined && img === null;
+    status.hidden = f === undefined && img === null;
+    if (img !== null) {
+      sPath.textContent = img.path;
+      sRight.textContent = [img.width === null ? '' : `${img.width}×${img.height} 픽셀`, bytesText(img.bytes), img.mime].filter((p) => p !== '').join('   ');
+      return;
+    }
     if (f === undefined || path === null) return;
     const fi = info.get(path);
     sPath.textContent = path;
@@ -285,15 +324,39 @@ export function buildCode(deps: CodeDeps) {
   }
 
   function paintAll(): void {
+    if (preview.activeImage() === null) preview.showText(tabs.active);
     paintTabs();
     paintNotice();
     paintStatus();
-    tree.setActive(tabs.active);
+    tree.setActive(preview.activeImage()?.path ?? tabs.active);
+  }
+
+  const bytesText = (n: number): string => (n < 1024 ? `${n}바이트` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
+  function tierNarrow(): boolean {
+    return ['s', 'xs'].includes(document.querySelector<HTMLElement>('.app')?.dataset['tier'] ?? '');
+  }
+
+  /** 그림 파일은 글 탭이 아니라 이미지 뷰어 탭으로 연다 */
+  async function openImage(path: string): Promise<void> {
+    const r = await preview.openImage(path);
+    if (!r.ok) {
+      say(`${baseName(path)}: ${codeFailText(r.reason)}`);
+      return;
+    }
+    clearSay();
+    paintAll();
+    closeExplorerWhenNarrow();
+  }
+
+  function closeImageTab(path: string): void {
+    preview.closeImage(path);
+    paintAll();
   }
 
   // ── 열기·전환·닫기 ──
   function activate(path: string): void {
     clearSay();
+    preview.leaveImage();
     tabs = tabs.activated(path);
     editor.show(path);
     paintAll();
@@ -307,6 +370,7 @@ export function buildCode(deps: CodeDeps) {
   }
 
   async function openPath(path: string): Promise<void> {
+    if (previewKindOf(baseName(path)) === 'image') return openImage(path);
     if (tabs.has(path)) {
       activate(path);
       closeExplorerWhenNarrow();
@@ -319,6 +383,7 @@ export function buildCode(deps: CodeDeps) {
     }
     if (tabs.has(path)) return activate(path); // 읽는 사이에 이미 열렸다
     clearSay();
+    preview.leaveImage();
     const language = languageOf(baseName(path));
     const indent = chooseIndent(r.editorConfig, detectIndent(r.text), defaultIndentSize(language));
     register(path, r.text, { language, indent, readOnly: r.readOnly, mixedEol: r.mixedEol });
@@ -664,6 +729,7 @@ export function buildCode(deps: CodeDeps) {
       info.delete(f.path);
     }
     tabs = OpenFiles.empty();
+    preview.closeAllImages();
     void term.reset();
     editor.hide();
     paintAll();
@@ -689,8 +755,12 @@ export function buildCode(deps: CodeDeps) {
   // ── 파일 조작(탐색기) ──
   /** 이름이 바뀌거나 옮겨진 파일의 탭이 새 경로로 이어진다. 확장자가 달라 언어가 바뀌면 색칠도 새로 한다. */
   function moveTabs(from: string, to: string): void {
+    preview.closeImagesUnder(from);
     const moves = remapOpen(tabs.files.map((f) => f.path), from, to);
-    if (moves.length === 0) return;
+    if (moves.length === 0) {
+      paintAll();
+      return;
+    }
     for (const m of moves) {
       editor.rename(m.from, m.to);
       const old = info.get(m.from);
@@ -707,6 +777,7 @@ export function buildCode(deps: CodeDeps) {
 
   /** 지워진 경로 안의 탭을 닫는다. keepUnsaved면 수정 중인 탭만 남겨 "지워졌어요"로 표시한다. */
   function dropTabs(path: string, keepUnsaved: boolean): void {
+    preview.closeImagesUnder(path);
     for (const f of tabs.files.filter((x) => isSameOrUnder(x.path, path))) {
       if (keepUnsaved && isDirty(f.path)) {
         tabs = tabs.updated(f.path, (x) => x.markedStale());

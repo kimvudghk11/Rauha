@@ -145,3 +145,50 @@
 .choose-list { display: flex; flex-direction: column; max-height: 260px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); }
 .choose-row { flex: none; padding: 4px 10px; background: none; border: none; text-align: left; color: var(--text); font: inherit; font-size: var(--fs-sm); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .choose-row:hover, .choose-row:focus-visible { background: var(--row-hover); outline: none; }
+
+/* 편집기·마크다운 미리보기·그림 뷰어가 한 칸을 나눠 쓴다(보이는 모습은 data-view: edit · split · preview · image) */
+.code-bar > .code-mode { align-self: center; margin: 0 var(--s1); }
+.code-body { flex: 1; min-height: 0; min-width: 0; display: flex; }
+.code-body > .code-host { flex: 1 1 0; }
+.code-body > .code-preview { display: none; flex: 1 1 0; min-width: 0; overflow: auto; padding: var(--s4) var(--s5); background: var(--bg); }
+.code-body[data-view=split] > .code-preview { display: block; border-left: 1px solid var(--border); }
+.code-body[data-view=preview] > .code-preview { display: block; }
+.code-body[data-view=preview] > .code-host, .code-body[data-view=image] > .code-host { display: none; }
+.code-body > .code-imgview { display: none; flex: 1 1 0; min-width: 0; overflow: auto; padding: var(--s4); background-color: var(--well); background-image: linear-gradient(45deg, var(--card) 25%, transparent 25%, transparent 75%, var(--card) 75%), linear-gradient(45deg, var(--card) 25%, transparent 25%, transparent 75%, var(--card) 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.code-body[data-view=image] > .code-imgview { display: flex; }
+.imgv { margin: auto; max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; box-shadow: 0 0 0 1px var(--border2); }
+.imgv.crisp { image-rendering: pixelated; }
+.imgv.crisp:not(.actual) { min-width: 128px; }
+.imgv.actual { max-width: none; max-height: none; cursor: zoom-out; }
+
+/* 마크다운 글 (md-view의 .md) */
+.md { max-width: 860px; margin: 0 auto; color: var(--text); font-size: var(--fs-md); line-height: 1.65; overflow-wrap: anywhere; user-select: text; }
+.md > :first-child { margin-top: 0; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin: 1.4em 0 .5em; color: var(--bright); font-weight: 600; line-height: 1.3; }
+.md h1 { font-size: 1.7em; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+.md h2 { font-size: 1.4em; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+.md h3 { font-size: 1.2em; }
+.md h4, .md h5, .md h6 { font-size: 1em; }
+.md h6 { color: var(--muted); }
+.md p { margin: 0 0 var(--s3); }
+.md a { color: var(--accentfg); text-decoration: none; }
+.md a:hover { text-decoration: underline; }
+.md ul, .md ol { margin: 0 0 var(--s3); padding-left: 1.6em; }
+.md li > p { margin: 0 0 var(--s1); }
+.md li > ul, .md li > ol { margin: var(--s1) 0 0; }
+.md li.md-task { list-style: none; margin-left: -1.3em; display: flex; gap: var(--s2); align-items: baseline; }
+.md li.md-task > p { margin: 0; }
+.md blockquote { margin: 0 0 var(--s3); padding: 0 var(--s3); border-left: 3px solid var(--border2); color: var(--muted); }
+.md hr { margin: var(--s4) 0; border: none; border-top: 1px solid var(--border); }
+.md .md-code { padding: 1px 5px; border-radius: var(--r-sm); background: var(--input); font-family: var(--mono); font-size: .92em; }
+.md .md-pre { margin: 0 0 var(--s3); padding: var(--s3); overflow: auto; border-radius: var(--r-md); background: var(--well); border: 1px solid var(--border); }
+.md .md-pre code { font-family: var(--mono); font-size: var(--fs-sm); line-height: 1.5; white-space: pre; }
+.md .md-table { margin: 0 0 var(--s3); overflow-x: auto; }
+.md table { border-collapse: collapse; }
+.md th, .md td { padding: var(--s1) var(--s3); border: 1px solid var(--border2); text-align: left; }
+.md th { background: var(--input); color: var(--bright); font-weight: 600; }
+.md .md-al-right { text-align: right; }
+.md .md-al-center { text-align: center; }
+.md .md-img { max-width: 100%; border-radius: var(--r-sm); vertical-align: middle; }
+.md .md-img-off { color: var(--dim); font-size: var(--fs-sm); }
+.md .md-empty { color: var(--dim); }
