@@ -13,6 +13,13 @@ describe('ToolTally', () => {
     ]);
   });
 
+  it('결과를 내보내는 내부 도구 StructuredOutput은 쓴 도구로 세지 않는다', () => {
+    const tally = ToolTally.empty();
+    tally.record('StructuredOutput');
+    tally.record('Read');
+    expect(tally.entries()).toEqual([{ name: 'Read', count: 1 }]);
+  });
+
   it('많이 쓴 도구가 앞에 오고 횟수가 같으면 처음 쓴 순서를 지킨다', () => {
     const tally = ToolTally.empty();
     for (const name of ['Glob', 'Read', 'Read', 'Bash']) tally.record(name);

@@ -13,9 +13,9 @@ export class ToolTally {
     return new ToolTally();
   }
 
-  /** 도구를 한 번 썼다고 센다. 빈 이름은 무시한다. */
+  /** 도구를 한 번 썼다고 센다. 빈 이름과 내부 도구(StructuredOutput)는 무시한다. */
   record(name: string): void {
-    if (name === '') return;
+    if (name === '' || name === 'StructuredOutput') return;
     this.counts.set(name, (this.counts.get(name) ?? 0) + 1);
   }
 
