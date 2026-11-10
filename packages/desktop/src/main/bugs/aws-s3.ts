@@ -44,14 +44,14 @@ export function connectAws(target: AwsTarget): S3Port {
       }),
     put: (key, body) =>
       guard(async () => {
-        await s3.send(new PutObjectCommand({ Bucket: target.bucket, Key: key, Body: body, ContentType: 'application/json; charset=utf-8' }));
+        await s3.send(new PutObjectCommand({ Bucket: target.bucket, Key: key, Body: body, ExpectedBucketOwner: target.expectedBucketOwner, ContentType: 'application/json; charset=utf-8' }));
       }),
     list: (prefix) =>
       guard(async () => {
         const keys: string[] = [];
         let token: string | undefined;
         for (let page = 0; page < LIST_PAGE_LIMIT; page++) {
-          const out = await s3.send(new ListObjectsV2Command({ Bucket: target.bucket, Prefix: prefix, ContinuationToken: token }));
+          const out = await s3.send(new ListObjectsV2Command({ Bucket: target.bucket, Prefix: prefix, ContinuationToken: token, ExpectedBucketOwner: target.expectedBucketOwner }));
           for (const o of out.Contents ?? []) if (o.Key !== undefined) keys.push(o.Key);
           if (out.IsTruncated !== true) break;
           token = out.NextContinuationToken;
@@ -60,7 +60,7 @@ export function connectAws(target: AwsTarget): S3Port {
       }),
     get: (key) =>
       guard(async () => {
-        const out = await s3.send(new GetObjectCommand({ Bucket: target.bucket, Key: key }));
+        const out = await s3.send(new GetObjectCommand({ Bucket: target.bucket, Key: key, ExpectedBucketOwner: target.expectedBucketOwner }));
         return (await out.Body?.transformToString('utf-8')) ?? '';
       }),
   };

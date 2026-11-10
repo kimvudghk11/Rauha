@@ -45,6 +45,11 @@ export class AwsTarget {
     private readonly account: string,
   ) {}
 
+  /** 저장소 요청에 붙이는 "이 버킷의 주인"(등록한 개인 계정). 다른 계정 소유 버킷이면 AWS가 거절한다. */
+  get expectedBucketOwner(): string {
+    return this.account;
+  }
+
   static from(input: AwsInput): TargetResult {
     const profile = input.profile?.trim() ?? '';
     if (profile === '') return { ok: false, reason: 'Enter a profile name in Settings first. Nothing is uploaded or downloaded until you do.' };
