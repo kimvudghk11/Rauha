@@ -51,6 +51,7 @@
 .btn.lg { height: var(--h-lg); padding: 0 var(--s4); font-size: var(--fs-md); }
 .btn.icon { width: var(--h-md); padding: 0; font-size: 14px; }
 .btn.icon.sm { width: var(--h-sm); }
+.btn.icon.lg { width: var(--h-lg); font-size: 18px; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 .btn.danger { background: transparent; border-color: var(--danger-border); color: var(--red); }
@@ -91,6 +92,9 @@ input.sm, select.sm { height: var(--h-sm); padding: 0 6px; font-size: var(--fs-s
 .seg { display: inline-flex; flex: none; border: 1px solid var(--border2); border-radius: var(--r-sm); overflow: hidden; }
 .seg > button { height: calc(var(--h-sm) - 2px); padding: 0 var(--s2); border: none; background: none; color: var(--muted); font: inherit; font-size: var(--fs-xs); line-height: 1; cursor: pointer; }
 .seg > button.on { background: var(--sel); color: var(--bright); }
+/* .seg.md: 버튼·입력칸(--h-md)과 한 줄에 놓는 크기 */
+.seg.md { box-sizing: border-box; height: var(--h-md); align-items: stretch; }
+.seg.md > button { height: auto; padding: 0 var(--s3); font-size: var(--fs-sm); }
 
 /* ── 칩(작은 배지). 누를 수 있는 칩은 button.chip ── */
 .chip { box-sizing: border-box; display: inline-flex; align-items: center; height: 20px; padding: 0 var(--s2); border: 1px solid var(--border2); border-radius: var(--r-pill); background: var(--input); color: var(--text); font: inherit; font-size: var(--fs-xs); line-height: 1; white-space: nowrap; }

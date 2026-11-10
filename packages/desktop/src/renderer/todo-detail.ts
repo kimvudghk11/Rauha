@@ -135,7 +135,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     modal.replaceChildren();
     const board = ctx.board();
 
-    const close_ = button('×', 'btn icon ghost dclose', close);
+    const close_ = button('×', 'btn icon lg ghost dclose', close);
     close_.title = '닫기 (Esc)';
     close_.setAttribute('aria-label', '닫기');
 
@@ -182,11 +182,11 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     // 라벨
     let labels: readonly Label[] = todo.labels;
     const labelBox = el('div', 'dlabels');
-    const labelInput = el('input', 'sm grow');
+    const labelInput = el('input', 'grow');
     labelInput.placeholder = '라벨 이름';
     labelInput.maxLength = 20;
     labelInput.setAttribute('aria-label', '새 라벨 이름');
-    const labelColor = select(COLUMN_COLORS.map((c) => [c, COLOR_LABEL[c]] as const), 'blue' as ColumnColor, () => undefined, 'sm');
+    const labelColor = select(COLUMN_COLORS.map((c) => [c, COLOR_LABEL[c]] as const), 'blue' as ColumnColor, () => undefined);
     labelColor.setAttribute('aria-label', '새 라벨 색');
     const labelErr = el('div', 'err');
     const setLabels = (next: readonly Label[]): void => {
@@ -221,7 +221,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
         picks.append(unit);
       }
       const add = el('div', 'bar');
-      add.append(labelInput, labelColor, button('추가', 'btn sm', addLabel));
+      add.append(labelInput, labelColor, button('추가', 'btn', addLabel));
       labelBox.append(chips, add, labelErr);
       if (known.length > 0) labelBox.append(picks);
     }
@@ -313,7 +313,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
         box.checked = item.done;
         box.setAttribute('aria-label', `${item.text} 완료`);
         box.addEventListener('change', () => guarded(() => checklist.toggle(item.id)));
-        const text = el('input', 'sm grow dcitem');
+        const text = el('input', 'grow dcitem');
         text.value = item.text;
         text.maxLength = 120;
         text.setAttribute('aria-label', '항목');
@@ -336,13 +336,13 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
             if (guarded(() => checklist.move(item.id, beforeId))) focusItem(target);
           }
         });
-        const x = button('×', 'btn icon sm ghost', () => guarded(() => checklist.remove(item.id)));
+        const x = button('×', 'btn icon ghost', () => guarded(() => checklist.remove(item.id)));
         x.title = '항목 지우기';
         x.setAttribute('aria-label', `${item.text} 항목 지우기`);
         row.append(box, text, x);
         checkBox.append(row);
       });
-      const add = el('input', 'sm dcnew');
+      const add = el('input', 'dcnew');
       add.placeholder = '항목을 치고 Enter';
       add.maxLength = 120;
       add.setAttribute('aria-label', '새 항목');

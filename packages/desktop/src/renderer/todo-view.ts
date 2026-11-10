@@ -92,7 +92,7 @@ export function buildTodo(deps: TodoViewDeps) {
 
   // ── 머리와 도구줄 ──
   const head = el('div', 'rhead');
-  const modeSeg = el('div', 'seg');
+  const modeSeg = el('div', 'seg md');
   const addButton = button('＋ 새 카드', 'btn primary', () => ctx.quickAdd(board.columns.entry().id));
   head.append(el('b', undefined, 'Todo'), el('span', 'hint', '카드를 끌어 칸을 옮기고, 눌러서 고쳐요. AI에 맡기는 건 선택이에요.'), modeSeg, addButton);
 
@@ -112,9 +112,9 @@ export function buildTodo(deps: TodoViewDeps) {
       filter = { ...filter, ...patch };
       render();
     };
-    const labelSel = select([['', '라벨 전체'] as const, ...board.labels().map((l) => [l.name, l.name] as const)], filter.label ?? '', (v) => set({ label: v === '' ? null : v }), 'sm');
-    const prioritySel = select([['all', '우선순위 전체'], ...TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)] as readonly (readonly [TodoPriority | 'all', string])[], filter.priority, (v) => set({ priority: v }), 'sm');
-    const repoSel = select([['', '레포 전체'] as const, ...ctx.repos().map((r) => [r, r] as const)], filter.repo ?? '', (v) => set({ repo: v === '' ? null : v }), 'sm');
+    const labelSel = select([['', '라벨 전체'] as const, ...board.labels().map((l) => [l.name, l.name] as const)], filter.label ?? '', (v) => set({ label: v === '' ? null : v }));
+    const prioritySel = select([['all', '우선순위 전체'], ...TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)] as readonly (readonly [TodoPriority | 'all', string])[], filter.priority, (v) => set({ priority: v }));
+    const repoSel = select([['', '레포 전체'] as const, ...ctx.repos().map((r) => [r, r] as const)], filter.repo ?? '', (v) => set({ repo: v === '' ? null : v }));
     const late = el('label', 'tg');
     const lateBox = el('input');
     lateBox.type = 'checkbox';
@@ -127,7 +127,7 @@ export function buildTodo(deps: TodoViewDeps) {
         select((Object.keys(SORT_LABEL) as TodoSort[]).map((s) => [s, SORT_LABEL[s]] as const), sort, (v) => {
           sort = v;
           render();
-        }, 'sm'),
+        }),
       );
     }
     const active = filter.label !== null || filter.priority !== 'all' || filter.repo !== null || filter.overdueOnly || filter.text !== '';
