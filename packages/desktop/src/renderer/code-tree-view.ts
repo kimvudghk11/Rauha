@@ -33,6 +33,8 @@ export interface TreeHooks {
   readonly caseInsensitive: boolean;
   /** 고른 줄이 바뀌었다(도구줄 단추를 켜고 끈다) */
   readonly onPick?: (target: TreeTarget | null) => void;
+  /** 열리지 않는 항목을 눌렀다: 이유를 알리게 한다('secret'은 비밀 파일, 'outside'는 작업 폴더 밖 바로가기) */
+  readonly refused?: (name: string, reason: 'secret' | 'outside') => void;
 }
 
 const MORE = '항목이 너무 많아 일부만 보여요.';
@@ -275,7 +277,10 @@ export class CodeTreeView {
     row.title = entry.locked ? '비밀 파일이라 열지 않아요(이름 바꾸기·삭제는 할 수 있어요)' : entry.blocked ? '작업 폴더 밖을 가리켜서 열지 않아요' : entry.path;
     row.addEventListener('click', () => {
       this.pick(this.targetOf(row));
-      if (entry.locked || entry.blocked) return;
+      if (entry.locked || entry.blocked) {
+        this.hooks.refused?.(entry.name, entry.locked ? 'secret' : 'outside');
+        return;
+      }
       if (entry.kind === 'file') return this.hooks.open(entry.path);
       void this.toggle(entry, row, children);
     });

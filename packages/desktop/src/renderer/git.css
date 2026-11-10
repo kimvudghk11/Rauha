@@ -50,6 +50,8 @@ textarea.ginput, input.ginput { width: 100%; }
 .gsync .glabel { white-space: nowrap; }
 .gbranch { min-width: 0; flex: 0 1 auto; }
 .gstatus { min-height: 20px; display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+/* 알림도 진행 표시도 없으면 빈 줄을 차지하지 않는다 */
+.gstatus:has(> .gmsg:empty:only-child) { display: none; }
 .gstatus .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app[data-tier=m] .gtool .gselect { max-width: 150px; }
 .app[data-tier=s] .gsync .glabel, .app[data-tier=xs] .gsync .glabel, .app[data-tier=s] .gsync .fbadge, .app[data-tier=xs] .gsync .fbadge { display: none; }

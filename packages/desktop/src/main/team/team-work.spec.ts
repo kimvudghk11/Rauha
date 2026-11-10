@@ -117,6 +117,13 @@ describe('teamWork', () => {
     expect(deep.runner.board.find('j1')?.resultMeta).toEqual({ canGoDeeper: false, knowledgeMissing: true });
   });
 
+  it('저장소를 읽는 길이 아닌 답(운영·문서·반복 답)에는 저장소 정보 없음 꼬리표를 붙이지 않는다', async () => {
+    const other = setup(async () => ({ ...answer('운영 결과'), basis: null }) as TurnOutcome);
+    other.runner.submit('질문');
+    await other.runner.idle();
+    expect(other.runner.board.find('j1')?.resultMeta.knowledgeMissing).toBe(false);
+  });
+
   it('깊게 다시 묻는 작업은 세션에 deep을 넘기고, 보통 작업은 넘기지 않는다', async () => {
     const seen: (string | undefined)[] = [];
     const { runner } = setup(async (_io, _input, depth) => (seen.push(depth), answer('x')));

@@ -38,11 +38,11 @@ const quietUser: UserPort = {
   pickPast: async () => null,
 };
 
-/** 답 카드에 붙일 꼬리표. 지식 없음은 깊게 답했는데도 읽은 저장소 기준(basis)이 없을 때다. */
+/** 답 카드에 붙일 꼬리표. 지식 없음은 질문 답 경로가 깊게(canGoDeeper가 false로 명시) 답했는데도 읽은 저장소 기준(basis)이 없을 때만이다. 운영·문서·반복 답처럼 저장소를 읽는 길이 아닌 답은 해당 없음. */
 export function resultMetaOf(outcome: TurnOutcome): JobResultMeta {
   if (outcome.kind !== 'answer') return { canGoDeeper: false, knowledgeMissing: false };
   const canGoDeeper = outcome.canGoDeeper === true;
-  return { canGoDeeper, knowledgeMissing: !canGoDeeper && outcome.basis === null, ...(outcome.toolsLine !== undefined ? { toolsLine: outcome.toolsLine } : {}) };
+  return { canGoDeeper, knowledgeMissing: outcome.canGoDeeper === false && outcome.basis === null, ...(outcome.toolsLine !== undefined ? { toolsLine: outcome.toolsLine } : {}) };
 }
 
 /**

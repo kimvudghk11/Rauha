@@ -136,6 +136,10 @@ export function buildChat(actions: ChatActions) {
     if (job !== null) {
       jobs.set(job.id, job);
       addJob(job);
+    } else {
+      // 작업 폴더를 고르고 허락하기 전이면 main이 받지 않는다. 쓴 글을 돌려주고 이유를 알린다(아무 말 없이 사라지지 않게).
+      if (input.value.trim() === '') input.value = text;
+      flash('작업 폴더를 먼저 골라 허락해 주세요(설정 탭의 작업 폴더). 쓰던 글은 그대로 두었어요.');
     }
     input.focus();
   };

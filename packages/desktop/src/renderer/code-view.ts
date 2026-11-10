@@ -81,6 +81,7 @@ export function buildCode(deps: CodeDeps) {
     reloadRepos: () => void loadRepos(),
     caseInsensitive: deps.platform === 'win32' || deps.platform === 'darwin',
     onPick: (t) => paintTools(t),
+    refused: (name, reason) => say(`${name}: ${codeFailText(reason)}`),
   });
   const newFileBtn = toolBtn('newFile', '새 파일', () => void ops.create('file'));
   const newDirBtn = toolBtn('newFolder', '새 폴더', () => void ops.create('dir'));
@@ -165,6 +166,13 @@ export function buildCode(deps: CodeDeps) {
     if (flash !== null) clearTimeout(flash.timer);
     flash = { text, timer: window.setTimeout(() => ((flash = null), paintNotice()), 7000) };
     paintNotice();
+  }
+
+  /** 앞서 띄운 안내(거부 이유 등)를 바로 거둔다. 다른 파일로 넘어가면 옛 안내를 남기지 않는다. */
+  function clearSay(): void {
+    if (flash === null) return;
+    clearTimeout(flash.timer);
+    flash = null;
   }
 
   function paintNotice(): void {
@@ -285,6 +293,7 @@ export function buildCode(deps: CodeDeps) {
 
   // ── 열기·전환·닫기 ──
   function activate(path: string): void {
+    clearSay();
     tabs = tabs.activated(path);
     editor.show(path);
     paintAll();
@@ -309,6 +318,7 @@ export function buildCode(deps: CodeDeps) {
       return;
     }
     if (tabs.has(path)) return activate(path); // 읽는 사이에 이미 열렸다
+    clearSay();
     const language = languageOf(baseName(path));
     const indent = chooseIndent(r.editorConfig, detectIndent(r.text), defaultIndentSize(language));
     register(path, r.text, { language, indent, readOnly: r.readOnly, mixedEol: r.mixedEol });
