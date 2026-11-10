@@ -26,8 +26,6 @@ const SORT_LABEL: Readonly<Record<TodoSort, string>> = { manual: '보드 순서'
 const MODE_KEY = 'rauha.todo.mode';
 /** 상세 패널 너비(data-tabs.css의 .tdetail과 같은 값) */
 const DETAIL_WIDTH = 340;
-/** 칸 하나가 이보다 좁아지면 가로로 늘어놓지 않고 칸 선택 탭으로 보여 준다 */
-const MIN_COLUMN_WIDTH = 170;
 /** 이보다 좁으면 상세 패널이 보드 위를 덮는다 */
 const SIDE_PANEL_MIN = 900;
 
@@ -87,9 +85,9 @@ export function buildTodo(deps: TodoViewDeps) {
       layout();
     },
     openJob: deps.openJob,
-    quickAdd: (columnId) => {
+    quickAdd: (columnId, top = false) => {
       if (mode !== 'board') setMode('board');
-      boardView.openAdder(columnId);
+      boardView.openAdder(columnId, top);
     },
   };
 
@@ -185,9 +183,6 @@ export function buildTodo(deps: TodoViewDeps) {
     const overlay = width > 0 && width < SIDE_PANEL_MIN;
     body.classList.toggle('overlay', overlay);
     body.classList.toggle('has-detail', open);
-    const room = width - (open && !overlay ? DETAIL_WIDTH : 0);
-    const columns = board.columns.items.length;
-    boardView.setNarrow(width > 0 && (room < 520 || room / columns < MIN_COLUMN_WIDTH));
   }
 
   function render(): void {

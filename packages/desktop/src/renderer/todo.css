@@ -1,0 +1,43 @@
+/* 할 일 칸반 (배치와 칸·카드 모양. 버튼·칩·입력칸 모양은 ui.css) */
+
+/* 칸은 272px 고정이고 넘치면 가로로 스크롤한다(스크롤바는 앱 공통 규칙대로 안 보임) */
+.tboard { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.tcolumns { flex: 1; min-height: 0; display: flex; gap: var(--s3); align-items: stretch; overflow-x: auto; padding-bottom: var(--s1); }
+.tcol { flex: 0 0 272px; width: 272px; box-sizing: border-box; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2); background: var(--well); border: 1px solid var(--border); border-radius: var(--r-md); }
+.tcol.collapsed { flex: 0 0 44px; width: 44px; align-items: center; cursor: pointer; }
+.tcol.collapsed .tch { flex-direction: column; cursor: pointer; }
+.tcol.collapsed .tname { writing-mode: vertical-rl; flex: none; height: auto; padding: var(--s2) 0; }
+.tcol.collapsed .grow { display: none; }
+.tcol.dragging, .tcard.dragging { opacity: .4; }
+.tcol.drop-on, .thid.drop-on { border-color: var(--accent); }
+.thid.drop-on { background: var(--sel); }
+
+/* 칸 머리: 색 칩 + 카드 수 + (+) (⋯) */
+.tch { display: flex; align-items: center; gap: var(--s2); min-width: 0; cursor: grab; }
+.tname { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 20px; }
+.tcount { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+
+.tcards { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s2); }
+.tdrop { flex: none; height: 2px; border-radius: 1px; background: var(--accent); }
+.tcolumns > .tdrop { width: 2px; height: auto; }
+.tadding input { width: 100%; }
+.tadd { flex: none; justify-content: flex-start; color: var(--muted); }
+
+/* 오른쪽 끝: 칸 추가 + 숨긴 칸 */
+.ttail { flex: 0 0 272px; width: 272px; display: flex; flex-direction: column; gap: var(--s3); min-height: 0; }
+.ttail input { width: 100%; }
+.thidden { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s2); border: 1px dashed var(--border2); border-radius: var(--r-md); }
+.thid { display: flex; align-items: center; gap: var(--s2); border: 1px solid transparent; }
+.thid .tname { flex: 1; color: var(--text); }
+
+.tempty { margin: 40px auto; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.tempty b { color: var(--bright); font-size: 15px; }
+.tnone { color: var(--dim); text-align: center; padding: 10px 0; font-size: 12px; }
+
+/* 카드: 제목 + 값이 있는 속성 칩만 */
+.tcard { display: flex; flex-direction: column; gap: var(--s2); cursor: pointer; flex: none; }
+.tcard:hover { border-color: var(--border2); }
+.tcard:focus-visible { outline: 1px solid var(--accent); }
+.tcard.done .tt { color: var(--muted); text-decoration: line-through; }
+.tt { color: var(--bright); font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.tchips { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }

@@ -19,11 +19,11 @@ export interface TodoCtx {
   repos(): readonly string[];
   /** main에 요청 하나를 보낸다. 실패하면 안내 줄에 이유를 띄우고 그 결과를 돌려준다. */
   act(op: unknown): Promise<TodoResult>;
-  /** 카드 상세 패널을 연다 */
+  /** 카드 창(가운데 모달)을 연다 */
   open(id: string): void;
   openJob(jobId: string): void;
-  /** 칸 아래 "+ 카드 추가" 입력을 연다 */
-  quickAdd(columnId: string): void;
+  /** 칸의 "+ 새로 만들기" 입력을 연다(top이면 칸 맨 위에 넣는 입력) */
+  quickAdd(columnId: string, top?: boolean): void;
 }
 
 export function chipOf(text: string, cls = ''): HTMLElement {
@@ -88,7 +88,7 @@ export type MenuItem =
 let closeMenu: (() => void) | null = null;
 
 /** 기준 요소 아래에 메뉴를 연다. 바깥을 누르거나 Esc를 누르면 닫힌다. 한 번에 하나만 열린다. */
-export function showMenu(anchor: HTMLElement, items: readonly MenuItem[]): HTMLElement {
+export function showMenu(anchor: HTMLElement | { readonly x: number; readonly y: number }, items: readonly MenuItem[]): HTMLElement {
   closeMenu?.();
   const menu = el('div', 'menu');
   menu.setAttribute('role', 'menu');
@@ -116,7 +116,16 @@ export function showMenu(anchor: HTMLElement, items: readonly MenuItem[]): HTMLE
     if (!menu.contains(e.target as Node)) close();
   };
   const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') close();
+    if (e.key === 'Escape') {
+      // 메뉴만 닫는다(뒤에 열린 카드 창까지 같이 닫히지 않게)
+      e.stopPropagation();
+      close();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      buttons[(at + (e.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+    }
   };
   function close(): void {
     menu.remove();
@@ -127,7 +136,7 @@ export function showMenu(anchor: HTMLElement, items: readonly MenuItem[]): HTMLE
   }
   closeMenu = close;
   document.body.append(menu);
-  const a = anchor.getBoundingClientRect();
+  const a = 'x' in anchor ? { left: anchor.x, top: anchor.y, bottom: anchor.y } : anchor.getBoundingClientRect();
   const w = menu.offsetWidth;
   const h = menu.offsetHeight;
   menu.style.left = `${Math.max(4, Math.min(a.left, window.innerWidth - w - 4))}px`;
@@ -153,7 +162,7 @@ export interface ConfirmChoice {
 }
 
 /** 가운데 확인 창. 취소는 늘 마지막에 붙는다. */
-export function confirmDialog(title: string, body: string, choices: readonly ConfirmChoice[]): void {
+export function confirmDialog(title: string, body: string, choices: readonly ConfirmChoice[], extra?: HTMLElement): void {
   const veil = el('div', 'veil');
   const box = el('div', 'dialog');
   const close = (): void => {
@@ -161,12 +170,15 @@ export function confirmDialog(title: string, body: string, choices: readonly Con
     document.removeEventListener('keydown', onKey, true);
   };
   const onKey = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') close();
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      close();
+    }
   };
   const buttons = el('div', 'btns end');
   for (const c of choices) buttons.append(button(c.label, c.cls, () => (close(), c.pick())));
   buttons.append(button('취소', 'btn', close));
-  box.append(el('b', undefined, title), el('div', 'dim', body), buttons);
+  box.append(el('b', undefined, title), el('div', 'dim', body), ...(extra === undefined ? [] : [extra]), buttons);
   veil.append(box);
   veil.addEventListener('pointerdown', (e) => {
     if (e.target === veil) close();

@@ -2,7 +2,7 @@ import type { Column } from '../shared/todo-columns.js';
 import { beforeIdAt } from '../shared/todo-order.js';
 import { TEAM_CHOICES, type Todo } from '../shared/todo-list.js';
 import { el, isEnterKey } from './dom.js';
-import { PRIORITY_LABEL, button, chipOf, colorItems, confirmDialog, dot, dueText, labelChip, meter, showMenu, type MenuItem, type TodoCtx } from './todo-parts.js';
+import { PRIORITY_LABEL, button, chipOf, colorItems, confirmDialog, dueText, labelChip, select, showMenu, type MenuItem, type TodoCtx } from './todo-parts.js';
 
 /** 끌고 있는 것. 한 번에 하나이고, 끌기가 끝나면 비운다. (HTML5 끌어서 놓기: 데이터는 여기에 두고 dataTransfer에는 표시만 한다) */
 let drag: { readonly kind: 'card' | 'column'; readonly id: string } | null = null;
@@ -10,62 +10,140 @@ let drag: { readonly kind: 'card' | 'column'; readonly id: string } | null = nul
 export interface BoardView {
   readonly root: HTMLElement;
   render(): void;
-  /** 좁은 창이면 칸을 탭으로 고른다 */
-  setNarrow(narrow: boolean): void;
-  /** 칸 아래 "+ 카드 추가" 입력을 연다 */
-  openAdder(columnId: string): void;
+  /** 칸의 "+ 새로 만들기" 입력을 연다. top이면 칸 맨 위에 넣는 입력이다. */
+  openAdder(columnId: string, top?: boolean): void;
+  /** 카드에 키보드 초점을 준다(없으면 false) */
+  focusCard(id: string): boolean;
+  /** 지금 초점이 있는 카드가 든 칸 번호(없으면 null) */
+  focusedColumn(): string | null;
 }
 
-/** 칸반 보드: 칸 + 카드, 끌어서 놓기, 칸 메뉴, "+ 카드 추가". 규칙은 TodoList가 지키고 여기서는 요청을 보낸다. */
+/** 놓을 자리: 카드면 칸 + 그 칸의 어느 카드 앞인지, 칸이면 어느 칸 앞인지 */
+interface DropAt {
+  readonly columnId: string | null;
+  readonly before: string | null;
+}
+
+/**
+ * 칸반 보드. 칸은 272px 고정이고 넘치면 가로로 스크롤한다. 규칙은 TodoList가 지키고 여기서는 요청만 보낸다.
+ * 칸 머리(색 칩 + 카드 수 + `+` + `⋯`), 칸 아래 "+ 새로 만들기"(연속 입력), 카드 우클릭 메뉴, 방향키·Enter·Alt+방향키, 끌어서 놓기.
+ */
 export function buildBoard(ctx: TodoCtx): BoardView {
   const root = el('div', 'tboard');
-  let narrow = false;
-  let activeTab: string | null = null;
-  let adding: string | null = null;
+  let adding: { readonly columnId: string; readonly top: boolean } | null = null;
   let addDraft = '';
   let renaming: string | null = null;
   let addingColumn = false;
   let columnDraft = '';
+  let pendingFocus: string | null = null;
   const line = el('div', 'tdrop');
 
   const clearDrop = (): void => {
     line.remove();
-    line.dataset['before'] = '';
-    line.dataset['col'] = '';
     for (const n of root.querySelectorAll('.drop-on')) n.classList.remove('drop-on');
   };
 
+  const cardEls = (colEl: Element): HTMLElement[] => [...colEl.querySelectorAll<HTMLElement>('.tcard')];
+  const columnEls = (): HTMLElement[] => [...root.querySelectorAll<HTMLElement>('.tcol')];
+
   // ── 카드 ──
 
-  function cardMenu(todo: Todo, anchor: HTMLElement): void {
+  function cardMenu(todo: Todo, at: { x: number; y: number }): void {
     const board = ctx.board();
-    const items: MenuItem[] = [{ label: '열기', pick: () => ctx.open(todo.id) }];
+    const items: MenuItem[] = [
+      { label: '열기', pick: () => ctx.open(todo.id) },
+      { label: '복제', pick: () => void ctx.act({ kind: 'duplicate', id: todo.id }) },
+    ];
     if (board.canDelegate(todo)) items.push({ label: '팀에 맡기기', pick: () => void ctx.act({ kind: 'delegate', id: todo.id }).then((r) => r.ok && r.jobId !== null && ctx.openJob(r.jobId)) });
     if (todo.jobId !== null) items.push({ label: '진행 보기', pick: () => ctx.openJob(todo.jobId!) });
-    items.push('sep', { heading: '이동' });
+    items.push('sep', { heading: '칸 이동' });
     for (const c of board.columns.items) {
-      if (c.id !== todo.columnId) items.push({ label: c.name, dot: c.color, pick: () => void ctx.act({ kind: 'move', id: todo.id, columnId: c.id, beforeId: null }) });
+      if (c.id !== todo.columnId) items.push({ label: c.hidden ? `${c.name} (숨김)` : c.name, dot: c.color, pick: () => void ctx.act({ kind: 'move', id: todo.id, columnId: c.id, beforeId: null }) });
     }
     const mine = board.cardsIn(todo.columnId);
-    const at = mine.findIndex((t) => t.id === todo.id);
-    items.push({ label: '칸 안에서 위로', disabled: at <= 0, pick: () => void ctx.act({ kind: 'move', id: todo.id, columnId: todo.columnId, beforeId: mine[at - 1]!.id }) });
-    items.push({ label: '칸 안에서 아래로', disabled: at === mine.length - 1, pick: () => void ctx.act({ kind: 'move', id: todo.id, columnId: todo.columnId, beforeId: mine[at + 2]?.id ?? null }) });
-    items.push('sep', { label: '지우기', danger: true, pick: () => confirmDialog('카드를 지울까요?', `"${todo.title}" 카드가 지워져요. 되돌릴 수 없어요.`, [{ label: '지우기', cls: 'btn danger', pick: () => void ctx.act({ kind: 'remove', id: todo.id }) }]) });
-    showMenu(anchor, items);
+    const index = mine.findIndex((t) => t.id === todo.id);
+    items.push({ label: '칸 안에서 위로', disabled: index <= 0, pick: () => moveWithin(todo, -1) });
+    items.push({ label: '칸 안에서 아래로', disabled: index === mine.length - 1, pick: () => moveWithin(todo, 1) });
+    items.push('sep', {
+      label: '지우기',
+      danger: true,
+      pick: () => confirmDialog('카드를 지울까요?', `"${todo.title}" 카드가 지워져요. 되돌릴 수 없어요.`, [{ label: '지우기', cls: 'btn danger', pick: () => void ctx.act({ kind: 'remove', id: todo.id }) }]),
+    });
+    showMenu(at, items);
+  }
+
+  /** 같은 칸 안에서 한 칸 위(-1)나 아래(+1)로 */
+  function moveWithin(todo: Todo, step: -1 | 1): void {
+    const mine = ctx.board().cardsIn(todo.columnId);
+    const index = mine.findIndex((t) => t.id === todo.id);
+    if (index < 0) return;
+    const beforeId = step === -1 ? (mine[index - 1]?.id ?? null) : (mine[index + 2]?.id ?? null);
+    if (step === -1 && index === 0) return;
+    if (step === 1 && index === mine.length - 1) return;
+    pendingFocus = todo.id;
+    void ctx.act({ kind: 'move', id: todo.id, columnId: todo.columnId, beforeId });
+  }
+
+  /** 옆 칸으로(방향키 -1/+1). 같은 자리쯤에 놓는다. */
+  function moveAcross(todo: Todo, step: -1 | 1): void {
+    const board = ctx.board();
+    const cols = board.columns.visible();
+    const at = cols.findIndex((c) => c.id === todo.columnId);
+    const next = cols[at + step];
+    if (next === undefined) return;
+    const index = board.cardsIn(todo.columnId).findIndex((t) => t.id === todo.id);
+    pendingFocus = todo.id;
+    void ctx.act({ kind: 'move', id: todo.id, columnId: next.id, beforeId: board.cardsIn(next.id)[index]?.id ?? null });
+  }
+
+  /** 방향키로 초점을 옮긴다 */
+  function focusNeighbor(box: HTMLElement, key: string): void {
+    const colEl = box.closest<HTMLElement>('.tcol');
+    if (colEl === null) return;
+    const mine = cardEls(colEl);
+    const index = mine.indexOf(box);
+    if (key === 'ArrowUp') mine[index - 1]?.focus();
+    else if (key === 'ArrowDown') mine[index + 1]?.focus();
+    else {
+      const cols = columnEls();
+      let at = cols.indexOf(colEl);
+      const step = key === 'ArrowLeft' ? -1 : 1;
+      for (at += step; at >= 0 && at < cols.length; at += step) {
+        const there = cardEls(cols[at]!);
+        if (there.length > 0) {
+          there[Math.min(index, there.length - 1)]!.focus();
+          return;
+        }
+      }
+    }
   }
 
   function card(todo: Todo): HTMLElement {
     const board = ctx.board();
-    const box = el('div', `item tcard p-${todo.priority}${board.isDone(todo) ? ' done' : ''}`);
+    const box = el('div', `item tcard${board.isDone(todo) ? ' done' : ''}`);
     box.dataset['id'] = todo.id;
     box.draggable = true;
     box.tabIndex = 0;
     box.setAttribute('role', 'button');
     box.addEventListener('click', () => ctx.open(todo.id));
+    box.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      cardMenu(todo, { x: e.clientX, y: e.clientY });
+    });
     box.addEventListener('keydown', (e) => {
-      if (e.target === box && (isEnterKey(e) || e.key === ' ')) {
+      if (e.target !== box) return;
+      if (isEnterKey(e) || e.key === ' ') {
         e.preventDefault();
         ctx.open(todo.id);
+      } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        e.preventDefault();
+        const r = box.getBoundingClientRect();
+        cardMenu(todo, { x: r.left + 16, y: r.top + 16 });
+      } else if (e.key.startsWith('Arrow')) {
+        e.preventDefault();
+        if (!e.altKey) focusNeighbor(box, e.key);
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') moveWithin(todo, e.key === 'ArrowUp' ? -1 : 1);
+        else moveAcross(todo, e.key === 'ArrowLeft' ? -1 : 1);
       }
     });
     box.addEventListener('dragstart', (e) => {
@@ -81,23 +159,16 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       clearDrop();
     });
 
-    const top = el('div', 'ttop');
-    top.append(el('b', 'tt', todo.title));
-    const more = button('⋯', 'btn icon sm ghost', () => cardMenu(todo, more));
-    more.title = '카드 메뉴';
-    more.setAttribute('aria-label', '카드 메뉴');
-    more.addEventListener('click', (e) => e.stopPropagation());
-    top.append(more);
+    box.append(el('div', 'tt', todo.title));
 
-    if (todo.labels.length > 0) {
-      const labels = el('div', 'tchips');
-      for (const l of todo.labels) labels.append(labelChip(l));
-      box.append(labels);
-    }
-    box.append(top);
-
+    // 값이 있는 속성만 칩으로 보인다
     const chips = el('div', 'tchips');
-    if (todo.priority !== 'normal') chips.append(chipOf(`우선순위 ${PRIORITY_LABEL[todo.priority]}`, todo.priority === 'high' ? 'red' : ''));
+    for (const l of todo.labels) chips.append(labelChip(l));
+    if (todo.priority !== 'normal') {
+      const p = chipOf(PRIORITY_LABEL[todo.priority], todo.priority === 'high' ? 'red' : '');
+      p.title = '우선순위';
+      chips.append(p);
+    }
     const due = dueText(board, todo, ctx.today());
     if (due !== null) chips.append(chipOf(due.text, due.cls));
     if (todo.repo !== null) chips.append(chipOf(todo.repo, 'blue'));
@@ -107,8 +178,6 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     const progress = todo.checklist.progress();
     if (progress.total > 0) chips.append(chipOf(`✓ ${progress.done}/${progress.total}`, progress.done === progress.total ? 'green' : ''));
     if (chips.childElementCount > 0) box.append(chips);
-    if (progress.total > 0) box.append(meter(progress.percent));
-    if (todo.note !== '') box.append(el('div', 'tnote', todo.note));
     return box;
   }
 
@@ -126,6 +195,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       { label: '완료로 취급', checked: col.done, pick: () => edit({ done: !col.done }) },
       { label: '팀이 일하는 칸', checked: col.work, pick: () => edit({ work: !col.work }) },
       { label: col.collapsed ? '펼치기' : '접기', pick: () => edit({ collapsed: !col.collapsed }) },
+      { label: '숨기기', disabled: board.columns.visible().length <= 1, pick: () => edit({ hidden: true }) },
       'sep',
       { label: '앞으로 이동', disabled: at === 0, pick: () => void ctx.act({ kind: 'column-move', id: col.id, beforeId: board.columns.items[at - 1]!.id }) },
       { label: '뒤로 이동', disabled: at === board.columns.items.length - 1, pick: () => void ctx.act({ kind: 'column-move', id: col.id, beforeId: board.columns.items[at + 2]?.id ?? null }) },
@@ -135,25 +205,35 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     showMenu(anchor, items);
   }
 
+  /** 칸 지우기: 카드가 있으면 옮길 칸을 고르게 하거나 카드까지 함께 지운다 */
   function removeColumn(col: Column): void {
     const board = ctx.board();
     const count = board.cardsIn(col.id).length;
-    const landing = board.columns.get(board.columns.landingFor(col.id))!;
-    const remove = (cards: 'merge' | 'delete') => () => void ctx.act({ kind: 'column-remove', id: col.id, cards });
     if (count === 0) {
-      confirmDialog(`"${col.name}" 칸을 지울까요?`, '카드가 없는 칸이에요.', [{ label: '지우기', cls: 'btn danger', pick: remove('merge') }]);
+      confirmDialog(`"${col.name}" 칸을 지울까요?`, '카드가 없는 칸이에요.', [{ label: '지우기', cls: 'btn danger', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'merge', into: null }) }]);
       return;
     }
-    confirmDialog(`"${col.name}" 칸을 지울까요?`, `카드 ${count}장이 있어요. "${landing.name}" 칸으로 옮기거나, 카드까지 함께 지울 수 있어요. 함께 지우면 되돌릴 수 없어요.`, [
-      { label: `"${landing.name}"으로 옮기고 지우기`, cls: 'btn primary', pick: remove('merge') },
-      { label: `카드 ${count}장도 함께 지우기`, cls: 'btn danger', pick: remove('delete') },
-    ]);
+    const others = board.columns.items.filter((c) => c.id !== col.id);
+    const landing = board.columns.landingFor(col.id);
+    const into = select(others.map((c) => [c.id, c.hidden ? `${c.name} (숨김)` : c.name] as const), landing, () => undefined);
+    into.setAttribute('aria-label', '카드를 옮길 칸');
+    const pick = el('label', 'dfield');
+    pick.append(el('span', 'lbl', '카드를 옮길 칸'), into);
+    confirmDialog(
+      `"${col.name}" 칸을 지울까요?`,
+      `카드 ${count}장이 있어요. 고른 칸으로 옮기거나, 카드까지 함께 지울 수 있어요. 함께 지우면 되돌릴 수 없어요.`,
+      [
+        { label: '옮기고 지우기', cls: 'btn primary', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'merge', into: into.value }) },
+        { label: `카드 ${count}장도 함께 지우기`, cls: 'btn danger', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'delete', into: null }) },
+      ],
+      pick,
+    );
   }
 
   function header(col: Column, shown: number, total: number): HTMLElement {
     const head = el('div', 'tch');
     head.dataset['col'] = col.id;
-    head.draggable = renaming !== col.id && !narrow;
+    head.draggable = renaming !== col.id;
     head.addEventListener('dragstart', (e) => {
       if (e.target !== head) return;
       drag = { kind: 'column', id: col.id };
@@ -167,7 +247,6 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       clearDrop();
     });
 
-    head.append(dot(col.color));
     if (renaming === col.id) {
       const input = el('input', 'sm grow');
       input.value = col.name;
@@ -189,28 +268,28 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       head.append(input);
       queueMicrotask(() => (input.focus(), input.select()));
     } else {
-      const name = el('b', 'tname', col.name);
+      const name = el('span', `chip tname${col.color === 'gray' ? '' : ` ${col.color}`}`, col.name);
       name.title = '두 번 누르면 이름을 바꿔요';
       name.addEventListener('dblclick', () => ((renaming = col.id), render()));
       head.append(name);
     }
-    head.append(chipOf(shown === total ? String(total) : `${shown}/${total}`));
-    const fold = button(col.collapsed ? '▸' : '▾', 'btn icon sm ghost', () => void ctx.act({ kind: 'column-edit', id: col.id, patch: { collapsed: !col.collapsed } }));
-    fold.title = col.collapsed ? '펼치기' : '접기';
-    fold.setAttribute('aria-label', fold.title);
+    head.append(el('span', 'tcount', shown === total ? String(total) : `${shown}/${total}`));
+    head.append(el('span', 'grow'));
+    if (!col.collapsed) {
+      const add = button('+', 'btn icon sm ghost', () => ctx.quickAdd(col.id, true));
+      add.title = '이 칸 맨 위에 카드 추가';
+      add.setAttribute('aria-label', `${col.name} 칸에 카드 추가`);
+      head.append(add);
+    }
     const more = button('⋯', 'btn icon sm ghost', () => columnMenu(col, more));
     more.title = '칸 메뉴';
-    more.setAttribute('aria-label', '칸 메뉴');
-    head.append(fold, more);
+    more.setAttribute('aria-label', `${col.name} 칸 메뉴`);
+    head.append(more);
     return head;
   }
 
-  function adder(col: Column): HTMLElement {
-    if (adding !== col.id) {
-      const open = button('+ 카드 추가', 'btn ghost sm block', () => ctx.quickAdd(col.id));
-      open.classList.add('tadd');
-      return open;
-    }
+  /** 카드 이름을 치고 Enter로 잇따라 만드는 입력칸. 비어 있는 채 초점을 잃으면 사라진다. */
+  function adder(col: Column, top: boolean): HTMLElement {
     const wrap = el('div', 'tadding');
     const input = el('input', 'sm');
     input.placeholder = '제목을 치고 Enter';
@@ -220,6 +299,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     input.addEventListener('input', () => (addDraft = input.value));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
         adding = null;
         addDraft = '';
         render();
@@ -229,7 +309,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
         const title = input.value;
         input.value = '';
         addDraft = '';
-        void ctx.act({ kind: 'add', title, columnId: col.id }).then((r) => {
+        void ctx.act({ kind: 'add', title, columnId: col.id, top }).then((r) => {
           if (!r.ok) {
             addDraft = title;
             render();
@@ -238,11 +318,14 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       }
     });
     input.addEventListener('blur', () => {
-      if (input.value.trim() === '' && adding === col.id) {
-        adding = null;
-        addDraft = '';
-        queueMicrotask(render);
-      }
+      // 다른 곳을 누르는 중에 화면을 다시 그리면 그 클릭이 사라진다. 잠깐 뒤에 아직 비어 있고 초점이 없을 때만 닫는다.
+      setTimeout(() => {
+        if (adding?.columnId === col.id && input.value.trim() === '' && document.activeElement !== input) {
+          adding = null;
+          addDraft = '';
+          render();
+        }
+      }, 200);
     });
     wrap.append(input);
     queueMicrotask(() => input.focus());
@@ -253,127 +336,110 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     const box = el('div', `tcol${col.collapsed ? ' collapsed' : ''}`);
     box.dataset['col'] = col.id;
     box.append(header(col, cards.length, total));
-    if (col.collapsed) return box;
+    if (col.collapsed) {
+      box.title = '눌러서 펼치기';
+      box.addEventListener('click', (e) => {
+        if (!(e.target as HTMLElement).closest('button, input')) void ctx.act({ kind: 'column-edit', id: col.id, patch: { collapsed: false } });
+      });
+      return box;
+    }
     const list = el('div', 'tcards');
-    if (cards.length === 0) list.append(el('div', 'tnone', total === 0 ? '카드가 없어요' : '걸러져서 안 보여요'));
+    const topAdd = adding?.columnId === col.id && adding.top;
+    const bottomAdd = adding?.columnId === col.id && !adding.top;
+    if (topAdd) list.append(adder(col, true));
+    if (cards.length === 0 && !topAdd && !bottomAdd) list.append(el('div', 'tnone', total === 0 ? '카드가 없어요' : '걸러져서 안 보여요'));
     for (const c of cards) list.append(card(c));
-    box.append(list, adder(col));
+    if (bottomAdd) list.append(adder(col, false));
+    box.append(list);
+    if (!bottomAdd) {
+      const open = button('+ 새로 만들기', 'btn ghost sm block tadd', () => ctx.quickAdd(col.id, false));
+      box.append(open);
+    }
     return box;
   }
 
-  // ── 끌어서 놓기 ──
+  // ── 끌어서 놓기: 놓는 자리는 포인터 위치로 그때그때 다시 계산한다(저장해 둔 값에 기대지 않는다) ──
+
+  function locate(e: DragEvent): DropAt | null {
+    if (drag === null) return null;
+    const target = e.target as HTMLElement;
+    if (drag.kind === 'card') {
+      const hid = target.closest<HTMLElement>('.thid[data-col]');
+      if (hid !== null) return { columnId: hid.dataset['col']!, before: null };
+      const colEl = target.closest<HTMLElement>('.tcol');
+      if (colEl === null) return null;
+      const columnId = colEl.dataset['col']!;
+      const list = colEl.querySelector<HTMLElement>('.tcards');
+      if (list === null) return { columnId, before: null };
+      const cards = cardEls(list);
+      return { columnId, before: beforeIdAt(cards.map((c) => ({ id: c.dataset['id']!, start: c.getBoundingClientRect().top, size: c.offsetHeight })), e.clientY, drag.id) };
+    }
+    const cols = columnEls();
+    return { columnId: null, before: beforeIdAt(cols.map((c) => ({ id: c.dataset['col']!, start: c.getBoundingClientRect().left, size: c.offsetWidth })), e.clientX, drag.id) };
+  }
 
   root.addEventListener('dragover', (e) => {
-    if (drag === null) return;
+    const at = locate(e);
+    if (at === null || drag === null) return;
+    e.preventDefault();
+    clearDrop();
     const target = e.target as HTMLElement;
-    const colEl = target.closest<HTMLElement>('.tcol');
     if (drag.kind === 'card') {
-      const tab = target.closest<HTMLElement>('.tab[data-col]');
-      if (tab !== null) {
-        e.preventDefault();
-        clearDrop();
-        tab.classList.add('drop-on');
+      const hid = target.closest<HTMLElement>('.thid[data-col]');
+      if (hid !== null) {
+        hid.classList.add('drop-on');
         return;
       }
-      if (colEl === null) return;
-      e.preventDefault();
-      clearDrop();
+      const colEl = target.closest<HTMLElement>('.tcol')!;
       colEl.classList.add('drop-on');
       const list = colEl.querySelector<HTMLElement>('.tcards');
       if (list === null) return;
-      const cards = [...list.querySelectorAll<HTMLElement>('.tcard')];
-      const before = beforeIdAt(cards.map((c) => ({ id: c.dataset['id']!, start: c.getBoundingClientRect().top, size: c.offsetHeight })), e.clientY, drag.id);
-      const ref = before === null ? null : (cards.find((c) => c.dataset['id'] === before) ?? null);
+      const ref = at.before === null ? null : (cardEls(list).find((c) => c.dataset['id'] === at.before) ?? null);
       list.insertBefore(line, ref);
-      line.dataset['before'] = before ?? '';
-      line.dataset['col'] = colEl.dataset['col']!;
     } else {
-      e.preventDefault();
-      clearDrop();
-      const cols = [...root.querySelectorAll<HTMLElement>('.tcol')];
-      const before = beforeIdAt(cols.map((c) => ({ id: c.dataset['col']!, start: c.getBoundingClientRect().left, size: c.offsetWidth })), e.clientX, drag.id);
-      const ref = before === null ? null : (cols.find((c) => c.dataset['col'] === before) ?? null);
       const row = root.querySelector<HTMLElement>('.tcolumns');
       if (row === null) return;
-      line.dataset['before'] = before ?? '';
-      line.dataset['col'] = '';
-      row.insertBefore(line, ref ?? row.querySelector('.tnew'));
+      const ref = at.before === null ? null : (columnEls().find((c) => c.dataset['col'] === at.before) ?? null);
+      row.insertBefore(line, ref ?? row.querySelector('.ttail'));
     }
   });
   root.addEventListener('dragleave', (e) => {
     if (e.relatedTarget === null || !root.contains(e.relatedTarget as Node)) clearDrop();
   });
   root.addEventListener('drop', (e) => {
-    if (drag === null) return;
     const current = drag;
-    const tab = (e.target as HTMLElement).closest<HTMLElement>('.tab[data-col]');
-    const placed = line.parentElement !== null;
-    const before = placed ? line.dataset['before'] || null : null;
-    const target = placed ? line.dataset['col'] || null : null;
+    const at = locate(e);
     clearDrop();
     drag = null;
+    if (current === null || at === null) return;
     e.preventDefault();
     if (current.kind === 'card') {
-      const columnId = tab?.dataset['col'] ?? target;
-      if (columnId !== null && columnId !== undefined) void ctx.act({ kind: 'move', id: current.id, columnId, beforeId: tab === null ? before : null });
-    } else if (placed) {
-      void ctx.act({ kind: 'column-move', id: current.id, beforeId: before });
+      if (at.columnId !== null) void ctx.act({ kind: 'move', id: current.id, columnId: at.columnId, beforeId: at.before });
+    } else {
+      void ctx.act({ kind: 'column-move', id: current.id, beforeId: at.before });
     }
   });
 
   // ── 그리기 ──
 
-  function render(): void {
-    const board = ctx.board();
-    const today = ctx.today();
-    const shown = board.view(ctx.filter(), 'manual', today);
-    const counts = board.counts();
-    const cols = board.columns.items;
-    if (activeTab === null || !board.columns.has(activeTab)) activeTab = cols[0]!.id;
-    // 다시 그려도 보던 자리가 그대로 있게 스크롤 위치를 기억한다
-    const scrolls = new Map<string, number>();
-    for (const c of root.querySelectorAll<HTMLElement>('.tcol')) scrolls.set(c.dataset['col']!, c.querySelector('.tcards')?.scrollTop ?? 0);
-    const rowLeft = root.querySelector('.tcolumns')?.scrollLeft ?? 0;
-    root.classList.toggle('narrow', narrow);
-    root.replaceChildren();
-
-    const inColumn = (c: Column): readonly Todo[] => shown.filter((t) => t.columnId === c.id);
-    if (narrow) {
-      const tabs = el('div', 'tabs ttabs');
-      for (const c of cols) {
-        const t = el('button', `tab${c.id === activeTab ? ' on' : ''}`);
-        t.type = 'button';
-        t.dataset['col'] = c.id;
-        t.append(dot(c.color), el('span', undefined, c.name), chipOf(String(counts[c.id] ?? 0)));
-        t.addEventListener('click', () => ((activeTab = c.id), render()));
-        tabs.append(t);
-      }
-      tabs.append(button('+ 칸', 'btn ghost sm tab-end', () => ((addingColumn = true), render())));
-      root.append(tabs);
-      const col = cols.find((c) => c.id === activeTab)!;
-      const one = column({ ...col, collapsed: false }, inColumn(col), counts[col.id] ?? 0);
-      one.classList.add('only');
-      root.append(one);
-    } else {
-      const row = el('div', 'tcolumns');
-      for (const c of cols) row.append(column(c, inColumn(c), counts[c.id] ?? 0));
-      const tail = el('div', 'tnew');
-      tail.append(newColumn());
-      row.append(tail);
-      root.append(row);
-      row.scrollLeft = rowLeft;
+  /** 숨긴 칸 영역: 칸을 다시 보이게 하거나(카드를 끌어다 놓아도 그 칸으로 옮겨진다) 지운다 */
+  function hiddenPanel(hidden: readonly Column[], counts: Readonly<Record<string, number>>): HTMLElement {
+    const panel = el('div', 'thidden');
+    panel.append(el('div', 'lbl', `숨긴 칸 ${hidden.length}`));
+    for (const c of hidden) {
+      const row = el('div', 'thid row-item');
+      row.dataset['col'] = c.id;
+      row.append(el('span', `dot ${c.color}`), el('span', 'grow tname', c.name), el('span', 'tcount', String(counts[c.id] ?? 0)));
+      const show = button('보이기', 'btn sm', () => void ctx.act({ kind: 'column-edit', id: c.id, patch: { hidden: false } }));
+      show.setAttribute('aria-label', `${c.name} 칸 보이기`);
+      row.append(show);
+      panel.append(row);
     }
-    if (narrow && addingColumn) root.append(newColumn());
-    for (const c of root.querySelectorAll<HTMLElement>('.tcol')) {
-      const list = c.querySelector('.tcards');
-      if (list !== null) list.scrollTop = scrolls.get(c.dataset['col']!) ?? 0;
-    }
-    // 검색·필터로 모두 가려졌을 때 알려 준다
-    if (shown.length === 0 && board.items.length > 0) root.append(el('div', 'tempty', '걸러진 카드가 없어요. 검색·필터를 바꿔 보세요.'));
+    return panel;
   }
 
   function newColumn(): HTMLElement {
-    if (!addingColumn) return button('+ 칸 추가', 'btn ghost sm', () => ((addingColumn = true), render()));
+    if (!addingColumn) return button('+ 칸 추가', 'btn ghost sm block', () => ((addingColumn = true), render()));
     const input = el('input', 'sm');
     input.placeholder = '칸 이름을 치고 Enter';
     input.maxLength = 30;
@@ -382,6 +448,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     input.addEventListener('input', () => (columnDraft = input.value));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        e.stopPropagation();
         addingColumn = false;
         columnDraft = '';
         render();
@@ -393,36 +460,80 @@ export function buildBoard(ctx: TodoCtx): BoardView {
           if (r.ok) {
             addingColumn = false;
             columnDraft = '';
-            const last = r.list.columns[r.list.columns.length - 1];
-            if (last !== undefined) activeTab = last.id;
             render();
+            // 새 칸이 가로 끝에 있으므로 보이는 곳까지 스크롤한다
+            const row = root.querySelector('.tcolumns');
+            if (row !== null) row.scrollLeft = row.scrollWidth;
           }
         });
       }
     });
     input.addEventListener('blur', () => {
-      if (input.value.trim() === '') {
-        addingColumn = false;
-        columnDraft = '';
-        queueMicrotask(render);
-      }
+      setTimeout(() => {
+        if (addingColumn && input.value.trim() === '' && document.activeElement !== input) {
+          addingColumn = false;
+          columnDraft = '';
+          render();
+        }
+      }, 200);
     });
     queueMicrotask(() => input.focus());
     return input;
   }
 
-  return {
+  function render(): void {
+    const board = ctx.board();
+    const shown = board.view(ctx.filter(), 'manual', ctx.today());
+    const counts = board.counts();
+    const cols = board.columns.visible();
+    const hidden = board.columns.items.filter((c) => c.hidden);
+    // 다시 그려도 보던 자리와 초점이 그대로 있게 스크롤 위치와 초점 카드를 기억한다
+    const scrolls = new Map<string, number>();
+    for (const c of root.querySelectorAll<HTMLElement>('.tcol')) scrolls.set(c.dataset['col']!, c.querySelector('.tcards')?.scrollTop ?? 0);
+    const rowLeft = root.querySelector('.tcolumns')?.scrollLeft ?? 0;
+    const active = document.activeElement;
+    const focusId = pendingFocus ?? (active instanceof HTMLElement && active.classList.contains('tcard') && root.contains(active) ? (active.dataset['id'] ?? null) : null);
+    pendingFocus = null;
+    root.replaceChildren();
+
+    const row = el('div', 'tcolumns');
+    for (const c of cols) row.append(column(c, shown.filter((t) => t.columnId === c.id), counts[c.id] ?? 0));
+    const tail = el('div', 'ttail');
+    tail.append(newColumn());
+    if (hidden.length > 0) tail.append(hiddenPanel(hidden, counts));
+    row.append(tail);
+    root.append(row);
+    row.scrollLeft = rowLeft;
+    for (const c of root.querySelectorAll<HTMLElement>('.tcol')) {
+      const list = c.querySelector('.tcards');
+      if (list !== null) list.scrollTop = scrolls.get(c.dataset['col']!) ?? 0;
+    }
+    if (adding !== null) {
+      // 맨 아래 입력은 보이는 곳까지 내려 준다
+      const input = root.querySelector('.tadding');
+      if (input !== null && !adding.top) input.scrollIntoView({ block: 'nearest' });
+    }
+    if (focusId !== null) view.focusCard(focusId);
+    // 검색·필터로 모두 가려졌을 때 알려 준다
+    if (shown.length === 0 && board.items.length > 0) root.append(el('div', 'tempty', '걸러진 카드가 없어요. 검색·필터를 바꿔 보세요.'));
+  }
+
+  const view: BoardView = {
     root,
     render,
-    setNarrow(value: boolean): void {
-      if (narrow === value) return;
-      narrow = value;
+    openAdder(columnId: string, top = false): void {
+      adding = { columnId, top };
       render();
     },
-    openAdder(columnId: string): void {
-      adding = columnId;
-      activeTab = columnId;
-      render();
+    focusCard(id: string): boolean {
+      const found = [...root.querySelectorAll<HTMLElement>('.tcard')].find((c) => c.dataset['id'] === id);
+      found?.focus();
+      return found !== undefined;
+    },
+    focusedColumn(): string | null {
+      const active = document.activeElement;
+      return active instanceof HTMLElement && root.contains(active) ? (active.closest<HTMLElement>('.tcol')?.dataset['col'] ?? null) : null;
     },
   };
+  return view;
 }
