@@ -60,7 +60,8 @@ export function limitBar(label: string, w: UsageWindowView | null): HTMLElement 
   } else {
     row.append(bar, el('span', 'dim', '아직 못 읽었어요'));
   }
-  bar.appendChild(fill);
+  // 못 읽었으면 빈 막대로 둔다(채우지 않으면 초록 가득이 아니라 빈 회색)
+  if (w !== null) bar.appendChild(fill);
   return row;
 }
 
@@ -219,6 +220,8 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       input.addEventListener('change', () => void api.update({ [key]: input.value.trim() === '' ? null : input.value.trim() }).then(render));
       return row(label, input);
     };
+    // 아직 아무것도 안 적었으면 오류가 아니라 안내다(쓰고 싶을 때 등록하는 선택 기능)
+    const awsUnset = [s.awsProfile, s.awsBucket, s.awsRegion, s.awsAccount].every((v) => v === null || v === '');
     const awsHint = syncBlockReason({ profile: s.awsProfile, bucket: s.awsBucket, region: s.awsRegion, account: s.awsAccount });
     root.appendChild(
       section(
@@ -227,7 +230,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
         awsField('awsBucket', '버킷', '예: example-bucket'),
         awsField('awsRegion', '리전', '예: ap-northeast-2'),
         awsField('awsAccount', '개인 계정 번호(12자리)', '000000000000'),
-        el('div', awsHint === null ? 'hint pad' : 'err pad', awsHint ?? '준비됐어요. 올리거나 받기 직전에 실제 계정이 이 번호와 같은지 확인하고, 다르면 멈춰요.'),
+        el('div', awsHint === null || awsUnset ? 'hint pad' : 'err pad', awsHint ?? '준비됐어요. 올리거나 받기 직전에 실제 계정이 이 번호와 같은지 확인하고, 다르면 멈춰요.'),
         el('div', 'hint pad', 'AWS 키는 앱에 적지 않아요. 터미널에서 aws configure --profile 이름 으로 등록한 프로필 이름만 적어요. 프로필 이름을 적기 전에는 올리기·받기가 꺼져 있어요.'),
       ),
     );
