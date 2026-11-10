@@ -151,8 +151,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       () => say('이름을 저장하지 못했어요.'),
     );
   } });
-  const namesSec = section('가릴 이름', namesBox, el('div', 'btns', ''), el('div', 'hint', '작업 폴더의 레포·폴더 이름은 자동으로 가려요. 회사·서비스 이름은 여기에 적어 두세요(설정에 저장돼요).'));
-  namesSec.querySelector('.btns')?.append(namesSave);
+  const namesSec = section('가릴 이름', namesBox, namesSave, el('div', 'hint', '작업 폴더의 레포·폴더 이름은 자동으로 가려요. 회사·서비스 이름은 여기에 적어 두세요(설정에 저장돼요).'));
 
   // 코드 조각: 내가 붙여 넣고 체크한 것만 글에 들어간다
   const snipList = el('div', 'bg-snips');

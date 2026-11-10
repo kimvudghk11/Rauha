@@ -292,7 +292,6 @@ export function buildRecords(deps: RecordsViewDeps) {
     top.append(el('span', `grow rpick-sum${s.canClear ? ' on' : ''}`, s.summary));
     const all = actionButton({
       label: '전체 선택',
-      small: true,
       title: '지금 보이는 기록을 모두 체크해요',
       onClick: () => {
         for (const e of shown) picked.add(e.id);
@@ -304,7 +303,6 @@ export function buildRecords(deps: RecordsViewDeps) {
       label: '선택 해제',
       icon: 'close',
       kind: 'ghost',
-      small: true,
       onClick: () => {
         picked.clear();
         lastPicked = null;
@@ -322,7 +320,6 @@ export function buildRecords(deps: RecordsViewDeps) {
           label: '블로그 글',
           icon: 'doc',
           kind: primaryRecordAction(picked.size, view) === 'pick-blog' ? 'primary' : undefined,
-          small: true,
           title: '체크한 기록으로 블로그 글 정리 노트를 만들어요',
           onClick: () => openBlog([...picked]),
         });
@@ -332,7 +329,6 @@ export function buildRecords(deps: RecordsViewDeps) {
       const copy = actionButton({
         label: '복사',
         icon: 'copy',
-        small: true,
         title: '체크한 기록을 마크다운으로 복사해요',
         onClick: () => {
           const chosen = book.entries.filter((e) => picked.has(e.id));
@@ -344,7 +340,6 @@ export function buildRecords(deps: RecordsViewDeps) {
         label: '삭제',
         icon: 'trash',
         kind: 'danger',
-        small: true,
         title: '체크한 기록을 지워요(확인 창이 떠요)',
         onClick: () => void askRemove([...picked]),
       });
