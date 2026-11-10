@@ -105,3 +105,16 @@ export async function cleanupLeftovers(root: string): Promise<number> {
   }
   return count;
 }
+
+/** 빈 폴더를 git 저장소로 시작한다(첫 빈 커밋까지: 두 번째 일의 worktree가 HEAD에서 만들어지기 때문). 커밋 이름이 설정에 없으면 임시 이름을 쓴다. */
+export async function initRepo(dir: string): Promise<void> {
+  await git(dir, ['init']);
+  const has = async (key: string) => (await git(dir, ['config', key]).then((r) => r.stdout.trim(), () => '')) !== '';
+  const identity = (await has('user.name')) && (await has('user.email')) ? [] : ['-c', 'user.name=rauha', '-c', 'user.email=rauha@localhost'];
+  await git(dir, [...identity, 'commit', '--allow-empty', '-m', '시작']);
+}
+
+/** 폴더가 git 저장소 안인가(상위 폴더가 저장소여도 그렇다) */
+export async function insideRepo(dir: string): Promise<boolean> {
+  return git(dir, ['rev-parse', '--is-inside-work-tree']).then((r) => r.stdout.trim() === 'true', () => false);
+}

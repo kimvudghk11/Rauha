@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { cpus, homedir, release, userInfo } from 'node:os';
 import { basename, join } from 'node:path';
-import { accessSync, constants as fsConstants, existsSync, statSync } from 'node:fs';
+import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
@@ -15,7 +15,7 @@ import { applyTeamOp, TeamSettingsStore, teamView } from './team-settings-store.
 import { TeamSettings } from '../shared/team-settings.js';
 import { DefaultRulesStore, applyDefaultRuleOp } from './default-rules-store.js';
 import { scanWorkFolder } from './workspace/scan.js';
-import { addWorktree, cleanupLeftovers, finishWorktree } from './workspace/git-worktree.js';
+import { addWorktree, cleanupLeftovers, finishWorktree, initRepo, insideRepo } from './workspace/git-worktree.js';
 import { carryFiles } from './workspace/carry-files.js';
 import { ConversationResetDto, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { RepoConversations } from './team/repo-conversations.js';
@@ -44,7 +44,7 @@ import { ClaudeLogin } from './auth/claude-login.js';
 import { AppLog } from './diagnostics/app-log.js';
 import { collectSnapshot } from './diagnostics/collect.js';
 import { startupFailure } from './diagnostics/startup-failure.js';
-import { workFolderProblem } from '../shared/work-folder.js';
+import { startsAsNewProject, workFolderProblem } from '../shared/work-folder.js';
 import { DiagnosticReport, Redactor } from '../shared/diagnostics.js';
 import type { AccountCheck } from '../shared/account-state.js';
 import type { UpdateView } from '../shared/update-record.js';
@@ -245,6 +245,8 @@ async function startRunner(): Promise<JobRunner> {
           handle: async (_input, depth) => {
             const problem = workFolderProblem(root, folderFacts(root));
             if (problem !== null) throw new Error(problem);
+            // 빈 폴더에서 "만들어 줘"로 시작하면 git 저장소로 시작해 준다(사용자 파일이 있는 폴더는 건드리지 않는다)
+            if (startsAsNewProject({ ...folderFacts(root), insideRepo: await insideRepo(root), entries: readdirSync(root) })) await initRepo(root).catch(() => undefined);
             // 같은 레포에 두 번째로 오는 작업은 자기 worktree에서 일한다(첫 작업은 원래 폴더)
             const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`));
             ledger = claim.ledger;
