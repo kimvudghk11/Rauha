@@ -61,6 +61,8 @@
 /* 팀 상세 */
 .detail .pane { min-height: 0; overflow: hidden; }
 .detail .ph .right { margin-left: auto; display: flex; gap: 6px; }
+.app[data-mode=xs][data-detail="1"] .detail { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+.detail .ph b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .dtabs { padding: 0 var(--s2); }
 .dbody { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .dbody.term { font-family: var(--mono); font-size: 12px; gap: 2px; }
@@ -151,7 +153,7 @@
 @media (max-width: 720px) { .toasts { left: 60px; right: 8px; bottom: auto; top: calc(var(--titlebar-h, 0px) + 44px); } .toast { max-width: none; } }
 
 .m .tx .kn { margin-top: 6px; font-size: 11px; color: var(--muted); }
-.m .tx .deeper { margin-top: 6px; display: flex; width: fit-content; }
+.m .tx .deeper, .m .tx .retry { margin-top: 6px; display: flex; width: fit-content; }
 
 .ruletalk { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
 
@@ -177,3 +179,4 @@
 /* 메인 칸 머리: 라벨은 꺾이지 않고, 안내 글이 남는 폭만 쓴다 */
 .mainp .ph b { flex: 0 0 auto; white-space: nowrap; }
 .mainp .ph .hint { flex: 1 1 0; min-width: 0; }
+.hand { flex-wrap: wrap; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRevise, composerHeight, replyWho } from './chat-text.js';
+import { canRevise, composerHeight, replyWho, stopReasonText } from './chat-text.js';
 
 describe('입력칸 높이', () => {
   it('내용이 한 줄이면 기본 높이를 지킨다', () => {
@@ -29,5 +29,27 @@ describe('결과 말풍선의 출처', () => {
   });
   it('요청이 길면 줄여서 붙이고 줄바꿈은 공백으로 바꾼다', () => {
     expect(replyWho('Delfi', `${'가'.repeat(40)}\n끝`)).toBe(`Delfi · "${'가'.repeat(23)}…"`);
+  });
+});
+
+describe('멈춤 이유 한국어 문구', () => {
+  it('이유가 없으면 모른다고 쓰되 다시 맡길 수 있다고 알린다', () => {
+    expect(stopReasonText(null)).toBe('이유를 알 수 없어요.');
+  });
+  it('이미 한국어인 이유는 그대로 둔다', () => {
+    expect(stopReasonText('사용자가 멈춤')).toBe('사용자가 멈춤');
+  });
+  it('사용 한도에 걸린 영어 오류는 한도 문구로 바꾼다', () => {
+    expect(stopReasonText('Claude AI usage limit reached|1731000000')).toBe('사용 한도에 걸렸어요. 한도가 풀린 뒤에 다시 맡겨 주세요.');
+    expect(stopReasonText('429 rate_limit_error')).toBe('사용 한도에 걸렸어요. 한도가 풀린 뒤에 다시 맡겨 주세요.');
+  });
+  it('로그인 문제는 로그인 문구로 바꾼다', () => {
+    expect(stopReasonText('401 authentication_error: invalid x-api-key')).toBe('로그인이 풀렸어요. 설정의 계정 칸에서 로그인한 뒤 다시 맡겨 주세요.');
+  });
+  it('네트워크 오류는 연결 문구로 바꾼다', () => {
+    expect(stopReasonText('fetch failed: ECONNRESET')).toBe('네트워크 연결이 끊겼어요. 연결을 확인하고 다시 맡겨 주세요.');
+  });
+  it('그 밖의 영어 오류는 원문을 괄호로 남긴다', () => {
+    expect(stopReasonText('boom')).toBe('예상하지 못한 오류로 멈췄어요. (boom)');
   });
 });

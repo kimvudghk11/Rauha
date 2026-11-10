@@ -13,6 +13,7 @@ import { loginCard } from './login-view.js';
 import { characterStateOf, elapsedText } from './room.js';
 import { askDialog } from './git-common.js';
 import { flash } from './record-parts.js';
+import { canRevise, composerHeight, replyWho, stopReasonText } from '../shared/chat-text.js';
 import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { mountStage, paintOnce } from './stage.js';
 
@@ -126,25 +127,43 @@ export function buildChat(actions: ChatActions) {
     const typed = input.value;
     if (typed.trim() === '') return;
     input.value = '';
+    fit();
     suggest.close();
     const text = actions.intercept === undefined ? typed : await actions.intercept(typed);
     if (text === null) {
       input.focus();
       return;
     }
-    const job = await actions.submit(text);
-    if (job !== null) {
-      jobs.set(job.id, job);
-      addJob(job);
-    } else {
+    const job = await handIn(text);
+    if (job === null) {
       // 작업 폴더를 고르고 허락하기 전이면 main이 받지 않는다. 쓴 글을 돌려주고 이유를 알린다(아무 말 없이 사라지지 않게).
-      if (input.value.trim() === '') input.value = text;
+      if (input.value.trim() === '') {
+        input.value = text;
+        fit();
+      }
       flash('작업 폴더를 먼저 골라 허락해 주세요(설정 탭의 작업 폴더). 쓰던 글은 그대로 두었어요.');
     }
     input.focus();
   };
+  /** 입력 글을 팀에 넘기고 카드를 단다. main이 받지 않으면(폴더 허락 전) null. */
+  const handIn = async (text: string): Promise<JobView | null> => {
+    const job = await actions.submit(text);
+    if (job !== null) {
+      jobs.set(job.id, job);
+      addJob(job);
+    }
+    return job;
+  };
+  /** 입력칸 높이: 내용만큼 늘고 최대에서 멈춘다. 높이는 CSSOM으로만 바꾼다(style 속성 문자열을 쓰지 않는다). */
+  const fit = () => {
+    input.style.height = 'auto';
+    input.style.height = `${composerHeight(input.scrollHeight)}px`;
+  };
   const suggest = attachSuggest(input, composer, (t) => actions.suggest?.(t) ?? []);
-  input.addEventListener('input', () => suggest.update());
+  input.addEventListener('input', () => {
+    suggest.update();
+    fit();
+  });
   input.addEventListener('keydown', (e) => {
     if (suggest.key(e)) {
       e.preventDefault();
@@ -213,7 +232,7 @@ export function buildChat(actions: ChatActions) {
     const card = cards.get(job.id);
     if (card === undefined) return;
     card.dot.className = `dot ${job.status}`;
-    card.state.textContent = `· ${STATUS_LABEL[job.status]}${job.stopReason !== null ? ` (${job.stopReason})` : ''}`;
+    card.state.textContent = `· ${STATUS_LABEL[job.status]}${job.stopReason !== null ? ` (${stopReasonText(job.stopReason)})` : ''}`;
     card.stop.hidden = job.status === 'done' || job.status === 'stopped';
   }
 
@@ -227,7 +246,7 @@ export function buildChat(actions: ChatActions) {
     paintOnce(face, 'intake', 2, job.status === 'done' ? 'done' : 'stuck');
     av.appendChild(face);
     const body = el('div');
-    const text = job.result ?? (job.status === 'done' ? '끝났어요.' : `멈췄어요${job.stopReason !== null ? `: ${job.stopReason}` : ''}`);
+    const text = job.result ?? (job.status === 'done' ? '끝났어요.' : `멈췄어요: ${stopReasonText(job.stopReason)}`);
     const card = el('div', 'tx', text);
     // 로그인이 필요해서 멈춘 일: 터미널로 보내지 않고 이 카드에서 바로 로그인한다
     if (job.status === 'stopped' && needsLogin(`${text} ${job.stopReason ?? ''}`)) card.appendChild(loginCard());
@@ -235,6 +254,19 @@ export function buildChat(actions: ChatActions) {
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));
     // 팀원이 찾아본 도구(Grep·Read 횟수): 폴더를 제대로 훑었는지 보이게 작게 한 줄. 쓴 도구가 없으면 줄이 없다.
     if (job.toolsLine !== null) card.appendChild(el('div', 'kn', `찾아본 것: ${job.toolsLine}`));
+    // 멈춘 일은 같은 요청을 그대로 다시 맡길 수 있다(로그인 때문이면 로그인한 뒤 누른다)
+    if (job.status === 'stopped') {
+      const again = el('button', 'btn sm retry', '다시 맡기기');
+      again.addEventListener('click', () => {
+        if (again.disabled) return;
+        again.disabled = true;
+        void handIn(job.request).then((next) => {
+          again.textContent = next === null ? '작업 폴더를 먼저 허락해 주세요' : '다시 맡겼어요 ✓';
+          again.disabled = next !== null;
+        });
+      });
+      card.appendChild(again);
+    }
     // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
     if (job.canGoDeeper) {
       const deeper = el('button', 'btn sm deeper', '더 깊게');
@@ -244,7 +276,7 @@ export function buildChat(actions: ChatActions) {
       });
       card.appendChild(deeper);
     }
-    body.append(el('div', 'who', leadName()), card);
+    body.append(el('div', 'who', replyWho(leadName(), job.request)), card);
     m.append(av, body);
     msgs.appendChild(m);
     msgs.scrollTop = msgs.scrollHeight;
@@ -452,7 +484,11 @@ export function buildChat(actions: ChatActions) {
     const row = el('div', 'btns');
     const btn = (label: string, cls: string, choice: () => ApprovalChoice) => {
       const b = el('button', cls === '' ? 'btn' : `btn ${cls}`, label);
-      b.addEventListener('click', () => actions.answer(a.id, choice()));
+      b.addEventListener('click', () => {
+        if (b.disabled) return;
+        for (const other of row.querySelectorAll('button')) other.disabled = true; // 이중 처리 방지
+        actions.answer(a.id, choice());
+      });
       return b;
     };
     row.append(
@@ -461,6 +497,11 @@ export function buildChat(actions: ChatActions) {
       btn('다르게 해 줘', '', () => ({ kind: 'revise', note: note.value })),
       btn('거절', 'danger', () => ({ kind: 'deny' })),
     );
+    // 어떻게 바꿀지 적기 전에는 '다르게 해 줘'를 누를 수 없다
+    const revise = row.children[2] as HTMLButtonElement;
+    revise.disabled = !canRevise(note.value);
+    revise.title = '어떻게 바꿀지 위 칸에 적어 주세요';
+    note.addEventListener('input', () => (revise.disabled = !canRevise(note.value)));
     card.append(note, row);
     return card;
   }
