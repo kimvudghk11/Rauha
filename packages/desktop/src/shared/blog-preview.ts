@@ -1,4 +1,4 @@
-import { BlogNote, type BlogLength } from './blog-note.js';
+import { BlogNote, type BlogLength, type BlogTemplateId } from './blog-note.js';
 import { BlogRedactor, type RedactChange, type RedactContext } from './blog-redact.js';
 import type { RecordEntry } from './record-book.js';
 
@@ -9,6 +9,12 @@ export interface BlogPreviewState {
   readonly keep: readonly string[];
   /** 사용자가 체크한 코드 조각만 */
   readonly snippets: readonly string[];
+  /** 글 틀(없으면 트러블슈팅) */
+  readonly template?: BlogTemplateId;
+  /** 맨 앞에 제목·태그·날짜 front-matter를 넣는다(기본 꺼짐: 어디에나 붙여 넣기 좋은 순수 글) */
+  readonly frontMatter?: boolean;
+  /** front-matter 날짜(YYYY-MM-DD) */
+  readonly date?: string;
 }
 
 export interface BlogPreview {
@@ -31,5 +37,5 @@ export function blogPreview(entries: readonly RecordEntry[], ctx: RedactContext,
   const note = BlogNote.compose(entries, { length: state.length, snippets: state.snippets }, (s) => red.apply(s).text);
   const titles = note.titles();
   const title = titles[Math.min(Math.max(state.titleIndex, 0), Math.max(titles.length - 1, 0))] ?? '';
-  return { hasMaterial: note.hasMaterial(), title, titles, tags: note.tags(), markdown: note.hasMaterial() ? note.toMarkdown({ title }) : '', changes: red.changes(), droppedSnippets: note.droppedSnippets };
+  return { hasMaterial: note.hasMaterial(), title, titles, tags: note.tags(), markdown: note.hasMaterial() ? note.toMarkdown({ title, tags: note.tags(), ...(state.template === undefined ? {} : { template: state.template }), frontMatter: state.frontMatter === true, ...(state.date === undefined ? {} : { date: state.date }) }) : '', changes: red.changes(), droppedSnippets: note.droppedSnippets };
 }

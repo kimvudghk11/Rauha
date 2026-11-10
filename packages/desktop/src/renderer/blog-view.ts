@@ -1,5 +1,5 @@
 import type { BlogApi, BlogToneId } from '../shared/blog-dto.js';
-import { BLOG_LENGTHS, MAX_SNIPPETS, type BlogLength } from '../shared/blog-note.js';
+import { BLOG_LENGTHS, BLOG_TEMPLATES, MAX_SNIPPETS, type BlogLength, type BlogTemplateId } from '../shared/blog-note.js';
 import { blogPreview } from '../shared/blog-preview.js';
 import { snippetAllowed, type RedactChange, type RedactContext } from '../shared/blog-redact.js';
 import type { RecordEntry } from '../shared/record-book.js';
@@ -55,6 +55,8 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   let length: BlogLength = 'normal';
   let tone: BlogToneId = 'plain';
   let titleIndex = 0;
+  let template: BlogTemplateId = 'troubleshooting';
+  let frontMatter = false;
   const keep = new Set<string>();
   const snippets: Snippet[] = [];
   let draft: DraftState = { kind: 'idle' };
@@ -91,7 +93,27 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   }
 
   const options = el('div', 'bar bg-options');
+  const todayText = (): string => {
+    const d = new Date();
+    const p = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+  const fm = el('label', 'tg');
+  const fmBox = el('input');
+  fmBox.type = 'checkbox';
+  fmBox.addEventListener('change', () => {
+    frontMatter = fmBox.checked;
+    refresh();
+  });
+  fm.title = 'Put title, tags and date at the top as YAML front-matter (Jekyll, Hugo and similar). Off by default so the text pastes anywhere.';
+  fm.append(fmBox, el('span', undefined, 'Front-matter'));
   options.append(
+    el('span', 'lbl', 'Template'),
+    seg(BLOG_TEMPLATES, () => template, (v) => {
+      template = v;
+      refresh();
+    }),
+    fm,
     el('span', 'lbl', '글 길이'),
     seg(BLOG_LENGTHS, () => length, (v) => {
       length = v;
@@ -183,9 +205,9 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   const pre = el('pre', 'bg-pre');
   const changeList = el('div', 'bg-changes');
   const empty = el('div', 'rnone', '글감이 없어요. 기록을 하나 이상 골라 주세요.');
-  const copyBtn = actionButton({ label: '정리 노트 복사', icon: 'copy', title: '공개용으로 가린 정리 노트를 복사해요', onClick: () => void deps.copy(preview().markdown).then((ok) => done(ok)) });
+  const copyBtn = actionButton({ label: 'Copy .md', icon: 'copy', title: '공개용으로 가린 정리 노트를 복사해요', onClick: () => void deps.copy(preview().markdown).then((ok) => done(ok)) });
   copyBtn.classList.add('end');
-  const saveBtn = actionButton({ label: '.md로 저장', icon: 'save', title: '정리 노트를 .md 파일로 저장해요', onClick: () => void save(preview().markdown, preview().title, [...keep]) });
+  const saveBtn = actionButton({ label: 'Save .md', icon: 'save', title: '정리 노트를 .md 파일로 저장해요', onClick: () => void save(preview().markdown, preview().title, [...keep]) });
   const draftBtn = actionButton({
     label: '초안 쓰기',
     icon: 'edit',
@@ -203,7 +225,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   body.append(section('제목 후보', titleRow), section('태그 후보', tagRow), section('정리 노트 (공개용으로 가린 글)', pre), section('바뀐 목록', changeList), draftBox);
   root.append(bar, head, notice, options, namesSec, snipSec, empty, body);
 
-  const state = () => ({ length, titleIndex, keep: [...keep], snippets: snippets.filter((s) => s.on && s.text.trim() !== '').map((s) => s.text) });
+  const state = () => ({ template, frontMatter, date: todayText(), length, titleIndex, keep: [...keep], snippets: snippets.filter((s) => s.on && s.text.trim() !== '').map((s) => s.text) });
   const preview = () => blogPreview(entries, ctx, state());
 
   /** 복사 결과: 됐으면 잠깐 뜨는 알림, 안 됐으면 줄로 */

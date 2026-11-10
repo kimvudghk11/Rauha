@@ -60,3 +60,17 @@ describe('블로그 미리 보기', () => {
     expect(p.markdown).not.toMatch(/sk-abcdef|acme-corp\.com/);
   });
 });
+
+describe('블로그 미리 보기의 틀과 front-matter', () => {
+  it('front-matter를 켜도 제목·태그·본문의 회사 이름은 가려진다', () => {
+    const p = blogPreview([entry], ctx, { ...state, frontMatter: true, date: '2026-11-10', template: 'portfolio' });
+    expect(p.markdown.startsWith('---\ntitle: ')).toBe(true);
+    expect(p.markdown).toContain('date: 2026-11-10');
+    expect(p.markdown).toContain('## 배경');
+    expect(p.markdown).not.toContain('Acme');
+    expect(p.markdown).not.toContain('secret-ledger');
+  });
+  it('기본은 front-matter 없이 # 제목으로 시작하는 순수 글이다', () => {
+    expect(blogPreview([entry], ctx, state).markdown.startsWith('# ')).toBe(true);
+  });
+});
