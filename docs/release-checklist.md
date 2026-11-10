@@ -10,7 +10,7 @@
   1. 전체 `yarn typecheck`·`yarn test` 와 CI 초록 확인 → 영어 글이 단추 폭을 넘는지 숨김 창 스크린샷(폭 440/600/720/1100/1700)으로 확인(긴 단추: 'Allow for this job', 'Pick and continue to design', 'Turn on …').
   2. 영어 통일 이어서: Todo(`todo-*.ts`; 기본 칸 이름 데이터는 한국어 유지)·Repo(`code-*.ts`, `terminal-view.ts`)·Records·Git·Commands·Rules(기본 규칙 카드의 '고치기'/'기본값으로'가 한국어로 남음)·리포트 창(`bug-view.ts`)·`shared/approval-summary.ts`·`shared/conversation-reset.ts`·`shared/bug-sync.ts` syncBlockReason. 채팅 대화·작업팀 내용만 한국어.
   3. `v0.1.11` 태그(버전 올리는 커밋 → push → 태그 push), README 링크 갱신.
-  4. 못 고친 문제: 재시작하면 채팅 말풍선이 사라짐(작업 판이 메모리에만), 끝난 일의 오른쪽 패널에 '리뷰어 작업 중…'이 남음, CSP 인라인 스타일 경고가 로그에 반복(동작 영향 없음), 레포 하나만 대화 초기화하면 같은 작업 공간의 다른 레포 대화는 이어짐, 기록 탭 폭 600/720/1700 눈 확인 안 함, Git 좁은 창 수정 스크린샷 안 봄, 전체 스테이지 3500개 시간 안 쟀음.
+  4. (11-11 해결) 재시작 뒤 채팅 말풍선 복원(`chat-history.json`, 최근 50개, 초기화·/clear 때 비움), 끝난 일 팀 방 줄을 Done/Stopped로, 대화 초기화 단추는 작업 폴더의 모든 레포를 비움(레포 하나만 비우는 단추는 없음·글로 안내), CSP 경고는 현재 빌드에서 재현 안 됨(CodeMirror 스타일 태그에 nonce 적용 확인, 위반 0). 남은 못 고친 문제: 기록 탭 폭 600/720/1700 눈 확인 안 함, Git 좁은 창 수정 스크린샷 안 봄, 전체 스테이지 3500개 시간 안 쟀음.
   5. 사용자가 말한 것 중 아직 안 한 것: git 자동 PR·머지(qa 전용; GitHub 로그인 방식 답 필요), 터미널 입력은 Repo 탭 아래쪽에 이미 있음(PTY 아님: vim 같은 화면 프로그램은 안 됨).
 - **맥에서 직접 확인(맥은 실행해 본 적 없음)**: 설치 후 `xattr -dr com.apple.quarantine /Applications/Rauha.app`, Settings 계정 칸 로그인, 작업 폴더를 상위 폴더로 열고 레포 구조 묻기, 리포트(AWS 개인 프로필 `rauha-personal` 등록 후), 앱 안 업데이트(최신일 때 버튼이 꺼져 있는지), Repo 탭의 md/이미지 미리보기와 파일 아이콘, Cmd+Shift+B.
 - **조심**: 앱을 띄우는 점검은 RAUHA_ 환경 변수(기본 2번 모니터·2번이 없으면 숨김)와 임시 USERPROFILE·HOME·APPDATA·LOCALAPPDATA·RAUHA_DATA_DIR·`--user-data-dir` 만 쓴다. `taskkill /IM electron.exe` 금지(다른 에이전트 실행이 끊긴다). CSS 를 건드리면 `ui-components.spec.ts` 를 돌린다(토큰에 없는 색·공통 단추 재정의 금지).
