@@ -7,6 +7,9 @@ import { ago } from './git-format.js';
 import { gitIcon } from './git-icons.js';
 import { openNewBranchDialog, trackBadgeEl } from './git-branch-ui.js';
 import { sortBranchesRecent } from '../shared/git-lists.js';
+import { ConflictText } from '../shared/conflict-text.js';
+
+const NL = String.fromCharCode(10);
 
 /** 브랜치 탭: 로컬·원격 목록, 새로 만들기(지금 브랜치에서), 전환, 현재 브랜치로 머지, 안전한 삭제(-d) */
 export function buildBranches(ctx: GitCtx) {
@@ -144,16 +147,42 @@ export function buildConflicts(ctx: GitCtx) {
     const done = async (fn: () => Promise<unknown>) => {
       if (await fn()) await refresh();
     };
+    // 내 쪽(파랑)과 상대 쪽(노랑)을 색으로 나눠 보여 주는 미리보기. 아래 글상자를 고치면 바로 따라 바뀐다.
+    const preview = el('div', 'gconfview');
+    const drawPreview = (): void => {
+      const t = ConflictText.parse(area.value);
+      preview.replaceChildren();
+      const n = t.count();
+      preview.append(el('div', 'gconfsum', n === 0 ? '충돌 표시가 모두 사라졌어요. "해결됨"을 눌러 주세요.' : `풀 곳 ${n}군데 · 파랑이 내 쪽, 노랑이 상대 쪽이에요`));
+      for (const part of t.parts) {
+        if (part.kind === 'plain') {
+          const shown = part.lines.length > 6 ? [...part.lines.slice(0, 3), '…', ...part.lines.slice(-3)] : part.lines;
+          preview.append(el('pre', 'gconfplain', shown.join(NL)));
+          continue;
+        }
+        const block = el('div', 'gconfblock');
+        const side = (cls: 'ours' | 'theirs', who: string, label: string, lines: readonly string[]) => {
+          const box = el('div', `gconfside ${cls}`);
+          box.append(el('div', 'gconfwho', `${who}${label === '' ? '' : ` · ${label}`}`), el('pre', 'gconfcode', lines.length === 0 ? '(비어 있음)' : lines.join(NL)));
+          block.append(box);
+        };
+        side('ours', '내 쪽', part.oursLabel, part.ours);
+        side('theirs', '상대 쪽', part.theirsLabel, part.theirs);
+        preview.append(block);
+      }
+    };
+    area.addEventListener('input', drawPreview);
+    drawPreview();
     const mk = (label: string, fn: () => Promise<unknown>, cls = '') => {
       const b = el('button', cls === '' ? 'btn' : `btn ${cls}`, label);
       b.addEventListener('click', () => void done(fn));
       head.appendChild(b);
     };
-    mk('내 것 쓰기(현재 브랜치)', () => ctx.call('resolveSide', { path, side: 'ours' }));
-    mk('상대 것 쓰기', () => ctx.call('resolveSide', { path, side: 'theirs' }));
+    mk('내 것 쓰기(현재 브랜치)', () => ctx.call('resolveSide', { path, side: 'ours' }), 'gours');
+    mk('상대 것 쓰기', () => ctx.call('resolveSide', { path, side: 'theirs' }), 'gtheirs');
     mk('저장', () => ctx.call('writeConflict', { path, text: area.value }));
     mk('해결됨', async () => (await ctx.call('writeConflict', { path, text: area.value })) && (await ctx.call('markResolved', { path })), 'primary');
-    main.append(head, area);
+    main.append(head, preview, area);
   }
   async function refresh(): Promise<void> {
     const s = await ctx.call('mergeState', undefined as never);
