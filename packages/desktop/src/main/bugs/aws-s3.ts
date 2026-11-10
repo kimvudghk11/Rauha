@@ -16,12 +16,12 @@ const LIST_PAGE_LIMIT = 10;
 function explain(error: unknown, profile: string): S3PortError {
   const name = error instanceof Error ? error.name : '';
   const code = (error as { code?: string } | null)?.code ?? '';
-  if (name === 'CredentialsProviderError' || name === 'TokenProviderError') return new S3PortError(`프로필 "${profile}"로 로그인할 수 없어요. 터미널에서 aws configure --profile ${profile} 로 등록했는지(SSO면 aws sso login) 확인해 주세요.`);
-  if (/Expired|InvalidToken|InvalidClientTokenId|SignatureDoesNotMatch/.test(name)) return new S3PortError('이 프로필의 로그인이 만료되었거나 키가 올바르지 않아요. 터미널에서 다시 로그인해 주세요.');
-  if (/AccessDenied|Forbidden/.test(name)) return new S3PortError('이 프로필에 버킷을 읽고 쓸 권한이 없어요.');
-  if (name === 'NoSuchBucket') return new S3PortError('버킷을 찾을 수 없어요. 버킷 이름과 리전을 확인해 주세요.');
-  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN/.test(code) || /Timeout|NetworkingError|TimeoutError/.test(name)) return new S3PortError('인터넷에 연결할 수 없어요. 메모는 이 컴퓨터에 그대로 있고, 연결되면 다시 올릴 수 있어요.');
-  return new S3PortError('AWS 요청이 실패했어요. 설정(프로필·버킷·리전)을 확인해 주세요.');
+  if (name === 'CredentialsProviderError' || name === 'TokenProviderError') return new S3PortError(`Cannot sign in with profile "${profile}". Check that you registered it with aws configure --profile ${profile} in a terminal (or aws sso login for SSO).`);
+  if (/Expired|InvalidToken|InvalidClientTokenId|SignatureDoesNotMatch/.test(name)) return new S3PortError('This profile sign-in expired or the keys are wrong. Sign in again in a terminal.');
+  if (/AccessDenied|Forbidden/.test(name)) return new S3PortError('This profile has no permission to read and write the bucket.');
+  if (name === 'NoSuchBucket') return new S3PortError('The bucket was not found. Check the bucket name and region.');
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN/.test(code) || /Timeout|NetworkingError|TimeoutError/.test(name)) return new S3PortError('No internet connection. Your notes stay on this computer; upload again once connected.');
+  return new S3PortError('The AWS request failed. Check the settings (profile, bucket, region).');
 }
 
 export function connectAws(target: AwsTarget): S3Port {
@@ -39,7 +39,7 @@ export function connectAws(target: AwsTarget): S3Port {
     callerAccount: () =>
       guard(async () => {
         const out = await sts.send(new GetCallerIdentityCommand({}));
-        if (out.Account === undefined) throw new S3PortError('로그인된 계정을 확인하지 못했어요.');
+        if (out.Account === undefined) throw new S3PortError('Could not tell which account is signed in.');
         return out.Account;
       }),
     put: (key, body) =>

@@ -61,25 +61,25 @@ export function summarizeRequest(request: { readonly tool: string; readonly deta
   if (shell && gitCommand('push').test(command)) {
     const branch = protectedIn(command, protectedBranches);
     const force = /\s(--force|-f|--force-with-lease)\b/.test(command);
-    const risks = [force ? '강제 push는 원격의 기록을 덮어써요' : '원격 저장소에 바로 올라가요'];
-    if (branch !== null) risks.push(`${branch} 브랜치는 보호 대상이라 자동 배포나 다른 사람의 작업에 영향이 있을 수 있어요`);
-    return { ...base, kind: 'code', headline: `${branch ?? '브랜치'}${branch !== null ? ' 브랜치' : ''}${force ? '에 강제 push' : '에 push'}`, protectedBranch: branch, forcePush: force, risks };
+    const risks = [force ? 'A force push overwrites history on the remote' : 'Goes straight to the remote repository'];
+    if (branch !== null) risks.push(`${branch} is a protected branch; it may trigger deploys or affect other people's work`);
+    return { ...base, kind: 'code', headline: `${force ? 'Force push' : 'Push'} to ${branch ?? 'a branch'}`, protectedBranch: branch, forcePush: force, risks };
   }
   if (shell && gitCommand('merge|rebase').test(command)) {
     const branch = protectedIn(command, protectedBranches);
-    return { ...base, kind: 'code', headline: branch !== null ? `${branch} 브랜치 합치기` : '브랜치 합치기', protectedBranch: branch, risks: branch !== null ? [`${branch} 브랜치에 닿아요`] : [] };
+    return { ...base, kind: 'code', headline: branch !== null ? `Merge into ${branch}` : 'Merge a branch', protectedBranch: branch, risks: branch !== null ? [`Touches ${branch}`] : [] };
   }
   if (shell && /\b(terraform|aws|kubectl|helm|cdk|pulumi)\b/.test(command)) {
     const environment = environmentOf(command);
     const destroys = /\b(destroy|delete|terminate|rm|remove|drain)\b/.test(command);
-    const risks = [destroys ? '리소스를 지우거나 끊을 수 있어요' : '리소스를 바꿔요'];
-    if (environment === 'prod') risks.push('운영(prod) 환경이에요');
-    if (environment === null) risks.push('어느 환경인지 명령에서 알 수 없어요');
-    return { ...base, kind: 'infra', headline: environment === 'prod' ? '운영 인프라 변경' : '인프라 변경', environment, profile: flag(command, 'profile'), region: flag(command, 'region'), risks };
+    const risks = [destroys ? 'Can delete or detach resources' : 'Changes resources'];
+    if (environment === 'prod') risks.push('This is the production (prod) environment');
+    if (environment === null) risks.push('Cannot tell the environment from the command');
+    return { ...base, kind: 'infra', headline: environment === 'prod' ? 'Production infrastructure change' : 'Infrastructure change', environment, profile: flag(command, 'profile'), region: flag(command, 'region'), risks };
   }
   if (shell && /\b(psql|mysql|prisma\s+migrate|knex\s+migrate|flyway|liquibase)\b|\b(drop|truncate)\s+table|\bdelete\s+from\b/i.test(command)) {
-    return { ...base, kind: 'database', headline: 'DB 쓰기·마이그레이션', risks: ['데이터가 바뀌어요. 되돌리려면 백업이 필요해요'] };
+    return { ...base, kind: 'database', headline: 'DB write / migration', risks: ['Data changes. You need a backup to undo it'] };
   }
-  if (!shell) return { ...base, kind: 'files', headline: '작업 폴더 밖 파일 변경', risks: ['작업 폴더 밖의 파일이에요'] };
+  if (!shell) return { ...base, kind: 'files', headline: 'Change to a file outside the work folder', risks: ['The file is outside the work folder'] };
   return { ...base, kind: 'other', headline: request.reason, risks: [] };
 }

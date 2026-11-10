@@ -11,11 +11,11 @@ describe('ruleFromForm', () => {
   });
 
   it('글이 비면 어느 칸인지 알린다', () => {
-    expect(ruleFromForm(form({ text: ' ' }), id)).toMatchObject({ ok: false, error: expect.stringContaining('한 줄') });
+    expect(ruleFromForm(form({ text: ' ' }), id)).toMatchObject({ ok: false, error: expect.stringContaining('one line') });
   });
 
   it('묻지 않음·허락 규칙은 찾을 글이 없으면 거절한다', () => {
-    expect(ruleFromForm(form({ includes: ' , ' }), id)).toMatchObject({ ok: false, error: expect.stringContaining('찾을 글') });
+    expect(ruleFromForm(form({ includes: ' , ' }), id)).toMatchObject({ ok: false, error: expect.stringContaining('text to match') });
   });
 
   it('항상 지킬 것은 찾을 글 없이도 되고 조건은 비운다', () => {

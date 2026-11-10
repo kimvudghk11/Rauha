@@ -47,14 +47,14 @@ export class AwsTarget {
 
   static from(input: AwsInput): TargetResult {
     const profile = input.profile?.trim() ?? '';
-    if (profile === '') return { ok: false, reason: '설정에서 프로필 이름을 먼저 적어 주세요. 적기 전에는 올리거나 받지 않아요.' };
-    if (!PROFILE_PATTERN.test(profile)) return { ok: false, reason: '프로필 이름에는 영문·숫자와 . _ - 만 쓸 수 있어요.' };
+    if (profile === '') return { ok: false, reason: 'Enter a profile name in Settings first. Nothing is uploaded or downloaded until you do.' };
+    if (!PROFILE_PATTERN.test(profile)) return { ok: false, reason: 'A profile name can only use letters, digits and . _ -' };
     const bucket = input.bucket?.trim() ?? '';
-    if (!BUCKET_PATTERN.test(bucket)) return { ok: false, reason: '버킷 이름을 확인해 주세요(소문자·숫자·점·하이픈, 3~63자).' };
+    if (!BUCKET_PATTERN.test(bucket)) return { ok: false, reason: 'Check the bucket name (lowercase letters, digits, dots, hyphens; 3-63 characters).' };
     const region = input.region?.trim() ?? '';
-    if (!REGION_PATTERN.test(region)) return { ok: false, reason: '리전을 확인해 주세요(예: ap-northeast-2).' };
+    if (!REGION_PATTERN.test(region)) return { ok: false, reason: 'Check the region (e.g. ap-northeast-2).' };
     const account = input.account?.trim() ?? '';
-    if (!ACCOUNT_PATTERN.test(account)) return { ok: false, reason: '개인 계정 번호는 숫자 12자리예요.' };
+    if (!ACCOUNT_PATTERN.test(account)) return { ok: false, reason: 'A personal account id is 12 digits.' };
     return { ok: true, target: new AwsTarget(profile, bucket, region, account) };
   }
 
@@ -74,11 +74,11 @@ export class AwsTarget {
   /** 실제 로그인된 계정이 등록한 개인 계정이 아니면 이유를 돌려준다(번호는 끝 4자리만 보인다). */
   mismatch(actualAccount: string): string | null {
     if (actualAccount === this.account) return null;
-    return `이 프로필(${this.profile})의 실제 계정(끝 ${tail(actualAccount)})이 등록한 개인 계정(끝 ${tail(this.account)})과 달라서 멈췄어요. 회사 계정에 올리지 않도록 막은 거예요.`;
+    return `Stopped: the real account of profile ${this.profile} (ending ${tail(actualAccount)}) differs from your registered personal account (ending ${tail(this.account)}). This keeps notes out of a company account.`;
   }
 }
 
-const tail = (account: string): string => (/^\d{4,}$/.test(account) ? account.slice(-4) : '알 수 없음');
+const tail = (account: string): string => (/^\d{4,}$/.test(account) ? account.slice(-4) : 'unknown');
 
 /** 설정 칸에 보여 줄 한 줄 상태: 쓸 수 있으면 null, 아니면 이유 */
 export function syncBlockReason(input: AwsInput): string | null {
@@ -119,7 +119,7 @@ export function planUpload(notes: readonly BugNote[], context: RedactContext): U
     const title = redactor.apply(note.title).text.trim();
     const memo = redactor.apply(note.memo).text;
     const redactions = redactor.changes().reduce((sum, c) => sum + c.count, 0);
-    const props: BugNoteProps = { ...note.toProps(), title: title === '' ? '(제목 가림)' : title.slice(0, 80), memo: memo.slice(0, 2000), uploaded: true };
+    const props: BugNoteProps = { ...note.toProps(), title: title === '' ? '(title hidden)' : title.slice(0, 80), memo: memo.slice(0, 2000), uploaded: true };
     return { id: note.id, title: props.title, memo: props.memo, redactions, body: JSON.stringify({ version: 1, ...props }) };
   });
   return { items, digest: digestOf(items.map((i) => `${i.id}\n${i.body}`).join('\n\n')) };

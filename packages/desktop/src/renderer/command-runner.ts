@@ -19,8 +19,8 @@ export interface RunnerDeps {
   readonly api: Pick<RauhaApi, 'getUsage' | 'update' | 'platform' | 'copyDiagnostics'>;
 }
 
-const TONE_TEXT = { green: '여유', yellow: '조금 높아요', red: '거의 찼어요' } as const;
-const pct = (w: { percent: number } | null): string => (w === null ? '아직 못 읽었어요' : `${Math.round(w.percent)}% (${TONE_TEXT[limitTone(w.percent)]})`);
+const TONE_TEXT = { green: 'plenty left', yellow: 'getting high', red: 'almost full' } as const;
+const pct = (w: { percent: number } | null): string => (w === null ? 'not read yet' : `${Math.round(w.percent)}% (${TONE_TEXT[limitTone(w.percent)]})`);
 
 /**
  * 입력 한 줄을 읽어 명령이면 처리하고, 요청으로 보낼 글을 돌려준다(명령을 앱이 처리했으면 null).
@@ -45,33 +45,33 @@ export function createRunner(deps: RunnerDeps) {
         return;
       case 'status': {
         const b = deps.board();
-        deps.say(b === null ? '작업판을 아직 못 읽었어요.' : `돌고 있는 작업 ${b.running}개 · 허락 기다림 ${b.waiting}개 · 대기 ${b.queued}개 (동시에 ${b.limit}개까지)`);
+        deps.say(b === null ? 'Could not read the job board yet.' : `Running ${b.running} · Waiting for approval ${b.waiting} · Queued ${b.queued} (up to ${b.limit} at once)`);
         return;
       }
       case 'queue': {
         const waiting = deps.jobs().filter((j) => j.status === 'queued');
-        deps.say(waiting.length === 0 ? '기다리는 작업이 없어요.' : ['기다리는 작업', ...waiting.map((j, i) => `${i + 1}. ${j.request}`)].join('\n'));
+        deps.say(waiting.length === 0 ? 'No queued jobs.' : ['Queued jobs', ...waiting.map((j, i) => `${i + 1}. ${j.request}`)].join('\n'));
         return;
       }
       case 'usage': {
         const u = await deps.api.getUsage();
-        deps.say(u === null ? '사용률을 아직 못 읽었어요.' : `세션(5시간) ${pct(u.session)}\n이번 주 ${pct(u.weekly)}`);
+        deps.say(u === null ? 'Could not read usage yet.' : `Session (5 hours) ${pct(u.session)}\nThis week ${pct(u.weekly)}`);
         return;
       }
       case 'guide': {
         const last = lastDone();
-        if (last === null) deps.say('아직 끝난 작업이 없어요.');
+        if (last === null) deps.say('No finished jobs yet.');
         else deps.openJob(last.id);
         return;
       }
       case 'copy': {
         const last = lastDone();
-        if (last === null) return deps.say('복사할 답이 아직 없어요.');
+        if (last === null) return deps.say('No answer to copy yet.');
         try {
           await navigator.clipboard.writeText(last.result ?? '');
-          deps.say('마지막 답을 클립보드에 복사했어요.');
+          deps.say('Copied the last answer to the clipboard.');
         } catch {
-          deps.say('클립보드에 복사하지 못했어요.');
+          deps.say('Could not copy to the clipboard.');
         }
         return;
       }
@@ -99,19 +99,19 @@ export function createRunner(deps: RunnerDeps) {
           deps.say(helpBox(deps.book()));
           return null;
         case 'unknown':
-          deps.say(`/${r.name}은(는) 없는 명령이에요. /를 쳐서 목록을 볼 수 있어요. 그대로 보내려면 앞에 /를 하나 더 붙여요.`);
+          deps.say(`/${r.name} is not a command. Type / to see the list. To send it as plain text, add another / in front.`);
           return null;
         case 'off':
-          deps.say(`/${r.command.name}은(는) 꺼 둔 명령이에요. Commands 탭에서 켤 수 있어요.`);
+          deps.say(`/${r.command.name} is turned off. Turn it on in the Commands tab.`);
           return null;
         case 'usage':
-          deps.say(`${r.missing.join('·')} 칸이 비었어요. 사용법: ${r.command.usage()}`);
+          deps.say(`Missing: ${r.missing.join(', ')}. Usage: ${r.command.usage()}`);
           return null;
         case 'app': {
           if (r.action === 'retry') {
             const last = [...deps.jobs()].reverse()[0];
             if (last === undefined) {
-              deps.say('다시 보낼 요청이 아직 없어요.');
+              deps.say('No request to resend yet.');
               return null;
             }
             return last.request;
@@ -126,13 +126,13 @@ export function createRunner(deps: RunnerDeps) {
 
 function helpBox(book: CommandBook): HTMLElement {
   const box = el('div', 'cmd-help');
-  box.appendChild(el('div', 'ttl', '쓸 수 있는 명령'));
+  box.appendChild(el('div', 'ttl', 'Available commands'));
   for (const c of book.active()) {
     const row = el('div', 'r');
     row.append(el('b', undefined, c.usage()), el('span', undefined, c.description));
     box.appendChild(row);
   }
-  box.appendChild(el('div', 'dim', '내 명령은 Commands 탭에서 더해요.'));
+  box.appendChild(el('div', 'dim', 'Add your own commands in the Commands tab.'));
   return box;
 }
 
@@ -144,18 +144,18 @@ function installBox(api: Pick<RauhaApi, 'update' | 'platform'>, view: UpdateView
   if (g.copy !== null) {
     const command = g.copy;
     box.appendChild(el('code', 'cmd-line', command));
-    const copy = el('button', 'btn primary', '명령 복사');
+    const copy = el('button', 'btn primary', 'Copy command');
     copy.addEventListener('click', () => {
       void navigator.clipboard.writeText(command).then(
-        () => (copy.textContent = '복사했어요'),
-        () => (copy.textContent = '복사하지 못했어요'),
+        () => (copy.textContent = 'Copied'),
+        () => (copy.textContent = 'Could not copy'),
       );
     });
     box.appendChild(copy);
   }
   if (g.download) {
-    const get = el('button', 'btn primary', '최신 설치 파일 내려받기');
-    get.addEventListener('click', () => void api.update.download().then((ok) => (get.textContent = ok ? '브라우저에서 열었어요' : '내려받을 파일이 아직 없어요')));
+    const get = el('button', 'btn primary', 'Download the latest installer');
+    get.addEventListener('click', () => void api.update.download().then((ok) => (get.textContent = ok ? 'Opened in your browser' : 'No file to download yet')));
     box.appendChild(get);
   }
   return box;

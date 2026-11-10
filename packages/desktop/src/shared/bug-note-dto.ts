@@ -13,7 +13,7 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 function str(v: unknown, field: string, fallback?: string): string {
   if (typeof v === 'string') return v;
   if (v === undefined && fallback !== undefined) return fallback;
-  throw new BugNoteError(`${field} 값이 글자가 아니에요.`);
+  throw new BugNoteError(`${field} must be text.`);
 }
 
 /** 메모 하나의 경계: 어떤 모양이든 검사해서 BugNote가 되거나 BugNoteError를 던진다 */
@@ -21,19 +21,19 @@ export class BugNoteDto {
   private constructor(readonly json: BugNoteJson) {}
 
   static from(input: unknown): BugNoteDto {
-    if (!isObject(input)) throw new BugNoteError('메모 모양이 올바르지 않아요.');
+    if (!isObject(input)) throw new BugNoteError('The note is malformed.');
     const status = input['status'];
-    if (status !== 'open' && status !== 'done') throw new BugNoteError('상태가 올바르지 않아요.');
-    const createdAt = str(input['createdAt'], '만든 시각');
+    if (status !== 'open' && status !== 'done') throw new BugNoteError('The status is not valid.');
+    const createdAt = str(input['createdAt'], 'Created at');
     const json: BugNoteJson = {
-      id: str(input['id'], '번호'),
-      title: str(input['title'], '제목'),
-      memo: str(input['memo'], '메모', ''),
-      screen: str(input['screen'], '화면', ''),
-      appVersion: str(input['appVersion'], '앱 버전', ''),
+      id: str(input['id'], 'Id'),
+      title: str(input['title'], 'Title'),
+      memo: str(input['memo'], 'Memo', ''),
+      screen: str(input['screen'], 'Screen', ''),
+      appVersion: str(input['appVersion'], 'App version', ''),
       os: str(input['os'], 'OS', ''),
       createdAt,
-      updatedAt: str(input['updatedAt'], '바뀐 시각', createdAt),
+      updatedAt: str(input['updatedAt'], 'Updated at', createdAt),
       status: status as BugStatus,
       uploaded: input['uploaded'] === true,
     };
@@ -100,16 +100,16 @@ export class BugOpDto {
   private constructor(readonly op: BugOp) {}
 
   static from(input: unknown): BugOpDto {
-    if (!isObject(input)) throw new BugNoteError('요청 모양이 올바르지 않아요.');
+    if (!isObject(input)) throw new BugNoteError('The request is malformed.');
     switch (input['kind']) {
       case 'add':
-        return new BugOpDto({ kind: 'add', title: str(input['title'], '제목'), memo: str(input['memo'], '메모', ''), screen: str(input['screen'], '화면', '') });
+        return new BugOpDto({ kind: 'add', title: str(input['title'], 'Title'), memo: str(input['memo'], 'Memo', ''), screen: str(input['screen'], 'Screen', '') });
       case 'resolve':
       case 'reopen':
       case 'remove':
-        return new BugOpDto({ kind: input['kind'], id: str(input['id'], '번호') });
+        return new BugOpDto({ kind: input['kind'], id: str(input['id'], 'Id') });
       default:
-        throw new BugNoteError('알 수 없는 요청이에요.');
+        throw new BugNoteError('Unknown request.');
     }
   }
 }

@@ -9,14 +9,14 @@ describe('summarizeRequest', () => {
     expect(s.kind).toBe('code');
     expect(s.protectedBranch).toBe('main');
     expect(s.forcePush).toBe(false);
-    expect(s.headline).toBe('main 브랜치에 push');
+    expect(s.headline).toBe('Push to main');
   });
 
   it('강제 push는 따로 표시하고 위험을 더 쓴다', () => {
     const s = summarizeRequest(bash('git push --force origin qa'));
     expect(s.forcePush).toBe(true);
     expect(s.protectedBranch).toBe('qa');
-    expect(s.risks.join(' ')).toContain('덮어써요');
+    expect(s.risks.join(' ')).toContain('overwrites');
   });
 
   it('보호 브랜치가 아니면 보호 브랜치 표시가 없다', () => {
@@ -31,13 +31,13 @@ describe('summarizeRequest', () => {
     const s = summarizeRequest(bash('terraform apply -var env=prod'));
     expect(s.kind).toBe('infra');
     expect(s.environment).toBe('prod');
-    expect(s.risks.join(' ')).toContain('운영');
+    expect(s.risks.join(' ')).toContain('production');
   });
 
   it('환경을 알 수 없는 인프라 명령은 모른다고 쓴다', () => {
     const s = summarizeRequest(bash('kubectl delete pod web-1'));
     expect(s.environment).toBeNull();
-    expect(s.risks.join(' ')).toContain('어느 환경');
+    expect(s.risks.join(' ')).toContain('environment');
   });
 
   it('인프라 명령의 프로필과 리전을 읽는다', () => {
@@ -66,7 +66,7 @@ describe('summarizeRequest 가리기 시도', () => {
   it('git -C 폴더 merge main처럼 옵션이 끼어 있어도 보호 브랜치 합치기로 알린다', () => {
     const s = summarizeRequest(bash('git -C ../app merge main'));
     expect(s.protectedBranch).toBe('main');
-    expect(s.headline).toBe('main 브랜치 합치기');
+    expect(s.headline).toBe('Merge into main');
   });
 
   it('git -c 옵션이 끼어 있어도 push는 push로 알린다', () => {

@@ -36,11 +36,11 @@ describe('TeamSettings', () => {
 
   it('규칙을 어기는 값은 이유를 알리고 바꾸지 않는다', () => {
     const s = TeamSettings.initial();
-    expect(() => s.change('writer', { tools: ['Read', 'Rm'] })).toThrow(/알 수 없는 도구/);
-    expect(() => s.change('writer', { name: 'a'.repeat(13) })).toThrow(/12자/);
-    expect(() => s.change('writer', { extraInstruction: 'a'.repeat(2001) })).toThrow(/2000자/);
-    expect(() => s.change('writer', { character: 'nobody' as never })).toThrow(/캐릭터/);
-    expect(() => s.change('writer', { tier: 'gpt' as never })).toThrow(/모델 등급/);
+    expect(() => s.change('writer', { tools: ['Read', 'Rm'] })).toThrow(/Unknown tool/);
+    expect(() => s.change('writer', { name: 'a'.repeat(13) })).toThrow(/12 characters/);
+    expect(() => s.change('writer', { extraInstruction: 'a'.repeat(2001) })).toThrow(/2000 characters/);
+    expect(() => s.change('writer', { character: 'nobody' as never })).toThrow(/character/);
+    expect(() => s.change('writer', { tier: 'gpt' as never })).toThrow(/model tier/);
   });
 
   it('기본값과 같은 칸은 저장에서 지운다(모든 역할이 기본값 그대로면 빈 설정)', () => {
@@ -74,7 +74,7 @@ describe('TeamSettings', () => {
   it('prototype 이름이나 모르는 캐릭터 id가 저장돼 있으면 버려 기본으로 돌아간다', () => {
     for (const bad of ['constructor', 'toString', 'nobody']) {
       expect(TeamSettings.from({ members: { tester: { character: bad } } }).toJSON()).toEqual({ members: {} });
-      expect(() => TeamSettings.initial().change('tester', { character: bad })).toThrow(/캐릭터/);
+      expect(() => TeamSettings.initial().change('tester', { character: bad })).toThrow(/character/);
     }
   });
 

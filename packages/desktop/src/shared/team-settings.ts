@@ -86,7 +86,7 @@ export class TeamSettings {
     const cur = this.of(role);
     const next: { -readonly [K in keyof MemberSetting]: MemberSetting[K] } = { ...cur };
     if (patch.enabled !== undefined) {
-      if (!patch.enabled && REQUIRED_ROLES.includes(role)) throw new TeamSettingsError('이 팀원은 작업 흐름에 꼭 필요해서 끌 수 없어요.');
+      if (!patch.enabled && REQUIRED_ROLES.includes(role)) throw new TeamSettingsError('This teammate is required by the workflow and cannot be turned off.');
       if (patch.enabled) delete next.enabled;
       else next.enabled = false;
     }
@@ -95,26 +95,26 @@ export class TeamSettings {
       if (value === null) delete next[key];
       else next[key] = value;
     };
-    if (patch.tier !== undefined && patch.tier !== null && !TIERS.includes(patch.tier)) throw new TeamSettingsError('모델 등급은 haiku·sonnet·opus 중에서 골라요.');
-    if (patch.effort !== undefined && patch.effort !== null && !EFFORTS.includes(patch.effort)) throw new TeamSettingsError('노력 수준을 다시 골라 주세요.');
+    if (patch.tier !== undefined && patch.tier !== null && !TIERS.includes(patch.tier)) throw new TeamSettingsError('Pick a model tier: haiku, sonnet or opus.');
+    if (patch.effort !== undefined && patch.effort !== null && !EFFORTS.includes(patch.effort)) throw new TeamSettingsError('Pick the effort level again.');
     put('tier', patch.tier);
     put('effort', patch.effort);
     if (patch.tools !== undefined && patch.tools !== null) {
       const unknown = patch.tools.find((t) => !ROLE_TOOLS.includes(t));
-      if (unknown !== undefined) throw new TeamSettingsError(`알 수 없는 도구예요: ${unknown}`);
+      if (unknown !== undefined) throw new TeamSettingsError(`Unknown tool: ${unknown}`);
     }
     put('tools', patch.tools === undefined || patch.tools === null ? patch.tools : [...new Set(patch.tools)]);
     if (patch.extraInstruction !== undefined && patch.extraInstruction !== null) {
       const t = patch.extraInstruction.trim();
-      if (t.length > EXTRA_LIMIT) throw new TeamSettingsError(`추가 지시는 ${EXTRA_LIMIT}자까지예요.`);
+      if (t.length > EXTRA_LIMIT) throw new TeamSettingsError(`Extra instructions can be up to ${EXTRA_LIMIT} characters.`);
       put('extraInstruction', t === '' ? null : t);
     } else put('extraInstruction', patch.extraInstruction);
     if (patch.name !== undefined && patch.name !== null) {
       const t = patch.name.trim();
-      if (t.length > NAME_LIMIT) throw new TeamSettingsError(`이름은 ${NAME_LIMIT}자까지예요.`);
+      if (t.length > NAME_LIMIT) throw new TeamSettingsError(`A name can be up to ${NAME_LIMIT} characters.`);
       put('name', t === '' ? null : t);
     } else put('name', patch.name);
-    if (patch.character !== undefined && patch.character !== null && !isCharacter(patch.character)) throw new TeamSettingsError('없는 캐릭터예요.');
+    if (patch.character !== undefined && patch.character !== null && !isCharacter(patch.character)) throw new TeamSettingsError('That character does not exist.');
     put('character', patch.character);
     const members = { ...this.members };
     if (Object.keys(next).length === 0) delete members[role];

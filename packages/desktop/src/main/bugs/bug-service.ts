@@ -21,7 +21,7 @@ export interface BugServiceDeps {
   readonly onChange?: (state: BugStateJson) => void;
 }
 
-const FALLBACK = '알 수 없는 오류로 멈췄어요. 메모는 이 컴퓨터에 그대로 있어요.';
+const FALLBACK = 'Stopped by an unknown error. Your notes stay on this computer.';
 
 /** 어떤 오류든 화면에 보일 이유로 바꾼다. 우리 규칙·포트가 만든 오류만 그대로 보이고, 나머지는 일반 문구다. */
 function reasonOf(error: unknown): string {
@@ -119,7 +119,7 @@ export class BugService {
     try {
       const pending = (await this.get_()).pendingUpload();
       const plan = planUpload(pending, this.deps.redactContext());
-      if (plan.digest !== digest) throw new BugSyncError('미리보기를 본 뒤 메모가 바뀌었어요. 올리기를 눌러 미리보기를 다시 확인해 주세요.');
+      if (plan.digest !== digest) throw new BugSyncError('The notes changed after the preview. Press Upload to check the preview again.');
       const port = await this.guarded();
       const sent: { id: string; updatedAt: string }[] = [];
       let failed = 0;

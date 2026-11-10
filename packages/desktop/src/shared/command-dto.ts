@@ -35,7 +35,7 @@ export class CommandBookDto {
     const commands: Command[] = [];
     for (const c of this.json.custom) {
       try {
-        commands.push(Command.create({ id: c.id, name: c.name, description: c.description, detail: '', group: '내 명령', action: { kind: 'prompt', template: c.template }, builtin: false }));
+        commands.push(Command.create({ id: c.id, name: c.name, description: c.description, detail: '', group: 'My commands', action: { kind: 'prompt', template: c.template }, builtin: false }));
       } catch (error) {
         if (!(error instanceof CommandError)) throw error;
       }

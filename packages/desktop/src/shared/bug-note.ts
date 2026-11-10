@@ -49,20 +49,20 @@ export class BugNote {
   /** 새 메모. 제목은 꼭 있어야 하고 80자까지, 메모는 2000자까지 */
   static create(draft: BugDraft, id: string, now: string): BugNote {
     const title = draft.title.trim();
-    if (title === '') throw new BugNoteError('제목을 적어 주세요.');
-    if (title.length > BUG_TITLE_LIMIT) throw new BugNoteError(`제목은 ${BUG_TITLE_LIMIT}자까지예요.`);
+    if (title === '') throw new BugNoteError('Please enter a title.');
+    if (title.length > BUG_TITLE_LIMIT) throw new BugNoteError(`A title can be up to ${BUG_TITLE_LIMIT} characters.`);
     const memo = draft.memo.trim();
-    if (memo.length > BUG_MEMO_LIMIT) throw new BugNoteError(`메모는 ${BUG_MEMO_LIMIT}자까지예요.`);
+    if (memo.length > BUG_MEMO_LIMIT) throw new BugNoteError(`A memo can be up to ${BUG_MEMO_LIMIT} characters.`);
     return BugNote.restore({ id, title, memo, screen: clip(draft.screen, BUG_SCREEN_LIMIT), appVersion: clip(draft.appVersion, BUG_ENV_LIMIT), os: clip(draft.os, BUG_ENV_LIMIT), createdAt: now, updatedAt: now, status: 'open', uploaded: false });
   }
 
   /** 저장된 값을 다시 연다. 모양이 틀리면 던진다 */
   static restore(p: BugNoteProps): BugNote {
-    if (!ID_PATTERN.test(p.id)) throw new BugNoteError('번호 모양이 올바르지 않아요.');
-    if (p.title.trim() === '' || p.title.length > BUG_TITLE_LIMIT) throw new BugNoteError('제목이 올바르지 않아요.');
-    if (p.memo.length > BUG_MEMO_LIMIT) throw new BugNoteError('메모가 너무 길어요.');
-    if (!isTime(p.createdAt) || !isTime(p.updatedAt)) throw new BugNoteError('시각이 올바르지 않아요.');
-    if (p.status !== 'open' && p.status !== 'done') throw new BugNoteError('상태가 올바르지 않아요.');
+    if (!ID_PATTERN.test(p.id)) throw new BugNoteError('The id is malformed.');
+    if (p.title.trim() === '' || p.title.length > BUG_TITLE_LIMIT) throw new BugNoteError('The title is not valid.');
+    if (p.memo.length > BUG_MEMO_LIMIT) throw new BugNoteError('The memo is too long.');
+    if (!isTime(p.createdAt) || !isTime(p.updatedAt)) throw new BugNoteError('The time is not valid.');
+    if (p.status !== 'open' && p.status !== 'done') throw new BugNoteError('The status is not valid.');
     return new BugNote({ ...p, screen: p.screen.slice(0, BUG_SCREEN_LIMIT), appVersion: p.appVersion.slice(0, BUG_ENV_LIMIT), os: p.os.slice(0, BUG_ENV_LIMIT) });
   }
 
@@ -174,12 +174,12 @@ export class BugNoteList {
 
   require(id: string): BugNote {
     const found = this.find(id);
-    if (found === undefined) throw new BugNoteError('그 메모를 찾을 수 없어요.');
+    if (found === undefined) throw new BugNoteError('That note was not found.');
     return found;
   }
 
   add(note: BugNote): BugNoteList {
-    if (this.notes.length >= BUG_NOTES_MAX) throw new BugNoteError(`메모는 ${BUG_NOTES_MAX}개까지 둘 수 있어요. 해결한 것부터 지워 주세요.`);
+    if (this.notes.length >= BUG_NOTES_MAX) throw new BugNoteError(`Up to ${BUG_NOTES_MAX} notes. Delete resolved ones first.`);
     return new BugNoteList([...this.notes, note]);
   }
 

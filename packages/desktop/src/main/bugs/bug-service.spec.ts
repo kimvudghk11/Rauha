@@ -80,7 +80,7 @@ describe('답답한 점 서비스: 로컬 저장', () => {
 
   it('제목이 없으면 이유를 돌려주고 저장하지 않는다', async () => {
     const { service, store } = setup();
-    expect(await add(service, '   ')).toMatchObject({ ok: false, error: '제목을 적어 주세요.' });
+    expect(await add(service, '   ')).toMatchObject({ ok: false, error: 'Please enter a title.' });
     expect(store.saves).toBe(0);
   });
 
@@ -96,7 +96,7 @@ describe('답답한 점 서비스: 로컬 저장', () => {
   it('프로필 이름이 없으면 상태에 올리기·받기를 막는 이유가 실린다', async () => {
     const { service } = setup({ ...GOOD, profile: null });
     const state = await service.get();
-    expect(state.syncBlocked).toContain('프로필 이름');
+    expect(state.syncBlocked).toContain('profile name');
   });
 });
 

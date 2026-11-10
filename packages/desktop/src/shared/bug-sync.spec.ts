@@ -13,7 +13,7 @@ describe('내 AWS 올리기 대상', () => {
   });
 
   it('프로필 이름이 비어 있으면 이유를 설정 칸에 보여 줄 수 있다', () => {
-    expect(syncBlockReason({ ...GOOD, profile: null })).toContain('프로필 이름');
+    expect(syncBlockReason({ ...GOOD, profile: null })).toContain('profile name');
     expect(syncBlockReason(GOOD)).toBeNull();
   });
 
@@ -80,13 +80,13 @@ describe('올리기 전 가림', () => {
   });
 
   it('올릴 파일에는 앱 버전·OS·화면이 남고 올림 표시가 켜져 있다', () => {
-    const body = JSON.parse(planUpload([note('a', '제목')], CTX).items[0]!.body) as Record<string, unknown>;
+    const body = JSON.parse(planUpload([note('a', 'Title')], CTX).items[0]!.body) as Record<string, unknown>;
     expect(body).toMatchObject({ version: 1, id: 'a', screen: 'chat', appVersion: '0.1.8', os: 'win32', uploaded: true });
   });
 
   it('미리보기 뒤에 글이 바뀌면 지문이 달라진다', () => {
-    const before = planUpload([note('a', '제목')], CTX).digest;
-    expect(planUpload([note('a', '제목')], CTX).digest).toBe(before);
+    const before = planUpload([note('a', 'Title')], CTX).digest;
+    expect(planUpload([note('a', 'Title')], CTX).digest).toBe(before);
     expect(planUpload([note('a', '다른 제목')], CTX).digest).not.toBe(before);
   });
 
@@ -97,10 +97,10 @@ describe('올리기 전 가림', () => {
 });
 
 describe('받아온 파일 읽기', () => {
-  const body = JSON.parse(planUpload([note('a', '제목')], CTX).items[0]!.body) as Record<string, unknown>;
+  const body = JSON.parse(planUpload([note('a', 'Title')], CTX).items[0]!.body) as Record<string, unknown>;
 
   it('우리 모양의 파일은 메모가 된다', () => {
-    expect(parseDownloaded('bug-notes/a.json', JSON.stringify(body))?.title).toBe('제목');
+    expect(parseDownloaded('bug-notes/a.json', JSON.stringify(body))?.title).toBe('Title');
   });
 
   it('파일 이름의 번호와 안의 번호가 다르면 건너뛴다', () => {

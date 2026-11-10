@@ -15,7 +15,7 @@ describe('답답한 점 메모', () => {
 
   it('제목은 80자까지만 된다', () => {
     expect(() => make('a', T0, { title: 'ㄱ'.repeat(BUG_TITLE_LIMIT) })).not.toThrow();
-    expect(() => make('a', T0, { title: 'ㄱ'.repeat(BUG_TITLE_LIMIT + 1) })).toThrow('80자');
+    expect(() => make('a', T0, { title: 'ㄱ'.repeat(BUG_TITLE_LIMIT + 1) })).toThrow('80 characters');
   });
 
   it('메모는 2000자까지만 된다', () => {
@@ -73,7 +73,7 @@ describe('답답한 점 목록', () => {
   it('500개를 넘겨 더할 수 없다', () => {
     let list = BugNoteList.empty();
     for (let i = 0; i < BUG_NOTES_MAX; i++) list = list.add(make(`n${i}`));
-    expect(() => list.add(make('extra'))).toThrow('500개');
+    expect(() => list.add(make('extra'))).toThrow('500 notes');
   });
 
   it('올리지 않은 메모만 올릴 대상이 된다', () => {
@@ -145,7 +145,7 @@ describe('답답한 점 DTO', () => {
   it('화면 요청은 종류별로 검사한다', () => {
     expect(BugOpDto.from({ kind: 'add', title: 't' }).op).toEqual({ kind: 'add', title: 't', memo: '', screen: '' });
     expect(() => BugOpDto.from({ kind: 'resolve' })).toThrow(BugNoteError);
-    expect(() => BugOpDto.from({ kind: 'drop' })).toThrow('알 수 없는');
+    expect(() => BugOpDto.from({ kind: 'drop' })).toThrow('Unknown');
     expect(() => BugOpDto.from(null)).toThrow(BugNoteError);
   });
 

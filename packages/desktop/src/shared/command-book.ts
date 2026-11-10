@@ -10,8 +10,8 @@ export type AppAction = 'clear' | 'status' | 'usage' | 'guide' | 'retry' | 'queu
 /** 명령이 하는 일: 팀에 보낼 프롬프트를 만들거나, 앱 동작을 한다. */
 export type CommandAction = { readonly kind: 'prompt'; readonly template: string } | { readonly kind: 'app'; readonly action: AppAction; readonly tab?: string };
 
-export type CommandGroup = '대화' | '작업' | '팀·회사' | 'rauha' | '내 명령';
-export const COMMAND_GROUPS: readonly CommandGroup[] = ['대화', '작업', '팀·회사', 'rauha', '내 명령'];
+export type CommandGroup = 'Chat' | 'Work' | 'Team · Company' | 'rauha' | 'My commands';
+export const COMMAND_GROUPS: readonly CommandGroup[] = ['Chat', 'Work', 'Team · Company', 'rauha', 'My commands'];
 
 /** 인자 하나. 템플릿의 {{이름}}(꼭 필요) 또는 {{이름|기본값}}(없으면 기본값) */
 export interface CommandArg {
@@ -47,15 +47,15 @@ export class Command {
 
   static create(props: CommandProps): Command {
     const name = props.name.trim().replace(/^\//, '');
-    if (!NAME_RULE.test(name)) throw new CommandError('명령 이름은 공백 없이 글자·숫자·_·-로 24자까지만 쓸 수 있어요. 예: 배포점검');
+    if (!NAME_RULE.test(name)) throw new CommandError('A command name has no spaces and uses letters, digits, _ or - (up to 24 characters). e.g. deploycheck');
     const description = props.description.trim();
-    if (description === '') throw new CommandError('명령이 무엇을 하는지 한 줄로 적어 주세요.');
+    if (description === '') throw new CommandError('Describe what the command does in one line.');
     if (props.action.kind === 'prompt') {
       const template = props.action.template.trim();
-      if (template === '') throw new CommandError('팀에 보낼 프롬프트를 적어 주세요.');
-      if (template.length > TEMPLATE_LIMIT) throw new CommandError(`프롬프트는 ${TEMPLATE_LIMIT}자까지예요.`);
+      if (template === '') throw new CommandError('Write the prompt to send to the team.');
+      if (template.length > TEMPLATE_LIMIT) throw new CommandError(`A prompt can be up to ${TEMPLATE_LIMIT} characters.`);
       const unclosed = template.replace(PLACEHOLDER, '');
-      if (/\{\{|\}\}/.test(unclosed)) throw new CommandError('{{인자}} 모양이 올바르지 않아요. 예: {{요청}} 또는 {{브랜치|main}}');
+      if (/\{\{|\}\}/.test(unclosed)) throw new CommandError('A {{blank}} is malformed. e.g. {{request}} or {{branch|main}}');
       return new Command({ ...props, name, description, detail: props.detail.trim() === '' ? description : props.detail.trim(), action: { kind: 'prompt', template } }, argsOf(template));
     }
     return new Command({ ...props, name, description, detail: props.detail.trim() === '' ? description : props.detail.trim() }, []);
@@ -143,44 +143,44 @@ type BuiltinDef = Omit<CommandProps, 'id' | 'builtin'>;
 /** 터미널판에서 옮겨 온 기본 명령. 순서는 입력창 자동완성과 Commands 탭의 순서다. */
 const BUILTIN_DEFS: readonly BuiltinDef[] = [
   {
-    name: 'review', group: '작업', action: prompt('내 변경을 리뷰어 관점으로 검토해줘. 검토 범위: {{브랜치|커밋하지 않은 변경 전체}} (브랜치 이름이면 그 브랜치와 갈라진 뒤의 변경). 파일은 고치지 말고, 문제와 제안만 알려줘.'),
+    name: 'review', group: 'Work', action: prompt('내 변경을 리뷰어 관점으로 검토해줘. 검토 범위: {{브랜치|커밋하지 않은 변경 전체}} (브랜치 이름이면 그 브랜치와 갈라진 뒤의 변경). 파일은 고치지 말고, 문제와 제안만 알려줘.'),
     description: '내 변경을 리뷰어가 검토해요', detail: '커밋하지 않은 변경(또는 /review <브랜치>로 그 브랜치와 갈라진 뒤의 변경)을 리뷰어 팀원이 검토해요. 파일은 고치지 않고 문제와 제안만 알려줘요.', argHelp: { 브랜치: '비교할 브랜치·커밋. 없으면 커밋하지 않은 변경 전체' },
   },
   {
-    name: 'design', group: '작업', action: prompt('바로 코드를 쓰지 말고 먼저 설계안을 정리해줘. 구조와 내가 정해야 할 점을 짚고, 근거와 함께 추천안을 내줘: {{요청}}'),
+    name: 'design', group: 'Work', action: prompt('바로 코드를 쓰지 말고 먼저 설계안을 정리해줘. 구조와 내가 정해야 할 점을 짚고, 근거와 함께 추천안을 내줘: {{요청}}'),
     description: '코드 전에 설계부터 정리해요', detail: '요청을 바로 만들지 않고 설계부터 해요. 구조와 내가 정해야 할 점을 짚어 추천안을 내고, 내가 정하면 그다음 작업으로 이어 가요.', argHelp: { 요청: '설계할 기능이나 변경. 예: 쿠폰 기능' },
   },
   {
-    name: 'repo', group: '작업', action: app('tab', 'code'),
+    name: 'repo', group: 'Work', action: app('tab', 'code'),
     description: 'Repo 탭의 레포 목록을 열어요', detail: '앱이 아는 저장소와 상태가 보이는 Repo 탭으로 가요. 일할 레포는 요청 맨 앞에 @폴더이름을 쓰면 바꿔요.',
   },
   {
-    name: 'routine', group: '작업', action: app('tab', 'todo'),
+    name: 'routine', group: 'Work', action: app('tab', 'todo'),
     description: '정기 업무(Todo 탭)를 열어요', detail: '매일·매주 하는 일을 보고 등록하는 곳(Todo 탭)으로 가요. 자동으로 돌지는 않고, 때가 된 것을 실행해요. Todo 탭이 아직 안 열렸으면 "곧 열려요"가 보여요.',
   },
   {
-    name: 'learn', group: '팀·회사', action: prompt('내 코드({{범위|이 저장소 전체}})에서 쓰인 디자인 패턴과 아키텍처를 패턴별로 모아, 왜 그렇게 썼는지 복습할 수 있게 정리해줘.'),
+    name: 'learn', group: 'Team · Company', action: prompt('내 코드({{범위|이 저장소 전체}})에서 쓰인 디자인 패턴과 아키텍처를 패턴별로 모아, 왜 그렇게 썼는지 복습할 수 있게 정리해줘.'),
     description: '내 코드의 패턴·아키텍처를 복습해요', detail: '학습 노트: 내 코드에서 쓰인 디자인 패턴·아키텍처와 쓴 이유를 패턴별로 모아 복습해요.', argHelp: { 범위: '살펴볼 폴더나 기능. 없으면 이 저장소 전체' },
   },
   {
-    name: 'company', group: '팀·회사', action: prompt('회사(부서)가 이미 정한 것을 요약해줘. 기획·마케팅·디자인 등 부서별로 가장 최근 결과만 짧게.'),
+    name: 'company', group: 'Team · Company', action: prompt('회사(부서)가 이미 정한 것을 요약해줘. 기획·마케팅·디자인 등 부서별로 가장 최근 결과만 짧게.'),
     description: '회사가 정한 것을 부서별로 요약해요', detail: '기획·마케팅·디자인 같은 부서별로 가장 최근에 정해진 결과를 요약해서 보여줘요.',
   },
   {
-    name: 'team', group: '팀·회사', action: app('tab', 'settings'),
+    name: 'team', group: 'Team · Company', action: app('tab', 'settings'),
     description: '팀 설정을 열어요', detail: '팀원 22명의 켜기·끄기, 모델 등급, 도구, 추가 지시, 이름·캐릭터를 바꾸는 설정으로 가요.',
   },
-  { name: 'clear', group: '대화', action: app('clear'), description: '채팅 화면을 비워요', detail: '채팅 화면의 오래된 말들을 지워요. 돌고 있는 작업과 지난 작업 기억은 그대로 남아요. 저장해 둔 말풍선도 비워져서 앱을 다시 켜도 돌아오지 않아요.' },
-  { name: 'status', group: '대화', action: app('status'), description: '지금 작업 상태를 보여줘요', detail: '돌고 있는 작업·허락 기다리는 작업·대기 중인 작업 수와 동시에 돌 수 있는 개수를 알려줘요.' },
-  { name: 'usage', group: '대화', action: app('usage'), description: '구독 사용률을 보여줘요', detail: '구독 한도의 세션(5시간)·주간 사용률을 %로 알려줘요. 돈은 보이지 않아요.' },
-  { name: 'guide', group: '대화', action: app('guide'), description: '지난 작업의 정리를 열어요', detail: '가장 최근에 끝난 작업의 정리(읽기 안내서)를 팀 상세 화면으로 열어요.' },
-  { name: 'retry', group: '대화', action: app('retry'), description: '마지막 요청을 한 번 더 보내요', detail: '멈췄거나 마음에 안 들 때 마지막 요청을 그대로 다시 팀에 맡겨요.' },
-  { name: 'queue', group: '대화', action: app('queue'), description: '기다리는 작업을 보여줘요', detail: '아직 시작하지 못하고 기다리는 작업 목록을 보여줘요. 지우려면 작업 카드의 멈추기를 눌러요.' },
-  { name: 'copy', group: '대화', action: app('copy'), description: '마지막 답을 복사해요', detail: '가장 최근에 끝난 작업의 답(정리)을 클립보드에 복사해요.' },
+  { name: 'clear', group: 'Chat', action: app('clear'), description: '채팅 화면을 비워요', detail: '채팅 화면의 오래된 말들을 지워요. 돌고 있는 작업과 지난 작업 기억은 그대로 남아요. 저장해 둔 말풍선도 비워져서 앱을 다시 켜도 돌아오지 않아요.' },
+  { name: 'status', group: 'Chat', action: app('status'), description: '지금 작업 상태를 보여줘요', detail: '돌고 있는 작업·허락 기다리는 작업·대기 중인 작업 수와 동시에 돌 수 있는 개수를 알려줘요.' },
+  { name: 'usage', group: 'Chat', action: app('usage'), description: '구독 사용률을 보여줘요', detail: '구독 한도의 세션(5시간)·주간 사용률을 %로 알려줘요. 돈은 보이지 않아요.' },
+  { name: 'guide', group: 'Chat', action: app('guide'), description: '지난 작업의 정리를 열어요', detail: '가장 최근에 끝난 작업의 정리(읽기 안내서)를 팀 상세 화면으로 열어요.' },
+  { name: 'retry', group: 'Chat', action: app('retry'), description: '마지막 요청을 한 번 더 보내요', detail: '멈췄거나 마음에 안 들 때 마지막 요청을 그대로 다시 팀에 맡겨요.' },
+  { name: 'queue', group: 'Chat', action: app('queue'), description: '기다리는 작업을 보여줘요', detail: '아직 시작하지 못하고 기다리는 작업 목록을 보여줘요. 지우려면 작업 카드의 멈추기를 눌러요.' },
+  { name: 'copy', group: 'Chat', action: app('copy'), description: '마지막 답을 복사해요', detail: '가장 최근에 끝난 작업의 답(정리)을 클립보드에 복사해요.' },
   { name: '설치', aliases: ['install'], group: 'rauha', action: app('install'), description: '내 컴퓨터에 설치하는 방법을 보여줘요', detail: '맥은 한 줄 설치 명령(복사 버튼), Windows는 최신 설치 파일 내려받기를 보여줘요. 한 줄 설치는 브라우저로 받지 않아 첫 실행 경고가 뜨지 않아요.' },
   { name: '업데이트', aliases: ['update'], group: 'rauha', action: app('update'), description: '새 버전을 확인하고 업데이트 방법을 보여줘요', detail: 'GitHub에서 새 버전이 있는지 지금 확인하고, 내 컴퓨터(맥·Windows)에 맞는 업데이트 방법을 보여줘요.' },
   {
-    name: '개선', aliases: ['improve'], group: '작업',
+    name: '개선', aliases: ['improve'], group: 'Work',
     action: prompt('{{대상}}에서 다음 3단계를 차례로 진행해줘. 요청: {{요청}}\n\n1단계 공격적 점검(읽기 중심. 파일을 고치거나 지우거나 외부에 요청을 보내는 파괴 동작은 하지 말 것. 내 소유 프로젝트 안에서만): 약점 분석, 부족한 기능 찾기, 보안 점검, 모의 해킹 관점의 취약점 탐색. 근거(파일·줄)와 함께 목록으로 정리해.\n2단계 개선: 1단계 결과를 근거로 고쳐. 요청과 관련 있는 항목부터, 바꾼 이유를 1단계 항목과 연결해 적어.\n3단계 마무리: 2단계에서 바뀐 것에 필요한 테스트를 더하고 전체 검사를 돌려 통과를 확인한 뒤, 남은 문제와 못 한 것을 정리해.\n각 단계의 결과를 다음 단계의 입력으로 삼아. 비밀 파일은 읽지 않고 commit·push는 하지 않아.'),
     description: '점검 → 개선 → 마무리 3단계로 업데이트해요', detail: '업데이트 요청이 오면 쓰는 3단계예요. 1) 공격적 점검(약점·부족한 기능·보안·모의 해킹 관점, 읽기 중심) 2) 그 결과를 근거로 개선 3) 추가 테스트와 마무리. 한 작업으로 올라가 팀 방에서 단계가 보이고, 허락 카드와 규칙(비밀 파일·push 금지)은 그대로 적용돼요.',
     argHelp: { 대상: '레포 이름이나 폴더(한 단어). 예: rauha', 요청: '무엇을 어떻게 개선할지 한 줄' },
@@ -258,7 +258,7 @@ export class CommandBook {
 
   /** 기본 명령을 끄거나 켠다. 내 명령은 지우면 되므로 여기서는 기본 명령만 다룬다. */
   setEnabled(id: string, enabled: boolean): CommandBook {
-    if (!BUILTIN_COMMANDS.some((c) => c.id === id)) throw new CommandError('기본 명령만 끄고 켤 수 있어요. 내 명령은 지우거나 고쳐 주세요.');
+    if (!BUILTIN_COMMANDS.some((c) => c.id === id)) throw new CommandError('Only default commands can be turned on or off. Delete or edit your own.');
     const next = new Set(this.disabled);
     if (enabled) next.delete(id);
     else next.add(id);
@@ -276,7 +276,7 @@ export class CommandBook {
   }
 
   edit(id: string, draft: CustomDraft): CommandBook {
-    if (!this.custom.some((c) => c.id === id)) throw new CommandError('고칠 내 명령을 찾지 못했어요.');
+    if (!this.custom.some((c) => c.id === id)) throw new CommandError('The command to edit was not found.');
     const command = this.build(id, draft, id);
     return new CommandBook(this.custom.map((c) => (c.id === id ? command : c)), this.disabled);
   }
@@ -286,9 +286,9 @@ export class CommandBook {
   }
 
   private build(id: string, draft: CustomDraft, ownId: string | null): Command {
-    const command = Command.create({ id, name: draft.name, description: draft.description, detail: '', group: '내 명령', action: prompt(draft.template), builtin: false });
+    const command = Command.create({ id, name: draft.name, description: draft.description, detail: '', group: 'My commands', action: prompt(draft.template), builtin: false });
     const clash = this.entries().find((e) => e.command.id !== ownId && e.command.called(command.name));
-    if (clash !== undefined) throw new CommandError(`/${command.name}은(는) 이미 있는 이름이에요.${clash.command.builtin ? ' 기본 명령 이름은 쓸 수 없어요.' : ''}`);
+    if (clash !== undefined) throw new CommandError(`/${command.name} already exists.${clash.command.builtin ? ' Default command names cannot be used.' : ''}`);
     return command;
   }
 

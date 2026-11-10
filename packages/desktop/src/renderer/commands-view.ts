@@ -23,7 +23,7 @@ export const commandsApi = (api: { getCommands(): Promise<CommandBookJson>; save
 export function buildCommands(api: CommandsApi) {
   const root = el('section', 'commands');
   const head = el('div', 'rhead');
-  head.append(el('b', undefined, 'Commands'), el('span', 'hint', '입력창에 /를 치면 여기 있는 명령이 자동완성으로 떠요.'));
+  head.append(el('b', undefined, 'Commands'), el('span', 'hint', 'Type / in the chat box to autocomplete these commands.'));
 
   let book = CommandBook.initial();
   let editing: string | null = null;
@@ -31,19 +31,19 @@ export function buildCommands(api: CommandsApi) {
 
   // ── 내 명령 폼 ──
   const form = el('form', 'cmdform pane');
-  const formTitle = el('div', 'ph', '내 명령 더하기');
+  const formTitle = el('div', 'ph', 'Add my command');
   const name = el('input');
-  name.placeholder = '이름  예: 배포점검 (입력창에서 /배포점검)';
+  name.placeholder = 'Name  e.g. deploycheck (type /deploycheck in chat)';
   const desc = el('input');
-  desc.placeholder = '한 줄 설명  예: 배포 전에 확인할 것을 점검해요';
+  desc.placeholder = 'One-line description  e.g. check things before deploying';
   const template = el('textarea');
   template.rows = 3;
-  template.placeholder = '팀에 보낼 프롬프트  예: {{대상}}의 배포 전 점검 목록을 만들어줘. 환경은 {{환경|qa}}';
-  const note = el('div', 'hint', '{{이름}}은 명령을 칠 때 채우는 칸(꼭 필요), {{이름|기본값}}은 안 채워도 되는 칸이에요. 마지막 칸은 남은 글 전부를 받아요.');
+  template.placeholder = 'Prompt to send to the team  e.g. Make a pre-deploy checklist for {{target}}. Environment: {{env|qa}}';
+  const note = el('div', 'hint', '{{name}} is a blank you fill in when running the command (required); {{name|default}} is optional. The last blank takes all the remaining text.');
   const error = el('div', 'err');
-  const save = el('button', 'btn primary', '더하기');
+  const save = el('button', 'btn primary', 'Add');
   save.type = 'submit';
-  const cancel = el('button', 'btn', '취소');
+  const cancel = el('button', 'btn', 'Cancel');
   cancel.type = 'button';
   cancel.hidden = true;
   const btns = el('div', 'row');
@@ -53,8 +53,8 @@ export function buildCommands(api: CommandsApi) {
   form.append(formTitle, fields);
 
   const list = el('div', 'cmdlist');
-  const reset = el('button', 'btn', '기본 명령 되돌리기');
-  reset.title = '꺼 둔 기본 명령을 모두 다시 켜요. 내 명령은 그대로예요.';
+  const reset = el('button', 'btn', 'Restore default commands');
+  reset.title = 'Turns every disabled default command back on. Your own commands stay.';
   const foot = el('div', 'cmdfoot');
   foot.append(reset);
   root.append(head, form, list, foot);
@@ -72,8 +72,8 @@ export function buildCommands(api: CommandsApi) {
 
   function startEdit(c: Command | null): void {
     editing = c?.id ?? null;
-    formTitle.textContent = c === null ? '내 명령 더하기' : `/${c.name} 고치기`;
-    save.textContent = c === null ? '더하기' : '저장';
+    formTitle.textContent = c === null ? 'Add my command' : `Edit /${c.name}`;
+    save.textContent = c === null ? 'Add' : 'Save';
     cancel.hidden = c === null;
     name.value = c?.name ?? '';
     desc.value = c?.description ?? '';
@@ -101,7 +101,7 @@ export function buildCommands(api: CommandsApi) {
     const top = el('div', 'top');
     const title = el('b', undefined, c.usage());
     const aliases = c.aliases.length > 0 ? el('span', 'chip', c.aliases.map((a) => `/${a}`).join(' ')) : null;
-    const more = el('button', 'btn sm', open.has(c.id) ? '접기' : '자세히');
+    const more = el('button', 'btn sm', open.has(c.id) ? 'Collapse' : 'Details');
     more.addEventListener('click', () => {
       if (open.has(c.id)) open.delete(c.id);
       else open.add(c.id);
@@ -116,12 +116,12 @@ export function buildCommands(api: CommandsApi) {
       box2.type = 'checkbox';
       box2.checked = enabled;
       box2.addEventListener('change', () => void persist(book.setEnabled(c.id, box2.checked)));
-      toggle.append(box2, el('span', undefined, enabled ? '켬' : '끔'));
+      toggle.append(box2, el('span', undefined, enabled ? 'On' : 'Off'));
       top.append(toggle);
     } else {
-      const edit = el('button', 'btn sm', '고치기');
+      const edit = el('button', 'btn sm', 'Edit');
       edit.addEventListener('click', () => startEdit(c));
-      const del = el('button', 'btn sm danger', '지우기');
+      const del = el('button', 'btn sm danger', 'Delete');
       del.addEventListener('click', () => {
         if (editing === c.id) startEdit(null);
         void persist(book.remove(c.id));
@@ -134,11 +134,11 @@ export function buildCommands(api: CommandsApi) {
       body.appendChild(el('div', undefined, c.detail));
       if (c.args.length > 0) {
         const args = el('div', 'args');
-        for (const a of c.args) args.appendChild(el('div', undefined, `${a.name}: ${a.required ? '꼭 필요해요' : `없으면 "${a.fallback ?? ''}"`}${c.argHelp(a.name) !== null ? ` · ${c.argHelp(a.name)}` : ''}`));
+        for (const a of c.args) args.appendChild(el('div', undefined, `${a.name}: ${a.required ? 'required' : `default "${a.fallback ?? ''}"`}${c.argHelp(a.name) !== null ? ` · ${c.argHelp(a.name)}` : ''}`));
         body.appendChild(args);
       }
       if (c.action.kind === 'prompt') body.appendChild(el('pre', 'tpl', c.action.template));
-      else body.appendChild(el('div', 'dim', '모델을 부르지 않고 앱이 바로 해요.'));
+      else body.appendChild(el('div', 'dim', 'The app does this directly, without calling a model.'));
       box.appendChild(body);
     }
     return box;
@@ -149,10 +149,10 @@ export function buildCommands(api: CommandsApi) {
     const entries = book.entries();
     for (const group of COMMAND_GROUPS) {
       const mine = entries.filter((e) => e.command.group === group);
-      if (mine.length === 0 && group !== '내 명령') continue;
+      if (mine.length === 0 && group !== 'My commands') continue;
       const pane = el('div', 'pane cgroup');
       pane.appendChild(el('div', 'ph', group));
-      if (mine.length === 0) pane.appendChild(el('div', 'dim pad', '아직 없어요. 위에서 더해 보세요.'));
+      if (mine.length === 0) pane.appendChild(el('div', 'dim pad', 'None yet. Add one above.'));
       for (const e of mine) pane.appendChild(card(e.command, e.enabled));
       list.appendChild(pane);
     }

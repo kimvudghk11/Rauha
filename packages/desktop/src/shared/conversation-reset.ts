@@ -7,10 +7,10 @@ export class ConversationResetDto {
 
   /** { root: 글자 | null }. null은 작업 폴더의 레포 전부 */
   static from(input: unknown): ConversationResetDto {
-    if (typeof input !== 'object' || input === null || !('root' in input)) throw new Error('대화 초기화 요청 모양이 올바르지 않아요.');
+    if (typeof input !== 'object' || input === null || !('root' in input)) throw new Error('The reset request is malformed.');
     const root = (input as { root: unknown }).root;
     if (root === null) return new ConversationResetDto(null);
-    if (typeof root !== 'string' || root.trim() === '' || root.length > MAX_ROOT_LENGTH) throw new Error('초기화할 레포 경로가 올바르지 않아요.');
+    if (typeof root !== 'string' || root.trim() === '' || root.length > MAX_ROOT_LENGTH) throw new Error('The repo path to reset is not valid.');
     return new ConversationResetDto(root);
   }
 

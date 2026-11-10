@@ -43,7 +43,7 @@ describe('별칭', () => {
 
   it('별칭으로도 자동완성에 나오고, 내 명령 이름이 별칭과 겹치면 막는다', () => {
     expect(book.suggest('/inst').map((c) => c.name)).toEqual(['설치']);
-    expect(() => book.add(draft('improve'), newId)).toThrow(/이미 있는 이름/);
+    expect(() => book.add(draft('improve'), newId)).toThrow(/already exists/);
   });
 
   it('/개선은 대상과 요청을 받아 3단계를 한 작업으로 보내고 파괴 동작과 비밀 파일·push를 막는다', () => {
@@ -148,8 +148,8 @@ describe('내 명령', () => {
 
   it('기본 명령이나 다른 내 명령과 이름이 겹치면 막는다(대소문자 무시)', () => {
     const book = CommandBook.initial().add(draft('점검'), () => 'a');
-    expect(() => book.add(draft('REVIEW'), newId)).toThrow(/이미 있는 이름/);
-    expect(() => book.add(draft('점검'), newId)).toThrow(/이미 있는 이름/);
+    expect(() => book.add(draft('REVIEW'), newId)).toThrow(/already exists/);
+    expect(() => book.add(draft('점검'), newId)).toThrow(/already exists/);
   });
 
   it('자기 이름 그대로 고치는 것은 겹침이 아니다', () => {
@@ -160,9 +160,9 @@ describe('내 명령', () => {
   it('이름·설명·프롬프트 규칙을 지킨다', () => {
     const book = CommandBook.initial();
     expect(() => book.add(draft('두 단어'), newId)).toThrow(CommandError);
-    expect(() => book.add(draft('x', ''), newId)).toThrow(/프롬프트/);
-    expect(() => book.add(draft('x', '{{열림'), newId)).toThrow(/인자/);
-    expect(() => book.add(draft('x', 'a', ' '), newId)).toThrow(/한 줄/);
+    expect(() => book.add(draft('x', ''), newId)).toThrow(/prompt/i);
+    expect(() => book.add(draft('x', '{{열림'), newId)).toThrow(/malformed/);
+    expect(() => book.add(draft('x', 'a', ' '), newId)).toThrow(/one line/);
   });
 
   it('이름 앞의 /는 떼고 받는다', () => {

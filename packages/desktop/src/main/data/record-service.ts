@@ -11,7 +11,7 @@ export interface RecordServiceDeps {
   readonly max?: number;
 }
 
-const MESSAGE_FALLBACK = '기록을 저장하지 못했어요.';
+const MESSAGE_FALLBACK = 'Could not save the record.';
 
 /** 기록 서비스: 불러오기 → 엔티티 메서드 → 저장. 요청은 한 줄로 세워 하나씩 처리한다. */
 export class RecordService {
