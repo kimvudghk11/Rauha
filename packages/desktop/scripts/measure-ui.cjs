@@ -58,7 +58,7 @@ const MEASURE = `(() => {
     clippedBtn: [...document.querySelectorAll('.records .btn')].filter((n) => n.getBoundingClientRect().width > 0 && n.scrollWidth > n.clientWidth + 1).map((n) => n.textContent.trim()),
     rows: [...document.querySelectorAll('.records .ri')].slice(0, 3).map((n) => n.scrollWidth > n.clientWidth + 1), tier: document.querySelector('.app')?.dataset.tier, cols: getComputedStyle(document.querySelector('.records .rec')).gridTemplateColumns, cls: document.querySelector('.records .rec').className,
   } : null;
-  const cm = document.querySelector('.cm-content'); return { tool, rec, cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
+  const cm = document.querySelector('.cm-content'); return { big: window.__bigT || null, tool, rec, cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
 })()`;
 
 app.on('browser-window-created', (_e, win) => {
@@ -111,6 +111,20 @@ function sandbox() {
     git(c, 'merge', 'other');
   } catch {
     /* 충돌이 나야 한다 */
+  }
+  // 큰 레포(MEASURE_BIG=1일 때만): 새 파일 3500개 + 2만 줄이 전부 바뀐 파일 하나
+  if (process.env.MEASURE_BIG) {
+    const g = path.join(root, 'app-big');
+    fs.mkdirSync(g);
+    git(g, 'init', '-b', 'main');
+    w(g, 'aaa-big.txt', Array.from({ length: 20000 }, (_, i) => 'old line ' + i).join(String.fromCharCode(10)) + String.fromCharCode(10));
+    git(g, 'add', '.');
+    git(g, 'commit', '-m', 'big base');
+    w(g, 'aaa-big.txt', Array.from({ length: 20000 }, (_, i) => 'new line ' + i).join(String.fromCharCode(10)) + String.fromCharCode(10));
+    for (let d = 0; d < 35; d++) {
+      fs.mkdirSync(path.join(g, 'dir' + d));
+      for (let i = 0; i < 100; i++) w(g, 'dir' + d + '/f' + i + '.txt', 'x' + i + String.fromCharCode(10));
+    }
   }
   // 원격보다 2커밋 뒤처진 레포: 다른 복제본에서 올린 뒤 fetch만 한다
   const d = path.join(root, 'app-three');
@@ -179,6 +193,8 @@ const SCENES = [
   ['records-blog', 'records', ['.ri', byText('.rdbar .btn', '블로그 글')]],
   ['records-blog-draft', 'records', ['.ri', byText('.rdbar .btn', '블로그 글'), byText('.rdbar .btn', '초안 쓰기')]],
   ['git-changes', 'git', [pickRepo('app-one')]],
+  // 큰 레포: 탭을 다시 열 때(.gf 줄이 나타날 때까지)와 큰 diff를 열 때(.gl 줄이 나타날 때까지)의 밀리초와 화면 요소 수를 잰다
+  ['git-big', 'git', [pickRepo('app-big'), "(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const tabs = document.querySelectorAll('#tabs button'); tabs[7].click(); await sleep(400); const t0 = performance.now(); tabs[4].click(); while (!document.querySelector('.gf') && performance.now() - t0 < 30000) await sleep(10); const open = Math.round(performance.now() - t0); await sleep(300); const t1 = performance.now(); const row = [...document.querySelectorAll('.gf')].find((n) => n.textContent.includes('aaa-big')); row?.click(); while (!document.querySelector('.gl') && performance.now() - t1 < 30000) await sleep(10); const diff = Math.round(performance.now() - t1); await sleep(500); const root = document.querySelector('.gselect').value; const ta = performance.now(); await window.rauha.listRepos(); const listMs = Math.round(performance.now() - ta); const tb = performance.now(); await window.rauha.git.overview(root, undefined); const overviewMs = Math.round(performance.now() - tb); window.__bigT = { listReposMs: listMs, overviewMs, tabOpenMs: open, diffOpenMs: diff, nodes: document.querySelectorAll('*').length, files: document.querySelectorAll('.gf').length, lines: document.querySelectorAll('.gl').length }; })() /* querySelector */"]],
   ['git-branches', 'git', [pickRepo('app-one'), byText('.tabs .tab', '브랜치')]],
   ['git-history', 'git', [pickRepo('app-one'), byText('.tabs .tab', '히스토리')]],
   ['git-conflicts', 'git', [pickRepo('app-two'), byText('.tabs .tab', '충돌')]],
@@ -325,6 +341,7 @@ async function run(win) {
   results.push({ violations });
   if (violations.length > 0) console.log(['규칙 위반 ' + violations.length + '건:', ...violations.slice(0, 40)].join(String.fromCharCode(10)));
   else console.log('규칙 위반 0건');
+  for (const r of results) if (r.big) console.log('큰 레포 ' + r.name + '@' + r.width + ': ' + JSON.stringify(r.big));
   fs.writeFileSync(out, JSON.stringify(results));
   console.log('측정 저장:', out, results.length);
   app.quit();

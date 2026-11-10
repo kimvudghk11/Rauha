@@ -1,33 +1,34 @@
 /* git 탭. 색은 styles.css 토큰만 쓴다. 창이 좁으면(s·xs) 목록과 diff가 위아래로 쌓인다. */
-.git { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 8px; gap: 6px; }
+.git { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: var(--s3); gap: var(--s2); }
 .gselect { max-width: 260px; }
 textarea.ginput, input.ginput { width: 100%; }
 .gbranch { font-family: var(--mono); color: var(--bright); }
-.gmsg { min-height: 0; font-size: 12px; white-space: pre-wrap; }
-.gmsg.ok { color: var(--green); padding: 2px 0; } .gmsg.bad { color: var(--red); padding: 2px 0; }
+.gmsg { min-height: 0; font-size: var(--fs-sm); white-space: pre-wrap; }
+.gmsg.ok { color: var(--green); padding: var(--s1) 0; } .gmsg.bad { color: var(--red); padding: var(--s1) 0; }
 .gbody { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .gbody > * { flex: 1; min-height: 0; }
 .gpre { white-space: pre-wrap; word-break: break-word; }
-.gsplit { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: 8px; min-height: 0; }
+.gsplit { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: var(--s2); min-height: 0; }
 .app[data-tier=s] .gsplit, .app[data-tier=xs] .gsplit { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.5fr) minmax(0, 1fr); }
-.gside, .gmain, .glist { border: 1px solid var(--border); border-radius: 6px; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.gside, .gmain, .glist { border: 1px solid var(--border); border-radius: var(--r-md); min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
 .gmain { overflow: auto; }
 .gfiles { flex: 1; min-height: 0; overflow: auto; }
-.gall { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; }
-.gf { cursor: pointer; gap: 7px; padding-top: 4px; padding-bottom: 4px; }
+.gall { display: flex; gap: var(--s2); align-items: center; min-height: var(--h-lg); padding: 0 var(--s3); border-bottom: 1px solid var(--border); color: var(--muted); font-size: var(--fs-sm); }
+.gf { cursor: pointer; gap: var(--s2); padding-top: var(--s1); padding-bottom: var(--s1); }
 .gname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gname b { color: var(--bright); font-weight: 500; }
-.gb { font-family: var(--mono); font-size: 11px; width: 14px; text-align: center; font-weight: 700; }
+.gb { font-family: var(--mono); font-size: var(--fs-xs); width: 14px; text-align: center; font-weight: 700; }
 .gb.yellow { color: var(--yellow); } .gb.green { color: var(--green); } .gb.red { color: var(--red); } .gb.blue { color: var(--accentfg); } .gb.dim { color: var(--muted); }
 .gx:hover:not(:disabled) { color: var(--red); }
-.gcommit { border-top: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-.gmh { box-sizing: border-box; min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; flex-wrap: wrap; }
-.gmh b { color: var(--bright); font-family: var(--mono); font-size: 12px; word-break: break-all; }
-.gdiff { font-family: var(--mono); font-size: 12px; min-width: min-content; }
-.gdbar { position: sticky; top: 0; display: flex; align-items: center; gap: 10px; padding: 5px 10px; background: var(--card); border-bottom: 1px solid var(--border); font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif; font-size: 12px; z-index: 1; }
+.gcommit { border-top: 1px solid var(--border); padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+.gmh { box-sizing: border-box; min-height: 40px; display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; flex-wrap: wrap; }
+.gmh b { color: var(--bright); font-family: var(--mono); font-size: var(--fs-sm); word-break: break-all; }
+.gdiff { font-family: var(--mono); font-size: var(--fs-sm); min-width: min-content; }
+.gdbar { position: sticky; top: 0; display: flex; align-items: center; gap: var(--s2); min-height: var(--h-lg); padding: 0 var(--s3); background: var(--card); border-bottom: 1px solid var(--border); font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif; font-size: var(--fs-sm); z-index: 1; }
 .gmh + .gdiff .gdbar { top: 40px; }
+.gmore { display: flex; width: calc(100% - 2 * var(--s3)); margin: var(--s2) var(--s3); }
 .gh .btn { margin-left: auto; }
-.gh { display: flex; align-items: center; gap: 8px; min-height: var(--h-md); padding: 2px 10px; background: #1c2a38; color: var(--accentfg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.gh { display: flex; align-items: center; gap: var(--s2); min-height: var(--h-md); padding: var(--s1) var(--s3); background: #1c2a38; color: var(--accentfg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .gl { display: flex; white-space: pre; line-height: 1.5; }
 .gl .gc { flex: 0 0 22px; text-align: center; }
 .gl .gn { flex: 0 0 42px; text-align: right; padding-right: 8px; color: var(--dim); user-select: none; }
@@ -36,7 +37,7 @@ textarea.ginput, input.ginput { width: 100%; }
 .gl.add { background: #17301c; } .gl.add .gs { color: var(--green); }
 .gl.del { background: var(--danger-bg); } .gl.del .gs { color: var(--red); }
 .gl input, .gh input, .gf input, .gall input { margin: 0; accent-color: var(--accent); }
-.gtools { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border); }
+.gtools { display: flex; gap: var(--s2); padding: var(--s3); border-bottom: 1px solid var(--border); }
 .gtools .ginput { flex: 1; }
 .gpanel { overflow: hidden; }
 .gcm { align-items: flex-start; }
@@ -110,3 +111,7 @@ textarea.ginput, input.ginput { width: 100%; }
 .gf.is-current { box-shadow: inset 3px 0 0 var(--accent); }
 .gf.is-current .gname b { color: var(--accentfg); font-weight: 700; }
 .bmenu .is-current, .menu .is-current { box-shadow: inset 3px 0 0 var(--accent); color: var(--accentfg); font-weight: 700; }
+
+/* 좁은 창(s·xs): 왼쪽 칸이 목록과 커밋 입력을 함께 담아 목록이 한 줄만 보이던 것 — 칸 전체가 스크롤되고 목록은 적당한 높이를 가진다 */
+.app[data-tier=s] .gside, .app[data-tier=xs] .gside { overflow-y: auto; }
+.app[data-tier=s] .gfiles, .app[data-tier=xs] .gfiles { flex: none; max-height: 220px; min-height: 0; }

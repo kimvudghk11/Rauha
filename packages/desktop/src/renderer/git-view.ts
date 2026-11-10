@@ -276,7 +276,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     for (const k of Object.keys(views)) delete views[k as ViewId];
     conv = undefined;
     say('');
-    await loadHeader();
+    // 변경 탭이 자기가 읽은 overview를 헤더에 넘기므로(adopt) 따로 한 번 더 읽지 않는다(큰 레포에서 탭 열기가 그만큼 빨라진다)
     await open('changes');
   }
 

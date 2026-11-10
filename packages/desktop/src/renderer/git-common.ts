@@ -2,6 +2,7 @@ import type { GitArg, GitData, GitFn, Overview } from '../shared/git-api.js';
 import type { DiffView } from '../shared/git-api.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
 import type { Selection } from '../shared/git-diff.js';
+import { DIFF_FIRST_LINES, DIFF_MORE_LINES, moreLabel } from '../shared/git-window.js';
 import { el, isEnterKey } from './dom.js';
 
 /** git 탭의 화면들이 함께 쓰는 손잡이 */
@@ -100,45 +101,81 @@ export function renderDiff(diff: DiffView, options: DiffOptions): HTMLElement {
     root.appendChild(bar);
     refreshBar();
   }
-  diff.hunks.forEach((h, hi) => {
-    const head = el('div', 'gh');
-    const hcheck = el('input');
-    hcheck.type = 'checkbox';
-    head.append(...(selectable ? [hcheck] : []), el('span', 'mono', h.header.replace(/\r$/, '')));
-    const rows: { box: HTMLInputElement; li: number }[] = [];
-    if (selectable) {
-      const hb = el('button', 'btn sm', options.mode === 'stage' ? '이 덩어리 스테이지' : '이 덩어리 스테이지 해제');
-      hb.addEventListener('click', () => finish({ hunks: [hi] }));
-      head.appendChild(hb);
-    }
-    root.appendChild(head);
-    h.lines.forEach((l, li) => {
-      const row = el('div', `gl ${l.kind}`);
-      const cell = el('span', 'gc');
-      if (selectable && l.kind !== 'ctx') {
-        const box = el('input');
-        box.type = 'checkbox';
-        box.addEventListener('change', () => {
-          const set = picked.get(hi) ?? new Set<number>();
-          if (box.checked) set.add(li);
-          else set.delete(li);
-          if (set.size === 0) picked.delete(hi);
-          else picked.set(hi, set);
-          hcheck.checked = rows.every((r) => r.box.checked);
-          refreshBar();
+  // 큰 diff는 한꺼번에 그리지 않는다: 처음 DIFF_FIRST_LINES줄만 그리고 "더 보기"로 이어 그린다(화면 요소 수만 개가 탭을 멈추게 하던 것)
+  const total = diff.hunks.reduce((n, h) => n + 1 + h.lines.length, 0);
+  let drawn = 0;
+  let hi = 0;
+  let li = 0;
+  let more: HTMLButtonElement | null = null;
+  const hunkRows: { box: HTMLInputElement; li: number }[][] = [];
+  const hunkChecks: HTMLInputElement[] = [];
+  const drawChunk = (budget: number): void => {
+    more?.remove();
+    more = null;
+    while (budget > 0 && hi < diff.hunks.length) {
+      const h = diff.hunks[hi]!;
+      if (li === 0) {
+        const head = el('div', 'gh');
+        const hcheck = el('input');
+        hcheck.type = 'checkbox';
+        head.append(...(selectable ? [hcheck] : []), el('span', 'mono', h.header.replace(/\r$/, '')));
+        const rows: { box: HTMLInputElement; li: number }[] = [];
+        hunkRows[hi] = rows;
+        hunkChecks[hi] = hcheck;
+        const me = hi;
+        if (selectable) {
+          const hb = el('button', 'btn sm', options.mode === 'stage' ? '이 덩어리 스테이지' : '이 덩어리 스테이지 해제');
+          hb.addEventListener('click', () => finish({ hunks: [me] }));
+          head.appendChild(hb);
+        }
+        hcheck.addEventListener('change', () => {
+          for (const r of rows) {
+            r.box.checked = hcheck.checked;
+            r.box.dispatchEvent(new Event('change'));
+          }
         });
-        rows.push({ box, li });
-        cell.appendChild(box);
+        root.appendChild(head);
+        budget--;
+        drawn++;
       }
-      row.append(cell, el('span', 'gn', l.oldNo === null ? '' : String(l.oldNo)), el('span', 'gn', l.newNo === null ? '' : String(l.newNo)), el('span', 'gs', l.kind === 'add' ? '+' : l.kind === 'del' ? '-' : ' '), el('span', 'gt', l.text));
-      root.appendChild(row);
-    });
-    hcheck.addEventListener('change', () => {
-      for (const r of rows) {
-        r.box.checked = hcheck.checked;
-        r.box.dispatchEvent(new Event('change'));
+      const rows = hunkRows[hi]!;
+      const hcheck = hunkChecks[hi]!;
+      const me = hi;
+      for (; li < h.lines.length && budget > 0; li++, budget--, drawn++) {
+        const l = h.lines[li]!;
+        const lineNo = li;
+        const row = el('div', `gl ${l.kind}`);
+        const cell = el('span', 'gc');
+        if (selectable && l.kind !== 'ctx') {
+          const box = el('input');
+          box.type = 'checkbox';
+          box.addEventListener('change', () => {
+            const set = picked.get(me) ?? new Set<number>();
+            if (box.checked) set.add(lineNo);
+            else set.delete(lineNo);
+            if (set.size === 0) picked.delete(me);
+            else picked.set(me, set);
+            hcheck.checked = rows.every((r) => r.box.checked);
+            refreshBar();
+          });
+          rows.push({ box, li: lineNo });
+          cell.appendChild(box);
+        }
+        row.append(cell, el('span', 'gn', l.oldNo === null ? '' : String(l.oldNo)), el('span', 'gn', l.newNo === null ? '' : String(l.newNo)), el('span', 'gs', l.kind === 'add' ? '+' : l.kind === 'del' ? '-' : ' '), el('span', 'gt', l.text));
+        root.appendChild(row);
       }
-    });
-  });
+      if (li >= h.lines.length) {
+        hi++;
+        li = 0;
+      }
+    }
+    if (drawn < total) {
+      more = el('button', 'btn gmore', moreLabel(drawn, total, DIFF_MORE_LINES));
+      more.type = 'button';
+      more.addEventListener('click', () => drawChunk(DIFF_MORE_LINES));
+      root.appendChild(more);
+    }
+  };
+  drawChunk(DIFF_FIRST_LINES);
   return root;
 }

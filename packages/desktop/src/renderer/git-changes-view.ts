@@ -7,6 +7,7 @@ import { gitIcon } from './git-icons.js';
 import { buildWorktreeGraph } from './git-worktree-graph.js';
 import { commitBlockReason, stageSummary, subjectState, SUBJECT_LIMIT } from '../shared/git-toolbar.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
+import { FILE_FIRST, FILE_MORE, moreLabel, nextLimit } from '../shared/git-window.js';
 
 const LABEL_CLASS: Readonly<Record<string, string>> = { M: 'yellow', A: 'green', D: 'red', R: 'blue', '?': 'dim', '!': 'red' };
 
@@ -23,6 +24,8 @@ export function buildChanges(ctx: GitCtx) {
   let body = '';
   /** 방금 한 커밋(되돌리기 안내용). 다른 동작을 하면 사라진다 */
   let justCommitted: { hash: string; subject: string } | null = null;
+  /** 목록에 그릴 파일 수. 수천 개가 바뀐 레포에서 한꺼번에 그리면 느려서 처음엔 일부만 그리고 "더 보기"로 늘린다 */
+  let fileLimit = FILE_FIRST;
 
   const file = (path: string) => view?.files.find((f) => f.path === path);
 
@@ -163,7 +166,7 @@ export function buildChanges(ctx: GitCtx) {
     });
     all.append(allBox, el('span', undefined, files.length === 0 ? '바뀐 파일이 없어요' : `바뀐 파일 ${files.length}개`), el('span', 'dim', stagedCount > 0 ? `· 스테이지 ${stagedCount}` : ''));
     side.appendChild(all);
-    for (const f of files) {
+    for (const f of files.slice(0, fileLimit)) {
       const row = el('div', 'gf row-item');
       row.classList.toggle('on', f.path === selected);
       const box = el('input');
@@ -196,6 +199,18 @@ export function buildChanges(ctx: GitCtx) {
         void renderMain();
       });
       list.appendChild(row);
+    }
+    if (files.length > fileLimit) {
+      const more = el('button', 'btn gmore', moreLabel(fileLimit, files.length, FILE_MORE));
+      more.type = 'button';
+      more.addEventListener('click', () => {
+        fileLimit = nextLimit(fileLimit, files.length, FILE_MORE);
+        const top = side.querySelector('.gfiles')?.scrollTop ?? 0;
+        renderList();
+        const next = side.querySelector('.gfiles');
+        if (next !== null) next.scrollTop = top;
+      });
+      list.appendChild(more);
     }
     side.appendChild(list);
 
