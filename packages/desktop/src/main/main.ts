@@ -7,7 +7,7 @@ import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
-import { replaceRule, type RuleView } from '../shared/rules-form.js';
+import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
 import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
@@ -795,6 +795,8 @@ void app.whenReady().then(async () => {
     }
   });
   ipcMain.handle(IPC.rulesAdd, async (_e, rule: unknown) => {
+    const tooBig = ruleSizeError(rule);
+    if (tooBig !== null) return { ok: false, error: tooBig };
     try {
       const next = RuleBookDto.from({ rules: [...rulesView(), rule] }).toEntity();
       await ruleStore.save(next);
@@ -805,6 +807,8 @@ void app.whenReady().then(async () => {
     }
   });
   ipcMain.handle(IPC.rulesUpdate, async (_e, rule: unknown) => {
+    const tooBig = ruleSizeError(rule);
+    if (tooBig !== null) return { ok: false, error: tooBig };
     try {
       const id = (rule as { id?: unknown } | null)?.id;
       const replaced = typeof id === 'string' ? replaceRule(rulesView(), rule as RuleView) : null;

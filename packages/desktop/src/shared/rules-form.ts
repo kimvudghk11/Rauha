@@ -52,3 +52,23 @@ export function replaceRule(rules: readonly RuleView[], next: RuleView): RuleVie
   if (!rules.some((r) => r.id === next.id)) return null;
   return rules.map((r) => (r.id === next.id ? next : r));
 }
+
+/** 화면에서 들어오는 규칙의 크기 상한(저장 파일과 팀원 프롬프트가 끝없이 커지는 것을 막는다) */
+export const RULE_LIMITS = { id: 200, text: 4000, items: 50, item: 500, path: 2000 } as const;
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const tooLong = (list: unknown, max: number): boolean => Array.isArray(list) && list.some((s) => typeof s === 'string' && s.length > max);
+
+/** 규칙 입력(바깥 값)이 크기 상한을 넘으면 이유를 돌려준다. 모양과 규칙은 RuleBookDto·Rule이 따로 검사한다. */
+export function ruleSizeError(input: unknown): string | null {
+  if (!isObj(input)) return 'The rule is malformed.';
+  const { id, text, tools, includes, scope } = input;
+  if (typeof id === 'string' && id.length > RULE_LIMITS.id) return 'The rule id is too long.';
+  if (typeof text === 'string' && text.length > RULE_LIMITS.text) return `A rule can be up to ${RULE_LIMITS.text} characters.`;
+  for (const list of [tools, includes]) {
+    if (Array.isArray(list) && list.length > RULE_LIMITS.items) return `A rule can have up to ${RULE_LIMITS.items} tools or match texts.`;
+    if (tooLong(list, RULE_LIMITS.item)) return `Each tool or match text can be up to ${RULE_LIMITS.item} characters.`;
+  }
+  if (isObj(scope) && typeof scope['path'] === 'string' && scope['path'].length > RULE_LIMITS.path) return 'The folder path is too long.';
+  return null;
+}
