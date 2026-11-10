@@ -15,17 +15,6 @@
 .tbtns { display: flex; gap: 5px; flex-wrap: wrap; }
 .ttable { flex: 1; min-height: 0; overflow: auto; }
 
-/* 카드 상세 패널: 옆에 붙고, 좁으면 보드 위를 덮는다 */
-.tdetail { flex: 0 0 340px; min-height: 0; overflow: hidden; }
-.tdetail[hidden] { display: none; }
-.tbody.overlay .tdetail { position: absolute; inset: 0; flex: none; z-index: 5; }
-.dtitle { flex: 1; min-width: 0; }
-.dbody { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s3); display: flex; flex-direction: column; gap: var(--s3); }
-.dfield { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
-.dfield > select, .dfield > textarea { width: 100%; }
-.dlabels, .dcheck { display: flex; flex-direction: column; gap: var(--s2); }
-.dlabel { display: inline-flex; align-items: center; }
-.dfoot { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; padding: var(--s2) var(--s3); border-top: 1px solid var(--border); }
 
 /* 기록 (배치만. 버튼·칩·입력칸 모양은 ui.css) */
 .rtags { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; flex: 0 0 auto; }

@@ -24,10 +24,6 @@ type Mode = 'board' | 'list';
 
 const SORT_LABEL: Readonly<Record<TodoSort, string>> = { manual: '보드 순서', priority: '우선순위순', due: '마감순', created: '최신순' };
 const MODE_KEY = 'rauha.todo.mode';
-/** 상세 패널 너비(data-tabs.css의 .tdetail과 같은 값) */
-const DETAIL_WIDTH = 340;
-/** 이보다 좁으면 상세 패널이 보드 위를 덮는다 */
-const SIDE_PANEL_MIN = 900;
 
 // 작업이 끝나 할 일이 저절로 바뀔 때 가장 최근에 열린 화면만 갱신한다(탭을 오갈 때마다 새로 만들어지므로).
 let latest: ((list: TodoListJson) => void) | null = null;
@@ -42,7 +38,7 @@ function savedMode(): Mode {
 }
 
 /**
- * 할 일 탭: 노션식 칸반. 칸을 자유롭게 두고(이름·색·순서·접기·"완료로 취급") 카드를 끌어서 옮기며, 카드를 누르면 상세 패널에서 고친다.
+ * 할 일 탭: 노션식 칸반. 칸을 자유롭게 두고(이름·색·순서·접기·"완료로 취급") 카드를 끌어서 옮기며, 카드를 누르면 가운데 창에서 고친다.
  * AI는 선택이다. 카드마다 "팀에 맡기기"가 있지만 안 써도 된다.
  * 규칙은 TodoList(엔티티)가 지키고, 저장은 main이 한다. 화면은 요청을 보내고 돌아온 보드를 그린다.
  */
@@ -54,7 +50,6 @@ export function buildTodo(deps: TodoViewDeps) {
   let mode: Mode = savedMode();
   let known: readonly string[] = [];
   let loaded = false;
-  let width = 0;
 
   const notice = el('div', 'notice');
   notice.hidden = true;
@@ -80,10 +75,7 @@ export function buildTodo(deps: TodoViewDeps) {
       else say(res.error);
       return res;
     },
-    open: (id) => {
-      detail.show(id);
-      layout();
-    },
+    open: (id) => detail.show(id),
     openJob: deps.openJob,
     quickAdd: (columnId, top = false) => {
       if (mode !== 'board') setMode('board');
@@ -93,9 +85,9 @@ export function buildTodo(deps: TodoViewDeps) {
 
   const boardView = buildBoard(ctx);
   const table = buildTable(ctx);
-  const detail = buildDetail(ctx, () => {
-    detail.show(null);
-    layout();
+  const detail = buildDetail(ctx, (closedId) => {
+    // 닫은 카드로 키보드 초점을 돌려준다(보드가 다시 그려져도 초점 카드는 기억된다)
+    if (mode === 'board') boardView.focusCard(closedId);
   });
 
   // ── 머리와 도구줄 ──
@@ -171,19 +163,20 @@ export function buildTodo(deps: TodoViewDeps) {
     render();
   }
 
-  // ── 몸통: 보드/목록 + 상세 패널 ──
+  // ── 몸통: 보드/목록. 카드 창은 가운데 모달이라 몸통 밖에 둔다 ──
   const body = el('div', 'tbody');
   const main = el('div', 'tmain');
-  body.append(main, detail.root);
-  root.append(head, tools, notice, body);
+  body.append(main);
+  root.append(head, tools, notice, body, detail.root);
 
-  /** 폭에 맞춰 상세 패널이 옆에 붙을지 덮을지, 칸을 가로로 늘어놓을지 탭으로 고를지 정한다 */
-  function layout(): void {
-    const open = detail.current() !== null;
-    const overlay = width > 0 && width < SIDE_PANEL_MIN;
-    body.classList.toggle('overlay', overlay);
-    body.classList.toggle('has-detail', open);
-  }
+  // n: 새 카드. 글을 쓰는 중이거나 카드 창이 열려 있을 때는 건드리지 않는다.
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'n' || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || mode !== 'board' || detail.current() !== null) return;
+    const t = e.target;
+    if (!(t instanceof HTMLElement) || t.closest('input, textarea, select, button, [contenteditable]') !== null) return;
+    e.preventDefault();
+    ctx.quickAdd(boardView.focusedColumn() ?? board.columns.entry().id);
+  });
 
   function render(): void {
     renderMode();
@@ -201,7 +194,6 @@ export function buildTodo(deps: TodoViewDeps) {
       table.render(sort);
     }
     detail.refresh();
-    layout();
   }
 
   function replaceFromMain(json: TodoListJson): void {
@@ -214,15 +206,6 @@ export function buildTodo(deps: TodoViewDeps) {
     listening = true;
     deps.api.onChange((json) => latest?.(json));
   }
-  if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver((entries) => {
-      const w = Math.round(entries[0]?.contentRect.width ?? 0);
-      if (w === width) return;
-      width = w;
-      layout();
-    }).observe(body);
-  }
-
   render();
   void deps.api.get().then(
     (json) => {

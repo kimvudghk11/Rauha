@@ -239,7 +239,7 @@ function check(results) {
       if (r.tag === 'svg' && cls.includes('fi') && (r.w !== 16 || r.h !== 16)) bad.push(where + ' 파일 아이콘 크기 ' + r.w + 'x' + r.h + ' (기대 16x16)');
       if (cls.includes('tree-row') && Math.abs(r.h - 22) > 0.6) bad.push(where + ' 트리 행 높이 ' + r.h + ' (기대 22) ' + id);
       if (cls.includes('chip') && Math.abs(r.h - 20) > 0.6 && r.tag === 'span') bad.push(where + ' 칩 높이 ' + r.h + ' ' + id);
-      if ((r.tag === 'select' || (r.tag === 'input' && !['checkbox', 'radio'].includes(r.type) && !r.cls.includes('term-input') && !r.cls.includes('qo-input'))) && ![24, 28].some((h) => Math.abs(r.h - h) < 0.6)) bad.push(where + ' 입력칸 높이 ' + r.h + ' ' + id);
+      if ((r.tag === 'select' || (r.tag === 'input' && !['checkbox', 'radio'].includes(r.type) && !r.cls.includes('term-input') && !r.cls.includes('qo-input') && !r.cls.includes('dtitle'))) && ![24, 28].some((h) => Math.abs(r.h - h) < 0.6)) bad.push(where + ' 입력칸 높이 ' + r.h + ' ' + id);
     }
   }
   return bad;
