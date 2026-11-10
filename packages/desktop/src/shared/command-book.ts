@@ -170,7 +170,7 @@ const BUILTIN_DEFS: readonly BuiltinDef[] = [
     name: 'team', group: '팀·회사', action: app('tab', 'settings'),
     description: '팀 설정을 열어요', detail: '팀원 22명의 켜기·끄기, 모델 등급, 도구, 추가 지시, 이름·캐릭터를 바꾸는 설정으로 가요.',
   },
-  { name: 'clear', group: '대화', action: app('clear'), description: '채팅 화면을 비워요', detail: '채팅 화면의 오래된 말들을 지워요. 돌고 있는 작업과 지난 작업 기억은 그대로 남아요.' },
+  { name: 'clear', group: '대화', action: app('clear'), description: '채팅 화면을 비워요', detail: '채팅 화면의 오래된 말들을 지워요. 돌고 있는 작업과 지난 작업 기억은 그대로 남아요. 저장해 둔 말풍선도 비워져서 앱을 다시 켜도 돌아오지 않아요.' },
   { name: 'status', group: '대화', action: app('status'), description: '지금 작업 상태를 보여줘요', detail: '돌고 있는 작업·허락 기다리는 작업·대기 중인 작업 수와 동시에 돌 수 있는 개수를 알려줘요.' },
   { name: 'usage', group: '대화', action: app('usage'), description: '구독 사용률을 보여줘요', detail: '구독 한도의 세션(5시간)·주간 사용률을 %로 알려줘요. 돈은 보이지 않아요.' },
   { name: 'guide', group: '대화', action: app('guide'), description: '지난 작업의 정리를 열어요', detail: '가장 최근에 끝난 작업의 정리(읽기 안내서)를 팀 상세 화면으로 열어요.' },

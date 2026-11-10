@@ -25,15 +25,17 @@ describe('ConversationResetDto', () => {
 });
 
 describe('초기화 안내 글', () => {
-  it('확인 글은 되돌릴 수 없음과 기억이 남음을 알리고 달러 표시가 없다', () => {
-    expect(RESET_CONFIRM.body).toContain('되돌릴 수 없');
-    expect(RESET_CONFIRM.body).toContain('기억');
+  it('확인 글은 모든 레포가 함께 비워짐·되돌릴 수 없음·기억이 남음을 알리고 달러 표시가 없다', () => {
+    expect(RESET_CONFIRM.title).toContain('work folder');
+    expect(RESET_CONFIRM.body).toContain('every repo');
+    expect(RESET_CONFIRM.body).toContain('cannot be undone');
+    expect(RESET_CONFIRM.body).toContain('Memory');
     expect(RESET_CONFIRM.body).not.toContain('$');
   });
 
   it('성공하면 비웠다고, 실패하면 이유를, 대상이 없으면 못 찾았다고 알린다', () => {
-    expect(resetNotice({ ok: true, cleared: 1 })).toContain('비웠어요');
-    expect(resetNotice({ ok: true, cleared: 0 })).toContain('찾지 못했어요');
+    expect(resetNotice({ ok: true, cleared: 1 })).toContain('cleared');
+    expect(resetNotice({ ok: true, cleared: 0 })).toContain('No repo');
     expect(resetNotice({ ok: false, error: '실패 이유' })).toBe('실패 이유');
   });
 });

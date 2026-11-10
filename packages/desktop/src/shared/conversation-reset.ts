@@ -25,15 +25,18 @@ export class ConversationResetDto {
 /** 화면에 돌려주는 결과 */
 export type ConversationResetResult = { readonly ok: true; readonly cleared: number } | { readonly ok: false; readonly error: string };
 
-/** 확인 대화상자 글: 되돌릴 수 없고 기억은 남는다는 것을 한 문장으로 */
+/**
+ * 확인 대화상자 글(화면 글은 영어). 단추는 작업 폴더의 레포 전부를 한 번에 비운다(레포 하나만 비우는 단추는 없다).
+ * 저장된 채팅 말풍선도 함께 비워지므로 다시 켜도 돌아오지 않는다.
+ */
 export const RESET_CONFIRM = {
-  title: '이 작업 폴더의 앞 대화를 비울까요?',
-  body: '앞 대화와 이어 일할 파일 목록이 지워지고 되돌릴 수 없어요. 기억과 배운 내용, 내 파일은 그대로예요.',
-  okLabel: '대화 초기화',
+  title: 'Reset the chat for this work folder?',
+  body: 'The earlier conversation of every repo in this work folder, the carried-over file list and the saved chat bubbles are removed. This cannot be undone. Memory, learned notes and your files stay.',
+  okLabel: 'Reset chat',
 } as const;
 
 /** 끝난 뒤 짧은 안내 글 */
 export function resetNotice(result: ConversationResetResult): string {
   if (!result.ok) return result.error;
-  return result.cleared === 0 ? '비울 대화가 있는 레포를 찾지 못했어요.' : '앞 대화를 비웠어요. 다음 일부터 새 대화로 시작해요.';
+  return result.cleared === 0 ? 'No repo with a conversation was found.' : 'Chat cleared. The next task starts a new conversation.';
 }
