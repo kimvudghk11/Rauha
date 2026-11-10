@@ -107,22 +107,33 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   });
   fm.title = 'Put title, tags and date at the top as YAML front-matter (Jekyll, Hugo and similar). Off by default so the text pastes anywhere.';
   fm.append(fmBox, el('span', undefined, 'Front-matter'));
+  const group = (...nodes: HTMLElement[]): HTMLElement => {
+    const g = el('div', 'bg-opt');
+    g.append(...nodes);
+    return g;
+  };
   options.append(
-    el('span', 'lbl', 'Template'),
-    seg(BLOG_TEMPLATES, () => template, (v) => {
-      template = v;
-      refresh();
-    }),
-    fm,
-    el('span', 'lbl', '글 길이'),
-    seg(BLOG_LENGTHS, () => length, (v) => {
-      length = v;
-      refresh();
-    }),
-    el('span', 'lbl', '초안 어투'),
-    seg(TONES, () => tone, (v) => {
-      tone = v;
-    }),
+    group(
+      el('span', 'lbl', 'Template'),
+      seg(BLOG_TEMPLATES, () => template, (v) => {
+        template = v;
+        refresh();
+      }),
+    ),
+    group(fm),
+    group(
+      el('span', 'lbl', '글 길이'),
+      seg(BLOG_LENGTHS, () => length, (v) => {
+        length = v;
+        refresh();
+      }),
+    ),
+    group(
+      el('span', 'lbl', '초안 어투'),
+      seg(TONES, () => tone, (v) => {
+        tone = v;
+      }),
+    ),
   );
 
   // 가릴 회사·서비스 이름(설정에 저장)

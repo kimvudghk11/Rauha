@@ -2,7 +2,8 @@
 .bg { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
 .bg-head { display: flex; flex-direction: column; gap: var(--s1); }
 .bg-head b { color: var(--bright); font-size: var(--fs-lg); }
-.bg-options { flex-wrap: wrap; }
+.bg-options { flex-wrap: wrap; gap: var(--s2) var(--s4); }
+.bg-opt { display: inline-flex; align-items: center; gap: var(--s2); flex-wrap: nowrap; }
 .bg .rdbar { margin-top: 0; }
 .bg-snips { display: flex; flex-direction: column; gap: var(--s2); margin-bottom: var(--s1); }
 .bg-snip { display: flex; flex-direction: column; gap: var(--s1); }

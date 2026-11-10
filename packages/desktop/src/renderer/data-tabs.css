@@ -79,3 +79,6 @@
 .bugs .bug-memo { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-sm); }
 .bugs .bug-meta { overflow-wrap: anywhere; }
 .bugs .bug-sync { padding-top: var(--s2); border-top: 1px solid var(--border); }
+
+/* 규칙 탭: 세로로 쌓은 칸이 좁은 창에서 서로 겹치지 않게(내용 높이만큼 자라고 .rules가 스크롤한다) */
+.rules > * { flex-shrink: 0; }
