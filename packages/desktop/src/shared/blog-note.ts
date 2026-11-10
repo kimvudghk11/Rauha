@@ -7,6 +7,11 @@ import { RECORD_TAGS, type RecordEntry } from './record-book.js';
  * 근거가 없는 칸은 지어내지 않고 "직접 채우기"로 둔다. 모든 글은 만드는 중에 가림 함수(redact)를 거친다.
  */
 
+const NL = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
+const BS = String.fromCharCode(92);
+const BT = String.fromCharCode(96);
+
 export type BlogLength = 'short' | 'normal' | 'detailed';
 export type BlogSectionId = 'problem' | 'cause' | 'attempts' | 'solution' | 'lesson' | 'repro';
 
@@ -14,6 +19,16 @@ export const BLOG_LENGTHS: readonly { readonly id: BlogLength; readonly label: s
   { id: 'short', label: '짧게' },
   { id: 'normal', label: '보통' },
   { id: 'detailed', label: '자세히' },
+];
+
+export type BlogTemplateId = 'troubleshooting' | 'portfolio' | 'til' | 'devlog';
+
+/** 글 틀: 소제목과, 각 소제목에 채울 정리 노트 칸. troubleshooting은 길이 선택(짧게·보통·자세히)을 따른다. */
+export const BLOG_TEMPLATES: readonly { readonly id: BlogTemplateId; readonly label: string; readonly parts: readonly { readonly title: string; readonly from: BlogSectionId }[] }[] = [
+  { id: 'troubleshooting', label: 'Troubleshooting', parts: [] },
+  { id: 'portfolio', label: 'Portfolio', parts: [{ title: '배경', from: 'problem' }, { title: '접근 과정', from: 'attempts' }, { title: '결과', from: 'solution' }, { title: '배운 점', from: 'lesson' }] },
+  { id: 'til', label: 'TIL', parts: [{ title: '맥락', from: 'problem' }, { title: '오늘 배운 것', from: 'solution' }, { title: '더 알아볼 것', from: 'lesson' }] },
+  { id: 'devlog', label: 'Dev log', parts: [{ title: '오늘 한 일', from: 'solution' }, { title: '막힌 곳', from: 'attempts' }, { title: '내일 할 일', from: 'lesson' }] },
 ];
 
 export const MANUAL_MARK = '직접 채우기';
@@ -122,6 +137,7 @@ export class BlogNote {
     readonly droppedSnippets: number,
     private readonly files: readonly string[],
     private readonly redact: (s: string) => string,
+    private readonly byId: Readonly<Record<BlogSectionId, BlogSection>>,
   ) {}
 
   static compose(entries: readonly RecordEntry[], options: BlogOptions, redact: (s: string) => string = identity): BlogNote {
@@ -152,10 +168,12 @@ export class BlogNote {
       repro: per((e) => sentences(e.summary).filter((s) => VERIFY_WORDS.test(s))),
     };
 
-    const sections: BlogSection[] = SECTIONS_BY_LENGTH[options.length].map((id) => {
+    const build = (id: BlogSectionId): BlogSection => {
       const lines = content[id].map(redact);
       return { id, title: TITLES[id], lines, needsInput: lines.length === 0, hint: HINTS[id] };
-    });
+    };
+    const sections: BlogSection[] = SECTIONS_BY_LENGTH[options.length].map(build);
+    const byId = Object.fromEntries((Object.keys(TITLES) as BlogSectionId[]).map((id) => [id, build(id)])) as Record<BlogSectionId, BlogSection>;
 
     const wanted = options.snippets.map((s) => s.trim()).filter((s) => s !== '');
     const allowed = wanted.filter(snippetAllowed);
@@ -167,7 +185,7 @@ export class BlogNote {
     const head = redact(base === '' ? '' : entries.length > 1 ? `${base} 외 ${entries.length - 1}건` : base);
     const titles = head === '' ? [] : [`${head}, 원인부터 해결까지`, `${head} 해결하며 배운 것`, entries.some((e) => e.tags.includes('troubleshooting')) ? `[트러블슈팅] ${head} 정리` : `${head} 기록`];
 
-    return new BlogNote(sections, titles, BlogNote.tagCandidates(entries).map(redact), snippets, entries.length, wanted.length - allowed.length, files, redact);
+    return new BlogNote(sections, titles, BlogNote.tagCandidates(entries).map(redact), snippets, entries.length, wanted.length - allowed.length, files, redact, byId);
   }
 
   private static tagCandidates(entries: readonly RecordEntry[]): string[] {
@@ -197,18 +215,36 @@ export class BlogNote {
     return this.tagList;
   }
 
-  toMarkdown(options: { readonly title: string; readonly tags?: readonly string[] }): string {
-    const lines: string[] = [`# ${this.redact(options.title)}`];
+  /**
+   * 순수 Markdown 글. template을 안 주면 트러블슈팅 틀. frontMatter를 켜면 제목·태그·날짜를 --- 사이(YAML)에 넣고 본문의 # 제목과 태그 줄을 뺀다.
+   * 제목·태그·본문 모두 가림 함수를 거친다.
+   */
+  toMarkdown(options: { readonly title: string; readonly tags?: readonly string[]; readonly template?: BlogTemplateId; readonly frontMatter?: boolean; readonly date?: string }): string {
+    const title = this.redact(options.title).split(CR).join('').split(NL).map((l) => l.trim()).filter((l) => l !== '').join(' ');
     const tags = (options.tags ?? this.tagList).map(this.redact);
-    if (tags.length > 0) lines.push('', `태그: ${tags.map((t) => `#${t.replace(/\s+/g, '')}`).join(' ')}`);
-    for (const s of this.sections) {
-      lines.push('', `## ${s.title}`);
-      if (s.needsInput) lines.push(`> ${MANUAL_MARK}: ${s.hint}`);
-      else for (const l of s.lines) lines.push(s.lines.length > 1 ? `- ${l}` : l);
-      if (s.id === 'solution') for (const c of this.snippets) lines.push('', '```', c, '```');
+    const lines: string[] = [];
+    if (options.frontMatter === true) {
+      const q = (v: string): string => '"' + v.split(BS).join(BS + BS).split('"').join(BS + '"') + '"';
+      const plain = (t: string): string => [...t].filter((c) => !',[]'.includes(c) && c !== NL && c !== CR).join('').trim();
+      lines.push('---', 'title: ' + q(title));
+      if (tags.length > 0) lines.push('tags: [' + tags.map(plain).join(', ') + ']');
+      if (options.date !== undefined && options.date !== '') lines.push('date: ' + options.date);
+      lines.push('---');
+    } else {
+      lines.push('# ' + title);
+      if (tags.length > 0) lines.push('', '태그: ' + tags.map((t) => '#' + [...t].filter((c) => c.trim() !== '').join('')).join(' '));
     }
-    if (this.snippets.length > 0 && !this.sections.some((s) => s.id === 'solution')) for (const c of this.snippets) lines.push('', '```', c, '```');
-    if (this.files.length > 0) lines.push('', '## 바뀐 파일', ...this.files.map((f) => `- ${f}`));
-    return lines.join('\n');
+    const tpl = BLOG_TEMPLATES.find((t) => t.id === options.template);
+    const parts: readonly { readonly title: string; readonly section: BlogSection }[] = tpl === undefined || tpl.parts.length === 0 ? this.sections.map((section) => ({ title: section.title, section })) : tpl.parts.map((p) => ({ title: p.title, section: this.byId[p.from] }));
+    const fence = BT + BT + BT;
+    for (const { title: heading, section: s } of parts) {
+      lines.push('', '## ' + heading);
+      if (s.needsInput) lines.push('> ' + MANUAL_MARK + ': ' + s.hint);
+      else for (const l of s.lines) lines.push(s.lines.length > 1 ? '- ' + l : l);
+      if (s.id === 'solution') for (const c of this.snippets) lines.push('', fence, c, fence);
+    }
+    if (this.snippets.length > 0 && !parts.some((p) => p.section.id === 'solution')) for (const c of this.snippets) lines.push('', fence, c, fence);
+    if (this.files.length > 0) lines.push('', '## 바뀐 파일', ...this.files.map((f) => '- ' + f));
+    return lines.join(NL);
   }
 }

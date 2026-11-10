@@ -111,3 +111,46 @@ describe('블로그 정리 노트', () => {
     expect(problem).toContain('(2)');
   });
 });
+
+describe('블로그 글 틀과 front-matter', () => {
+  const note = (redact?: (s: string) => string) => BlogNote.compose([entry({}, '풀 크기는 처음부터 부하로 정하자')], { length: 'normal', snippets: [] }, redact);
+
+  it('틀을 고르지 않으면 지금까지처럼 트러블슈팅 틀이고 제목은 # 로 시작한다', () => {
+    const md = note().toMarkdown({ title: '제목' });
+    expect(md.startsWith('# 제목')).toBe(true);
+    expect(md).toContain('## 문제 상황');
+    expect(md).toContain('## 해결');
+  });
+  it('틀마다 소제목이 다르다(포트폴리오·TIL·개발일지)', () => {
+    expect(note().toMarkdown({ title: 't', template: 'portfolio' })).toMatch(/## 배경[\s\S]*## 결과/);
+    const til = note().toMarkdown({ title: 't', template: 'til' });
+    expect(til).toContain('## 오늘 배운 것');
+    expect(til).not.toContain('## 원인 추정');
+    expect(note().toMarkdown({ title: 't', template: 'devlog' })).toMatch(/## 오늘 한 일[\s\S]*## 막힌 곳[\s\S]*## 내일 할 일/);
+  });
+  it('근거 없는 칸은 틀이 달라도 지어내지 않고 직접 채우기로 둔다', () => {
+    const md = BlogNote.compose([entry({ result: null, approvals: [], direction: null, stages: [] })], { length: 'normal', snippets: [] }).toMarkdown({ title: 't', template: 'devlog' });
+    expect(md).toContain(MANUAL_MARK);
+  });
+  it('front-matter를 켜면 제목·태그·날짜가 --- 사이에 들어가고 본문에는 # 제목과 태그 줄이 없다', () => {
+    const md = note().toMarkdown({ title: '결제 "타임아웃"', tags: ['AWS', '회고'], frontMatter: true, date: '2026-11-10' });
+    expect(md.startsWith('---\ntitle: "결제 \\"타임아웃\\""\ntags: [AWS, 회고]\ndate: 2026-11-10\n---\n')).toBe(true);
+    expect(md).not.toMatch(/^# /m);
+    expect(md).not.toContain('태그:');
+  });
+  it('front-matter를 끄면 front-matter 없이 # 제목과 #태그 줄이 나온다', () => {
+    const md = note().toMarkdown({ title: '제목', tags: ['AWS'], frontMatter: false });
+    expect(md).not.toContain('---\ntitle');
+    expect(md).toContain('태그: #AWS');
+  });
+  it('front-matter의 제목·태그도 가림 함수를 거친다', () => {
+    const md = note((s) => s.replace(/악메/g, '○○')).toMarkdown({ title: '악메 결제', tags: ['악메'], frontMatter: true, date: '2026-11-10' });
+    expect(md).toContain('title: "○○ 결제"');
+    expect(md).toContain('tags: [○○]');
+    expect(md).not.toContain('악메');
+  });
+  it('제목의 줄바꿈은 front-matter를 깨지 않게 공백으로 바꾼다', () => {
+    const md = note().toMarkdown({ title: '첫 줄\n---\n둘째', frontMatter: true, date: '2026-11-10' });
+    expect(md.split('\n').filter((l) => l === '---')).toHaveLength(2);
+  });
+});
