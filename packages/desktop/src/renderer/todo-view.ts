@@ -22,7 +22,7 @@ export interface TodoViewDeps {
 
 type Mode = 'board' | 'list';
 
-const SORT_LABEL: Readonly<Record<TodoSort, string>> = { manual: '보드 순서', priority: '우선순위순', due: '마감순', created: '최신순' };
+const SORT_LABEL: Readonly<Record<TodoSort, string>> = { manual: 'Board order', priority: 'By priority', due: 'By due date', created: 'Newest' };
 const MODE_KEY = 'rauha.todo.mode';
 
 // 작업이 끝나 할 일이 저절로 바뀔 때 가장 최근에 열린 화면만 갱신한다(탭을 오갈 때마다 새로 만들어지므로).
@@ -69,7 +69,7 @@ export function buildTodo(deps: TodoViewDeps) {
       try {
         res = await deps.api.apply(op);
       } catch {
-        res = { ok: false, error: '할 일을 저장하지 못했어요. 잠시 뒤에 다시 해 주세요.' };
+        res = { ok: false, error: 'Could not save the cards. Please try again.' };
       }
       if (res.ok) replaceFromMain(res.list);
       else say(res.error);
@@ -93,13 +93,13 @@ export function buildTodo(deps: TodoViewDeps) {
   // ── 머리와 도구줄 ──
   const head = el('div', 'rhead');
   const modeSeg = el('div', 'seg md');
-  const addButton = button('＋ 새 카드', 'btn primary', () => ctx.quickAdd(board.columns.entry().id));
-  head.append(el('b', undefined, 'Todo'), el('span', 'hint', '카드를 끌어 칸을 옮기고, 눌러서 고쳐요. AI에 맡기는 건 선택이에요.'), modeSeg, addButton);
+  const addButton = button('＋ New card', 'btn primary', () => ctx.quickAdd(board.columns.entry().id));
+  head.append(el('b', undefined, 'Todo'), el('span', 'hint', 'Drag cards between columns, click to edit. Handing work to AI is optional.'), modeSeg, addButton);
 
   const tools = el('div', 'ttools bar');
   const search = el('input', 'grow');
-  search.placeholder = '제목·설명·라벨 검색';
-  search.setAttribute('aria-label', '검색');
+  search.placeholder = 'Search title, notes, labels';
+  search.setAttribute('aria-label', 'Search');
   search.addEventListener('input', () => {
     filter = { ...filter, text: search.value };
     render();
@@ -112,15 +112,15 @@ export function buildTodo(deps: TodoViewDeps) {
       filter = { ...filter, ...patch };
       render();
     };
-    const labelSel = select([['', '라벨 전체'] as const, ...board.labels().map((l) => [l.name, l.name] as const)], filter.label ?? '', (v) => set({ label: v === '' ? null : v }));
-    const prioritySel = select([['all', '우선순위 전체'], ...TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)] as readonly (readonly [TodoPriority | 'all', string])[], filter.priority, (v) => set({ priority: v }));
-    const repoSel = select([['', '레포 전체'] as const, ...ctx.repos().map((r) => [r, r] as const)], filter.repo ?? '', (v) => set({ repo: v === '' ? null : v }));
+    const labelSel = select([['', 'All labels'] as const, ...board.labels().map((l) => [l.name, l.name] as const)], filter.label ?? '', (v) => set({ label: v === '' ? null : v }));
+    const prioritySel = select([['all', 'All priorities'], ...TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const)] as readonly (readonly [TodoPriority | 'all', string])[], filter.priority, (v) => set({ priority: v }));
+    const repoSel = select([['', 'All repos'] as const, ...ctx.repos().map((r) => [r, r] as const)], filter.repo ?? '', (v) => set({ repo: v === '' ? null : v }));
     const late = el('label', 'tg');
     const lateBox = el('input');
     lateBox.type = 'checkbox';
     lateBox.checked = filter.overdueOnly;
     lateBox.addEventListener('change', () => set({ overdueOnly: lateBox.checked }));
-    late.append(lateBox, el('span', undefined, '기한 지난 것만'));
+    late.append(lateBox, el('span', undefined, 'Overdue only'));
     const nodes: HTMLElement[] = [labelSel, prioritySel, repoSel, late];
     if (mode === 'list') {
       nodes.push(
@@ -133,7 +133,7 @@ export function buildTodo(deps: TodoViewDeps) {
     const active = filter.label !== null || filter.priority !== 'all' || filter.repo !== null || filter.overdueOnly || filter.text !== '';
     if (active) {
       nodes.push(
-        button('필터 지우기', 'link', () => {
+        button('Clear filters', 'link', () => {
           filter = NO_FILTER;
           search.value = '';
           render();
@@ -145,7 +145,7 @@ export function buildTodo(deps: TodoViewDeps) {
 
   function renderMode(): void {
     modeSeg.replaceChildren();
-    for (const [m, label] of [['board', '보드'], ['list', '목록']] as const) {
+    for (const [m, label] of [['board', 'Board'], ['list', 'List']] as const) {
       const b = el('button', m === mode ? 'on' : undefined, label);
       b.type = 'button';
       b.addEventListener('click', () => setMode(m));
@@ -183,7 +183,7 @@ export function buildTodo(deps: TodoViewDeps) {
     renderTools();
     main.replaceChildren();
     if (!loaded) {
-      main.append(el('div', 'tempty', '불러오는 중…'));
+      main.append(el('div', 'tempty', 'Loading…'));
       return;
     }
     if (mode === 'board') {
@@ -214,7 +214,7 @@ export function buildTodo(deps: TodoViewDeps) {
     },
     () => {
       loaded = true;
-      say('할 일을 읽지 못했어요.');
+      say('Could not load the cards.');
       render();
     },
   );
@@ -235,7 +235,7 @@ export async function addTodo(api: Pick<TodoViewDeps['api'], 'apply'>, draft: { 
     const res = await api.apply({ kind: 'add', ...draft });
     return res.ok ? { ok: true } : res;
   } catch {
-    return { ok: false, error: '할 일을 저장하지 못했어요.' };
+    return { ok: false, error: 'Could not save the cards.' };
   }
 }
 

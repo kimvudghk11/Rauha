@@ -53,7 +53,7 @@ describe('옛 파일(세 칸 고정) 읽기', () => {
   const legacy = {
     version: 1,
     items: [
-      { id: 'a', title: '옛 일', note: '메모', status: 'doing', priority: 'high', due: '2026-12-01', repo: 'api', team: 'dev', jobId: 'job-1', createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z', completedAt: null },
+      { id: 'a', title: '옛 일', note: 'Note', status: 'doing', priority: 'high', due: '2026-12-01', repo: 'api', team: 'dev', jobId: 'job-1', createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z', completedAt: null },
       { id: 'b', title: '끝난 일', note: '', status: 'done', priority: 'normal', due: null, repo: null, team: null, jobId: null, createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z', completedAt: '2026-11-02T00:00:00.000Z' },
     ],
   };
@@ -99,7 +99,7 @@ describe('화면에서 온 요청', () => {
     expect(() => TodoOpDto.from({ kind: 'move', id: 'a' })).toThrow(TodoError);
     expect(() => TodoOpDto.from({ kind: 'move', id: 'a', columnId: 'x', beforeId: 5 })).toThrow(TodoError);
     expect(() => TodoOpDto.from({ kind: 'column-edit', id: 'a', patch: { done: 'yes' } })).toThrow(TodoError);
-    expect(() => TodoOpDto.from({ kind: 'column-remove', id: 'a' })).toThrow(/카드/);
+    expect(() => TodoOpDto.from({ kind: 'column-remove', id: 'a' })).toThrow(/cards/);
     expect(() => TodoOpDto.from('x')).toThrow(TodoError);
   });
 

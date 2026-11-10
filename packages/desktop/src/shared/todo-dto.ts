@@ -45,7 +45,7 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 function text(v: unknown, field: string, fallback?: string): string {
   if (typeof v === 'string') return v;
   if (v === undefined && fallback !== undefined) return fallback;
-  throw new TodoError(`${field} 값이 글자가 아니에요.`);
+  throw new TodoError(`${field} must be text.`);
 }
 
 function textOrNull(v: unknown, field: string): string | null {
@@ -55,62 +55,62 @@ function textOrNull(v: unknown, field: string): string | null {
 
 function flag(v: unknown, field: string): boolean {
   if (typeof v === 'boolean') return v;
-  throw new TodoError(`${field} 값이 켜고 끄는 값이 아니에요.`);
+  throw new TodoError(`${field} must be on or off.`);
 }
 
 function priority(v: unknown): TodoPriority {
   if (typeof v === 'string' && (TODO_PRIORITIES as readonly string[]).includes(v)) return v as TodoPriority;
-  throw new TodoError('우선순위는 높음·보통·낮음 중에서 골라 주세요.');
+  throw new TodoError('Priority must be High, Normal or Low.');
 }
 
 function color(v: unknown): ColumnColor {
   if (isColumnColor(v)) return v;
-  throw new TodoError('고를 수 없는 색이에요.');
+  throw new TodoError('That color is not available.');
 }
 
 function listOf(v: unknown, field: string): readonly unknown[] {
   if (Array.isArray(v)) return v;
-  throw new TodoError(`${field} 값이 목록이 아니에요.`);
+  throw new TodoError(`${field} must be a list.`);
 }
 
 function labelsOf(v: unknown): readonly Label[] {
   return listOf(v, '라벨').map((l) => {
-    if (!isObject(l)) throw new TodoError('라벨 모양이 올바르지 않아요.');
-    return { name: text(l['name'], '라벨 이름'), color: color(l['color']) };
+    if (!isObject(l)) throw new TodoError('A label has the wrong shape.');
+    return { name: text(l['name'], 'Label name'), color: color(l['color']) };
   });
 }
 
 function checklistOf(v: unknown): readonly ChecklistItem[] {
-  return listOf(v, '체크리스트').map((c) => {
-    if (!isObject(c)) throw new TodoError('체크리스트 모양이 올바르지 않아요.');
-    return { id: text(c['id'], '체크리스트 번호'), text: text(c['text'], '체크리스트 글'), done: flag(c['done'], '체크 표시') };
+  return listOf(v, 'Checklist').map((c) => {
+    if (!isObject(c)) throw new TodoError('A checklist has the wrong shape.');
+    return { id: text(c['id'], 'Checklist id'), text: text(c['text'], 'Checklist text'), done: flag(c['done'], 'Checked') };
   });
 }
 
 /** 바깥 입력의 모양만 확인해 초안·고침으로 바꾼다(값의 규칙은 엔티티가 검사한다). */
 function patchOf(input: unknown): TodoPatch {
-  if (!isObject(input)) throw new TodoError('고칠 값이 없어요.');
+  if (!isObject(input)) throw new TodoError('Nothing to change.');
   const out: { -readonly [K in keyof TodoPatch]: TodoPatch[K] } = {};
-  if (input['title'] !== undefined) out.title = text(input['title'], '제목');
-  if (input['note'] !== undefined) out.note = text(input['note'], '메모');
+  if (input['title'] !== undefined) out.title = text(input['title'], 'Title');
+  if (input['note'] !== undefined) out.note = text(input['note'], 'Note');
   if (input['priority'] !== undefined) out.priority = priority(input['priority']);
-  if (input['due'] !== undefined) out.due = textOrNull(input['due'], '마감일');
-  if (input['repo'] !== undefined) out.repo = textOrNull(input['repo'], '레포');
-  if (input['team'] !== undefined) out.team = textOrNull(input['team'], '팀');
+  if (input['due'] !== undefined) out.due = textOrNull(input['due'], 'Due date');
+  if (input['repo'] !== undefined) out.repo = textOrNull(input['repo'], 'Repo');
+  if (input['team'] !== undefined) out.team = textOrNull(input['team'], 'Team');
   if (input['labels'] !== undefined) out.labels = labelsOf(input['labels']);
   if (input['checklist'] !== undefined) out.checklist = checklistOf(input['checklist']);
   return out;
 }
 
 function columnPatchOf(input: unknown): ColumnPatch {
-  if (!isObject(input)) throw new TodoError('고칠 값이 없어요.');
+  if (!isObject(input)) throw new TodoError('Nothing to change.');
   const out: { -readonly [K in keyof ColumnPatch]: ColumnPatch[K] } = {};
-  if (input['name'] !== undefined) out.name = text(input['name'], '칸 이름');
+  if (input['name'] !== undefined) out.name = text(input['name'], 'Column name');
   if (input['color'] !== undefined) out.color = color(input['color']);
-  if (input['done'] !== undefined) out.done = flag(input['done'], '완료로 취급');
-  if (input['work'] !== undefined) out.work = flag(input['work'], '일하는 칸');
-  if (input['collapsed'] !== undefined) out.collapsed = flag(input['collapsed'], '접기');
-  if (input['hidden'] !== undefined) out.hidden = flag(input['hidden'], '숨기기');
+  if (input['done'] !== undefined) out.done = flag(input['done'], 'Counts as done');
+  if (input['work'] !== undefined) out.work = flag(input['work'], 'Team column');
+  if (input['collapsed'] !== undefined) out.collapsed = flag(input['collapsed'], 'Collapsed');
+  if (input['hidden'] !== undefined) out.hidden = flag(input['hidden'], 'Hidden');
   return out;
 }
 
@@ -122,9 +122,9 @@ function jsonOf(t: Todo): TodoJson {
 function columnsFrom(raw: unknown): Columns | null {
   try {
     return Columns.restore(
-      listOf(raw, '칸').map((c) => {
-        if (!isObject(c)) throw new TodoError('칸 모양이 올바르지 않아요.');
-        return { id: text(c['id'], '칸 번호'), name: text(c['name'], '칸 이름'), color: color(c['color']), done: flag(c['done'], '완료로 취급'), work: flag(c['work'] ?? false, '일하는 칸'), collapsed: flag(c['collapsed'] ?? false, '접기'), hidden: flag(c['hidden'] ?? false, '숨기기') };
+      listOf(raw, 'Column').map((c) => {
+        if (!isObject(c)) throw new TodoError('A column has the wrong shape.');
+        return { id: text(c['id'], 'Column id'), name: text(c['name'], 'Column name'), color: color(c['color']), done: flag(c['done'], 'Counts as done'), work: flag(c['work'] ?? false, 'Team column'), collapsed: flag(c['collapsed'] ?? false, 'Collapsed'), hidden: flag(c['hidden'] ?? false, 'Hidden') };
       }),
     );
   } catch (error) {
@@ -151,23 +151,23 @@ export class TodoListDto {
     const items: Todo[] = [];
     for (const item of raw) {
       try {
-        if (!isObject(item)) throw new TodoError('항목이 객체가 아니에요.');
-        const createdAt = text(item['createdAt'], '만든 시각');
+        if (!isObject(item)) throw new TodoError('A card has the wrong shape.');
+        const createdAt = text(item['createdAt'], 'Created at');
         const todo = Todo.restore({
           id: text(item['id'], 'id'),
-          title: text(item['title'], '제목'),
-          note: text(item['note'], '메모', ''),
-          columnId: text(item['columnId'], '칸 번호'),
+          title: text(item['title'], 'Title'),
+          note: text(item['note'], 'Note', ''),
+          columnId: text(item['columnId'], 'Column id'),
           priority: priority(item['priority'] ?? 'normal'),
-          due: item['due'] === undefined ? null : textOrNull(item['due'], '마감일'),
-          repo: item['repo'] === undefined ? null : textOrNull(item['repo'], '레포'),
-          team: item['team'] === undefined ? null : textOrNull(item['team'], '팀'),
+          due: item['due'] === undefined ? null : textOrNull(item['due'], 'Due date'),
+          repo: item['repo'] === undefined ? null : textOrNull(item['repo'], 'Repo'),
+          team: item['team'] === undefined ? null : textOrNull(item['team'], 'Team'),
           labels: item['labels'] === undefined ? [] : labelsOf(item['labels']),
           checklist: item['checklist'] === undefined ? [] : checklistOf(item['checklist']),
-          jobId: item['jobId'] === undefined ? null : textOrNull(item['jobId'], '작업'),
+          jobId: item['jobId'] === undefined ? null : textOrNull(item['jobId'], 'Job'),
           createdAt,
-          updatedAt: text(item['updatedAt'], '고친 시각', createdAt),
-          completedAt: item['completedAt'] === undefined ? null : textOrNull(item['completedAt'], '끝낸 시각'),
+          updatedAt: text(item['updatedAt'], 'Updated at', createdAt),
+          completedAt: item['completedAt'] === undefined ? null : textOrNull(item['completedAt'], 'Completed at'),
         });
         if (seen.has(todo.id)) continue;
         seen.add(todo.id);
@@ -198,53 +198,53 @@ export class TodoOpDto {
   private constructor(private readonly op: TodoOp) {}
 
   static from(input: unknown): TodoOpDto {
-    if (!isObject(input)) throw new TodoError('요청 모양이 올바르지 않아요.');
+    if (!isObject(input)) throw new TodoError('The request has the wrong shape.');
     const kind = input['kind'];
     const str = (key: string, missing: string): string => {
       const v = input[key];
       if (typeof v !== 'string' || v === '') throw new TodoError(missing);
       return v;
     };
-    const id = (): string => str('id', '할 일 번호가 없어요.');
+    const id = (): string => str('id', 'A card has no id.');
     const before = (): string | null => {
       const v = input['beforeId'];
       if (v === undefined || v === null) return null;
-      if (typeof v !== 'string') throw new TodoError('놓을 자리 값이 올바르지 않아요.');
+      if (typeof v !== 'string') throw new TodoError('The drop position is not valid.');
       return v;
     };
     switch (kind) {
       case 'add': {
-        const draft: { -readonly [K in keyof TodoDraft]: TodoDraft[K] } = { ...patchOf(input), title: text(input['title'], '제목') };
-        if (input['columnId'] !== undefined) draft.columnId = text(input['columnId'], '칸 번호');
-        if (input['top'] !== undefined) draft.top = flag(input['top'], '맨 위에 넣기');
+        const draft: { -readonly [K in keyof TodoDraft]: TodoDraft[K] } = { ...patchOf(input), title: text(input['title'], 'Title') };
+        if (input['columnId'] !== undefined) draft.columnId = text(input['columnId'], 'Column id');
+        if (input['top'] !== undefined) draft.top = flag(input['top'], 'Add at top');
         return new TodoOpDto({ kind, draft });
       }
       case 'edit':
         return new TodoOpDto({ kind, id: id(), patch: patchOf(input['patch']) });
       case 'move':
-        return new TodoOpDto({ kind, id: id(), columnId: str('columnId', '옮길 칸 번호가 없어요.'), beforeId: before() });
+        return new TodoOpDto({ kind, id: id(), columnId: str('columnId', 'The target column has no id.'), beforeId: before() });
       case 'remove':
         return new TodoOpDto({ kind, id: id() });
       case 'delegate':
       case 'duplicate':
         return new TodoOpDto({ kind, id: id() });
       case 'label-remove':
-        return new TodoOpDto({ kind, name: text(input['name'], '라벨 이름') });
+        return new TodoOpDto({ kind, name: text(input['name'], 'Label name') });
       case 'column-add':
-        return new TodoOpDto({ kind, name: text(input['name'], '칸 이름'), color: input['color'] === undefined ? 'gray' : color(input['color']) });
+        return new TodoOpDto({ kind, name: text(input['name'], 'Column name'), color: input['color'] === undefined ? 'gray' : color(input['color']) });
       case 'column-edit':
-        return new TodoOpDto({ kind, id: str('id', '칸 번호가 없어요.'), patch: columnPatchOf(input['patch']) });
+        return new TodoOpDto({ kind, id: str('id', 'A column has no id.'), patch: columnPatchOf(input['patch']) });
       case 'column-move':
-        return new TodoOpDto({ kind, id: str('id', '칸 번호가 없어요.'), beforeId: before() });
+        return new TodoOpDto({ kind, id: str('id', 'A column has no id.'), beforeId: before() });
       case 'column-remove': {
         const cards = input['cards'];
-        if (cards !== 'merge' && cards !== 'delete') throw new TodoError('칸을 지울 때 카드를 어떻게 할지 골라 주세요.');
+        if (cards !== 'merge' && cards !== 'delete') throw new TodoError('Choose what to do with the cards when deleting a column.');
         const into = input['into'];
-        if (into !== undefined && into !== null && (typeof into !== 'string' || into === '')) throw new TodoError('카드를 옮길 칸 값이 올바르지 않아요.');
-        return new TodoOpDto({ kind, id: str('id', '칸 번호가 없어요.'), cards, into: typeof into === 'string' ? into : null });
+        if (into !== undefined && into !== null && (typeof into !== 'string' || into === '')) throw new TodoError('The column to move cards to is not valid.');
+        return new TodoOpDto({ kind, id: str('id', 'A column has no id.'), cards, into: typeof into === 'string' ? into : null });
       }
       default:
-        throw new TodoError('모르는 요청이에요.');
+        throw new TodoError('Unknown request.');
     }
   }
 
@@ -274,7 +274,7 @@ export class TodoOpDto {
       case 'label-remove':
         return board.removeLabel(op.name, at);
       case 'delegate':
-        throw new TodoError('맡기기는 팀에 보낸 뒤에 이어 붙여요.');
+        throw new TodoError('The handoff link is attached after sending to the team.');
       case 'column-add':
         return board.addColumn(op.name, op.color, newId);
       case 'column-edit': {

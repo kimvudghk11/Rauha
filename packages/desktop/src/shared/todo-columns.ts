@@ -31,13 +31,13 @@ export function isColumnColor(v: unknown): v is ColumnColor {
 
 function cleanName(name: string): string {
   const n = name.trim();
-  if (n === '') throw new TodoColumnError('칸 이름을 적어 주세요.');
-  if (n.length > COLUMN_NAME_LIMIT) throw new TodoColumnError(`칸 이름은 ${COLUMN_NAME_LIMIT}자까지예요.`);
+  if (n === '') throw new TodoColumnError('Please enter a column name.');
+  if (n.length > COLUMN_NAME_LIMIT) throw new TodoColumnError(`A column name can be up to ${COLUMN_NAME_LIMIT} characters.`);
   return n;
 }
 
 function checkedColor(color: ColumnColor): ColumnColor {
-  if (!isColumnColor(color)) throw new TodoColumnError('고를 수 없는 색이에요.');
+  if (!isColumnColor(color)) throw new TodoColumnError('That color is not available.');
   return color;
 }
 
@@ -54,18 +54,18 @@ export class Columns {
   }
 
   static restore(items: readonly ColumnInput[]): Columns {
-    if (items.length === 0) throw new TodoColumnError('칸이 한 칸은 있어야 해요.');
-    if (items.length > COLUMN_MAX) throw new TodoColumnError(`칸은 ${COLUMN_MAX}개까지예요.`);
+    if (items.length === 0) throw new TodoColumnError('There must be at least one column.');
+    if (items.length > COLUMN_MAX) throw new TodoColumnError(`Up to ${COLUMN_MAX} columns.`);
     const seen = new Set<string>();
     let works = 0;
     const clean = items.map((k) => {
-      if (k.id === '') throw new TodoColumnError('칸 번호가 없어요.');
-      if (seen.has(k.id)) throw new TodoColumnError('칸 번호가 겹쳐요.');
+      if (k.id === '') throw new TodoColumnError('A column has no id.');
+      if (seen.has(k.id)) throw new TodoColumnError('Two columns share an id.');
       seen.add(k.id);
       if (k.work) works += 1;
       return { id: k.id, name: cleanName(k.name), color: checkedColor(k.color), done: k.done, work: k.work, collapsed: k.collapsed, hidden: k.hidden === true };
     });
-    if (works > 1) throw new TodoColumnError('팀이 일하는 칸은 하나만 둘 수 있어요.');
+    if (works > 1) throw new TodoColumnError('Only one column can be the team column.');
     // 파일에서 모두 숨겨져 있으면 첫 칸을 다시 보이게 한다(칸이 사라져 보이는 것을 막는다)
     if (clean.every((k) => k.hidden)) clean[0] = { ...clean[0]!, hidden: false };
     return new Columns(clean);
@@ -102,7 +102,7 @@ export class Columns {
   }
 
   add(name: string, color: ColumnColor, id: string): Columns {
-    if (this.items.length >= COLUMN_MAX) throw new TodoColumnError(`칸은 ${COLUMN_MAX}개까지예요.`);
+    if (this.items.length >= COLUMN_MAX) throw new TodoColumnError(`Up to ${COLUMN_MAX} columns.`);
     return Columns.restore([...this.items, { id, name, color, done: false, work: false, collapsed: false, hidden: false }]);
   }
 
@@ -127,7 +127,7 @@ export class Columns {
   /** 숨기거나 다시 보이게 한다. 보이는 칸이 하나도 안 남게는 못 숨긴다. */
   hide(id: string, hidden: boolean): Columns {
     const found = this.require(id);
-    if (hidden && !found.hidden && this.visible().length <= 1) throw new TodoColumnError('보이는 칸이 하나는 있어야 해요.');
+    if (hidden && !found.hidden && this.visible().length <= 1) throw new TodoColumnError('At least one column must stay visible.');
     return this.change(id, (k) => ({ ...k, hidden }));
   }
 
@@ -145,8 +145,8 @@ export class Columns {
   /** 칸을 지울 때 카드가 가는 칸: 앞 칸, 첫 칸이면 다음 칸 */
   landingFor(id: string): string {
     const at = this.items.findIndex((k) => k.id === id);
-    if (at === -1) throw new TodoColumnError('그 칸을 찾지 못했어요.');
-    if (this.items.length === 1) throw new TodoColumnError('마지막 한 칸은 지울 수 없어요.');
+    if (at === -1) throw new TodoColumnError('That column was not found.');
+    if (this.items.length === 1) throw new TodoColumnError('The last column cannot be deleted.');
     return this.items[at === 0 ? 1 : at - 1]!.id;
   }
 
@@ -157,7 +157,7 @@ export class Columns {
 
   private require(id: string): Column {
     const found = this.get(id);
-    if (found === null) throw new TodoColumnError('그 칸을 찾지 못했어요.');
+    if (found === null) throw new TodoColumnError('That column was not found.');
     return found;
   }
 

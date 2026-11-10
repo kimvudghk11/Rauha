@@ -175,11 +175,11 @@ const SCENES = [
   ['todo', 'todo', []],
   // 칸반: 카드 하나를 넣고(체크리스트·라벨·우선순위 포함) 보드 · 새 카드 입력 · 카드 모달 · 우클릭 메뉴 · 칸 메뉴 · 칸 지우기 창
   ['todo-seeded', 'todo', [TODO_SEED]],
-  ['todo-adder', 'todo', [TODO_SEED, byText('.tcol .tadd', '새로 만들기')]],
+  ['todo-adder', 'todo', [TODO_SEED, byText('.tcol .tadd', '+ New')]],
   ['todo-card-modal', 'todo', [TODO_SEED, '.tcard']],
   ['todo-card-menu', 'todo', [TODO_SEED, "(() => { const c = document.querySelector('.tcard'); const b = c.getBoundingClientRect(); c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.x + 24, clientY: b.y + 10 })); })()"]],
   ['todo-col-menu', 'todo', [TODO_SEED, '.tch .btn.icon:last-child']],
-  ['todo-col-delete', 'todo', [TODO_SEED, '.tch .btn.icon:last-child', byText('.menu button', '칸 지우기')]],
+  ['todo-col-delete', 'todo', [TODO_SEED, '.tch .btn.icon:last-child', byText('.menu button', 'Delete column')]],
   ['records', 'records', []],
   ['records-detail', 'records', ['.ri']],
   ['records-picked', 'records', [`(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`]],

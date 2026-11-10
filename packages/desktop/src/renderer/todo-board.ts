@@ -51,23 +51,23 @@ export function buildBoard(ctx: TodoCtx): BoardView {
   function cardMenu(todo: Todo, at: { x: number; y: number }): void {
     const board = ctx.board();
     const items: MenuItem[] = [
-      { label: '열기', pick: () => ctx.open(todo.id) },
-      { label: '복제', pick: () => void ctx.act({ kind: 'duplicate', id: todo.id }) },
+      { label: 'Open', pick: () => ctx.open(todo.id) },
+      { label: 'Duplicate', pick: () => void ctx.act({ kind: 'duplicate', id: todo.id }) },
     ];
-    if (board.canDelegate(todo)) items.push({ label: '팀에 맡기기', pick: () => void ctx.act({ kind: 'delegate', id: todo.id }).then((r) => r.ok && r.jobId !== null && ctx.openJob(r.jobId)) });
-    if (todo.jobId !== null) items.push({ label: '진행 보기', pick: () => ctx.openJob(todo.jobId!) });
-    items.push('sep', { heading: '칸 이동' });
+    if (board.canDelegate(todo)) items.push({ label: 'Hand to team', pick: () => void ctx.act({ kind: 'delegate', id: todo.id }).then((r) => r.ok && r.jobId !== null && ctx.openJob(r.jobId)) });
+    if (todo.jobId !== null) items.push({ label: 'View progress', pick: () => ctx.openJob(todo.jobId!) });
+    items.push('sep', { heading: 'Move to column' });
     for (const c of board.columns.items) {
-      if (c.id !== todo.columnId) items.push({ label: c.hidden ? `${c.name} (숨김)` : c.name, dot: c.color, pick: () => void ctx.act({ kind: 'move', id: todo.id, columnId: c.id, beforeId: null }) });
+      if (c.id !== todo.columnId) items.push({ label: c.hidden ? `${c.name} (hidden)` : c.name, dot: c.color, pick: () => void ctx.act({ kind: 'move', id: todo.id, columnId: c.id, beforeId: null }) });
     }
     const mine = board.cardsIn(todo.columnId);
     const index = mine.findIndex((t) => t.id === todo.id);
-    items.push({ label: '칸 안에서 위로', disabled: index <= 0, pick: () => moveWithin(todo, -1) });
-    items.push({ label: '칸 안에서 아래로', disabled: index === mine.length - 1, pick: () => moveWithin(todo, 1) });
+    items.push({ label: 'Move up', disabled: index <= 0, pick: () => moveWithin(todo, -1) });
+    items.push({ label: 'Move down', disabled: index === mine.length - 1, pick: () => moveWithin(todo, 1) });
     items.push('sep', {
-      label: '지우기',
+      label: 'Delete',
       danger: true,
-      pick: () => confirmDialog('카드를 지울까요?', `"${todo.title}" 카드가 지워져요. 되돌릴 수 없어요.`, [{ label: '지우기', cls: 'btn danger', pick: () => void ctx.act({ kind: 'remove', id: todo.id }) }]),
+      pick: () => confirmDialog('Delete this card?', `Card "${todo.title}" will be deleted. This cannot be undone.`, [{ label: 'Delete', cls: 'btn danger', pick: () => void ctx.act({ kind: 'remove', id: todo.id }) }]),
     });
     showMenu(at, items);
   }
@@ -166,7 +166,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     for (const l of todo.labels) chips.append(labelChip(l));
     if (todo.priority !== 'normal') {
       const p = chipOf(PRIORITY_LABEL[todo.priority], todo.priority === 'high' ? 'red' : '');
-      p.title = '우선순위';
+      p.title = 'Priority';
       chips.append(p);
     }
     const due = dueText(board, todo, ctx.today());
@@ -174,7 +174,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     if (todo.repo !== null) chips.append(chipOf(todo.repo, 'blue'));
     const team = TEAM_CHOICES.find((t) => t.id === todo.team);
     if (team !== undefined) chips.append(chipOf(team.label, 'purple'));
-    if (todo.jobId !== null) chips.append(chipOf(board.columns.work()?.id === todo.columnId ? '팀이 일하는 중' : '팀이 한 일', 'green'));
+    if (todo.jobId !== null) chips.append(chipOf(board.columns.work()?.id === todo.columnId ? 'Team working' : 'Done by team', 'green'));
     const progress = todo.checklist.progress();
     if (progress.total > 0) chips.append(chipOf(`✓ ${progress.done}/${progress.total}`, progress.done === progress.total ? 'green' : ''));
     if (chips.childElementCount > 0) box.append(chips);
@@ -188,19 +188,19 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     const at = board.columns.items.findIndex((c) => c.id === col.id);
     const edit = (patch: object): void => void ctx.act({ kind: 'column-edit', id: col.id, patch });
     const items: MenuItem[] = [
-      { label: '이름 바꾸기', pick: () => ((renaming = col.id), render()) },
-      { heading: '색' },
+      { label: 'Rename', pick: () => ((renaming = col.id), render()) },
+      { heading: 'Color' },
       ...colorItems(col.color, (c) => edit({ color: c })),
       'sep',
-      { label: '완료로 취급', checked: col.done, pick: () => edit({ done: !col.done }) },
-      { label: '팀이 일하는 칸', checked: col.work, pick: () => edit({ work: !col.work }) },
-      { label: col.collapsed ? '펼치기' : '접기', pick: () => edit({ collapsed: !col.collapsed }) },
-      { label: '숨기기', disabled: board.columns.visible().length <= 1, pick: () => edit({ hidden: true }) },
+      { label: 'Counts as done', checked: col.done, pick: () => edit({ done: !col.done }) },
+      { label: 'Team works here', checked: col.work, pick: () => edit({ work: !col.work }) },
+      { label: col.collapsed ? 'Expand' : 'Collapse', pick: () => edit({ collapsed: !col.collapsed }) },
+      { label: 'Hide', disabled: board.columns.visible().length <= 1, pick: () => edit({ hidden: true }) },
       'sep',
-      { label: '앞으로 이동', disabled: at === 0, pick: () => void ctx.act({ kind: 'column-move', id: col.id, beforeId: board.columns.items[at - 1]!.id }) },
-      { label: '뒤로 이동', disabled: at === board.columns.items.length - 1, pick: () => void ctx.act({ kind: 'column-move', id: col.id, beforeId: board.columns.items[at + 2]?.id ?? null }) },
+      { label: 'Move left', disabled: at === 0, pick: () => void ctx.act({ kind: 'column-move', id: col.id, beforeId: board.columns.items[at - 1]!.id }) },
+      { label: 'Move right', disabled: at === board.columns.items.length - 1, pick: () => void ctx.act({ kind: 'column-move', id: col.id, beforeId: board.columns.items[at + 2]?.id ?? null }) },
       'sep',
-      { label: '칸 지우기', danger: true, disabled: board.columns.items.length <= 1, pick: () => removeColumn(col) },
+      { label: 'Delete column', danger: true, disabled: board.columns.items.length <= 1, pick: () => removeColumn(col) },
     ];
     showMenu(anchor, items);
   }
@@ -210,21 +210,21 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     const board = ctx.board();
     const count = board.cardsIn(col.id).length;
     if (count === 0) {
-      confirmDialog(`"${col.name}" 칸을 지울까요?`, '카드가 없는 칸이에요.', [{ label: '지우기', cls: 'btn danger', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'merge', into: null }) }]);
+      confirmDialog(`Delete column "${col.name}"?`, 'This column has no cards.', [{ label: 'Delete', cls: 'btn danger', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'merge', into: null }) }]);
       return;
     }
     const others = board.columns.items.filter((c) => c.id !== col.id);
     const landing = board.columns.landingFor(col.id);
-    const into = select(others.map((c) => [c.id, c.hidden ? `${c.name} (숨김)` : c.name] as const), landing, () => undefined);
-    into.setAttribute('aria-label', '카드를 옮길 칸');
+    const into = select(others.map((c) => [c.id, c.hidden ? `${c.name} (hidden)` : c.name] as const), landing, () => undefined);
+    into.setAttribute('aria-label', 'Move cards to');
     const pick = el('label', 'dfield');
-    pick.append(el('span', 'lbl', '카드를 옮길 칸'), into);
+    pick.append(el('span', 'lbl', 'Move cards to'), into);
     confirmDialog(
-      `"${col.name}" 칸을 지울까요?`,
-      `카드 ${count}장이 있어요. 고른 칸으로 옮기거나, 카드까지 함께 지울 수 있어요. 함께 지우면 되돌릴 수 없어요.`,
+      `Delete column "${col.name}"?`,
+      `This column has ${count} card(s). Move them to another column, or delete them too. Deleting them cannot be undone.`,
       [
-        { label: '옮기고 지우기', cls: 'btn primary', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'merge', into: into.value }) },
-        { label: `카드 ${count}장도 함께 지우기`, cls: 'btn danger', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'delete', into: null }) },
+        { label: 'Move cards and delete', cls: 'btn primary', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'merge', into: into.value }) },
+        { label: `Delete column and ${count} card(s)`, cls: 'btn danger', pick: () => void ctx.act({ kind: 'column-remove', id: col.id, cards: 'delete', into: null }) },
       ],
       pick,
     );
@@ -251,7 +251,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       const input = el('input', 'sm grow');
       input.value = col.name;
       input.maxLength = 30;
-      input.setAttribute('aria-label', '칸 이름');
+      input.setAttribute('aria-label', 'Column name');
       let done = false;
       const finish = (save: boolean): void => {
         if (done) return;
@@ -269,7 +269,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       queueMicrotask(() => (input.focus(), input.select()));
     } else {
       const name = el('span', `chip tname${col.color === 'gray' ? '' : ` ${col.color}`}`, col.name);
-      name.title = '두 번 누르면 이름을 바꿔요';
+      name.title = 'Double-click to rename';
       name.addEventListener('dblclick', () => ((renaming = col.id), render()));
       head.append(name);
     }
@@ -277,13 +277,13 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     head.append(el('span', 'grow'));
     if (!col.collapsed) {
       const add = button('+', 'btn icon sm ghost', () => ctx.quickAdd(col.id, true));
-      add.title = '이 칸 맨 위에 카드 추가';
-      add.setAttribute('aria-label', `${col.name} 칸에 카드 추가`);
+      add.title = 'Add a card at the top';
+      add.setAttribute('aria-label', `Add a card to ${col.name}`);
       head.append(add);
     }
     const more = button('⋯', 'btn icon sm ghost', () => columnMenu(col, more));
-    more.title = '칸 메뉴';
-    more.setAttribute('aria-label', `${col.name} 칸 메뉴`);
+    more.title = 'Column menu';
+    more.setAttribute('aria-label', `${col.name} column menu`);
     head.append(more);
     return head;
   }
@@ -292,10 +292,10 @@ export function buildBoard(ctx: TodoCtx): BoardView {
   function adder(col: Column, top: boolean): HTMLElement {
     const wrap = el('div', 'tadding');
     const input = el('input', 'sm');
-    input.placeholder = '제목을 치고 Enter';
+    input.placeholder = 'Type a title and press Enter';
     input.maxLength = 120;
     input.value = addDraft;
-    input.setAttribute('aria-label', '새 카드 제목');
+    input.setAttribute('aria-label', 'New card title');
     input.addEventListener('input', () => (addDraft = input.value));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -337,7 +337,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     box.dataset['col'] = col.id;
     box.append(header(col, cards.length, total));
     if (col.collapsed) {
-      box.title = '눌러서 펼치기';
+      box.title = 'Click to expand';
       box.addEventListener('click', (e) => {
         if (!(e.target as HTMLElement).closest('button, input')) void ctx.act({ kind: 'column-edit', id: col.id, patch: { collapsed: false } });
       });
@@ -347,12 +347,12 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     const topAdd = adding?.columnId === col.id && adding.top;
     const bottomAdd = adding?.columnId === col.id && !adding.top;
     if (topAdd) list.append(adder(col, true));
-    if (cards.length === 0 && !topAdd && !bottomAdd) list.append(el('div', 'tnone', total === 0 ? '카드가 없어요' : '걸러져서 안 보여요'));
+    if (cards.length === 0 && !topAdd && !bottomAdd) list.append(el('div', 'tnone', total === 0 ? 'No cards' : 'Hidden by filters'));
     for (const c of cards) list.append(card(c));
     if (bottomAdd) list.append(adder(col, false));
     box.append(list);
     if (!bottomAdd) {
-      const open = button('+ 새로 만들기', 'btn ghost sm block tadd', () => ctx.quickAdd(col.id, false));
+      const open = button('+ New', 'btn ghost sm block tadd', () => ctx.quickAdd(col.id, false));
       box.append(open);
     }
     return box;
@@ -425,13 +425,13 @@ export function buildBoard(ctx: TodoCtx): BoardView {
   /** 숨긴 칸 영역: 칸을 다시 보이게 하거나(카드를 끌어다 놓아도 그 칸으로 옮겨진다) 지운다 */
   function hiddenPanel(hidden: readonly Column[], counts: Readonly<Record<string, number>>): HTMLElement {
     const panel = el('div', 'thidden');
-    panel.append(el('div', 'lbl', `숨긴 칸 ${hidden.length}`));
+    panel.append(el('div', 'lbl', `Hidden columns ${hidden.length}`));
     for (const c of hidden) {
       const row = el('div', 'thid row-item');
       row.dataset['col'] = c.id;
       row.append(el('span', `dot ${c.color}`), el('span', 'grow tname', c.name), el('span', 'tcount', String(counts[c.id] ?? 0)));
-      const show = button('보이기', 'btn sm', () => void ctx.act({ kind: 'column-edit', id: c.id, patch: { hidden: false } }));
-      show.setAttribute('aria-label', `${c.name} 칸 보이기`);
+      const show = button('Show', 'btn sm', () => void ctx.act({ kind: 'column-edit', id: c.id, patch: { hidden: false } }));
+      show.setAttribute('aria-label', `Show column ${c.name}`);
       row.append(show);
       panel.append(row);
     }
@@ -439,12 +439,12 @@ export function buildBoard(ctx: TodoCtx): BoardView {
   }
 
   function newColumn(): HTMLElement {
-    if (!addingColumn) return button('+ 칸 추가', 'btn ghost sm block', () => ((addingColumn = true), render()));
+    if (!addingColumn) return button('+ Add column', 'btn ghost sm block', () => ((addingColumn = true), render()));
     const input = el('input', 'sm');
-    input.placeholder = '칸 이름을 치고 Enter';
+    input.placeholder = 'Type a column name and press Enter';
     input.maxLength = 30;
     input.value = columnDraft;
-    input.setAttribute('aria-label', '새 칸 이름');
+    input.setAttribute('aria-label', 'New column name');
     input.addEventListener('input', () => (columnDraft = input.value));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -515,7 +515,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     }
     if (focusId !== null) view.focusCard(focusId);
     // 검색·필터로 모두 가려졌을 때 알려 준다
-    if (shown.length === 0 && board.items.length > 0) root.append(el('div', 'tempty', '걸러진 카드가 없어요. 검색·필터를 바꿔 보세요.'));
+    if (shown.length === 0 && board.items.length > 0) root.append(el('div', 'tempty', 'No cards match. Change the search or filters.'));
   }
 
   const view: BoardView = {

@@ -98,15 +98,15 @@ function validDate(value: string): boolean {
 }
 
 function checkedLabels(labels: readonly Label[]): readonly Label[] {
-  if (labels.length > LABEL_MAX) throw new TodoError(`라벨은 ${LABEL_MAX}개까지예요.`);
+  if (labels.length > LABEL_MAX) throw new TodoError(`Up to ${LABEL_MAX} labels.`);
   const seen = new Set<string>();
   return labels.map((l) => {
     const name = l.name.trim();
-    if (name === '') throw new TodoError('라벨 이름을 적어 주세요.');
-    if (name.length > LABEL_NAME_LIMIT) throw new TodoError(`라벨 이름은 ${LABEL_NAME_LIMIT}자까지예요.`);
-    if (!isColumnColor(l.color)) throw new TodoError('고를 수 없는 라벨 색이에요.');
+    if (name === '') throw new TodoError('Please enter a label name.');
+    if (name.length > LABEL_NAME_LIMIT) throw new TodoError(`A label name can be up to ${LABEL_NAME_LIMIT} characters.`);
+    if (!isColumnColor(l.color)) throw new TodoError('That label color is not available.');
     const key = name.toLowerCase();
-    if (seen.has(key)) throw new TodoError('같은 라벨이 두 번 들어 있어요.');
+    if (seen.has(key)) throw new TodoError('The same label appears twice.');
     seen.add(key);
     return { name, color: l.color };
   });
@@ -124,17 +124,17 @@ function checkedChecklist(items: readonly ChecklistItem[]): readonly ChecklistIt
 /** 입력 하나하나의 규칙. 만들 때와 고칠 때 같은 검사를 쓴다. */
 function checked(fields: Fields): Fields {
   const title = fields.title.trim();
-  if (title === '') throw new TodoError('할 일 제목을 적어 주세요.');
-  if (title.length > TITLE_LIMIT) throw new TodoError(`제목은 ${TITLE_LIMIT}자까지예요.`);
+  if (title === '') throw new TodoError('Please enter a card title.');
+  if (title.length > TITLE_LIMIT) throw new TodoError(`A title can be up to ${TITLE_LIMIT} characters.`);
   const note = fields.note.trim();
-  if (note.length > NOTE_LIMIT) throw new TodoError(`메모는 ${NOTE_LIMIT}자까지예요.`);
-  if (!TODO_PRIORITIES.includes(fields.priority)) throw new TodoError('우선순위는 높음·보통·낮음 중에서 골라 주세요.');
+  if (note.length > NOTE_LIMIT) throw new TodoError(`A note can be up to ${NOTE_LIMIT} characters.`);
+  if (!TODO_PRIORITIES.includes(fields.priority)) throw new TodoError('Priority must be High, Normal or Low.');
   const due = fields.due === null || fields.due.trim() === '' ? null : fields.due.trim();
-  if (due !== null && !validDate(due)) throw new TodoError('마감일은 YYYY-MM-DD 모양의 실제 날짜로 적어 주세요.');
+  if (due !== null && !validDate(due)) throw new TodoError('Enter a real date as YYYY-MM-DD.');
   const repo = fields.repo === null || fields.repo.trim() === '' ? null : fields.repo.trim();
-  if (repo !== null && repo.length > NAME_LIMIT) throw new TodoError(`레포 이름은 ${NAME_LIMIT}자까지예요.`);
+  if (repo !== null && repo.length > NAME_LIMIT) throw new TodoError(`A repo name can be up to ${NAME_LIMIT} characters.`);
   const team = fields.team === null || fields.team.trim() === '' ? null : fields.team.trim();
-  if (team !== null && !TEAM_CHOICES.some((t) => t.id === team)) throw new TodoError('고를 수 없는 팀이에요.');
+  if (team !== null && !TEAM_CHOICES.some((t) => t.id === team)) throw new TodoError('That team is not available.');
   return { title, note, priority: fields.priority, due, repo, team, labels: checkedLabels(fields.labels), checklist: checkedChecklist(fields.checklist) };
 }
 
@@ -144,8 +144,8 @@ export class Todo {
 
   /** 저장 파일에서 다시 만든다(규칙을 한 번 더 검사한다). */
   static restore(props: TodoProps): Todo {
-    if (props.id === '') throw new TodoError('할 일 번호가 없어요.');
-    if (props.columnId === '') throw new TodoError('칸 번호가 없어요.');
+    if (props.id === '') throw new TodoError('A card has no id.');
+    if (props.columnId === '') throw new TodoError('A column has no id.');
     return new Todo({ ...props, ...checked(props), jobId: props.jobId === '' ? null : props.jobId });
   }
 
@@ -181,8 +181,8 @@ export class Todo {
 
   /** 맡길 수 없는 이유를 알려 주며 던진다. */
   assertCanDelegate(done: boolean): void {
-    if (done) throw new TodoError('이미 끝난 할 일은 맡기지 않아요. 다시 열고 맡겨 주세요.');
-    if (this.props.jobId !== null) throw new TodoError('이미 팀이 일하고 있어요.');
+    if (done) throw new TodoError('A finished card cannot be handed off. Reopen it first.');
+    if (this.props.jobId !== null) throw new TodoError('A team is already working on it.');
   }
 
   withFields(patch: TodoPatch, at: string): Todo {
@@ -201,7 +201,7 @@ export class Todo {
 
   /** 다른 칸으로 옮긴다. 완료 칸이면 끝낸 시각이 남고, 아니면 지워진다. 작업 번호는 그대로 둔다. */
   movedTo(columnId: string, done: boolean, at: string): Todo {
-    if (columnId === '') throw new TodoError('칸 번호가 없어요.');
+    if (columnId === '') throw new TodoError('A column has no id.');
     const completedAt = done ? (this.props.columnId === columnId && this.props.completedAt !== null ? this.props.completedAt : at) : null;
     return new Todo({ ...this.props, columnId, completedAt, updatedAt: at });
   }
@@ -263,7 +263,7 @@ export class TodoList {
   /** 번호로 찾는다. 없으면 던진다. */
   require(id: string): Todo {
     const found = this.get(id);
-    if (found === null) throw new TodoError('그 할 일을 찾지 못했어요. 이미 지워졌을 수 있어요.');
+    if (found === null) throw new TodoError('That card was not found. It may already be deleted.');
     return found;
   }
 
@@ -294,7 +294,7 @@ export class TodoList {
 
   /** 새 카드는 칸 맨 아래에 붙는다(칸을 안 정하면 새 카드가 들어가는 첫 칸). */
   add(draft: TodoDraft, newId: () => string, at: string): TodoList {
-    if (this.items.length >= MAX_TODOS) throw new TodoError(`할 일은 최대 ${MAX_TODOS}개까지예요. 끝난 것부터 지워 주세요.`);
+    if (this.items.length >= MAX_TODOS) throw new TodoError(`Up to ${MAX_TODOS} cards. Delete finished ones first.`);
     const columnId = draft.columnId ?? this.columns.entry().id;
     this.requireColumn(columnId);
     const made = Todo.create(draft, newId(), columnId, at);
@@ -304,7 +304,7 @@ export class TodoList {
 
   /** 카드를 복제해 원본 바로 아래에 둔다. 팀 작업 번호와 끝낸 시각은 따라오지 않는다. */
   duplicate(id: string, newId: () => string, at: string): TodoList {
-    if (this.items.length >= MAX_TODOS) throw new TodoError(`할 일은 최대 ${MAX_TODOS}개까지예요. 끝난 것부터 지워 주세요.`);
+    if (this.items.length >= MAX_TODOS) throw new TodoError(`Up to ${MAX_TODOS} cards. Delete finished ones first.`);
     const src = this.require(id);
     const copy = Todo.create({ title: src.title, note: src.note, priority: src.priority, due: src.due, repo: src.repo, team: src.team, labels: src.labels, checklist: src.checklist.items }, newId(), src.columnId, at);
     const mine = this.cardsIn(src.columnId);
@@ -319,7 +319,7 @@ export class TodoList {
   /** 이름이 같은 라벨을 모든 카드에서 뺀다(대소문자 구분 없음). 카드는 그대로 남는다. */
   removeLabel(name: string, at: string): TodoList {
     const key = name.trim().toLowerCase();
-    if (key === '') throw new TodoError('지울 라벨 이름이 없어요.');
+    if (key === '') throw new TodoError('No label name to delete.');
     return this.withItems(this.items.map((t) => (t.labels.some((l) => l.name.toLowerCase() === key) ? t.withFields({ labels: t.labels.filter((l) => l.name.toLowerCase() !== key) }, at) : t)));
   }
 
@@ -401,7 +401,7 @@ export class TodoList {
   removeColumn(id: string, cards: RemoveCards, at: string, into: string | null = null): TodoList {
     const landing = this.withColumns(() => this.columns.remove(id)).columns;
     const landingId = into ?? this.columns.landingFor(id);
-    if (cards === 'merge' && (landingId === id || !landing.has(landingId))) throw new TodoError('카드를 옮길 칸을 찾지 못했어요.');
+    if (cards === 'merge' && (landingId === id || !landing.has(landingId))) throw new TodoError('The column to move cards to was not found.');
     const mine = this.cardsIn(id);
     if (cards === 'delete') return new TodoList(landing, this.items.filter((t) => t.columnId !== id));
     const done = landing.isDone(landingId);
@@ -464,7 +464,7 @@ export class TodoList {
 
   private requireColumn(id: string): Column {
     const found = this.columns.get(id);
-    if (found === null) throw new TodoError('그 칸을 찾지 못했어요.');
+    if (found === null) throw new TodoError('That column was not found.');
     return found;
   }
 

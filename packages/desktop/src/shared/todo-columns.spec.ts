@@ -25,20 +25,20 @@ describe('칸 추가·이름·색', () => {
 
   it('이름은 공백을 지우고 비었거나 30자를 넘으면 거절한다', () => {
     expect(Columns.defaults().rename('todo', '  백로그  ').get('todo')?.name).toBe('백로그');
-    expect(() => Columns.defaults().rename('todo', ' ')).toThrow(/이름/);
-    expect(() => Columns.defaults().add('가'.repeat(31), 'gray', 'x')).toThrow(/30자/);
+    expect(() => Columns.defaults().rename('todo', ' ')).toThrow(/name/);
+    expect(() => Columns.defaults().add('가'.repeat(31), 'gray', 'x')).toThrow(/30 characters/);
   });
 
   it('고를 수 없는 색은 거절한다', () => {
     expect(COLUMN_COLORS).toContain('red');
-    expect(() => Columns.defaults().recolor('todo', 'pink' as never)).toThrow(/색/);
+    expect(() => Columns.defaults().recolor('todo', 'pink' as never)).toThrow(/color/);
     expect(Columns.defaults().recolor('todo', 'red').get('todo')?.color).toBe('red');
   });
 
   it('칸은 12개까지다', () => {
     let c = Columns.defaults();
     for (let i = c.items.length; i < COLUMN_MAX; i += 1) c = c.add(`칸${i}`, 'gray', `k${i}`);
-    expect(() => c.add('하나 더', 'gray', 'z')).toThrow(/12개/);
+    expect(() => c.add('하나 더', 'gray', 'z')).toThrow(/12 columns/);
   });
 
   it('없는 칸을 만지면 거절한다', () => {
@@ -85,8 +85,8 @@ describe('칸 순서와 지우기', () => {
 
   it('마지막 한 칸은 지울 수 없다', () => {
     const one = Columns.defaults().remove('doing').remove('done');
-    expect(() => one.remove('todo')).toThrow(/마지막/);
-    expect(() => one.landingFor('todo')).toThrow(/마지막/);
+    expect(() => one.remove('todo')).toThrow(/last/);
+    expect(() => one.landingFor('todo')).toThrow(/last/);
   });
 });
 
@@ -103,11 +103,11 @@ describe('새 카드가 들어갈 칸', () => {
 
 describe('저장된 값에서 다시 만들기', () => {
   it('비어 있으면 거절한다', () => {
-    expect(() => Columns.restore([])).toThrow(/한 칸/);
+    expect(() => Columns.restore([])).toThrow(/at least one/);
   });
   it('번호가 겹치면 거절한다', () => {
     const k = Columns.defaults().items[0]!;
-    expect(() => Columns.restore([k, k])).toThrow(/겹/);
+    expect(() => Columns.restore([k, k])).toThrow(/share an id/);
   });
 });
 
@@ -121,7 +121,7 @@ describe('칸 숨기기', () => {
 
   it('보이는 칸이 하나도 안 남게 숨길 수는 없다', () => {
     const c = Columns.defaults().hide('todo', true).hide('doing', true);
-    expect(() => c.hide('done', true)).toThrow(/하나는/);
+    expect(() => c.hide('done', true)).toThrow(/visible/);
   });
 
   it('새 카드가 들어가는 첫 칸은 숨긴 칸을 건너뛴다', () => {

@@ -30,7 +30,7 @@ describe('카드 더하기', () => {
   it('칸을 정하면 그 칸 맨 아래에 붙고, 없는 칸이면 거절한다', () => {
     const list = add(add(TodoList.empty(), 'a'), 'b', { columnId: 'doing' });
     expect(titles(list, 'doing')).toEqual(['b']);
-    expect(() => add(list, 'c', { columnId: '없음' })).toThrow(/칸/);
+    expect(() => add(list, 'c', { columnId: '없음' })).toThrow(/column/);
   });
 
   it('제목이 비어 있으면 더하지 않는다', () => {
@@ -38,25 +38,25 @@ describe('카드 더하기', () => {
   });
 
   it('제목은 120자, 메모는 2000자까지만 받는다', () => {
-    expect(() => add(TodoList.empty(), 'a'.repeat(121))).toThrow(/120자/);
-    expect(() => add(TodoList.empty(), 'ok', { note: 'a'.repeat(2001) })).toThrow(/2000자/);
+    expect(() => add(TodoList.empty(), 'a'.repeat(121))).toThrow(/120 characters/);
+    expect(() => add(TodoList.empty(), 'ok', { note: 'a'.repeat(2001) })).toThrow(/2000 characters/);
   });
 
   it('마감일은 실제 있는 날짜(YYYY-MM-DD)만 받는다', () => {
     expect(add(TodoList.empty(), 'a', { due: '2026-12-31' }).items[0]!.due).toBe('2026-12-31');
-    expect(() => add(TodoList.empty(), 'a', { due: '2026-02-30' })).toThrow(/마감일/);
-    expect(() => add(TodoList.empty(), 'a', { due: '내일' })).toThrow(/마감일/);
+    expect(() => add(TodoList.empty(), 'a', { due: '2026-02-30' })).toThrow(/date/);
+    expect(() => add(TodoList.empty(), 'a', { due: '내일' })).toThrow(/date/);
   });
 
   it('모르는 우선순위·팀은 받지 않는다', () => {
-    expect(() => add(TodoList.empty(), 'a', { priority: 'urgent' as never })).toThrow(/우선순위/);
-    expect(() => add(TodoList.empty(), 'a', { team: '없는팀' })).toThrow(/팀/);
+    expect(() => add(TodoList.empty(), 'a', { priority: 'urgent' as never })).toThrow(/Priority/);
+    expect(() => add(TodoList.empty(), 'a', { team: '없는팀' })).toThrow(/team/);
   });
 
   it('개수가 상한이면 더 더하지 않는다', () => {
     let list = TodoList.empty();
     for (let i = 0; i < MAX_TODOS; i += 1) list = add(list, `일 ${i}`);
-    expect(() => add(list, '하나 더')).toThrow(/최대/);
+    expect(() => add(list, '하나 더')).toThrow(/Up to/);
   });
 });
 
@@ -73,15 +73,15 @@ describe('라벨과 체크리스트', () => {
   it('라벨은 이름·색을 가지고, 앞뒤 공백을 지우며, 같은 이름(대소문자 무시)은 한 번만 쓴다', () => {
     const list = add(TodoList.empty(), 'a', { labels: [{ name: ' 버그 ', color: 'red' }] });
     expect(list.items[0]!.labels).toEqual([{ name: '버그', color: 'red' }]);
-    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: 'Bug', color: 'red' }, { name: 'bug', color: 'blue' }] })).toThrow(/두 번/);
+    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: 'Bug', color: 'red' }, { name: 'bug', color: 'blue' }] })).toThrow(/twice/);
   });
 
   it('라벨은 8개까지, 이름은 20자까지, 색은 정해진 것만 받는다', () => {
     const many = Array.from({ length: LABEL_MAX + 1 }, (_, i) => ({ name: `l${i}`, color: 'gray' as const }));
-    expect(() => add(TodoList.empty(), 'a', { labels: many })).toThrow(/8개/);
-    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: 'a'.repeat(21), color: 'gray' }] })).toThrow(/20자/);
-    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: 'x', color: 'pink' as never }] })).toThrow(/색/);
-    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: ' ', color: 'gray' }] })).toThrow(/이름/);
+    expect(() => add(TodoList.empty(), 'a', { labels: many })).toThrow(/8 labels/);
+    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: 'a'.repeat(21), color: 'gray' }] })).toThrow(/20 characters/);
+    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: 'x', color: 'pink' as never }] })).toThrow(/color/);
+    expect(() => add(TodoList.empty(), 'a', { labels: [{ name: ' ', color: 'gray' }] })).toThrow(/name/);
   });
 
   it('체크리스트를 고치면 진행률이 따라온다', () => {
@@ -103,7 +103,7 @@ describe('카드 고치기·옮기기·지우기', () => {
     const id = list.items[0]!.id;
     expect(list.edit(id, { title: '새 제목', priority: 'high', repo: 'api-server' }, at).items[0]).toMatchObject({ title: '새 제목', priority: 'high', repo: 'api-server' });
     expect(() => list.edit(id, { title: '' }, at)).toThrow(TodoError);
-    expect(() => list.edit('없는 id', { title: 'x' }, at)).toThrow(/찾지 못/);
+    expect(() => list.edit('없는 id', { title: 'x' }, at)).toThrow(/not found/);
   });
 
   it('다른 칸의 어느 카드 앞으로 옮긴다', () => {
@@ -128,8 +128,8 @@ describe('카드 고치기·옮기기·지우기', () => {
 
   it('없는 칸·없는 카드로는 옮기지 못한다', () => {
     const list = add(TodoList.empty(), 'a');
-    expect(() => list.move(list.items[0]!.id, '없음', null, at)).toThrow(/칸/);
-    expect(() => list.move('없음', 'doing', null, at)).toThrow(/찾지 못/);
+    expect(() => list.move(list.items[0]!.id, '없음', null, at)).toThrow(/column/);
+    expect(() => list.move('없음', 'doing', null, at)).toThrow(/not found/);
   });
 
   it('완료 칸으로 옮기면 끝낸 시각이 남고, 다시 열면 지워진다', () => {
@@ -158,7 +158,7 @@ describe('칸 고치기', () => {
 
   it('칸 규칙 위반은 카드 규칙 오류로 알린다', () => {
     expect(() => TodoList.empty().renameColumn('todo', ' ')).toThrow(TodoError);
-    expect(() => TodoList.empty().removeColumn('todo', 'merge', at).removeColumn('doing', 'merge', at).removeColumn('done', 'merge', at)).toThrow(/마지막/);
+    expect(() => TodoList.empty().removeColumn('todo', 'merge', at).removeColumn('doing', 'merge', at).removeColumn('done', 'merge', at)).toThrow(/last/);
   });
 
   it('칸을 지우며 카드를 합치면 앞 칸 맨 아래로 간다', () => {
@@ -198,7 +198,7 @@ describe('칸 고치기', () => {
   });
 });
 
-describe('팀에 맡기기', () => {
+describe('Hand to team', () => {
   it('맡기면 작업 번호가 붙고 "일하는 칸"(진행 중)으로 간다', () => {
     const list = add(TodoList.empty(), 'a');
     const id = list.items[0]!.id;
@@ -216,8 +216,8 @@ describe('팀에 맡기기', () => {
   it('이미 맡겨 일하는 중이거나 끝난 카드는 다시 맡기지 못한다', () => {
     const list = add(TodoList.empty(), 'a');
     const id = list.items[0]!.id;
-    expect(() => list.attachJob(id, 'job-1', at).attachJob(id, 'job-2', at)).toThrow(/이미/);
-    expect(() => list.move(id, 'done', null, at).attachJob(id, 'job-2', at)).toThrow(/끝난/);
+    expect(() => list.attachJob(id, 'job-1', at).attachJob(id, 'job-2', at)).toThrow(/already/);
+    expect(() => list.move(id, 'done', null, at).attachJob(id, 'job-2', at)).toThrow(/finished/);
   });
 
   it('작업이 끝나면 완료 칸으로 가고, 멈추면 첫 칸으로 돌아온다', () => {
@@ -350,7 +350,7 @@ describe('노션식 보드 규칙', () => {
   it('복제도 카드 개수 상한을 지킨다', () => {
     let list = TodoList.empty();
     for (let i = 0; i < MAX_TODOS; i += 1) list = add(list, `일 ${i}`);
-    expect(() => list.duplicate(list.items[0]!.id, newId, at)).toThrow(/500개/);
+    expect(() => list.duplicate(list.items[0]!.id, newId, at)).toThrow(/500 cards/);
   });
 
   it('칸을 지울 때 카드를 옮길 칸을 직접 고를 수 있다', () => {
@@ -362,8 +362,8 @@ describe('노션식 보드 규칙', () => {
 
   it('지우는 칸 자신이나 없는 칸으로는 옮기지 못한다', () => {
     const list = add(TodoList.empty(), 'a', { columnId: 'doing' });
-    expect(() => list.removeColumn('doing', 'merge', at, 'doing')).toThrow(/칸/);
-    expect(() => list.removeColumn('doing', 'merge', at, '없음')).toThrow(/칸/);
+    expect(() => list.removeColumn('doing', 'merge', at, 'doing')).toThrow(/column/);
+    expect(() => list.removeColumn('doing', 'merge', at, '없음')).toThrow(/column/);
   });
 
   it('칸을 숨겨도 카드는 그대로 남고, 숨긴 칸의 카드 수를 알 수 있다', () => {

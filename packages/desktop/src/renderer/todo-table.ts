@@ -7,7 +7,7 @@ export interface TableView {
   render(sort: TodoSort): void;
 }
 
-const HEADS = ['제목', '칸', '우선순위', '마감', '라벨', '레포·팀', '체크리스트', '만든 날'] as const;
+const HEADS = ['Title', 'Column', 'Priority', 'Due', 'Labels', 'Repo · Team', 'Checklist', 'Created'] as const;
 
 /** 목록 보기: 보드와 같은 데이터를 표로 보여 준다. 줄을 누르면 카드 상세가 열린다. */
 export function buildTable(ctx: TodoCtx): TableView {
@@ -19,7 +19,7 @@ export function buildTable(ctx: TodoCtx): TableView {
     const rows = board.view(ctx.filter(), sort, today);
     root.replaceChildren();
     if (rows.length === 0) {
-      root.append(el('div', 'tempty', board.items.length === 0 ? '카드가 없어요' : '걸러진 카드가 없어요. 검색·필터를 바꿔 보세요.'));
+      root.append(el('div', 'tempty', board.items.length === 0 ? 'No cards' : 'No cards match. Change the search or filters.'));
       return;
     }
     const table = el('table', 'tbl');

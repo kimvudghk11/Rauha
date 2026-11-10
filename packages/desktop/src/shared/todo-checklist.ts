@@ -21,8 +21,8 @@ export class ChecklistError extends Error {}
 
 function cleanText(text: string): string {
   const t = text.trim();
-  if (t === '') throw new ChecklistError('체크리스트 항목이 비어 있어요.');
-  if (t.length > CHECKLIST_TEXT_LIMIT) throw new ChecklistError(`체크리스트 항목은 ${CHECKLIST_TEXT_LIMIT}자까지예요.`);
+  if (t === '') throw new ChecklistError('The checklist item is empty.');
+  if (t.length > CHECKLIST_TEXT_LIMIT) throw new ChecklistError(`A checklist item can be up to ${CHECKLIST_TEXT_LIMIT} characters.`);
   return t;
 }
 
@@ -35,11 +35,11 @@ export class Checklist {
 
   /** 저장 파일·화면 요청에서 다시 만든다. */
   static restore(items: readonly ChecklistItem[]): Checklist {
-    if (items.length > CHECKLIST_MAX) throw new ChecklistError(`체크리스트는 ${CHECKLIST_MAX}개까지예요.`);
+    if (items.length > CHECKLIST_MAX) throw new ChecklistError(`A checklist can have up to ${CHECKLIST_MAX} items.`);
     const seen = new Set<string>();
     const clean = items.map((i) => {
-      if (i.id === '') throw new ChecklistError('체크리스트 항목 번호가 없어요.');
-      if (seen.has(i.id)) throw new ChecklistError('체크리스트 항목 번호가 겹쳐요.');
+      if (i.id === '') throw new ChecklistError('A checklist item has no id.');
+      if (seen.has(i.id)) throw new ChecklistError('Two checklist items share an id.');
       seen.add(i.id);
       return { id: i.id, text: cleanText(i.text), done: i.done };
     });
@@ -47,13 +47,13 @@ export class Checklist {
   }
 
   add(text: string, id: string): Checklist {
-    if (this.items.length >= CHECKLIST_MAX) throw new ChecklistError(`체크리스트는 ${CHECKLIST_MAX}개까지예요.`);
+    if (this.items.length >= CHECKLIST_MAX) throw new ChecklistError(`A checklist can have up to ${CHECKLIST_MAX} items.`);
     return Checklist.restore([...this.items, { id, text, done: false }]);
   }
 
   /** afterId 항목 바로 뒤에 새 항목을 끼운다(null이면 맨 앞). Enter로 이어 쓸 때 쓴다. */
   addAfter(afterId: string | null, text: string, id: string): Checklist {
-    if (this.items.length >= CHECKLIST_MAX) throw new ChecklistError(`체크리스트는 ${CHECKLIST_MAX}개까지예요.`);
+    if (this.items.length >= CHECKLIST_MAX) throw new ChecklistError(`A checklist can have up to ${CHECKLIST_MAX} items.`);
     if (afterId !== null) this.require(afterId);
     const at = afterId === null ? 0 : this.items.findIndex((i) => i.id === afterId) + 1;
     return Checklist.restore([...this.items.slice(0, at), { id, text, done: false }, ...this.items.slice(at)]);
@@ -86,7 +86,7 @@ export class Checklist {
 
   private require(id: string): ChecklistItem {
     const found = this.items.find((i) => i.id === id);
-    if (found === undefined) throw new ChecklistError('그 항목을 찾지 못했어요.');
+    if (found === undefined) throw new ChecklistError('That item was not found.');
     return found;
   }
 

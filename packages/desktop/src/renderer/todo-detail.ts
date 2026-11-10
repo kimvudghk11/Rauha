@@ -38,7 +38,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
   const modal = el('div', 'tmodal');
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
-  modal.setAttribute('aria-label', '카드');
+  modal.setAttribute('aria-label', 'Card');
   root.append(modal);
   root.hidden = true;
   let id: string | null = null;
@@ -55,11 +55,11 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     const patch = pending;
     pending = {};
     const status = modal.querySelector<HTMLElement>('.dstatus');
-    if (status !== null) status.textContent = '저장 중…';
+    if (status !== null) status.textContent = 'Saving…';
     const res = await ctx.act({ kind: 'edit', id: target, patch });
     const after = modal.querySelector<HTMLElement>('.dstatus');
     const err = modal.querySelector<HTMLElement>('.derr');
-    if (after !== null) after.textContent = res.ok ? '저장됨' : '저장하지 못했어요';
+    if (after !== null) after.textContent = res.ok ? 'Saved' : 'Could not save';
     if (err !== null) err.textContent = res.ok ? '' : res.error;
   }
 
@@ -67,7 +67,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     pending = { ...pending, ...patch };
     if (timer !== null) clearTimeout(timer);
     const status = modal.querySelector<HTMLElement>('.dstatus');
-    if (status !== null) status.textContent = '고치는 중…';
+    if (status !== null) status.textContent = 'Editing…';
     timer = setTimeout(() => void flush(), soon ? 0 : SAVE_DELAY_MS);
   }
 
@@ -136,8 +136,8 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     const board = ctx.board();
 
     const close_ = button('×', 'btn icon lg ghost dclose', close);
-    close_.title = '닫기 (Esc)';
-    close_.setAttribute('aria-label', '닫기');
+    close_.title = 'Close (Esc)';
+    close_.setAttribute('aria-label', 'Close');
 
     const body = el('div', 'dbody');
     const derr = el('div', 'err derr');
@@ -146,11 +146,11 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     const title = el('input', 'dtitle');
     title.value = todo.title;
     title.maxLength = TITLE_LIMIT;
-    title.placeholder = '제목';
-    title.setAttribute('aria-label', '제목');
+    title.placeholder = 'Title';
+    title.setAttribute('aria-label', 'Title');
     title.addEventListener('input', () => {
       if (title.value.trim() === '') {
-        derr.textContent = '제목을 적어 주세요.';
+        derr.textContent = 'Please enter a title.';
         return;
       }
       derr.textContent = '';
@@ -159,23 +159,23 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     body.append(title);
 
     // 속성 표: 칸·우선순위·마감일·레포·맡길 팀·라벨
-    const column = select(board.columns.items.map((c) => [c.id, c.hidden ? `${c.name} (숨김)` : c.name] as const), todo.columnId, (v) => {
+    const column = select(board.columns.items.map((c) => [c.id, c.hidden ? `${c.name} (hidden)` : c.name] as const), todo.columnId, (v) => {
       void flush().then(() => ctx.act({ kind: 'move', id: todo.id, columnId: v, beforeId: null }));
     });
-    column.setAttribute('aria-label', '칸');
+    column.setAttribute('aria-label', 'Column');
     const priority = select(TODO_PRIORITIES.map((p) => [p, PRIORITY_LABEL[p]] as const), todo.priority, (v: TodoPriority) => queue({ priority: v }, true));
-    priority.setAttribute('aria-label', '우선순위');
+    priority.setAttribute('aria-label', 'Priority');
     const due = el('input');
     due.type = 'date';
     due.value = todo.due ?? '';
-    due.setAttribute('aria-label', '마감일');
+    due.setAttribute('aria-label', 'Due date');
     due.addEventListener('change', () => queue({ due: due.value === '' ? null : due.value }, true));
     const dueNote = el('span', 'hint');
     const repoNames = [...new Set([...ctx.repos(), ...(todo.repo === null ? [] : [todo.repo])])].sort();
-    const repo = select([['', '없음'] as const, ...repoNames.map((n) => [n, n] as const)], todo.repo ?? '', (v) => queue({ repo: v === '' ? null : v }, true));
-    repo.setAttribute('aria-label', '레포');
-    const team = select([['', '자동(메인이 골라요)'] as const, ...TEAM_CHOICES.map((t) => [t.id, t.label] as const)], todo.team ?? '', (v) => queue({ team: v === '' ? null : v }, true));
-    team.setAttribute('aria-label', '맡길 팀');
+    const repo = select([['', 'None'] as const, ...repoNames.map((n) => [n, n] as const)], todo.repo ?? '', (v) => queue({ repo: v === '' ? null : v }, true));
+    repo.setAttribute('aria-label', 'Repo');
+    const team = select([['', 'Auto (lead picks)'] as const, ...TEAM_CHOICES.map((t) => [t.id, t.label] as const)], todo.team ?? '', (v) => queue({ team: v === '' ? null : v }, true));
+    team.setAttribute('aria-label', 'Team');
     const dueRow = el('div', 'bar');
     dueRow.append(due, dueNote);
 
@@ -183,11 +183,11 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     let labels: readonly Label[] = todo.labels;
     const labelBox = el('div', 'dlabels');
     const labelInput = el('input', 'grow');
-    labelInput.placeholder = '라벨 이름';
+    labelInput.placeholder = 'Label name';
     labelInput.maxLength = 20;
-    labelInput.setAttribute('aria-label', '새 라벨 이름');
+    labelInput.setAttribute('aria-label', 'New label name');
     const labelColor = select(COLUMN_COLORS.map((c) => [c, COLOR_LABEL[c]] as const), 'blue' as ColumnColor, () => undefined);
-    labelColor.setAttribute('aria-label', '새 라벨 색');
+    labelColor.setAttribute('aria-label', 'New label color');
     const labelErr = el('div', 'err');
     const setLabels = (next: readonly Label[]): void => {
       labels = next;
@@ -199,8 +199,8 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
       const chips = el('div', 'tchips');
       for (const l of labels) {
         const x = button('×', 'link', () => setLabels(labels.filter((k) => k !== l)));
-        x.title = '라벨 빼기';
-        x.setAttribute('aria-label', `${l.name} 라벨 빼기`);
+        x.title = 'Remove label';
+        x.setAttribute('aria-label', `Remove label ${l.name}`);
         const unit = el('span', 'dlabel');
         unit.append(labelChip(l), x);
         chips.append(unit);
@@ -212,16 +212,16 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
         pick.type = 'button';
         pick.addEventListener('click', () => setLabels([...labels, k]));
         const del = button('×', 'link', () =>
-          confirmDialog('라벨을 지울까요?', `"${k.name}" 라벨이 모든 카드에서 빠져요. 카드는 그대로 남아요.`, [{ label: '지우기', cls: 'btn danger', pick: () => void ctx.act({ kind: 'label-remove', name: k.name }) }]),
+          confirmDialog('Delete this label?', `Label "${k.name}" is removed from every card. The cards stay.`, [{ label: 'Delete', cls: 'btn danger', pick: () => void ctx.act({ kind: 'label-remove', name: k.name }) }]),
         );
-        del.title = '이 라벨을 모든 카드에서 지우기';
-        del.setAttribute('aria-label', `${k.name} 라벨 모두 지우기`);
+        del.title = 'Delete this label from every card';
+        del.setAttribute('aria-label', `Delete label ${k.name} everywhere`);
         const unit = el('span', 'dlabel');
         unit.append(pick, del);
         picks.append(unit);
       }
       const add = el('div', 'bar');
-      add.append(labelInput, labelColor, button('추가', 'btn', addLabel));
+      add.append(labelInput, labelColor, button('Add', 'btn', addLabel));
       labelBox.append(chips, add, labelErr);
       if (known.length > 0) labelBox.append(picks);
     }
@@ -229,11 +229,11 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
       const name = labelInput.value.trim();
       if (name === '') return;
       if (labels.length >= LABEL_MAX) {
-        labelErr.textContent = `라벨은 ${LABEL_MAX}개까지예요.`;
+        labelErr.textContent = `Up to ${LABEL_MAX} labels.`;
         return;
       }
       if (labels.some((l) => l.name.toLowerCase() === name.toLowerCase())) {
-        labelErr.textContent = '같은 라벨이 이미 있어요.';
+        labelErr.textContent = 'That label already exists.';
         return;
       }
       labelErr.textContent = '';
@@ -251,7 +251,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     renderLabels();
 
     const props = el('div', 'dprops');
-    props.append(prop('칸', column), prop('우선순위', priority), prop('마감일', dueRow), prop('레포', repo), prop('맡길 팀', team), prop('라벨', labelBox));
+    props.append(prop('Column', column), prop('Priority', priority), prop('Due date', dueRow), prop('Repo', repo), prop('Team', team), prop('Labels', labelBox));
     body.append(props);
 
     // 설명: 글에 맞춰 높이가 늘어난다
@@ -259,8 +259,8 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     note.rows = 3;
     note.maxLength = NOTE_LIMIT;
     note.value = todo.note;
-    note.placeholder = '설명을 적어 보세요(팀에 맡길 때 함께 보내요)';
-    note.setAttribute('aria-label', '설명');
+    note.placeholder = 'Add a description (sent along when you hand it to a team)';
+    note.setAttribute('aria-label', 'Description');
     const fit = (): void => {
       note.style.height = 'auto';
       note.style.height = `${note.scrollHeight}px`;
@@ -276,7 +276,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
       }
     });
     const noteBox = el('div', 'dsection');
-    noteBox.append(el('div', 'lbl', '설명'), note);
+    noteBox.append(el('div', 'lbl', 'Description'), note);
     body.append(noteBox);
 
     // 체크리스트: Enter로 잇따라 적는다. 항목 안에서 Alt+위/아래 방향키로 순서를 바꾼다.
@@ -311,12 +311,12 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
         const box = el('input');
         box.type = 'checkbox';
         box.checked = item.done;
-        box.setAttribute('aria-label', `${item.text} 완료`);
+        box.setAttribute('aria-label', `${item.text} done`);
         box.addEventListener('change', () => guarded(() => checklist.toggle(item.id)));
         const text = el('input', 'grow dcitem');
         text.value = item.text;
         text.maxLength = 120;
-        text.setAttribute('aria-label', '항목');
+        text.setAttribute('aria-label', 'Item');
         // 글을 고치고 칸을 벗어나면(change) 저장한다. 같은 글이면 아무 일도 없다.
         text.addEventListener('change', () => {
           if (text.value !== item.text) guarded(() => checklist.rename(item.id, text.value));
@@ -337,15 +337,15 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
           }
         });
         const x = button('×', 'btn icon ghost', () => guarded(() => checklist.remove(item.id)));
-        x.title = '항목 지우기';
-        x.setAttribute('aria-label', `${item.text} 항목 지우기`);
+        x.title = 'Delete item';
+        x.setAttribute('aria-label', `Delete item ${item.text}`);
         row.append(box, text, x);
         checkBox.append(row);
       });
       const add = el('input', 'dcnew');
-      add.placeholder = '항목을 치고 Enter';
+      add.placeholder = 'Type an item and press Enter';
       add.maxLength = 120;
-      add.setAttribute('aria-label', '새 항목');
+      add.setAttribute('aria-label', 'New item');
       add.addEventListener('keydown', (e) => {
         if (isEnterKey(e) && add.value.trim() !== '') {
           e.preventDefault();
@@ -359,32 +359,32 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
     }
     renderChecklist();
     const checkSection = el('div', 'dsection');
-    checkSection.append(el('div', 'lbl', '체크리스트'), checkBox);
+    checkSection.append(el('div', 'lbl', 'Checklist'), checkBox);
     body.append(checkSection);
 
     // 팀에 맡기기(선택) · 복제 · 지우기
     const actions = el('div', 'btns');
-    const delegate = button('팀에 맡기기', 'btn', () => {
+    const delegate = button('Hand to team', 'btn', () => {
       void flush()
         .then(() => ctx.act({ kind: 'delegate', id: todo.id }))
         .then((r) => r.ok && r.jobId !== null && ctx.openJob(r.jobId));
     });
-    const job = button('진행 보기', 'btn', () => {
+    const job = button('View progress', 'btn', () => {
       const j = ctx.board().get(todo.id)?.jobId;
       if (j !== null && j !== undefined) ctx.openJob(j);
     });
-    const copy = button('복제', 'btn', () => {
+    const copy = button('Duplicate', 'btn', () => {
       void flush()
         .then(() => ctx.act({ kind: 'duplicate', id: todo.id }))
         .then((r) => {
           const status = modal.querySelector<HTMLElement>('.dstatus');
-          if (r.ok && status !== null) status.textContent = '복제했어요';
+          if (r.ok && status !== null) status.textContent = 'Duplicated';
         });
     });
-    const remove = button('지우기', 'btn danger', () =>
-      confirmDialog('카드를 지울까요?', `"${ctx.board().get(todo.id)?.title ?? todo.title}" 카드가 지워져요. 되돌릴 수 없어요.`, [
+    const remove = button('Delete', 'btn danger', () =>
+      confirmDialog('Delete this card?', `Card "${ctx.board().get(todo.id)?.title ?? todo.title}" will be deleted. This cannot be undone.`, [
         {
-          label: '지우기',
+          label: 'Delete',
           cls: 'btn danger',
           pick: () => {
             pending = {};
@@ -396,12 +396,12 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
       ]),
     );
     actions.append(delegate, job, copy, remove);
-    body.append(actions, el('div', 'hint', 'AI에 맡기는 건 선택이에요. 맡기지 않아도 카드를 그대로 관리할 수 있어요.'));
+    body.append(actions, el('div', 'hint', 'Handing work to AI is optional. You can manage the card yourself.'));
 
     // 아래 줄: 저장 상태 + 시각
     const foot = el('div', 'dfoot');
     const stamps = el('span', 'hint');
-    foot.append(el('span', 'hint dstatus', '저장됨'), stamps, derr);
+    foot.append(el('span', 'hint dstatus', 'Saved'), stamps, derr);
     modal.append(close_, body, foot);
 
     sync = () => {
@@ -413,7 +413,7 @@ export function buildDetail(ctx: TodoCtx, onClose: (closedId: string) => void): 
       dueNote.replaceChildren(...(d === null || !b.isOverdue(now, ctx.today()) ? [] : [chipOf(d.text, d.cls)]));
       delegate.hidden = !b.canDelegate(now);
       job.hidden = now.jobId === null;
-      stamps.textContent = `만든 ${ymd(now.createdAt)} · 바꾼 ${ymd(now.updatedAt)}${now.completedAt === null ? '' : ` · 끝낸 ${ymd(now.completedAt)}`}`;
+      stamps.textContent = `Created ${ymd(now.createdAt)} · Updated ${ymd(now.updatedAt)}${now.completedAt === null ? '' : ` · Done ${ymd(now.completedAt)}`}`;
     };
     sync();
     // 설명 높이는 화면에 붙은 뒤에 잴 수 있다

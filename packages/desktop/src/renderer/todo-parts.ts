@@ -5,8 +5,8 @@ import { el } from './dom.js';
 
 /** 할 일 화면 조각들이 함께 쓰는 것: 이름표, 요청 보내기, 팝업 메뉴, 확인 창 */
 
-export const PRIORITY_LABEL: Readonly<Record<TodoPriority, string>> = { high: '높음', normal: '보통', low: '낮음' };
-export const COLOR_LABEL: Readonly<Record<ColumnColor, string>> = { gray: '회색', blue: '파랑', green: '초록', yellow: '노랑', red: '빨강', purple: '보라' };
+export const PRIORITY_LABEL: Readonly<Record<TodoPriority, string>> = { high: 'High', normal: 'Normal', low: 'Low' };
+export const COLOR_LABEL: Readonly<Record<ColumnColor, string>> = { gray: 'Gray', blue: 'Blue', green: 'Green', yellow: 'Yellow', red: 'Red', purple: 'Purple' };
 
 export const NO_FILTER: TodoFilter = { column: 'all', priority: 'all', repo: null, team: null, label: null, text: '', overdueOnly: false };
 
@@ -41,8 +41,8 @@ export function dot(color: ColumnColor): HTMLElement {
 /** 마감 표시: 기한 지남(빨강) · 오늘까지(노랑) · 그 밖에는 날짜만 */
 export function dueText(board: TodoList, todo: Todo, today: string): { text: string; cls: string } | null {
   if (todo.due === null) return null;
-  if (board.isOverdue(todo, today)) return { text: `기한 지남 · ${todo.due.slice(5)}`, cls: 'red' };
-  if (!board.isDone(todo) && todo.due === today) return { text: '오늘까지', cls: 'yellow' };
+  if (board.isOverdue(todo, today)) return { text: `Overdue · ${todo.due.slice(5)}`, cls: 'red' };
+  if (!board.isDone(todo) && todo.due === today) return { text: 'Due today', cls: 'yellow' };
   return { text: `~ ${todo.due.slice(5)}`, cls: '' };
 }
 
@@ -177,7 +177,7 @@ export function confirmDialog(title: string, body: string, choices: readonly Con
   };
   const buttons = el('div', 'btns end');
   for (const c of choices) buttons.append(button(c.label, c.cls, () => (close(), c.pick())));
-  buttons.append(button('취소', 'btn', close));
+  buttons.append(button('Cancel', 'btn', close));
   box.append(el('b', undefined, title), el('div', 'dim', body), ...(extra === undefined ? [] : [extra]), buttons);
   veil.append(box);
   veil.addEventListener('pointerdown', (e) => {
