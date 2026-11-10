@@ -16,9 +16,9 @@ export type BlogLength = 'short' | 'normal' | 'detailed';
 export type BlogSectionId = 'problem' | 'cause' | 'attempts' | 'solution' | 'lesson' | 'repro';
 
 export const BLOG_LENGTHS: readonly { readonly id: BlogLength; readonly label: string }[] = [
-  { id: 'short', label: '짧게' },
-  { id: 'normal', label: '보통' },
-  { id: 'detailed', label: '자세히' },
+  { id: 'short', label: 'Short' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'detailed', label: 'Detailed' },
 ];
 
 export type BlogTemplateId = 'troubleshooting' | 'portfolio' | 'til' | 'devlog';

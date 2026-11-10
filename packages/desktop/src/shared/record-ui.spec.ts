@@ -1,25 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { activeFilterKeys, copiedText, deleteDialog, moveRowSelection, rangeBetween, pickBarState, primaryRecordAction, type RecordFilterState } from './record-ui.js';
+import { activeFilterKeys, copiedText, deleteDialog, moveRowSelection, rangeBetween, pickBarState, primaryRecordAction, shortDuration, DECISION_CHIP, type RecordFilterState } from './record-ui.js';
 
 const NONE: RecordFilterState = { text: '', tag: null, status: 'all', repo: null, divergedOnly: false, period: 'all' };
 
 describe('기록 선택 작업줄', () => {
   it('아무것도 안 골랐으면 "선택한 기록이 없어요"를 보이고 선택 필요한 단추는 막는다', () => {
     const s = pickBarState([], ['a', 'b']);
-    expect(s.summary).toBe('선택한 기록이 없어요');
+    expect(s.summary).toBe('No records selected');
     expect([s.canBlog, s.canCopy, s.canDelete, s.canClear]).toEqual([false, false, false, false]);
     expect(s.canSelectAll).toBe(true);
   });
   it('고른 수를 "3개 선택"으로 앞에 보인다', () => {
     const s = pickBarState(['a', 'b', 'c'], ['a', 'b', 'c', 'd']);
-    expect(s.summary).toBe('3개 선택');
+    expect(s.summary).toBe('3 selected');
     expect([s.canBlog, s.canCopy, s.canDelete, s.canClear]).toEqual([true, true, true, true]);
   });
   it('보이는 기록을 모두 골랐으면 전체 선택 단추를 막는다', () => {
     expect(pickBarState(['a', 'b'], ['a', 'b']).canSelectAll).toBe(false);
   });
   it('필터에 가려진 선택은 안 보인다고 알려 준다', () => {
-    expect(pickBarState(['a', 'x', 'y'], ['a', 'b']).summary).toBe('3개 선택 (2개는 지금 안 보여요)');
+    expect(pickBarState(['a', 'x', 'y'], ['a', 'b']).summary).toBe('3 selected (2 not shown now)');
   });
   it('보이는 기록이 없으면 전체 선택을 막는다', () => {
     expect(pickBarState([], []).canSelectAll).toBe(false);
@@ -77,24 +77,24 @@ describe('키보드로 목록 옮기기', () => {
 
 describe('안내 문장', () => {
   it('복사 완료·실패 문장', () => {
-    expect(copiedText(1, true)).toBe('복사했어요');
-    expect(copiedText(3, true)).toBe('3개 기록을 복사했어요');
-    expect(copiedText(3, false)).toBe('복사하지 못했어요. 다시 눌러 주세요.');
+    expect(copiedText(1, true)).toBe('Copied');
+    expect(copiedText(3, true)).toBe('Copied 3 records');
+    expect(copiedText(3, false)).toBe('Could not copy. Please try again.');
   });
 });
 
 describe('지우기 확인 창 문장', () => {
   it('기록 하나는 제목과 되돌릴 수 없음을 말한다', () => {
     const d = deleteDialog(['결제 타임아웃']);
-    expect(d.title).toBe('기록 1개를 지울까요?');
-    expect(d.body).toBe('"결제 타임아웃"\n이 컴퓨터에서 지워져요. 되돌릴 수 없어요.');
-    expect(d.okLabel).toBe('지우기');
+    expect(d.title).toBe('Delete this record?');
+    expect(d.body).toBe('"결제 타임아웃"\nThey are removed from this computer. This cannot be undone.');
+    expect(d.okLabel).toBe('Delete');
   });
   it('여러 개는 앞의 셋만 적고 나머지는 "외 N개"로 줄인다', () => {
     const d = deleteDialog(['a', 'b', 'c', 'd', 'e']);
-    expect(d.title).toBe('기록 5개를 지울까요?');
-    expect(d.body).toBe('"a"\n"b"\n"c"\n외 2개\n이 컴퓨터에서 지워져요. 되돌릴 수 없어요.');
-    expect(d.okLabel).toBe('5개 지우기');
+    expect(d.title).toBe('Delete 5 records?');
+    expect(d.body).toBe('"a"\n"b"\n"c"\n+2 more\nThey are removed from this computer. This cannot be undone.');
+    expect(d.okLabel).toBe('Delete 5');
   });
 });
 
@@ -107,5 +107,23 @@ describe('Shift+클릭 범위 선택', () => {
   it('기준이 없거나 목록에 없으면 누른 줄만', () => {
     expect(rangeBetween(ids, null, 'c')).toEqual(['c']);
     expect(rangeBetween(ids, 'zz', 'c')).toEqual(['c']);
+  });
+});
+
+describe('걸린 시간 글', () => {
+  it('초·분·시간을 짧은 영어로 줄이고 모르면 Unknown이다', () => {
+    expect(shortDuration(null)).toBe('Unknown');
+    expect(shortDuration(45)).toBe('45s');
+    expect(shortDuration(130)).toBe('2m 10s');
+    expect(shortDuration(120)).toBe('2m');
+    expect(shortDuration(3900)).toBe('1h 5m');
+    expect(shortDuration(3600)).toBe('1h');
+  });
+});
+
+describe('허락 결정 칩 글', () => {
+  it('네 결정 모두 영어 한 줄이 있다', () => {
+    expect(Object.keys(DECISION_CHIP).sort()).toEqual(['deny', 'job', 'once', 'revise']);
+    expect(DECISION_CHIP.deny).toBe('Denied');
   });
 });

@@ -15,7 +15,7 @@ export function pickBarState(picked: readonly string[], shown: readonly string[]
   const pickedSet = new Set(picked);
   const hidden = picked.filter((id) => !shownSet.has(id)).length;
   const any = pickedSet.size > 0;
-  const summary = !any ? '선택한 기록이 없어요' : hidden > 0 ? `${pickedSet.size}개 선택 (${hidden}개는 지금 안 보여요)` : `${pickedSet.size}개 선택`;
+  const summary = !any ? 'No records selected' : hidden > 0 ? `${pickedSet.size} selected (${hidden} not shown now)` : `${pickedSet.size} selected`;
   return { summary, canBlog: any, canCopy: any, canDelete: any, canClear: any, canSelectAll: shown.some((id) => !pickedSet.has(id)) };
 }
 
@@ -72,11 +72,11 @@ export interface DeleteDialog {
 /** 지우기 확인 창 문장: 무엇을 몇 개 지우는지, 되돌릴 수 없다는 것 */
 export function deleteDialog(requests: readonly string[]): DeleteDialog {
   const shown = requests.slice(0, 3).map((r) => `"${r}"`);
-  if (requests.length > 3) shown.push(`외 ${requests.length - 3}개`);
+  if (requests.length > 3) shown.push(`+${requests.length - 3} more`);
   return {
-    title: `기록 ${requests.length}개를 지울까요?`,
-    body: [...shown, '이 컴퓨터에서 지워져요. 되돌릴 수 없어요.'].join('\n'),
-    okLabel: requests.length <= 1 ? '지우기' : `${requests.length}개 지우기`,
+    title: requests.length === 1 ? 'Delete this record?' : `Delete ${requests.length} records?`,
+    body: [...shown, 'They are removed from this computer. This cannot be undone.'].join('\n'),
+    okLabel: requests.length <= 1 ? 'Delete' : `Delete ${requests.length}`,
   };
 }
 
@@ -88,4 +88,17 @@ export function rangeBetween(ids: readonly string[], anchor: string | null, targ
   return ids.slice(Math.min(a, b), Math.max(a, b) + 1);
 }
 
-export const copiedText = (count: number, ok: boolean): string => (!ok ? '복사하지 못했어요. 다시 눌러 주세요.' : count <= 1 ? '복사했어요' : `${count}개 기록을 복사했어요`);
+/** 화면에 쓰는 짧은 걸린 시간: 45s · 2m 10s · 1h 5m. 알 수 없으면 Unknown */
+export function shortDuration(seconds: number | null): string {
+  if (seconds === null) return 'Unknown';
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m${seconds % 60 === 0 ? '' : ` ${seconds % 60}s`}`;
+  const h = Math.floor(m / 60);
+  return `${h}h${m % 60 === 0 ? '' : ` ${m % 60}m`}`;
+}
+
+export const copiedText =(count: number, ok: boolean): string => (!ok ? 'Could not copy. Please try again.' : count <= 1 ? 'Copied' : `Copied ${count} records`);
+
+/** 기록 상세의 허락 결정 칩 글(화면용 영어. 마크다운·블로그 글은 record-dto의 decisionLabel) */
+export const DECISION_CHIP: Readonly<Record<'once' | 'job' | 'revise' | 'deny', string>> = { once: 'Allowed once', job: 'Allowed for the job', revise: 'Asked to revise', deny: 'Denied' };

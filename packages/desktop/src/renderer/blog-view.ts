@@ -15,24 +15,24 @@ export interface BlogPanelDeps {
 }
 
 const TONES: readonly { readonly id: BlogToneId; readonly label: string }[] = [
-  { id: 'plain', label: '담백' },
-  { id: 'friendly', label: '친근' },
+  { id: 'plain', label: 'Plain' },
+  { id: 'friendly', label: 'Friendly' },
 ];
 
 const KIND_LABEL: Readonly<Record<RedactChange['kind'], string>> = {
-  secret: '키·토큰',
-  secretFile: '비밀 파일',
+  secret: 'Keys / tokens',
+  secretFile: 'Secret file',
   arn: 'ARN',
-  email: '이메일',
-  domain: '도메인',
+  email: 'Email',
+  domain: 'Domain',
   ip: 'IP',
-  account: '계정 번호',
-  company: '회사·서비스',
-  repo: '레포',
-  region: '리전',
-  home: '홈 경로',
-  user: '사용자 이름',
-  money: '금액',
+  account: 'Account id',
+  company: 'Company / service',
+  repo: 'Repo',
+  region: 'Region',
+  home: 'Home path',
+  user: 'User name',
+  money: 'Amount',
 };
 
 interface Snippet {
@@ -73,10 +73,10 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
 
   /** 위쪽 한 줄(스크롤해도 고정): 되돌아가기 · 복사 · 저장 · 초안 쓰기(강조) */
   const bar = el('div', 'bar rdbar');
-  const back = actionButton({ label: '기록으로', icon: 'back', title: '기록으로 돌아가기 (Esc)', onClick: onBack });
+  const back = actionButton({ label: 'Records', icon: 'back', title: 'Back to records (Esc)', onClick: onBack });
 
   const head = el('div', 'bg-head');
-  head.append(el('b', undefined, '블로그 글'), el('span', 'hint', `기록 ${entries.length}개로 정리해요. 모델은 부르지 않아요. 공개해도 되게 이름·주소·키는 일반 이름으로 바꿔요.`));
+  head.append(el('b', undefined, 'Blog post'), el('span', 'hint', `Built from ${entries.length} record(s). No model is called. Names, addresses and keys are replaced with generic ones so it is safe to publish.`));
 
   function seg<T extends string>(items: readonly { readonly id: T; readonly label: string }[], value: () => T, set: (v: T) => void): HTMLElement {
     const box = el('div', 'seg');
@@ -122,14 +122,14 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
     ),
     group(fm),
     group(
-      el('span', 'lbl', '글 길이'),
+      el('span', 'lbl', 'Length'),
       seg(BLOG_LENGTHS, () => length, (v) => {
         length = v;
         refresh();
       }),
     ),
     group(
-      el('span', 'lbl', '초안 어투'),
+      el('span', 'lbl', 'Draft tone'),
       seg(TONES, () => tone, (v) => {
         tone = v;
       }),
@@ -139,32 +139,32 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   // 가릴 회사·서비스 이름(설정에 저장)
   const namesBox = el('textarea');
   namesBox.rows = 2;
-  namesBox.placeholder = '가릴 회사·서비스 이름을 한 줄에 하나씩 (예: 우리회사)';
-  const namesSave = actionButton({ label: '이름 저장', icon: 'save', onClick: () => {
+  namesBox.placeholder = 'Company or service names to hide, one per line';
+  const namesSave = actionButton({ label: 'Save names', icon: 'save', onClick: () => {
     void deps.names.set(namesFromText(namesBox.value)).then(
       (saved) => {
         ctx = { ...ctx, companyNames: saved };
         namesBox.value = saved.join('\n');
-        say(`가릴 이름 ${saved.length}개를 저장했어요.`);
+        say(`Saved ${saved.length} name(s) to hide.`);
         refresh();
       },
-      () => say('이름을 저장하지 못했어요.'),
+      () => say('Could not save the names.'),
     );
   } });
-  const namesSec = section('가릴 이름', namesBox, namesSave, el('div', 'hint', '작업 폴더의 레포·폴더 이름은 자동으로 가려요. 회사·서비스 이름은 여기에 적어 두세요(설정에 저장돼요).'));
+  const namesSec = section('Names to hide', namesBox, namesSave, el('div', 'hint', 'Repo and folder names in the work folder are hidden automatically. Add company or service names here (saved in settings).'));
 
   // 코드 조각: 내가 붙여 넣고 체크한 것만 글에 들어간다
   const snipList = el('div', 'bg-snips');
   const snipAdd = actionButton({
-    label: '코드 조각 추가',
+    label: 'Add code snippet',
     icon: 'plus',
     onClick: () => {
-      if (snippets.length >= MAX_SNIPPETS) return say(`코드 조각은 ${MAX_SNIPPETS}개까지 넣어요.`);
+      if (snippets.length >= MAX_SNIPPETS) return say(`Up to ${MAX_SNIPPETS} code snippets.`);
       snippets.push({ text: '', on: false });
       renderSnippets();
     },
   });
-  const snipSec = section('코드 조각 (선택)', snipList, snipAdd, el('div', 'hint', '기록에는 코드가 없어요. 글에 넣고 싶은 조각을 붙여 넣고 "글에 넣기"를 체크한 것만 들어가요. 비밀 파일 이름이나 .env 모양이면 막아요.'));
+  const snipSec = section('Code snippets (optional)', snipList, snipAdd, el('div', 'hint', 'Records contain no code. Paste snippets and tick "Include" for the ones to add. Secret file names and .env-like text are blocked.'));
 
   function renderSnippets(): void {
     snipList.replaceChildren();
@@ -173,10 +173,10 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       const area = el('textarea', 'mono');
       area.rows = 3;
       area.value = s.text;
-      area.placeholder = '코드 조각';
+      area.placeholder = 'Code snippet';
       const warn = el('div', 'err');
       warn.hidden = snippetAllowed(s.text);
-      warn.textContent = '비밀 파일 이름이나 환경 변수 파일 모양이라 글에 넣지 않아요.';
+      warn.textContent = 'Looks like a secret file name or an env file, so it is not included.';
       area.addEventListener('input', () => {
         s.text = area.value;
         warn.hidden = snippetAllowed(s.text);
@@ -190,9 +190,9 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
         s.on = box.checked;
         refresh();
       });
-      tg.append(box, el('span', undefined, '글에 넣기'));
+      tg.append(box, el('span', undefined, 'Include'));
       const del = actionButton({
-        label: '지우기',
+        label: 'Delete',
         icon: 'trash',
         kind: 'danger',
         small: true,
@@ -214,15 +214,15 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   const tagRow = el('div', 'rtags');
   const pre = el('pre', 'bg-pre');
   const changeList = el('div', 'bg-changes');
-  const empty = el('div', 'rnone', '글감이 없어요. 기록을 하나 이상 골라 주세요.');
-  const copyBtn = actionButton({ label: 'Copy', icon: 'copy', title: 'Copy as Markdown (.md): 공개용으로 가린 글을 복사해요', onClick: () => void deps.copy(preview().markdown).then((ok) => done(ok)) });
+  const empty = el('div', 'rnone', 'Nothing to write about. Pick at least one record.');
+  const copyBtn = actionButton({ label: 'Copy', icon: 'copy', title: 'Copy as Markdown (.md): copies the redacted text for publishing', onClick: () => void deps.copy(preview().markdown).then((ok) => done(ok)) });
   copyBtn.classList.add('end');
-  const saveBtn = actionButton({ label: 'Save', icon: 'save', title: 'Save as a .md file: 정리 노트를 .md 파일로 저장해요', onClick: () => void save(preview().markdown, preview().title, [...keep]) });
+  const saveBtn = actionButton({ label: 'Save', icon: 'save', title: 'Save as a .md file: saves the outline as a .md file', onClick: () => void save(preview().markdown, preview().title, [...keep]) });
   const draftBtn = actionButton({
-    label: '초안 쓰기',
+    label: 'Write draft',
     icon: 'edit',
     kind: 'primary',
-    title: '문서 팀원이 정리 노트로 초안을 써요(누르면 한 번 더 물어봐요)',
+    title: 'The docs teammate writes a draft from the outline (asks once more first)',
     onClick: () => {
       if (draft.kind === 'running') return;
       draft = { kind: 'confirm' };
@@ -232,7 +232,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   bar.append(back, copyBtn, saveBtn, draftBtn);
   const draftBox = el('div', 'bg-draft');
   const body = el('div', 'bg-body');
-  body.append(section('제목 후보', titleRow), section('태그 후보', tagRow), section('정리 노트 (공개용으로 가린 글)', pre), section('바뀐 목록', changeList), draftBox);
+  body.append(section('Title ideas', titleRow), section('Tag ideas', tagRow), section('Outline (redacted for publishing)', pre), section('What was replaced', changeList), draftBox);
   root.append(bar, head, notice, options, namesSec, snipSec, empty, body);
 
   const state = () => ({ template, frontMatter, date: todayText(), length, titleIndex, keep: [...keep], snippets: snippets.filter((s) => s.on && s.text.trim() !== '').map((s) => s.text) });
@@ -251,10 +251,10 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
     try {
       const res = await deps.api.save({ markdown, title, keep: keepList });
       if (!res.ok) say(res.error);
-      else if (res.saved) flash(`${res.name ?? '파일'} 로 저장했어요`, root);
-      else say('저장을 취소했어요.');
+      else if (res.saved) flash(`Saved as ${res.name ?? 'file'}`, root);
+      else say('Save canceled.');
     } catch {
-      say('파일을 저장하지 못했어요.');
+      say('Could not save the file.');
     }
   }
 
@@ -267,7 +267,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       const res = await deps.api.draft({ note: p.markdown, tone, keep: draftKeep });
       draft = res.ok ? { kind: 'done', text: res.text } : { kind: 'error', message: res.error };
     } catch {
-      draft = { kind: 'error', message: '초안을 쓰지 못했어요.' };
+      draft = { kind: 'error', message: 'Could not write the draft.' };
     }
     renderDraft();
   }
@@ -280,10 +280,10 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
     if (draft.kind === 'idle') return;
     const card = el('div', 'item bg-card');
     if (draft.kind === 'confirm') {
-      card.append(el('b', undefined, '모델을 한 번 부릅니다'), el('div', 'hint', `문서 팀원(잉크)이 위 정리 노트(가린 글)만 읽고 ${tone === 'plain' ? '담백한' : '친근한'} 어투로 초안을 써요. 가장 가벼운 모델로 한 번만 부르고, 파일은 만들지 않아요. 구독 한도를 조금 써요.`));
-      const go = actionButton({ label: '초안 쓰기 시작', icon: 'edit', kind: 'primary', onClick: () => void runDraft() });
+      card.append(el('b', undefined, 'This calls a model once'), el('div', 'hint', `The docs teammate (잉크) reads only the outline above (redacted) and writes a draft in a ${tone === 'plain' ? 'plain' : 'friendly'} tone. It calls the lightest model once and creates no files. It uses a little of your plan limit.`));
+      const go = actionButton({ label: 'Start writing', icon: 'edit', kind: 'primary', onClick: () => void runDraft() });
       const no = actionButton({
-        label: '취소',
+        label: 'Cancel',
         onClick: () => {
           draft = { kind: 'idle' };
           renderDraft();
@@ -294,12 +294,12 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       card.append(row);
     } else if (draft.kind === 'running') {
       const wait = el('div', 'dim');
-      wait.append(el('span', 'spinner'), document.createTextNode('잉크가 초안을 쓰는 중이에요…'));
+      wait.append(el('span', 'spinner'), document.createTextNode('잉크 is writing the draft…'));
       card.append(wait);
     } else if (draft.kind === 'error') {
       card.append(el('div', 'err', draft.message));
       const again = actionButton({
-        label: '다시 시도',
+        label: 'Try again',
         icon: 'fetch',
         onClick: () => {
           draft = { kind: 'confirm' };
@@ -309,12 +309,12 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       card.append(again);
     } else {
       const text = draft.text;
-      card.append(el('b', undefined, '초안'), Object.assign(el('pre', 'bg-pre'), { textContent: text }));
-      const copy = actionButton({ label: '초안 복사', icon: 'copy', onClick: () => void deps.copy(text).then((ok) => done(ok)) });
-      const savemd = actionButton({ label: '초안 .md로 저장', icon: 'save', onClick: () => void save(text, text.split('\n').find((l) => l.trim() !== '') ?? '', draftKeep) });
+      card.append(el('b', undefined, 'Draft'), Object.assign(el('pre', 'bg-pre'), { textContent: text }));
+      const copy = actionButton({ label: 'Copy draft', icon: 'copy', onClick: () => void deps.copy(text).then((ok) => done(ok)) });
+      const savemd = actionButton({ label: 'Save draft as .md', icon: 'save', onClick: () => void save(text, text.split('\n').find((l) => l.trim() !== '') ?? '', draftKeep) });
       const row = el('div', 'btns');
       row.append(copy, savemd);
-      card.append(row, el('div', 'hint', '모델이 쓴 글이라 사실과 다른 곳이 있을 수 있어요. 올리기 전에 꼭 읽어 보고 고치세요.'));
+      card.append(row, el('div', 'hint', 'A model wrote this, so some parts may be wrong. Read and fix it before publishing.'));
     }
     draftBox.append(card);
   }
@@ -322,18 +322,18 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   function renderChanges(changes: readonly RedactChange[]): void {
     changeList.replaceChildren();
     if (changes.length === 0) {
-      changeList.append(el('div', 'dim', '바꾼 것이 없어요.'));
+      changeList.append(el('div', 'dim', 'Nothing was replaced.'));
       return;
     }
     for (const c of changes) {
       const row = el('div', `rrow bg-chg${c.kept ? ' hl' : ''}`);
-      row.append(el('span', 'chip', KIND_LABEL[c.kind]), el('span', 'bg-from', c.original), el('span', 'dim', '→'), el('span', 'bg-to', c.kept ? '(되돌림: 그대로 둠)' : c.replacement), el('span', 'faint', `${c.count}번`));
+      row.append(el('span', 'chip', KIND_LABEL[c.kind]), el('span', 'bg-from', c.original), el('span', 'dim', '→'), el('span', 'bg-to', c.kept ? '(restored: left as is)' : c.replacement), el('span', 'faint', `x${c.count}`));
       if (c.revertible) {
         const b = actionButton({
-          label: c.kept ? '다시 가리기' : '되돌리기',
+          label: c.kept ? 'Hide again' : 'Restore',
           icon: c.kept ? undefined : 'undo',
           small: true,
-          title: c.kept ? '이 값을 다시 가려요' : '이 값을 가리지 않고 그대로 둬요',
+          title: c.kept ? 'Hide this value again' : 'Leave this value as it is',
           onClick: () => {
             if (c.kept) keep.delete(c.original);
             else keep.add(c.original);
@@ -342,7 +342,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
         });
         b.classList.add('end');
         row.append(b);
-      } else row.append(el('span', 'faint', '항상 가려요'));
+      } else row.append(el('span', 'faint', 'Always hidden'));
       changeList.append(row);
     }
   }
@@ -372,7 +372,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
     for (const b of [copyBtn, saveBtn]) b.disabled = !ready;
     draftBtn.disabled = !ready || draft.kind === 'running';
     if (!ready) {
-      pre.textContent = '가릴 이름을 불러오는 중…';
+      pre.textContent = 'Loading names to hide…';
       return;
     }
     renderChips(titleRow, p.titles, Math.min(titleIndex, p.titles.length - 1), (i) => {
@@ -382,7 +382,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
     renderChips(tagRow, p.tags, null, null);
     pre.textContent = p.markdown;
     renderChanges(p.changes);
-    if (p.droppedSnippets > 0) say(`코드 조각 ${p.droppedSnippets}개는 비밀 파일 모양이라 뺐어요.`);
+    if (p.droppedSnippets > 0) say(`${p.droppedSnippets} code snippet(s) looked like secret files and were left out.`);
   }
 
   function section(title: string, ...nodes: HTMLElement[]): HTMLElement {
@@ -399,7 +399,7 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
       namesBox.value = names.join('\n');
       refresh();
     },
-    () => say('가릴 이름을 불러오지 못했어요. 이름 가림이 덜 될 수 있으니 복사·저장은 잠시 미뤄 주세요.'),
+    () => say('Could not load the names to hide. Some names may stay visible, so hold off on copying or saving.'),
   );
   return root;
 }

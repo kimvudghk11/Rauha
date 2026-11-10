@@ -1,6 +1,6 @@
 import { RecordBook, RECORD_TAGS, type RecordEntry, type RecordFilter, type RecordTag } from '../shared/record-book.js';
-import { decisionLabel, durationText, RecordBookDto, RecordDto, type RecordBookJson, type RecordResult } from '../shared/record-dto.js';
-import { activeFilterKeys, copiedText, deleteDialog, moveRowSelection, pickBarState, primaryRecordAction, rangeBetween, type RecordView } from '../shared/record-ui.js';
+import { RecordBookDto, RecordDto, type RecordBookJson, type RecordResult } from '../shared/record-dto.js';
+import { activeFilterKeys, copiedText, DECISION_CHIP, deleteDialog, moveRowSelection, pickBarState, primaryRecordAction, rangeBetween, shortDuration, type RecordView } from '../shared/record-ui.js';
 import { buildBlogPanel, type BlogPanelDeps } from './blog-view.js';
 import { el } from './dom.js';
 import { askDialog } from './git-common.js';
@@ -23,10 +23,10 @@ export interface RecordsViewDeps {
 const NO_FILTER: RecordFilter = { text: '', tag: null, status: 'all', repo: null, divergedOnly: false, since: null };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PERIODS: readonly (readonly [string, string, number | null])[] = [
-  ['all', '기간 전체', null],
-  ['7', '최근 7일', 7],
-  ['30', '최근 30일', 30],
-  ['90', '최근 90일', 90],
+  ['all', 'Any time', null],
+  ['7', 'Last 7 days', 7],
+  ['30', 'Last 30 days', 30],
+  ['90', 'Last 90 days', 90],
 ];
 const tagLabel = (id: RecordTag): string => RECORD_TAGS.find((t) => t.id === id)?.label ?? id;
 
@@ -46,7 +46,7 @@ let listening = false;
 /** 이 PC의 시간대로 보여 주는 날짜·시각. 읽을 수 없으면 "모름". */
 export function whenText(iso: string): string {
   const t = Date.parse(iso);
-  if (Number.isNaN(t)) return '모름';
+  if (Number.isNaN(t)) return 'Unknown';
   const d = new Date(t);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -77,14 +77,14 @@ export function buildRecords(deps: RecordsViewDeps) {
   let pendingFocus: string | null = null;
 
   const head = el('div', 'rhead');
-  head.append(el('b', undefined, 'Records'), el('span', 'hint', '끝난 작업이 요약으로 쌓여요. 포트폴리오·이력서에 "어떤 문제를 어떻게 풀었나"를 옮겨 쓸 때 써요.'));
+  head.append(el('b', undefined, 'Records'), el('span', 'hint', 'Finished jobs pile up here as summaries. Use them for "what problem, how solved" in a portfolio or resume.'));
 
   const tools = el('div', 'rtools');
   const search = el('input');
-  search.placeholder = '요청·결과·파일·팀·태그 검색';
-  search.setAttribute('aria-label', '기록 검색');
+  search.placeholder = 'Search request, result, files, team, tags';
+  search.setAttribute('aria-label', 'Search records');
   const searchBox = el('div', 'rsearch');
-  const searchClear = iconButton('close', '검색어 지우기', () => {
+  const searchClear = iconButton('close', 'Clear search', () => {
     search.value = '';
     filter = { ...filter, text: '' };
     searchClear.hidden = true;
@@ -107,7 +107,7 @@ export function buildRecords(deps: RecordsViewDeps) {
   const detail = el('div', 'rcdet pane');
   body.append(list, detail);
 
-  const foot = el('div', 'rcfoot', '기록은 이 컴퓨터에만 저장돼요. 코드·비밀 값·전체 로그는 담지 않고 요약만 남겨요. 내 AWS(S3)로 보내는 기능은 나중에 열려요.');
+  const foot = el('div', 'rcfoot', 'Records stay on this computer. Only summaries are kept: no code, secrets or full logs. Sending to your AWS (S3) opens later.');
   root.append(head, tools, tagBar, body, foot);
 
   function select<T extends string>(options: readonly (readonly [T, string])[], value: T, label: string, onChange: (v: T) => void): HTMLSelectElement {
@@ -130,15 +130,15 @@ export function buildRecords(deps: RecordsViewDeps) {
   }
 
   function renderTools(): void {
-    const status = select([['all', '상태 전체'], ['done', '끝남'], ['stopped', '멈춤']] as const, filter.status, '상태로 거르기', (v) => {
+    const status = select([['all', 'All statuses'], ['done', 'Done'], ['stopped', 'Stopped']] as const, filter.status, 'Filter by status', (v) => {
       filter = { ...filter, status: v };
       renderList();
     });
-    const repo = select([['', '레포 전체'] as const, ...book.repos().map((r) => [r, r] as const)], filter.repo ?? '', '레포로 거르기', (v) => {
+    const repo = select([['', 'All repos'] as const, ...book.repos().map((r) => [r, r] as const)], filter.repo ?? '', 'Filter by repo', (v) => {
       filter = { ...filter, repo: v === '' ? null : v };
       renderList();
     });
-    const when = select(PERIODS.map(([id, label]) => [id, label] as const), period, '기간으로 거르기', (v) => {
+    const when = select(PERIODS.map(([id, label]) => [id, label] as const), period, 'Filter by period', (v) => {
       period = v;
       const days = PERIODS.find(([id]) => id === v)?.[2] ?? null;
       filter = { ...filter, since: days === null ? null : new Date(deps.now() - days * DAY_MS).toISOString() };
@@ -152,11 +152,11 @@ export function buildRecords(deps: RecordsViewDeps) {
       filter = { ...filter, divergedOnly: box.checked };
       renderList();
     });
-    diverged.append(box, el('span', undefined, '내가 다르게 골랐어요'));
+    diverged.append(box, el('span', undefined, 'I chose differently'));
     const copyAll = actionButton({
-      label: '보이는 기록 복사',
+      label: 'Copy visible',
       icon: 'copy',
-      title: '지금 목록에 보이는 기록을 마크다운으로 복사해요',
+      title: 'Copy the records shown in the list as Markdown',
       onClick: () => {
         const shown = book.view(filter);
         void deps.copy(shown.map((e) => RecordDto.toMarkdown(e, whenText)).join('\n\n---\n\n')).then((ok) => done(ok, shown.length));
@@ -175,7 +175,7 @@ export function buildRecords(deps: RecordsViewDeps) {
       b.addEventListener('click', onClick);
       tagBar.append(b);
     };
-    chip(`전체 ${book.entries.length}`, filter.tag === null, () => {
+    chip(`All ${book.entries.length}`, filter.tag === null, () => {
       filter = { ...filter, tag: null };
       renderList();
     });
@@ -188,7 +188,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     }
     const n = filterKeys().length;
     if (n > 0) {
-      const clear = actionButton({ label: '필터 지우기', icon: 'close', kind: 'ghost', small: true, title: `걸어 둔 조건 ${n}개를 모두 지워요`, onClick: clearFilters });
+      const clear = actionButton({ label: 'Clear filters', icon: 'close', kind: 'ghost', small: true, title: `Clear all ${n} active filter(s)`, onClick: clearFilters });
       clear.classList.add('end');
       tagBar.append(clear);
     }
@@ -228,20 +228,20 @@ export function buildRecords(deps: RecordsViewDeps) {
     const view = currentView(shown);
     body.classList.toggle('show-detail', view !== 'none');
     for (const id of [...picked]) if (!book.has(id)) picked.delete(id);
-    list.replaceChildren(el('div', 'ph', `기록 ${shown.length}${shown.length !== book.entries.length ? ` / ${book.entries.length}` : ''}`));
+    list.replaceChildren(el('div', 'ph', `Records ${shown.length}${shown.length !== book.entries.length ? ` / ${book.entries.length}` : ''}`));
     if (book.entries.length > 0) list.append(pickBar(shown, view));
     if (!loaded) {
       const wait = el('div', 'rnone');
-      wait.append(el('span', 'spinner'), document.createTextNode('불러오는 중…'));
+      wait.append(el('span', 'spinner'), document.createTextNode('Loading…'));
       list.append(wait);
     } else if (book.entries.length === 0) {
       const none = el('div', 'rnone');
-      none.append(el('b', undefined, '기록이 아직 없어요'), el('span', 'hint', '팀이 작업을 끝내면 요약이 여기에 쌓여요.'));
+      none.append(el('b', undefined, 'No records yet'), el('span', 'hint', 'When a team finishes a job, its summary appears here.'));
       list.append(none);
     } else if (shown.length === 0) {
       const none = el('div', 'rnone');
-      none.append(el('b', undefined, '조건에 맞는 기록이 없어요'));
-      if (filterKeys().length > 0) none.append(actionButton({ label: '필터 지우기', icon: 'close', small: true, onClick: clearFilters }));
+      none.append(el('b', undefined, 'No records match'));
+      if (filterKeys().length > 0) none.append(actionButton({ label: 'Clear filters', icon: 'close', small: true, onClick: clearFilters }));
       list.append(none);
     }
     const items = el('div', 'ritems');
@@ -291,8 +291,8 @@ export function buildRecords(deps: RecordsViewDeps) {
     const top = el('div', 'bar');
     top.append(el('span', `grow rpick-sum${s.canClear ? ' on' : ''}`, s.summary));
     const all = actionButton({
-      label: '전체 선택',
-      title: '지금 보이는 기록을 모두 체크해요',
+      label: 'Select all',
+      title: 'Check every record shown',
       onClick: () => {
         for (const e of shown) picked.add(e.id);
         renderList();
@@ -300,7 +300,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     });
     all.disabled = !s.canSelectAll;
     const none = actionButton({
-      label: '선택 해제',
+      label: 'Clear selection',
       icon: 'close',
       kind: 'ghost',
       onClick: () => {
@@ -317,19 +317,19 @@ export function buildRecords(deps: RecordsViewDeps) {
     {
       if (deps.blog !== undefined) {
         const make = actionButton({
-          label: '블로그 글',
+          label: 'Blog post',
           icon: 'doc',
           kind: primaryRecordAction(picked.size, view) === 'pick-blog' ? 'primary' : undefined,
-          title: '체크한 기록으로 블로그 글 정리 노트를 만들어요',
+          title: 'Make a blog post outline from the checked records',
           onClick: () => openBlog([...picked]),
         });
         make.disabled = !s.canBlog;
         acts.append(make);
       }
       const copy = actionButton({
-        label: '복사',
+        label: 'Copy',
         icon: 'copy',
-        title: '체크한 기록을 마크다운으로 복사해요',
+        title: 'Copy the checked records as Markdown',
         onClick: () => {
           const chosen = book.entries.filter((e) => picked.has(e.id));
           void deps.copy(chosen.map((e) => RecordDto.toMarkdown(e, whenText)).join('\n\n---\n\n')).then((ok) => done(ok, chosen.length));
@@ -337,10 +337,10 @@ export function buildRecords(deps: RecordsViewDeps) {
       });
       copy.disabled = !s.canCopy;
       const del = actionButton({
-        label: '삭제',
+        label: 'Delete',
         icon: 'trash',
         kind: 'danger',
-        title: '체크한 기록을 지워요(확인 창이 떠요)',
+        title: 'Delete the checked records (asks first)',
         onClick: () => void askRemove([...picked]),
       });
       del.disabled = !s.canDelete;
@@ -353,7 +353,7 @@ export function buildRecords(deps: RecordsViewDeps) {
 
   /** 지우기 확인 창(앱 공통 confirm). 무엇을 몇 개 지우는지, 되돌릴 수 없다는 것을 말하고 취소가 먼저 선택돼 있다 */
   async function askRemove(ids: readonly string[]): Promise<void> {
-    const d = deleteDialog(ids.map((id) => book.get(id)?.request ?? '모름'));
+    const d = deleteDialog(ids.map((id) => book.get(id)?.request ?? 'Unknown'));
     const res = await askDialog({ title: d.title, body: d.body, okLabel: d.okLabel, danger: true });
     if (res.ok) await removeMany(ids);
   }
@@ -366,7 +366,7 @@ export function buildRecords(deps: RecordsViewDeps) {
       try {
         res = await deps.api.apply({ kind: 'remove', id });
       } catch {
-        res = { ok: false, error: '기록을 지우지 못했어요.' };
+        res = { ok: false, error: 'Could not delete the records.' };
       }
       if (!res.ok) {
         say(res.error);
@@ -379,7 +379,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     }
     if (last !== null) {
       book = RecordBookDto.from(last).toEntity();
-      flash(`${removed}개 기록을 지웠어요`, root);
+      flash(`Deleted ${removed} record(s)`, root);
     }
     renderList();
   }
@@ -399,8 +399,8 @@ export function buildRecords(deps: RecordsViewDeps) {
     const box = el('input');
     box.type = 'checkbox';
     box.checked = picked.has(e.id);
-    box.title = '체크해서 묶기(복사·블로그 글·삭제). Shift+클릭은 범위 선택';
-    box.setAttribute('aria-label', `${e.request} 체크`);
+    box.title = 'Check to group (copy, blog post, delete). Shift+click selects a range';
+    box.setAttribute('aria-label', `Check ${e.request}`);
     box.tabIndex = -1;
     box.addEventListener('click', (ev) => {
       const ids = ev.shiftKey ? rangeBetween(book.view(filter).map((x) => x.id), lastPicked, e.id) : [e.id];
@@ -420,15 +420,15 @@ export function buildRecords(deps: RecordsViewDeps) {
     const b = el('button', `ri${e.id === selected ? ' on' : ''}`);
     b.type = 'button';
     b.tabIndex = tab ? 0 : -1;
-    b.title = '누르거나 Enter로 열어요 (x: 체크)';
+    b.title = 'Click or press Enter to open (x: check)';
     b.append(el('div', 'rt', e.request));
     const chips = el('div', 'tchips');
-    chips.append(el('span', e.status === 'done' ? 'chip green' : 'chip red', e.status === 'done' ? '끝남' : '멈춤'));
+    chips.append(el('span', e.status === 'done' ? 'chip green' : 'chip red', e.status === 'done' ? 'Done' : 'Stopped'));
     for (const t of e.tags.slice(0, 2)) chips.append(el('span', 'chip purple', tagLabel(t)));
     if (e.tags.length > 2) chips.append(el('span', 'chip', `+${e.tags.length - 2}`));
-    if (e.divergedFromAi()) chips.append(el('span', 'chip yellow', '다르게 골랐어요'));
+    if (e.divergedFromAi()) chips.append(el('span', 'chip yellow', 'Chose differently'));
     b.append(chips);
-    b.append(el('div', 'rm', `${whenText(e.endedAt)} · ${durationText(e.durationSeconds())}${e.repo === null ? '' : ` · ${e.repo}`}`));
+    b.append(el('div', 'rm', `${whenText(e.endedAt)} · ${shortDuration(e.durationSeconds())}${e.repo === null ? '' : ` · ${e.repo}`}`));
     b.addEventListener('click', () => {
       selected = e.id;
       blogIds = null;
@@ -451,7 +451,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     try {
       res = await deps.api.apply(op);
     } catch {
-      res = { ok: false, error: '기록을 저장하지 못했어요.' };
+      res = { ok: false, error: 'Could not save the record.' };
     }
     if (res.ok) {
       book = RecordBookDto.from(res.book).toEntity();
@@ -508,32 +508,32 @@ export function buildRecords(deps: RecordsViewDeps) {
     const e = selected === null ? null : book.get(selected);
     if (e === null || view !== 'detail') {
       const empty = el('div', 'rnone');
-      if (book.entries.length > 0) empty.append(el('b', undefined, '기록을 골라 주세요'), el('span', 'hint', '왼쪽에서 기록을 누르면 자세한 내용이 보여요. ↑↓로 옮기고 Enter로 열어요.'));
+      if (book.entries.length > 0) empty.append(el('b', undefined, 'Pick a record'), el('span', 'hint', 'Click a record on the left to see details. Move with ↑↓ and open with Enter.'));
       detail.append(empty);
       return;
     }
 
     // 위쪽 한 줄(스크롤해도 고정): 되돌아가기 · 블로그 글 · 복사(강조) · 지우기(위험, 맨 오른쪽)
     const bar = el('div', 'bar rdbar');
-    bar.append(actionButton({ label: '목록', icon: 'back', title: '목록으로 돌아가기 (Esc)', onClick: goBack }));
+    bar.append(actionButton({ label: 'List', icon: 'back', title: 'Back to the list (Esc)', onClick: goBack }));
     if (deps.blog !== undefined) {
-      const blog = actionButton({ label: '블로그 글', icon: 'doc', title: '이 기록으로 블로그 글 정리 노트를 만들어요', onClick: () => openBlog([e.id]) });
+      const blog = actionButton({ label: 'Blog post', icon: 'doc', title: 'Make a blog post outline from this record', onClick: () => openBlog([e.id]) });
       blog.classList.add('end');
       bar.append(blog);
     }
     const copy = actionButton({
-      label: '복사',
+      label: 'Copy',
       icon: 'copy',
       kind: primaryRecordAction(picked.size, view) === 'detail-copy' ? 'primary' : undefined,
-      title: '이 기록을 마크다운으로 복사해요',
+      title: 'Copy this record as Markdown',
       onClick: () => void deps.copy(RecordDto.toMarkdown(e, whenText)).then((ok) => done(ok, 1)),
     });
     if (deps.blog === undefined) copy.classList.add('end');
     const del = actionButton({
-      label: '지우기',
+      label: 'Delete',
       icon: 'trash',
       kind: 'danger',
-      title: '이 기록을 지워요(확인 창이 떠요)',
+      title: 'Delete this record (asks first)',
       onClick: () => void askRemove([e.id]),
     });
     bar.append(copy, del);
@@ -544,10 +544,10 @@ export function buildRecords(deps: RecordsViewDeps) {
     heading.title = e.request;
     title.append(heading);
     const meta = el('div', 'tchips');
-    meta.append(el('span', e.status === 'done' ? 'chip green' : 'chip red', e.status === 'done' ? '끝남' : `멈춤${e.stopReason === null ? '' : ` · ${e.stopReason}`}`));
-    meta.append(el('span', 'chip', whenText(e.endedAt)), el('span', 'chip', `걸린 시간 ${durationText(e.durationSeconds())}`));
+    meta.append(el('span', e.status === 'done' ? 'chip green' : 'chip red', e.status === 'done' ? 'Done' : `Stopped${e.stopReason === null ? '' : ` · ${e.stopReason}`}`));
+    meta.append(el('span', 'chip', whenText(e.endedAt)), el('span', 'chip', `Took ${shortDuration(e.durationSeconds())}`));
     if (e.repo !== null) meta.append(el('span', 'chip blue', e.repo));
-    if (e.divergedFromAi()) meta.append(el('span', 'chip yellow', '내가 다르게 골랐어요'));
+    if (e.divergedFromAi()) meta.append(el('span', 'chip yellow', 'I chose differently'));
     detail.append(title, meta);
 
     // 태그: 칩을 누르면 메뉴가 열려 바꿀 수 있다(작은 ▾). 자동으로 어림한 값을 내가 고칠 수 있다
@@ -555,7 +555,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     const openTags = (anchor: HTMLElement) =>
       openChoiceMenu(
         anchor,
-        '태그 (눌러서 켜고 꺼요)',
+        'Tags (click to toggle)',
         RECORD_TAGS.map((t) => {
           const on = e.tags.includes(t.id);
           return { label: t.label, on, pick: () => void send({ kind: 'tags', id: e.id, tags: on ? e.tags.filter((x) => x !== t.id) : [...e.tags, t.id] }) };
@@ -564,65 +564,65 @@ export function buildRecords(deps: RecordsViewDeps) {
     const tagChip = (text: string): HTMLButtonElement => {
       const b = el('button', 'chip purple');
       b.type = 'button';
-      b.title = '눌러서 태그를 바꿔요';
+      b.title = 'Click to change tags';
       b.setAttribute('aria-haspopup', 'menu');
       b.setAttribute('aria-expanded', 'false');
       b.append(document.createTextNode(text), el('span', 'rcaret', '▾'));
       b.addEventListener('click', () => openTags(b));
       return b;
     };
-    if (e.tags.length === 0) tagRow.append(tagChip('태그 없음'));
+    if (e.tags.length === 0) tagRow.append(tagChip('No tags'));
     for (const t of e.tags) tagRow.append(tagChip(tagLabel(t)));
-    detail.append(section('태그 (눌러서 바꿔요)', tagRow));
+    detail.append(section('Tags (click to change)', tagRow));
 
-    detail.append(section('문제(요청)', e.request));
-    detail.append(section('접근 · 거친 단계', e.stages.length === 0 ? '모름' : e.stages.join(' → '), ...(e.roles.length === 0 ? [] : [el('div', 'rtext dim', `일한 팀원: ${e.roles.join(', ')}`)])));
-    detail.append(section('결과 요약', el('div', 'rtext pre', e.summary)));
+    detail.append(section('Problem (request)', e.request));
+    detail.append(section('Approach · stages', e.stages.length === 0 ? 'Unknown' : e.stages.join(' → '), ...(e.roles.length === 0 ? [] : [el('div', 'rtext dim', `Team members: ${e.roles.join(', ')}`)])));
+    detail.append(section('Result summary', el('div', 'rtext pre', e.summary)));
 
     if (e.direction !== null) {
       const d = e.direction;
       const table = el('div', 'rdir');
       const row = (label: string, value: string, mark: boolean) => {
         const r = el('div', `rrow${mark ? ' hl' : ''}`);
-        r.append(el('span', 'rl', label), el('span', undefined, value === '' ? '모름' : value));
+        r.append(el('span', 'rl', label), el('span', undefined, value === '' ? 'Unknown' : value));
         table.append(r);
       };
-      row('AI 추천', d.recommended, false);
-      row('내 선택', d.chosen, e.divergedFromAi());
-      if (d.reason !== null) row('이유', d.reason, false);
-      detail.append(section('고려한 방향', table));
+      row('AI recommended', d.recommended, false);
+      row('My choice', d.chosen, e.divergedFromAi());
+      if (d.reason !== null) row('Reason', d.reason, false);
+      detail.append(section('Directions considered', table));
     }
 
     if (e.approvals.length > 0) {
       const ul = el('div', 'rapp');
       for (const a of e.approvals) {
         const line = el('div', `rrow${a.decision === 'revise' ? ' hl' : ''}`);
-        line.append(el('b', undefined, a.headline), el('span', 'chip', decisionLabel(a.decision)));
-        if (a.reason !== '') line.append(el('span', 'dim', `이유: ${a.reason}`));
-        if (a.note !== null) line.append(el('span', 'dim', `내 말: ${a.note}`));
+        line.append(el('b', undefined, a.headline), el('span', 'chip', DECISION_CHIP[a.decision]));
+        if (a.reason !== '') line.append(el('span', 'dim', `Reason: ${a.reason}`));
+        if (a.note !== null) line.append(el('span', 'dim', `My note: ${a.note}`));
         ul.append(line);
       }
-      detail.append(section('허락 결정과 이유', ul));
+      detail.append(section('Approvals and reasons', ul));
     }
 
     const filesBox = el('div', 'rfiles');
     for (const f of e.files) filesBox.append(el('div', 'rfile', f));
-    if (e.moreFiles > 0) filesBox.append(el('div', 'rfile dim', `외 ${e.moreFiles}개`));
-    if (e.hiddenFiles > 0) filesBox.append(el('div', 'rfile dim', `비밀 파일 ${e.hiddenFiles}개는 이름도 남기지 않았어요`));
-    detail.append(section('바뀐 파일', e.files.length === 0 && e.hiddenFiles === 0 ? '기록된 바뀐 파일이 없어요' : filesBox));
+    if (e.moreFiles > 0) filesBox.append(el('div', 'rfile dim', `+${e.moreFiles} more`));
+    if (e.hiddenFiles > 0) filesBox.append(el('div', 'rfile dim', `${e.hiddenFiles} secret file(s) were not even named`));
+    detail.append(section('Changed files', e.files.length === 0 && e.hiddenFiles === 0 ? 'No changed files recorded' : filesBox));
 
     const memo = el('textarea');
     memo.rows = 3;
     memo.maxLength = 500;
     memo.value = e.memo;
-    memo.setAttribute('aria-label', '내 메모');
-    memo.placeholder = '면접·포트폴리오에서 말할 것, 배운 점 (비밀 값은 적지 마세요. 적어도 가려져요)';
-    const saveMemo = actionButton({ label: '메모 저장', icon: 'save', onClick: () => void send({ kind: 'memo', id: e.id, memo: memo.value }, '메모를 저장했어요') });
+    memo.setAttribute('aria-label', 'My memo');
+    memo.placeholder = 'What to say in interviews or a portfolio, what you learned (do not write secrets; they get hidden anyway)';
+    const saveMemo = actionButton({ label: 'Save memo', icon: 'save', onClick: () => void send({ kind: 'memo', id: e.id, memo: memo.value }, 'Memo saved') });
     saveMemo.disabled = true;
     memo.addEventListener('input', () => {
       saveMemo.disabled = memo.value === e.memo;
     });
-    detail.append(section('내 메모', memo, saveMemo));
+    detail.append(section('My memo', memo, saveMemo));
   }
 
   function replace(json: RecordBookJson): void {
@@ -643,7 +643,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     },
     () => {
       loaded = true;
-      say('기록을 읽지 못했어요.');
+      say('Could not load the records.');
       renderList();
     },
   );
