@@ -17,8 +17,8 @@ describe('installGuide', () => {
   });
 
   it('확인 결과가 있으면 새 버전 여부를 첫 줄에 말한다', () => {
-    expect(installGuide('darwin', newer).lines[0]).toBe('새 버전 0.2.0이 있어요.');
-    expect(installGuide('win32', { newer: false, latest: '0.1.2', hasDownload: true }).lines[0]).toBe('지금 최신 버전이에요.');
+    expect(installGuide('darwin', newer).lines[0]).toBe('New version 0.2.0 available.');
+    expect(installGuide('win32', { newer: false, latest: '0.1.2', hasDownload: true }).lines[0]).toBe('You are up to date.');
     expect(installGuide('darwin', null).lines).toHaveLength(1);
   });
 });

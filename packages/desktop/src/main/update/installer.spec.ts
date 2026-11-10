@@ -133,7 +133,7 @@ describe('앱 안 설치', () => {
     h.onInstalling = (i) => notes.push(i.note);
     await t.installer.run(REQUEST, h);
     expect(t.spawned[0]?.args[4]).toBe('/Applications/Rauha.app');
-    expect(notes[0]).toContain('임시 위치');
+    expect(notes[0]).toContain('temporary place');
   });
 
   it('/Applications에 쓸 수 없으면 사용자 Applications에 설치한다', async () => {

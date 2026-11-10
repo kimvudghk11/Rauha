@@ -1,20 +1,20 @@
 import type { UpdateView } from '../shared/update-record.js';
 
-export const MAC_INSTALL_NOTE = '내려받은 뒤 Applications에 덮어쓰고, 처음 열 때 경고가 뜨면 터미널에서 xattr -dr com.apple.quarantine /Applications/rauha.app';
+export const MAC_INSTALL_NOTE = 'After downloading, copy it over Applications. If a warning appears on first launch, run this in Terminal: xattr -dr com.apple.quarantine /Applications/rauha.app';
 
 /** 설정의 새 버전 구역 한 줄: 맥 첫 설치 경고(Gatekeeper)는 코드로 없앨 수 없지만, 앱 안 업데이트로 받은 파일에는 안 뜬다 */
-export const GATEKEEPER_NOTE = '맥: 처음 설치할 때의 "확인할 수 없는 앱" 경고는 한 번뿐이에요. 앱 안 "지금 업데이트"로 받은 새 버전에는 다시 뜨지 않아요.';
+export const GATEKEEPER_NOTE = 'Mac: the "unidentified developer" warning appears only on the first install. Versions installed with "Update now" inside the app do not show it again.';
 
 /** 위쪽 배너의 글(돈·가격 표시 없음) */
 export function bannerText(view: UpdateView): string {
-  const base = `새 버전 v${view.latest ?? ''}가 있어요`;
-  return view.hasDownload ? base : `${base} · 내 컴퓨터용 설치 파일을 준비 중이에요`;
+  const base = `New version v${view.latest ?? ''} available`;
+  return view.hasDownload ? base : `${base} · installer for this computer is being prepared`;
 }
 
 /** 설정 화면의 확인 상태 한 줄. time은 마지막 확인 시각을 사람이 읽는 글로 바꾼 것 */
 export function checkedText(view: UpdateView, time: string): string {
-  if (view.checking) return '확인하는 중…';
-  if (view.failed) return view.failReason === null ? '지금은 확인하지 못했어요' : `확인하지 못했어요: ${view.failReason}`;
-  if (view.checkedAt === null) return '아직 확인하지 않았어요';
-  return `마지막 확인 ${time} · ${view.newer ? `새 버전 v${view.latest ?? ''}가 있어요` : `최신 버전이에요 (v${view.current})`}`;
+  if (view.checking) return 'Checking…';
+  if (view.failed) return view.failReason === null ? 'Could not check right now' : `Could not check: ${view.failReason}`;
+  if (view.checkedAt === null) return 'Not checked yet';
+  return `Last checked ${time} · ${view.newer ? `New version v${view.latest ?? ''} available` : `You are up to date (v${view.current})`}`;
 }

@@ -47,9 +47,9 @@ describe('맥 설치 위치 정하기', () => {
   });
 
   it('설치 위치 안내 글은 위치와 이유를 알린다', () => {
-    expect(targetNote({ path: '/Applications/Rauha.app', relocated: false, why: 'in-place' })).toBe('설치 위치: /Applications/Rauha.app');
-    expect(targetNote({ path: '/Applications/Rauha.app', relocated: true, why: 'translocated' })).toContain('임시 위치');
+    expect(targetNote({ path: '/Applications/Rauha.app', relocated: false, why: 'in-place' })).toBe('Installs to: /Applications/Rauha.app');
+    expect(targetNote({ path: '/Applications/Rauha.app', relocated: true, why: 'translocated' })).toContain('temporary place');
     expect(targetNote({ path: '/Applications/Rauha.app', relocated: true, why: 'disk-image' })).toContain('dmg');
-    expect(targetNote({ path: '/Users/kim/Applications/Rauha.app', relocated: true, why: 'not-writable' })).toContain('권한');
+    expect(targetNote({ path: '/Users/kim/Applications/Rauha.app', relocated: true, why: 'not-writable' })).toContain('permission');
   });
 });

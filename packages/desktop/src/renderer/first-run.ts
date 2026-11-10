@@ -32,24 +32,24 @@ export async function offerTerminalCleanup(): Promise<void> {
   }
   const veil = el('div', 'veil');
   const box = el('div', 'dialog');
-  box.append(el('b', undefined, '예전 터미널 rauha를 지울까요?'), el('p', undefined, '이 앱이 대신하므로 아래 실행 파일을 지워요. 기억·학습 노트·대화 기록은 그대로 둬요.'));
+  box.append(el('b', undefined, 'Remove the old terminal rauha?'), el('p', undefined, 'This app replaces it, so the files below will be deleted. Memory, learning notes and chat history are kept.'));
   const list = el('ul');
   for (const f of found) list.appendChild(el('li', undefined, f.path));
   box.appendChild(list);
   const row = el('div', 'btns');
-  const remove = el('button', 'btn primary', '지우기');
-  const keep = el('button', 'btn', '그대로 두기');
+  const remove = el('button', 'btn primary', 'Delete');
+  const keep = el('button', 'btn', 'Keep');
   const done = (message: string) => {
     markSeen();
     box.replaceChildren(el('p', undefined, message), (() => {
-      const ok = el('button', 'btn', '닫기');
+      const ok = el('button', 'btn', 'Close');
       ok.addEventListener('click', () => veil.remove());
       return ok;
     })());
   };
   remove.addEventListener('click', async () => {
     const removed = await window.rauha.removeTerminalRauha(found.map((f) => f.path));
-    done(removed.length > 0 ? `${removed.length}개를 지웠어요.` : '지운 파일이 없어요.');
+    done(removed.length > 0 ? `Deleted ${removed.length} file(s).` : 'No files were deleted.');
   });
   keep.addEventListener('click', () => {
     markSeen();
@@ -98,10 +98,10 @@ export function runWizard(api: WizardApi): Promise<void> {
 
     const folderStep = () => {
       goBack = null;
-      const pick = el('button', 'btn primary', '폴더 고르기');
-      const next = el('button', 'btn', '다음');
+      const pick = el('button', 'btn primary', 'Choose folder');
+      const next = el('button', 'btn', 'Next');
       next.disabled = folder === null;
-      const shown = el('div', 'dim path', folder ?? '아직 안 골랐어요.');
+      const shown = el('div', 'dim path', folder ?? 'Not chosen yet.');
       pick.addEventListener('click', async () => {
         const p = await api.pickFolder();
         if (p === null) return;
@@ -112,18 +112,18 @@ export function runWizard(api: WizardApi): Promise<void> {
         next.focus();
       });
       next.addEventListener('click', () => void approveStep());
-      box.replaceChildren(el('b', undefined, '1/3 · 일할 폴더를 골라요'), el('p', undefined, '레포와 문서 폴더가 들어 있는 폴더 하나를 골라 주세요. rauha가 그 안을 훑어서 레포와 문서 폴더를 알아서 구분해요. 파일 내용은 일을 맡았을 때 필요한 만큼만 읽어요.'), shown, row(pick, next));
+      box.replaceChildren(el('b', undefined, '1/3 · Choose a work folder'), el('p', undefined, 'Choose one folder that contains your repos and doc folders. rauha scans it and tells them apart. File contents are read only as needed when a job is given.'), shown, row(pick, next));
       focusFirst(pick);
     };
     const approveStep = async () => {
       goBack = folderStep;
-      const yes = el('button', 'btn primary', '허락해요');
-      const back = el('button', 'btn', '다른 폴더 고르기');
+      const yes = el('button', 'btn primary', 'Allow');
+      const back = el('button', 'btn', 'Choose another folder');
       const warn = el('p', 'warn-note');
       warn.hidden = true;
       yes.addEventListener('click', () => void accountStep());
       back.addEventListener('click', folderStep);
-      box.replaceChildren(el('b', undefined, '2/3 · 이 폴더에서 일해도 될까요?'), el('div', 'dim path', folder ?? ''), el('p', undefined, '팀원이 이 안의 파일을 읽고 고칠 수 있어요. 위험한 일(보호 브랜치 push, 운영 인프라 변경 등)은 그때마다 허락을 물어요.'), warn, row(yes, back));
+      box.replaceChildren(el('b', undefined, '2/3 · Allow work in this folder?'), el('div', 'dim path', folder ?? ''), el('p', undefined, 'Teammates can read and edit files inside. Risky actions (pushing to a protected branch, changing production infrastructure) ask for permission each time.'), warn, row(yes, back));
       focusFirst(yes);
       // 레포가 하나도 없는 폴더면 미리 알린다(코드 작업은 레포가 있어야 한다)
       if (api.listRepos === undefined || folder === null) return;
@@ -131,7 +131,7 @@ export function runWizard(api: WizardApi): Promise<void> {
         await api.update({ workFolder: folder });
         const found = await api.listRepos();
         if (found.some((r) => r.kind === 'repo')) return;
-        warn.textContent = '이 폴더에서 git 레포를 찾지 못했어요. 질문·문서 일은 할 수 있지만 코드 작업은 레포가 있는 폴더가 필요해요. 다른 폴더를 고르거나 그대로 진행해도 돼요.';
+        warn.textContent = 'No git repo found in this folder. Questions and docs still work, but code work needs a folder with repos. Choose another folder or continue as is.';
         warn.hidden = false;
       } catch {
         /* 확인 못 하면 경고 없이 진행한다 */
@@ -141,10 +141,10 @@ export function runWizard(api: WizardApi): Promise<void> {
       goBack = () => void approveStep();
       const { names } = await api.accounts();
       const select = el('select');
-      select.appendChild(new Option('폴더 규칙에 맡기기(기본)', ''));
+      select.appendChild(new Option('Follow folder rules (default)', ''));
       for (const n of names) select.appendChild(new Option(n, n));
-      const done = el('button', 'btn primary', '시작하기');
-      const prev = el('button', 'btn', '이전');
+      const done = el('button', 'btn primary', 'Get started');
+      const prev = el('button', 'btn', 'Back');
       prev.addEventListener('click', () => void approveStep());
       done.addEventListener('click', async () => {
         if (done.disabled) return;
@@ -153,7 +153,7 @@ export function runWizard(api: WizardApi): Promise<void> {
         veil.remove();
         resolve();
       });
-      box.replaceChildren(el('b', undefined, '3/3 · 쓸 Claude 계정'), el('p', undefined, '쓸 계정을 골라요. 아직 로그인하지 않았다면 아래 버튼으로 브라우저에서 로그인해요. 토큰은 읽지 않아요.'), select, ...(api.auth === undefined ? [] : [createLoginControl(api.auth).root]), row(prev, done));
+      box.replaceChildren(el('b', undefined, '3/3 · Claude account to use'), el('p', undefined, 'Choose the account to use. If you are not logged in yet, use the button below to log in in your browser. Tokens are never read.'), select, ...(api.auth === undefined ? [] : [createLoginControl(api.auth).root]), row(prev, done));
       focusFirst(select);
     };
     folderStep();

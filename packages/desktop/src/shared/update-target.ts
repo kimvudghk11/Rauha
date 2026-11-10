@@ -47,17 +47,17 @@ export function chooseMacTarget(input: MacTargetInput): MacTarget | null {
 
 /** 모달에 "어디에 설치하는지"를 알리는 한 줄 */
 export function targetNote(target: MacTarget): string {
-  const where = `설치 위치: ${target.path}`;
+  const where = `Installs to: ${target.path}`;
   switch (target.why) {
     case 'in-place':
       return where;
     case 'translocated':
-      return `${where} (앱이 Downloads 같은 임시 위치에서 열려 있어서 Applications에 설치해요)`;
+      return `${where} (the app is running from a temporary place like Downloads, so it installs to Applications)`;
     case 'disk-image':
-      return `${where} (앱이 설치 파일(dmg) 안에서 열려 있어서 Applications에 설치해요)`;
+      return `${where} (the app is running from the installer (dmg), so it installs to Applications)`;
     case 'outside-applications':
-      return `${where} (앱이 Applications 밖에 있어서 Applications에 설치해요)`;
+      return `${where} (the app is outside Applications, so it installs to Applications)`;
     case 'not-writable':
-      return `${where} (원래 위치에 쓸 권한이 없어서 이곳에 설치해요)`;
+      return `${where} (no permission to write at the original location, so it installs here)`;
   }
 }

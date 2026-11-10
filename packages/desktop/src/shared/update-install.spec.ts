@@ -72,13 +72,13 @@ describe('업데이트 설치 계획', () => {
 
   it('진행 상태는 한 줄 글로 보인다', () => {
     const t = (s: InstallState) => installStateText(s);
-    expect(t({ phase: 'downloading', percent: 42 })).toBe('내려받는 중 42%');
-    expect(t({ phase: 'downloading', percent: null })).toBe('내려받는 중…');
-    expect(t({ phase: 'checking', percent: null })).toBe('확인하는 중…');
-    expect(t({ phase: 'verifying', percent: null })).toBe('파일 확인 중…');
-    expect(t({ phase: 'preparing', percent: null })).toBe('설치 준비 중…');
-    expect(t({ phase: 'installing', percent: null })).toBe('설치하고 다시 켜는 중…');
-    expect(t({ phase: 'failed', percent: null })).toBe('설치하지 못했어요. 브라우저로 내려받아 설치해 주세요');
+    expect(t({ phase: 'downloading', percent: 42 })).toBe('Downloading 42%');
+    expect(t({ phase: 'downloading', percent: null })).toBe('Downloading…');
+    expect(t({ phase: 'checking', percent: null })).toBe('Checking…');
+    expect(t({ phase: 'verifying', percent: null })).toBe('Verifying file…');
+    expect(t({ phase: 'preparing', percent: null })).toBe('Preparing to install…');
+    expect(t({ phase: 'installing', percent: null })).toBe('Installing and restarting…');
+    expect(t({ phase: 'failed', percent: null })).toBe('Could not install. Download it in your browser and install it manually');
     expect(t({ phase: 'idle', percent: null })).toBe('');
   });
 
@@ -90,8 +90,8 @@ describe('업데이트 설치 계획', () => {
 
   it('실패 이유는 코드마다 한 줄이고, 모르는 오류도 빈 칸이 없다', () => {
     expect(failureText(new InstallFailure('http', '404'))).toContain('404');
-    expect(failureText(new InstallFailure('stalled'))).toContain('30초');
+    expect(failureText(new InstallFailure('stalled'))).toContain('30 seconds');
     expect(failureText(new InstallFailure('target-unwritable'))).toContain('Applications');
-    expect(failureText(new Error('x'))).toBe('예상하지 못한 오류로 멈췄어요');
+    expect(failureText(new Error('x'))).toBe('Stopped because of an unexpected error');
   });
 });

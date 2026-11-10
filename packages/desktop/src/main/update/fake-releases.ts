@@ -27,7 +27,7 @@ export function fakeInstaller(failing: boolean, stepMs = 400): import('./update-
       await sleep(stepMs);
       hooks.onStage('preparing');
       await sleep(stepMs);
-      hooks.onInstalling({ target: '/Applications/Rauha.app', note: '설치 위치: /Applications/Rauha.app (확인용 가짜 설치)' });
+      hooks.onInstalling({ target: '/Applications/Rauha.app', note: 'Installs to: /Applications/Rauha.app (fake install for checking)' });
     },
   };
 }

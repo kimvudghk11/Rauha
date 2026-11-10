@@ -10,7 +10,7 @@ import { bannerText, MAC_INSTALL_NOTE } from './update-text.js';
 const XATTR = 'xattr -dr com.apple.quarantine /Applications/rauha.app';
 
 /** 위쪽 얇은 배너와 설정 화면이 같은 상태를 보도록 한 곳에서 받아 나눠 준다. */
-export function createUpdateFeed(api: UpdateApi, banner: HTMLElement, platform: string, copyDiagnostics: () => Promise<DiagnosticsResult> = async () => ({ ok: false, error: '진단 정보를 만들지 못했어요.' })) {
+export function createUpdateFeed(api: UpdateApi, banner: HTMLElement, platform: string, copyDiagnostics: () => Promise<DiagnosticsResult> = async () => ({ ok: false, error: 'Could not create the diagnostics.' })) {
   const modal = createUpdateModal(api, copyDiagnostics);
   const listeners = new Set<(view: UpdateView) => void>();
   let latest: UpdateView | null = null;
@@ -26,17 +26,17 @@ export function createUpdateFeed(api: UpdateApi, banner: HTMLElement, platform: 
     bar.appendChild(msg);
     if (a.kind === 'failed') {
       if (view.canInstall) {
-        const again = el('button', 'btn sm primary', '다시 시도');
+        const again = el('button', 'btn sm primary', 'Try again');
         again.addEventListener('click', () => void api.install());
         bar.appendChild(again);
       }
       if (view.hasDownload) {
-        const get = el('button', 'btn sm', '브라우저로 받기');
+        const get = el('button', 'btn sm', 'Get in browser');
         get.addEventListener('click', () => void api.download());
         bar.appendChild(get);
       }
     }
-    const ok = el('button', 'btn sm', '확인');
+    const ok = el('button', 'btn sm', 'OK');
     ok.addEventListener('click', () => void api.cancel());
     bar.appendChild(ok);
     banner.replaceChildren(bar);
@@ -55,18 +55,18 @@ export function createUpdateFeed(api: UpdateApi, banner: HTMLElement, platform: 
     bar.appendChild(msg);
     const busy = isInstallBusy(view.install);
     if (view.canInstall) {
-      const now = el('button', 'btn sm primary', busy ? installStateText(view.install) : '지금 업데이트');
+      const now = el('button', 'btn sm primary', busy ? installStateText(view.install) : 'Update now');
       now.disabled = busy;
       now.addEventListener('click', () => void api.install());
       bar.appendChild(now);
     }
     if (view.install.phase === 'failed') bar.appendChild(el('span', 'dim', installStateText(view.install)));
     if (view.hasDownload && !busy) {
-      const get = el('button', view.canInstall ? 'btn sm' : 'btn sm primary', view.canInstall ? '브라우저로 받기' : '내려받기');
+      const get = el('button', view.canInstall ? 'btn sm' : 'btn sm primary', view.canInstall ? 'Get in browser' : 'Download');
       get.addEventListener('click', () => void api.download());
       bar.appendChild(get);
     }
-    const later = el('button', 'btn sm', '나중에');
+    const later = el('button', 'btn sm', 'Later');
     later.disabled = busy;
     later.addEventListener('click', () => void api.dismiss());
     bar.appendChild(later);

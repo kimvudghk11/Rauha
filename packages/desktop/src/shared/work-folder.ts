@@ -5,8 +5,8 @@ export interface FolderFacts {
 }
 
 export function workFolderProblem(path: string, facts: FolderFacts): string | null {
-  if (!facts.exists) return `작업 폴더를 찾을 수 없어요(${path}). 지워졌거나 옮겨졌을 수 있어요. 설정에서 작업 폴더를 다시 골라 주세요.`;
-  if (!facts.isDirectory) return `작업 폴더가 폴더가 아니에요(${path}). 설정에서 작업 폴더를 다시 골라 주세요.`;
+  if (!facts.exists) return `Cannot find the work folder (${path}). It may have been deleted or moved. Choose the work folder again in Settings.`;
+  if (!facts.isDirectory) return `The work folder is not a folder (${path}). Choose the work folder again in Settings.`;
   return null;
 }
 

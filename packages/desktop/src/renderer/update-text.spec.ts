@@ -6,38 +6,38 @@ const view = (over: Partial<UpdateView> = {}): UpdateView => ({ current: '0.1.1'
 
 describe('bannerText', () => {
   it('새 버전을 v 붙여 알린다', () => {
-    expect(bannerText(view())).toBe('새 버전 v0.1.2가 있어요');
+    expect(bannerText(view())).toBe('New version v0.1.2 available');
   });
 
   it('내 컴퓨터용 설치 파일이 아직 없으면 그렇게 알린다', () => {
-    expect(bannerText(view({ hasDownload: false }))).toBe('새 버전 v0.1.2가 있어요 · 내 컴퓨터용 설치 파일을 준비 중이에요');
+    expect(bannerText(view({ hasDownload: false }))).toBe('New version v0.1.2 available · installer for this computer is being prepared');
   });
 });
 
 describe('checkedText', () => {
   it('확인 중이면 확인 중이라고 쓴다', () => {
-    expect(checkedText(view({ checking: true }), '')).toBe('확인하는 중…');
+    expect(checkedText(view({ checking: true }), '')).toBe('Checking…');
   });
 
   it('실패는 한 줄로 조용히 쓴다', () => {
-    expect(checkedText(view({ failed: true }), '')).toBe('지금은 확인하지 못했어요');
+    expect(checkedText(view({ failed: true }), '')).toBe('Could not check right now');
   });
 
   it('실패는 이유까지 쓴다', () => {
-    expect(checkedText(view({ failed: true, failReason: '인터넷에 연결되어 있지 않아요' }), '')).toBe('확인하지 못했어요: 인터넷에 연결되어 있지 않아요');
+    expect(checkedText(view({ failed: true, failReason: 'No internet connection' }), '')).toBe('Could not check: No internet connection');
   });
 
   it('아직 확인한 적이 없으면 그렇게 쓴다', () => {
-    expect(checkedText(view(), '')).toBe('아직 확인하지 않았어요');
+    expect(checkedText(view(), '')).toBe('Not checked yet');
   });
 
   it('나중에로 미룬 새 버전도 새 버전이라고 쓴다', () => {
-    expect(checkedText(view({ checkedAt: 'x', showBanner: false }), '오늘')).toBe('마지막 확인 오늘 · 새 버전 v0.1.2가 있어요');
+    expect(checkedText(view({ checkedAt: 'x', showBanner: false }), 'Today')).toBe('Last checked Today · New version v0.1.2 available');
   });
 
   it('마지막 확인 시각과 최신 여부를 쓴다', () => {
-    expect(checkedText(view({ checkedAt: 'x', latest: '0.1.1', newer: false, showBanner: false }), '오늘 오후 3:20')).toBe('마지막 확인 오늘 오후 3:20 · 최신 버전이에요 (v0.1.1)');
-    expect(checkedText(view({ checkedAt: 'x' }), '오늘 오후 3:20')).toBe('마지막 확인 오늘 오후 3:20 · 새 버전 v0.1.2가 있어요');
+    expect(checkedText(view({ checkedAt: 'x', latest: '0.1.1', newer: false, showBanner: false }), 'Today 3:20 PM')).toBe('Last checked Today 3:20 PM · You are up to date (v0.1.1)');
+    expect(checkedText(view({ checkedAt: 'x' }), 'Today 3:20 PM')).toBe('Last checked Today 3:20 PM · New version v0.1.2 available');
   });
 });
 
@@ -50,7 +50,7 @@ describe('MAC_INSTALL_NOTE', () => {
 
 describe('GATEKEEPER_NOTE', () => {
   it('첫 설치 경고는 한 번뿐이고 앱 안 업데이트로 받은 파일에는 안 뜬다고 알린다', () => {
-    expect(GATEKEEPER_NOTE).toContain('처음 설치');
-    expect(GATEKEEPER_NOTE).toContain('지금 업데이트');
+    expect(GATEKEEPER_NOTE).toContain('first install');
+    expect(GATEKEEPER_NOTE).toContain('Update now');
   });
 });

@@ -20,19 +20,19 @@ describe('지난 설치 시도 판정', () => {
   it('버전이 그대로이고 스크립트가 실패 코드를 남겼으면 그 이유를 알린다', () => {
     const o = judgeAttempt(record, 'fail swap', v('0.1.4'), later);
     expect(o).toMatchObject({ kind: 'failed', version: '0.1.5', log: '/u/logs/update-swap.log' });
-    expect(outcomeText(o!)).toContain('업데이트가 적용되지 않았어요: 옛 앱을 새 앱으로 바꾸지 못했어요');
+    expect(outcomeText(o!)).toContain('The update was not applied: Could not replace the old app');
   });
 
   it('앱이 안 닫혀서 실패한 경우 이유를 알린다', () => {
-    expect(outcomeText(judgeAttempt(record, 'fail app-running', v('0.1.4'), later)!)).toContain('60초 안에 닫히지 않아서');
+    expect(outcomeText(judgeAttempt(record, 'fail app-running', v('0.1.4'), later)!)).toContain('did not close within 60 seconds');
   });
 
   it('스크립트는 ok라는데 버전이 그대로면 옛 앱이 열렸다고 알린다', () => {
-    expect(outcomeText(judgeAttempt(record, 'ok\n', v('0.1.4'), later)!)).toContain('이전 버전이 그대로 켜졌어요');
+    expect(outcomeText(judgeAttempt(record, 'ok\n', v('0.1.4'), later)!)).toContain('old version started');
   });
 
   it('결과 기록이 없으면 도중에 멈췄을 수 있다고 알린다', () => {
-    expect(outcomeText(judgeAttempt(record, null, v('0.1.4'), later)!)).toContain('끝났다는 기록이 없어요');
+    expect(outcomeText(judgeAttempt(record, null, v('0.1.4'), later)!)).toContain('No record that the installer finished');
   });
 
   it('시작한 지 얼마 안 됐는데 결과가 없으면 아직 진행 중일 수 있어 판단을 미룬다', () => {
@@ -40,7 +40,7 @@ describe('지난 설치 시도 판정', () => {
   });
 
   it('성공 글은 v 버전으로 업데이트됐다고 한 줄이다', () => {
-    expect(outcomeText({ kind: 'updated', version: '0.1.5', target: null })).toBe('v0.1.5로 업데이트됐어요');
+    expect(outcomeText({ kind: 'updated', version: '0.1.5', target: null })).toBe('Updated to v0.1.5');
   });
 });
 

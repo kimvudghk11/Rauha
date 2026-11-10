@@ -31,11 +31,11 @@ export interface ProgressModal {
 }
 
 const STEPS: ReadonlyArray<{ id: StepId; label: string }> = [
-  { id: 'checking', label: '확인' },
-  { id: 'downloading', label: '내려받기' },
-  { id: 'verifying', label: 'SHA-256 확인' },
-  { id: 'preparing', label: '설치 준비' },
-  { id: 'installing', label: '설치·다시 켜기' },
+  { id: 'checking', label: 'Check' },
+  { id: 'downloading', label: 'Download' },
+  { id: 'verifying', label: 'Verify SHA-256' },
+  { id: 'preparing', label: 'Prepare' },
+  { id: 'installing', label: 'Install · Restart' },
 ];
 
 export function formatMb(bytes: number): string {
@@ -49,32 +49,32 @@ export function downloadSpeed(receivedBytes: number, elapsedMs: number): number 
 }
 
 export function speedText(bytesPerSecond: number): string {
-  return bytesPerSecond >= 0.1 * MB ? `${(bytesPerSecond / MB).toFixed(1)} MB/초` : `${Math.max(1, Math.round(bytesPerSecond / 1024))} KB/초`;
+  return bytesPerSecond >= 0.1 * MB ? `${(bytesPerSecond / MB).toFixed(1)} MB/s` : `${Math.max(1, Math.round(bytesPerSecond / 1024))} KB/s`;
 }
 
 /** 남은 시간 글. 전체 크기나 속도를 모르면 null */
 export function remainingText(receivedBytes: number, totalBytes: number, bytesPerSecond: number | null): string | null {
   if (bytesPerSecond === null || bytesPerSecond <= 0 || totalBytes <= 0 || receivedBytes >= totalBytes) return null;
   const seconds = Math.ceil((totalBytes - receivedBytes) / bytesPerSecond);
-  if (seconds < 60) return `약 ${seconds}초 남음`;
-  if (seconds < 3600) return `약 ${Math.floor(seconds / 60)}분 ${seconds % 60}초 남음`;
-  return '1시간 넘게 남음';
+  if (seconds < 60) return `about ${seconds}s left`;
+  if (seconds < 3600) return `about ${Math.floor(seconds / 60)}m ${seconds % 60}s left`;
+  return 'over 1 hour left';
 }
 
 function headlineOf(state: InstallState): string {
   switch (state.phase) {
     case 'checking':
-      return '새 버전을 확인하는 중…';
+      return 'Checking for a new version…';
     case 'downloading':
-      return state.percent === null ? '내려받는 중…' : `내려받는 중 ${Math.round(state.percent)}%`;
+      return state.percent === null ? 'Downloading…' : `Downloading ${Math.round(state.percent)}%`;
     case 'verifying':
-      return 'SHA-256 확인 중…';
+      return 'Verifying SHA-256…';
     case 'preparing':
-      return '설치 준비 중…';
+      return 'Preparing to install…';
     case 'installing':
-      return '앱을 닫고 설치한 뒤 다시 켭니다';
+      return 'The app will close, install and restart';
     case 'failed':
-      return '설치하지 못했어요';
+      return 'Could not install';
     case 'idle':
       return '';
   }
@@ -108,14 +108,14 @@ export function progressModal(state: InstallState, elapsedMs: number): ProgressM
   const bar = state.phase === 'failed' ? 'none' : downloading && state.percent !== null ? 'determinate' : 'indeterminate';
   const actions: ModalAction[] = state.phase === 'failed' ? ['retry', 'browser', 'copy', 'close'] : downloading ? ['cancel'] : [];
   return {
-    title: '새 버전 설치',
+    title: 'Install new version',
     headline: headlineOf(state),
     steps: stepsOf(state),
     bar,
     percent: bar === 'determinate' ? Math.max(0, Math.min(100, state.percent ?? 0)) : null,
     detail: detailOf(state, elapsedMs),
     note: state.phase === 'installing' || state.phase === 'preparing' ? state.targetNote ?? null : null,
-    reason: state.phase === 'failed' ? state.reason ?? '알 수 없는 이유로 멈췄어요' : null,
+    reason: state.phase === 'failed' ? state.reason ?? 'Stopped for an unknown reason' : null,
     actions,
   };
 }

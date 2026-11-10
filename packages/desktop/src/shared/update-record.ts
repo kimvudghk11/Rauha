@@ -110,12 +110,12 @@ export type CheckFailureKind = 'timeout' | 'network' | 'http' | 'parse';
 export function checkFailureText(kind: CheckFailureKind, status?: number): string {
   switch (kind) {
     case 'timeout':
-      return '서버가 10초 안에 답하지 않았어요';
+      return 'The server did not answer within 10 seconds';
     case 'network':
-      return '인터넷에 연결되어 있지 않거나 GitHub에 닿지 못했어요';
+      return 'No internet connection, or GitHub could not be reached';
     case 'http':
-      return status === 403 || status === 429 ? 'GitHub가 요청이 너무 많다고 잠시 막았어요. 조금 뒤에 다시 해 주세요' : `GitHub가 오류(${status ?? '?'})를 줬어요`;
+      return status === 403 || status === 429 ? 'GitHub is rate-limiting requests. Try again in a moment' : `GitHub returned an error (${status ?? '?'})`;
     case 'parse':
-      return '받은 답을 읽지 못했어요';
+      return 'Could not read the response';
   }
 }

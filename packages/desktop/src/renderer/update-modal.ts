@@ -38,7 +38,7 @@ export function createUpdateModal(api: UpdateApi, copyDiagnostics: () => Promise
         });
   };
 
-  const LABEL: Record<ModalAction, string> = { cancel: '취소', retry: '다시 시도', browser: '브라우저로 받기', copy: '진단 정보 복사', close: '닫기' };
+  const LABEL: Record<ModalAction, string> = { cancel: '취소', retry: 'Try again', browser: 'Get in browser', copy: '진단 정보 복사', close: '닫기' };
 
   function paint(): void {
     const view = latest;

@@ -55,34 +55,34 @@ export class InstallFailure extends Error {
 
 /** 어떤 오류든 사람이 읽는 이유 한 줄로 */
 export function failureText(error: unknown): string {
-  if (!(error instanceof InstallFailure)) return '예상하지 못한 오류로 멈췄어요';
+  if (!(error instanceof InstallFailure)) return 'Stopped because of an unexpected error';
   switch (error.code) {
     case 'missing-checksum':
-      return '릴리스에 파일 검증값(SHA-256)이 없어서 설치하지 않았어요';
+      return 'Not installed: the release has no file checksum (SHA-256)';
     case 'bad-address':
-      return '허용된 주소가 아니어서 받지 않았어요';
+      return 'Not downloaded: the address is not allowed';
     case 'no-download':
-      return '이 컴퓨터용 설치 파일을 찾지 못했어요';
+      return 'Could not find an installer for this computer';
     case 'http':
-      return `내려받기 서버가 오류(${error.detail ?? '?'})를 줬어요`;
+      return `The download server returned an error (${error.detail ?? '?'})`;
     case 'incomplete':
-      return '내려받은 파일이 덜 받아졌어요(크기가 맞지 않아요)';
+      return 'The downloaded file is incomplete (size mismatch)';
     case 'checksum':
-      return '내려받은 파일의 SHA-256이 릴리스와 달라서 지웠어요. 파일이 손상됐을 수 있어요';
+      return 'The downloaded file did not match the release SHA-256, so it was deleted. It may be corrupted';
     case 'stalled':
-      return '30초 동안 데이터가 오지 않아 멈췄어요. 네트워크를 확인해 주세요';
+      return 'No data arrived for 30 seconds, so it stopped. Check your network';
     case 'network':
-      return '인터넷에 연결되어 있지 않거나 서버에 닿지 못했어요';
+      return 'No internet connection, or the server could not be reached';
     case 'disk':
-      return '파일을 저장하지 못했어요. 디스크 공간과 권한을 확인해 주세요';
+      return 'Could not save the file. Check disk space and permissions';
     case 'target-unwritable':
-      return '앱을 설치할 수 있는 폴더(Applications)에 쓸 권한이 없어요';
+      return 'No permission to write to the Applications folder';
     case 'plan':
-      return '이 컴퓨터에서는 앱 안 설치를 지원하지 않아요';
+      return 'In-app install is not supported on this computer';
     case 'spawn':
-      return '설치 프로그램을 시작하지 못했어요';
+      return 'Could not start the installer';
     case 'cancelled':
-      return '취소했어요';
+      return 'Cancelled';
   }
 }
 
@@ -171,17 +171,17 @@ export function installPlan(input: InstallPlanInput): InstallPlan | null {
 export function installStateText(state: InstallState): string {
   switch (state.phase) {
     case 'checking':
-      return '확인하는 중…';
+      return 'Checking…';
     case 'downloading':
-      return state.percent === null ? '내려받는 중…' : `내려받는 중 ${Math.round(state.percent)}%`;
+      return state.percent === null ? 'Downloading…' : `Downloading ${Math.round(state.percent)}%`;
     case 'verifying':
-      return '파일 확인 중…';
+      return 'Verifying file…';
     case 'preparing':
-      return '설치 준비 중…';
+      return 'Preparing to install…';
     case 'installing':
-      return '설치하고 다시 켜는 중…';
+      return 'Installing and restarting…';
     case 'failed':
-      return '설치하지 못했어요. 브라우저로 내려받아 설치해 주세요';
+      return 'Could not install. Download it in your browser and install it manually';
     case 'idle':
       return '';
   }

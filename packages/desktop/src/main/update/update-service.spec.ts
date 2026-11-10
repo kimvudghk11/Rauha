@@ -241,15 +241,15 @@ describe('UpdateService', () => {
       await reason(async () => {
         throw new Error('offline');
       }),
-    ).toContain('인터넷');
+    ).toContain('internet');
     expect(
       await reason(async () => {
         const e = new Error('t');
         e.name = 'TimeoutError';
         throw e;
       }),
-    ).toContain('10초');
-    expect(await reason(async () => ({ ok: false, status: 403, json: async () => ({}) }))).toContain('요청이 너무 많다');
+    ).toContain('10 seconds');
+    expect(await reason(async () => ({ ok: false, status: 403, json: async () => ({}) }))).toContain('rate-limiting');
     expect(await reason(async () => ({ ok: false, status: 500, json: async () => ({}) }))).toContain('(500)');
     expect(
       await reason(async () => ({
@@ -258,7 +258,7 @@ describe('UpdateService', () => {
           throw new Error('x');
         },
       })),
-    ).toContain('읽지 못했어요');
+    ).toContain('Could not read');
     expect(await reason(ok(releases))).toBeNull();
   });
 
@@ -290,7 +290,7 @@ describe('지난 설치 시도 알림', () => {
     const s = stored('fail copy');
     const t = setup(ok(releases), { attempts: s.attempts });
     await t.service.init();
-    expect(t.service.view().attempt).toMatchObject({ kind: 'failed', version: '0.1.2', reason: expect.stringContaining('복사하지 못했어요') });
+    expect(t.service.view().attempt).toMatchObject({ kind: 'failed', version: '0.1.2', reason: expect.stringContaining('Could not copy') });
     expect(s.wasCleared()).toBe(true);
     expect((await t.service.cancel()).attempt).toBeNull();
   });

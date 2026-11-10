@@ -36,19 +36,19 @@ export const PENDING_MS = 90_000;
 export function swapFailureText(code: string): string {
   switch (code) {
     case 'app-running':
-      return '앱이 60초 안에 닫히지 않아서 바꾸지 못했어요';
+      return 'The app did not close within 60 seconds, so it was not replaced';
     case 'mount':
-      return '설치 파일을 풀 임시 폴더를 만들지 못했어요';
+      return 'Could not create a temporary folder for the installer';
     case 'attach':
-      return '내려받은 설치 파일(dmg)을 열지 못했어요';
+      return 'Could not open the downloaded installer (dmg)';
     case 'no-app':
-      return '설치 파일 안에서 앱을 찾지 못했어요';
+      return 'Could not find the app inside the installer';
     case 'copy':
-      return '새 앱을 복사하지 못했어요(디스크 공간이나 권한을 확인해 주세요)';
+      return 'Could not copy the new app (check disk space or permissions)';
     case 'swap':
-      return '옛 앱을 새 앱으로 바꾸지 못했어요(Applications 폴더 권한을 확인해 주세요)';
+      return 'Could not replace the old app (check Applications folder permissions)';
     default:
-      return '설치 프로그램이 오류로 끝났어요';
+      return 'The installer ended with an error';
   }
 }
 
@@ -65,15 +65,15 @@ export function judgeAttempt(record: AttemptRecord | null, scriptResult: string 
   if (result === '' && now.getTime() - Date.parse(record.at) < PENDING_MS) return null;
   const reason =
     result === ''
-      ? '설치 프로그램이 끝났다는 기록이 없어요. 시작하지 못했거나 도중에 멈췄을 수 있어요'
+      ? 'No record that the installer finished. It may not have started or stopped midway'
       : result === 'ok'
-        ? '설치는 끝났다고 했는데 이전 버전이 그대로 켜졌어요. Applications의 Rauha가 새 앱인지 확인해 주세요'
+        ? 'The install reported success but the old version started. Check that Rauha in Applications is the new app'
         : swapFailureText(result.replace(/^fail\s*/, ''));
   return { kind: 'failed', version: record.to, reason, log: record.log };
 }
 
 /** 다시 켜진 앱이 알리는 한 줄 */
 export function outcomeText(outcome: AttemptOutcome): string {
-  if (outcome.kind === 'updated') return `v${outcome.version}로 업데이트됐어요`;
-  return `업데이트가 적용되지 않았어요: ${outcome.reason}`;
+  if (outcome.kind === 'updated') return `Updated to v${outcome.version}`;
+  return `The update was not applied: ${outcome.reason}`;
 }
