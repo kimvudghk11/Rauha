@@ -77,7 +77,7 @@ export function buildRecords(deps: RecordsViewDeps) {
   let pendingFocus: string | null = null;
 
   const head = el('div', 'rhead');
-  head.append(el('b', undefined, '기록'), el('span', 'hint', '끝난 작업이 요약으로 쌓여요. 포트폴리오·이력서에 "어떤 문제를 어떻게 풀었나"를 옮겨 쓸 때 써요.'));
+  head.append(el('b', undefined, 'Records'), el('span', 'hint', '끝난 작업이 요약으로 쌓여요. 포트폴리오·이력서에 "어떤 문제를 어떻게 풀었나"를 옮겨 쓸 때 써요.'));
 
   const tools = el('div', 'rtools');
   const search = el('input');

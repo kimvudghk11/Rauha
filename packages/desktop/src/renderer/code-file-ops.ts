@@ -246,7 +246,7 @@ export function createFileOps(host: FileOpsHost) {
       { label: '상대 경로 복사', run: () => void copyPath(target, false) },
       { label: host.platform === 'darwin' ? 'Finder에서 보기' : host.platform === 'win32' ? '탐색기에서 보기' : '파일 관리자에서 보기', run: () => void reveal(target) },
     ];
-    if (target.repo !== null && target.repo.kind === 'repo') entries.push('sep', { label: 'git 탭에서 보기', run: () => host.openGit(target.repo!.root) }, { label: '레포 다시 읽기', run: () => host.reloadRepos() });
+    if (target.repo !== null && target.repo.kind === 'repo') entries.push('sep', { label: 'Git 탭에서 보기', run: () => host.openGit(target.repo!.root) }, { label: '레포 다시 읽기', run: () => host.reloadRepos() });
     entries.push('sep', { label: '휴지통으로 보내기', hint: 'Del', danger: true, disabled: why !== null, ...(why === null ? {} : { why }), run: () => void remove(target) });
     openMenu(entries, x, y);
   }

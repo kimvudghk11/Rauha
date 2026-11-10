@@ -38,7 +38,7 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
   const fail = (code: GitErrorCode, error: string): GitResult<never> => ({ ok: false, error, code });
   if (typeof fn !== 'string' || !(GIT_FUNCTIONS as readonly string[]).includes(fn)) return fail('INVALID', '알 수 없는 git 요청이에요.');
   const checked = await ctx.gate.check(root);
-  if (checked === null) return fail('UNKNOWN_REPO', '이 폴더는 앱이 아는 레포가 아니에요. 코드 탭에서 레포 다시 읽기(↻)를 눌러 주세요.');
+  if (checked === null) return fail('UNKNOWN_REPO', '이 폴더는 앱이 아는 레포가 아니에요. Repo 탭에서 레포 다시 읽기(↻)를 눌러 주세요.');
   const repo = GitRepo.open(checked, ctx.protectedBranches());
   const a = obj(rawArg);
   const confirm = { confirmed: a['confirmed'] === true };

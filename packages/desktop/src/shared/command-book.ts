@@ -1,5 +1,5 @@
 /**
- * 명령어 탭의 규칙. 입력창에 `/`로 시작하는 글을 치면 이 명령 모음이 읽는다.
+ * Commands 탭의 규칙. 입력창에 `/`로 시작하는 글을 치면 이 명령 모음이 읽는다.
  * 터미널판 rauha의 슬래시 명령(/review·/design·/repo·/learn·/routine·/update·/clear …)을 앱 명령으로 옮긴 "기본 명령"과,
  * 사용자가 더한 "내 명령"(이름 + 프롬프트 템플릿 + 인자 {{x}})을 한 모음으로 다룬다. 값은 불변이고, 바꾸면 새 모음을 돌려준다.
  */
@@ -30,7 +30,7 @@ export interface CommandProps {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  /** 무엇을 하는지 자세히(명령어 탭에서 펼쳐 보인다) */
+  /** 무엇을 하는지 자세히(Commands 탭에서 펼쳐 보인다) */
   readonly detail: string;
   readonly group: CommandGroup;
   readonly action: CommandAction;
@@ -140,7 +140,7 @@ const app = (action: AppAction, tab?: string): CommandAction => ({ kind: 'app', 
 
 type BuiltinDef = Omit<CommandProps, 'id' | 'builtin'>;
 
-/** 터미널판에서 옮겨 온 기본 명령. 순서는 입력창 자동완성과 명령어 탭의 순서다. */
+/** 터미널판에서 옮겨 온 기본 명령. 순서는 입력창 자동완성과 Commands 탭의 순서다. */
 const BUILTIN_DEFS: readonly BuiltinDef[] = [
   {
     name: 'review', group: '작업', action: prompt('내 변경을 리뷰어 관점으로 검토해줘. 검토 범위: {{브랜치|커밋하지 않은 변경 전체}} (브랜치 이름이면 그 브랜치와 갈라진 뒤의 변경). 파일은 고치지 말고, 문제와 제안만 알려줘.'),
@@ -152,11 +152,11 @@ const BUILTIN_DEFS: readonly BuiltinDef[] = [
   },
   {
     name: 'repo', group: '작업', action: app('tab', 'code'),
-    description: '코드 탭의 레포 목록을 열어요', detail: '앱이 아는 저장소와 상태가 보이는 코드 탭으로 가요. 일할 레포는 요청 맨 앞에 @폴더이름을 쓰면 바꿔요.',
+    description: 'Repo 탭의 레포 목록을 열어요', detail: '앱이 아는 저장소와 상태가 보이는 Repo 탭으로 가요. 일할 레포는 요청 맨 앞에 @폴더이름을 쓰면 바꿔요.',
   },
   {
     name: 'routine', group: '작업', action: app('tab', 'todo'),
-    description: '정기 업무(할 일 탭)를 열어요', detail: '매일·매주 하는 일을 보고 등록하는 곳(할 일 탭)으로 가요. 자동으로 돌지는 않고, 때가 된 것을 실행해요. 할 일 탭이 아직 안 열렸으면 "곧 열려요"가 보여요.',
+    description: '정기 업무(Todo 탭)를 열어요', detail: '매일·매주 하는 일을 보고 등록하는 곳(Todo 탭)으로 가요. 자동으로 돌지는 않고, 때가 된 것을 실행해요. Todo 탭이 아직 안 열렸으면 "곧 열려요"가 보여요.',
   },
   {
     name: 'learn', group: '팀·회사', action: prompt('내 코드({{범위|이 저장소 전체}})에서 쓰인 디자인 패턴과 아키텍처를 패턴별로 모아, 왜 그렇게 썼는지 복습할 수 있게 정리해줘.'),

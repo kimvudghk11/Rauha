@@ -102,7 +102,7 @@ export function createRunner(deps: RunnerDeps) {
           deps.say(`/${r.name}은(는) 없는 명령이에요. /를 쳐서 목록을 볼 수 있어요. 그대로 보내려면 앞에 /를 하나 더 붙여요.`);
           return null;
         case 'off':
-          deps.say(`/${r.command.name}은(는) 꺼 둔 명령이에요. 명령어 탭에서 켤 수 있어요.`);
+          deps.say(`/${r.command.name}은(는) 꺼 둔 명령이에요. Commands 탭에서 켤 수 있어요.`);
           return null;
         case 'usage':
           deps.say(`${r.missing.join('·')} 칸이 비었어요. 사용법: ${r.command.usage()}`);
@@ -132,7 +132,7 @@ function helpBox(book: CommandBook): HTMLElement {
     row.append(el('b', undefined, c.usage()), el('span', undefined, c.description));
     box.appendChild(row);
   }
-  box.appendChild(el('div', 'dim', '내 명령은 명령어 탭에서 더해요.'));
+  box.appendChild(el('div', 'dim', '내 명령은 Commands 탭에서 더해요.'));
   return box;
 }
 

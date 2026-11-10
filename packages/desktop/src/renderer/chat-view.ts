@@ -154,7 +154,7 @@ export function buildChat(actions: ChatActions) {
         input.value = text;
         fit();
       }
-      flash('작업 폴더를 먼저 골라 허락해 주세요(설정 탭의 작업 폴더). 쓰던 글은 그대로 두었어요.');
+      flash('작업 폴더를 먼저 골라 허락해 주세요(Settings 탭의 작업 폴더). 쓰던 글은 그대로 두었어요.');
     }
     input.focus();
   };
@@ -221,12 +221,12 @@ export function buildChat(actions: ChatActions) {
     hand.append(dot, line, state, go);
     if (actions.saveTodo !== undefined) {
       const keep = el('button', 'link keep', '할 일로 담기');
-      keep.title = '이 일을 할 일 탭에 담아 둬요';
+      keep.title = '이 일을 Todo 탭에 담아 둬요';
       keep.addEventListener('click', () => {
         keep.disabled = true;
         void actions.saveTodo!(job.request).then((res) => {
           keep.textContent = res.ok ? '담았어요 ✓' : '담지 못했어요';
-          keep.title = res.ok ? '할 일 탭에서 볼 수 있어요' : res.error;
+          keep.title = res.ok ? 'Todo 탭에서 볼 수 있어요' : res.error;
           keep.disabled = res.ok;
         });
       });

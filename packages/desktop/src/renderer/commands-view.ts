@@ -23,7 +23,7 @@ export const commandsApi = (api: { getCommands(): Promise<CommandBookJson>; save
 export function buildCommands(api: CommandsApi) {
   const root = el('section', 'commands');
   const head = el('div', 'rhead');
-  head.append(el('b', undefined, '명령어'), el('span', 'hint', '입력창에 /를 치면 여기 있는 명령이 자동완성으로 떠요.'));
+  head.append(el('b', undefined, 'Commands'), el('span', 'hint', '입력창에 /를 치면 여기 있는 명령이 자동완성으로 떠요.'));
 
   let book = CommandBook.initial();
   let editing: string | null = null;

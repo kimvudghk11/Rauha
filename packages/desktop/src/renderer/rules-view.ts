@@ -20,7 +20,7 @@ const SCOPE_LABEL = (r: RuleView): string => (r.scope.kind === 'global' ? '전�
 export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]>; defaults?: { list: () => Promise<readonly DefaultRuleView[]>; apply: (op: DefaultRuleOp) => Promise<DefaultRulesResult> } }) {
   const root = el('section', 'rules');
   const head = el('div', 'rhead');
-  head.append(el('b', undefined, '규칙'), el('span', 'hint', '내 규칙을 적어 두면 팀원이 따라요. 비밀 파일과 git push 거절은 규칙과 상관없이 늘 지켜져요.'));
+  head.append(el('b', undefined, 'Rules'), el('span', 'hint', '내 규칙을 적어 두면 팀원이 따라요. 비밀 파일과 git push 거절은 규칙과 상관없이 늘 지켜져요.'));
 
   // 말로 적기: haiku 한 번으로 칸·범위·찾을 글을 정리해 아래 폼에 채워 준다. 사용자가 보고 "규칙 더하기"를 눌러야 들어간다.
   const talk = el('div', 'ruletalk pane');

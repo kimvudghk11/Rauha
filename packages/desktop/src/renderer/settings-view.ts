@@ -65,7 +65,7 @@ export function limitBar(label: string, w: UsageWindowView | null): HTMLElement 
   return row;
 }
 
-/** 설정 탭: 계정·한도 / 작업 폴더 / 알림 / 화면 / 권한 / 정보 저장·캐릭터(곧) */
+/** Settings 탭: 계정·한도 / 작업 폴더 / 알림 / 화면 / 권한 / 정보 저장·캐릭터(곧) */
 export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') => void) {
   const root = el('section', 'settings');
   const section = (title: string, ...children: HTMLElement[]) => {
@@ -93,7 +93,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     });
     if (s === null || accounts === null) return;
     const head = el('div', 'rhead');
-    head.appendChild(el('b', undefined, '설정'));
+    head.appendChild(el('b', undefined, 'Settings'));
     root.replaceChildren(head);
 
     // 계정·한도
@@ -234,7 +234,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
         el('div', 'hint pad', 'AWS 키는 앱에 적지 않아요. 터미널에서 aws configure --profile 이름 으로 등록한 프로필 이름만 적어요. 프로필 이름을 적기 전에는 올리기·받기가 꺼져 있어요.'),
       ),
     );
-    root.appendChild(section('정보 저장', el('div', 'dim pad', '지금은 기록이 이 컴퓨터에만 저장돼요(기록 탭). 내 AWS(S3)로 요약을 보내는 기능은 나중에 열려요.')));
+    root.appendChild(section('정보 저장', el('div', 'dim pad', '지금은 기록이 이 컴퓨터에만 저장돼요(Records 탭). 내 AWS(S3)로 요약을 보내는 기능은 나중에 열려요.')));
     if (api.diagnostics !== undefined) {
       const run = api.diagnostics;
       const copy = el('button', 'btn', '진단 정보 복사');

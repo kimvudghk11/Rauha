@@ -94,7 +94,7 @@ export function buildTodo(deps: TodoViewDeps) {
   const head = el('div', 'rhead');
   const modeSeg = el('div', 'seg');
   const addButton = button('＋ 새 카드', 'btn primary', () => ctx.quickAdd(board.columns.entry().id));
-  head.append(el('b', undefined, '할 일'), el('span', 'hint', '카드를 끌어 칸을 옮기고, 눌러서 고쳐요. AI에 맡기는 건 선택이에요.'), modeSeg, addButton);
+  head.append(el('b', undefined, 'Todo'), el('span', 'hint', '카드를 끌어 칸을 옮기고, 눌러서 고쳐요. AI에 맡기는 건 선택이에요.'), modeSeg, addButton);
 
   const tools = el('div', 'ttools bar');
   const search = el('input', 'grow');
