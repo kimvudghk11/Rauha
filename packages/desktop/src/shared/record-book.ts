@@ -55,7 +55,8 @@ export const SECRET_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, HIDDEN],
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/gi, `Bearer ${HIDDEN}`],
   [/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s:@/]+:[^\s@/]+@/gi, `$1${HIDDEN}@`],
-  [/\b(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)\b(\s*[:=]\s*)(["']?)[^\s"']{4,}\3/gi, `$1$2${HIDDEN}`],
+  // 변수 이름 접두사(AWS_SECRET_ACCESS_KEY, OPENAI_API_KEY)와 JSON 키의 따옴표("password": "...")도 잡는다
+  [/(?<![A-Za-z0-9])([A-Za-z0-9_.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)(?![A-Za-z0-9_]))(["']?)(\s*[:=]\s*)(["']?)[^\s"']{4,}\4/gi, `$1$2$3${HIDDEN}`],
   // 섞인 글자로 길게 이어진 값(키·해시 비슷한 것). 순수 16진수(git 커밋 번호 등)는 비밀이 아니라서 남긴다.
   [/\b(?![0-9a-f]{40,64}\b)(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{40,}\b/g, HIDDEN],
 ];

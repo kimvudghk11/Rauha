@@ -118,8 +118,12 @@ export function planUpload(notes: readonly BugNote[], context: RedactContext): U
     const redactor = BlogRedactor.create(context, []);
     const title = redactor.apply(note.title).text.trim();
     const memo = redactor.apply(note.memo).text;
+    // 화면 이름·앱 버전·OS도 올라가므로 같은 가림을 거친다(적을 때 화면이 보내는 값이라 무엇이 들었을지 모른다)
+    const screen = redactor.apply(note.toProps().screen).text.slice(0, 40);
+    const appVersion = redactor.apply(note.toProps().appVersion).text.slice(0, 60);
+    const os = redactor.apply(note.toProps().os).text.slice(0, 60);
     const redactions = redactor.changes().reduce((sum, c) => sum + c.count, 0);
-    const props: BugNoteProps = { ...note.toProps(), title: title === '' ? '(title hidden)' : title.slice(0, 80), memo: memo.slice(0, 2000), uploaded: true };
+    const props: BugNoteProps = { ...note.toProps(), title: title === '' ? '(title hidden)' : title.slice(0, 80), memo: memo.slice(0, 2000), screen, appVersion, os, uploaded: true };
     return { id: note.id, title: props.title, memo: props.memo, redactions, body: JSON.stringify({ version: 1, ...props }) };
   });
   return { items, digest: digestOf(items.map((i) => `${i.id}\n${i.body}`).join('\n\n')) };

@@ -59,12 +59,22 @@ export function snippetAllowed(snippet: string): boolean {
 
 const ARN_RE = /\barn:aws[a-z-]*:[A-Za-z0-9-]*:[A-Za-z0-9-]*:[0-9]*:?[^\s,;()"'`]*/g;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
-const DOMAIN_RE = /(?<![\w@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:com|net|org|io|kr|co|dev|cloud|internal|local|corp|lan|intra|biz|info|xyz|tech|site|jp)(?![\w-])/gi;
+const DOMAIN_RE = /(?<![\w@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:com|net|org|io|kr|co|dev|cloud|internal|local|corp|lan|intra|biz|info|xyz|tech|site|jp|app|ai|me|us|de|uk|fr|cn|tv|cc|pro|run|page|link|work|team|company|group|systems|software|solutions)(?![\w-])/gi;
 const IPV4_RE = /(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?(?![\d.]*\d)/g;
 const IPV6_RE = /(?<![\w:])(?=[0-9A-Fa-f:]*[0-9A-Fa-f]:)[0-9A-Fa-f:]{6,}(?![\w:])/g;
-const ACCOUNT_RE = /(?<!\d)(?:\d{12}|\d{4}-\d{4}-\d{4})(?!\d)/g;
+const ACCOUNT_RE = /(?<!\d)(?:\d{12}|\d{4}[- ]\d{4}[- ]\d{4})(?!\d)/g;
 const REGION_RE = /\b(?:us|eu|ap|sa|ca|me|af|il|mx|cn)(?:-gov)?-(?:north|south|east|west|central|northeast|southeast|northwest|southwest)-\d\b/g;
 const HOME_GENERIC = [/[A-Za-z]:\\Users\\[^\\/\s]+/g, /\/Users\/[^/\s]+/g, /\/home\/[^/\s]+/g];
+
+/**
+ * 가림을 피하려고 끼워 넣은 눈에 안 보이는 글자(너비 0·소프트 하이픈)를 지우고 전각 영숫자·기호(ＡＢＣ１２３＠．)를 보통 글자로 바꾼다.
+ * 가림 규칙은 이 접은 글자 위에서 돈다(올릴 글만 해당하고 원본 메모는 그대로다).
+ */
+export function foldLookalikes(text: string): string {
+  return text
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u00ad\ufeff]/g, '')
+    .replace(/[\uff01-\uff5e]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0));
+}
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const key = (s: string): string => s.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -120,7 +130,7 @@ export class BlogRedactor {
 
   apply(text: string): Redacted {
     const held: string[] = [];
-    let out = this.secrets(text);
+    let out = this.secrets(foldLookalikes(text));
     out = this.secretFiles(out);
     out = this.sub(out, ARN_RE, 'arn', () => 'ARN', held, (m) => m, true);
     out = this.sub(out, EMAIL_RE, 'email', (m) => this.label('email', m, '이메일'), held);
