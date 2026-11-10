@@ -241,6 +241,7 @@ export function buildChanges(ctx: GitCtx) {
   async function refresh(): Promise<void> {
     view = await ctx.call('overview', undefined as never);
     if (view === null) return;
+    ctx.adopt(view);
     if (selected !== null && file(selected) === undefined) selected = null;
     const f = selected === null ? undefined : file(selected);
     if (f !== undefined && diffSide === 'unstaged' && !f.unstaged) diffSide = 'staged';
@@ -248,7 +249,6 @@ export function buildChanges(ctx: GitCtx) {
     renderList();
     void wt.refresh();
     await renderMain();
-    await ctx.changed();
   }
 
   return { root, refresh };

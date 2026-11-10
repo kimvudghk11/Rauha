@@ -1,4 +1,4 @@
-import type { GitArg, GitData, GitFn } from '../shared/git-api.js';
+import type { GitArg, GitData, GitFn, Overview } from '../shared/git-api.js';
 import type { DiffView } from '../shared/git-api.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
 import type { Selection } from '../shared/git-diff.js';
@@ -14,6 +14,8 @@ export interface GitCtx {
   ask(options: AskOptions): Promise<{ ok: boolean; value: string }>;
   /** 헤더(브랜치·앞섬/뒤처짐)를 다시 읽는다 */
   changed(): Promise<void>;
+  /** 방금 읽은 overview를 헤더에 그대로 쓴다(같은 걸 한 번 더 읽지 않는다) */
+  adopt(overview: Overview): void;
   goto(view: 'changes' | 'branches' | 'history' | 'conflicts'): void;
   /** 보호 브랜치 이름인지(칩 표시용) */
   isProtected(name: string): boolean;

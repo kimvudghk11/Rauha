@@ -11,8 +11,9 @@ import type { ConventionsView } from '../shared/git-conventions-view.js';
 import { directionText, fetchedLabel } from '../shared/git-toolbar.js';
 import { primaryGitAction } from '../shared/git-primary.js';
 import { branchMark } from '../shared/git-branch-mark.js';
+import { settleGitView, visibleGitViews, type GitViewId } from '../shared/git-tabs.js';
 
-type ViewId = 'changes' | 'branches' | 'history' | 'conflicts';
+type ViewId = GitViewId;
 interface SubView {
   readonly root: HTMLElement;
   refresh(): Promise<void>;
@@ -92,6 +93,11 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     say,
     ask: askDialog,
     changed: () => loadHeader(),
+    adopt: (o) => {
+      overview = o;
+      renderHead();
+      renderBar();
+    },
     goto: (v) => void open(v),
     isProtected: (n) => protectedList.has(n),
     branch: () => overview?.branch ?? null,
@@ -194,7 +200,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     syncBtn('push', 'Push', '올리는 중…', async () => void (await call('push', {})), '내 커밋을 원격에 올려요', primary === 'push', dir('up', o.ahead));
     const pr = el('button', 'btn prbtn');
     pr.disabled = !hasRemote || busy;
-    pr.title = 'GitHub에서 PR 열기';
+    pr.title = hasRemote ? 'GitHub에서 PR 열기' : '이 레포에는 원격이 없어요.';
     pr.append(gitIcon('pr'), el('span', 'glabel', 'PR'));
     pr.addEventListener('click', async () => {
       busy = true;
@@ -233,18 +239,19 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   }
 
   async function open(id: ViewId): Promise<void> {
+    // 방금 pull·머지로 충돌이 났다면 헤더가 아직 모른다. 먼저 읽어야 충돌 탭이 보이고 그리로 들어간다.
+    if (!visibleGitViews(overview).includes(id)) await loadHeader();
     current = id;
     renderBar();
-    const v = sub(id);
+    const v = sub(current);
     body.replaceChildren(v.root);
     await v.refresh();
   }
 
   function renderBar(): void {
     bar.replaceChildren();
-    const show: ViewId[] = ['changes', 'branches', 'history'];
-    if (overview?.merging === true || overview?.files.some((f) => f.conflict) === true) show.push('conflicts');
-    if (!show.includes(current)) current = 'changes';
+    const show = visibleGitViews(overview);
+    current = settleGitView(current, overview);
     for (const id of show) {
       const b = el('button', `tab${id === current ? ' on' : ''}${id === 'conflicts' ? ' danger' : ''}`, VIEW_LABEL[id]);
       b.addEventListener('click', () => void open(id));
@@ -253,7 +260,8 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   }
 
   async function refreshAll(): Promise<void> {
-    await loadHeader();
+    // 변경 탭은 자기가 읽은 overview를 헤더에 넘기므로 따로 읽지 않는다
+    if (current !== 'changes') await loadHeader();
     renderBar();
     await sub(current).refresh();
   }
