@@ -89,9 +89,9 @@ function renderTabs(): void {
   TABS.filter((t) => t.bottom).forEach(add);
   // 탭이 아닌 단추: 어느 탭에서나 답답한 점을 적는 창을 연다(단축키와 같다). 막대 맨 끝에 둬서 탭 순서를 건드리지 않는다.
   const bug = el('button', 'bug-open');
-  bug.title = `버그 리포트 적기 (${shortcutText(platform)})`;
-  bug.setAttribute('aria-label', '버그 리포트 적기');
-  bug.append(icon('M12 8v5 M12 16.5v.5 M10.3 3.9L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'), el('span', undefined, '버그 리포트'));
+  bug.title = `리포트 적기 (${shortcutText(platform)})`;
+  bug.setAttribute('aria-label', '리포트 적기');
+  bug.append(icon('M12 8v5 M12 16.5v.5 M10.3 3.9L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'), el('span', undefined, '리포트'));
   bug.addEventListener('click', openBug);
   tabsNav.appendChild(bug);
 }

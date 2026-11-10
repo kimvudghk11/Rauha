@@ -37,7 +37,7 @@ export function openBugDialog(deps: BugViewDeps): void {
   const box = el('div', 'dialog bugs');
   box.tabIndex = -1;
   box.setAttribute('role', 'dialog');
-  box.setAttribute('aria-label', '버그 리포트 적기');
+  box.setAttribute('aria-label', '리포트 적기');
   veil.appendChild(box);
   document.body.appendChild(veil);
 
@@ -192,7 +192,7 @@ export function openBugDialog(deps: BugViewDeps): void {
     const hadFocus = box.contains(document.activeElement);
     box.replaceChildren();
     const head = el('div', 'bar');
-    head.append(el('b', 'grow', '버그 리포트 적기'), el('span', 'hint', shortcutText(deps.platform)), iconButton('close', '닫기', close));
+    head.append(el('b', 'grow', '리포트 적기'), el('span', 'hint', shortcutText(deps.platform)), iconButton('close', '닫기', close));
     box.appendChild(head);
     if (preview !== null) {
       previewBody(preview);
