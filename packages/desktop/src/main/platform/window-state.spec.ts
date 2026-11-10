@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayKey, isVisible, parseWindowFile, restoreBounds, type Rect } from './window-state.js';
+import { displayKey, isVisible, parseWindowFile, restoreBounds, type Rect, placeOnDisplay } from './window-state.js';
 
 const main: Rect = { x: 0, y: 0, width: 1920, height: 1040 };
 const second: Rect = { x: 1920, y: 0, width: 2560, height: 1400 };
@@ -68,5 +68,20 @@ describe('parseWindowFile', () => {
   it('파일 모양이 틀리면 빈 기록이다', () => {
     expect(parseWindowFile(null)).toEqual({});
     expect(parseWindowFile([])).toEqual({});
+  });
+});
+
+describe('확인용 모니터 지정', () => {
+  const areas = [{ x: 0, y: 0, width: 1920, height: 1040 }, { x: 1920, y: 0, width: 1600, height: 860 }];
+  it('2를 주면 두 번째 모니터 가운데에 놓는다', () => {
+    expect(placeOnDisplay('2', areas, { width: 1280, height: 820 })).toEqual({ x: 1920 + 160, y: 20, width: 1280, height: 820, maximized: false });
+  });
+  it('없는 모니터나 이상한 값이면 null이다', () => {
+    expect(placeOnDisplay('3', areas, { width: 1280, height: 820 })).toBeNull();
+    expect(placeOnDisplay('x', areas, { width: 1280, height: 820 })).toBeNull();
+    expect(placeOnDisplay(undefined, areas, { width: 1280, height: 820 })).toBeNull();
+  });
+  it('모니터보다 큰 창은 모니터 크기로 줄인다', () => {
+    expect(placeOnDisplay('1', [{ x: 0, y: 0, width: 800, height: 600 }], { width: 1280, height: 820 })).toEqual({ x: 0, y: 0, width: 800, height: 600, maximized: false });
   });
 });

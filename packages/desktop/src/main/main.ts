@@ -31,7 +31,7 @@ import { parseTarget, type TargetFolder } from './team/target.js';
 import { teamWork } from './team/team-work.js';
 import { appMenuTemplate, quitWhenAllClosed, windowChrome } from './platform/app-menu.js';
 import { claudeBinaryPath, fallbackWorkDir, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
-import { displayKey, parseWindowFile, restoreBounds, type Rect } from './platform/window-state.js';
+import { displayKey, parseWindowFile, placeOnDisplay, restoreBounds, type Rect } from './platform/window-state.js';
 import { adoptShellPath } from './platform/shell-path.js';
 import { findTerminalRauha, removeTerminalRauha, type TerminalRauhaFile } from './platform/terminal-rauha.js';
 import { AppVersion } from '../shared/app-update.js';
@@ -394,7 +394,8 @@ const readWindows = () => {
 };
 
 function open(runner: JobRunner): void {
-  const placed = restoreBounds(remembers() ? (readWindows()[screenKey()] ?? null) : null, workAreas(), { width: 1280, height: 820 });
+  // 확인용: RAUHA_DISPLAY=2 처럼 정하면 창을 그 모니터(1이 주 모니터)에 띄운다. 쓰는 모니터를 가리지 않고 눈으로 따라가 볼 때 쓴다.
+  const placed = placeOnDisplay(process.env['RAUHA_DISPLAY'], workAreas(), { width: 1280, height: 820 }) ?? restoreBounds(remembers() ? (readWindows()[screenKey()] ?? null) : null, workAreas(), { width: 1280, height: 820 });
   window = new BrowserWindow({
     x: placed.x,
     y: placed.y,

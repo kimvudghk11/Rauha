@@ -60,3 +60,17 @@ export function parseWindowFile(input: unknown): Readonly<Record<string, SavedWi
   }
   return out;
 }
+
+/**
+ * 확인용 실행에서 창을 N번째 모니터(1이 주 모니터, 나머지는 그다음 순서)의 가운데에 놓는다.
+ * N번째 모니터가 없거나 값이 이상하면 null(원래 위치 규칙을 그대로 쓴다).
+ */
+export function placeOnDisplay(n: string | undefined, workAreas: readonly Rect[], size: { width: number; height: number }): SavedWindow | null {
+  const index = Number(n);
+  if (!Number.isInteger(index) || index < 1) return null;
+  const area = workAreas[index - 1];
+  if (area === undefined) return null;
+  const width = Math.min(size.width, area.width);
+  const height = Math.min(size.height, area.height);
+  return { x: area.x + Math.round((area.width - width) / 2), y: area.y + Math.round((area.height - height) / 2), width, height, maximized: false };
+}
