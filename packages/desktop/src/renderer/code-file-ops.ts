@@ -45,12 +45,12 @@ export function createFileOps(host: FileOpsHost) {
   let clipboard: { path: string; kind: NodeKind } | null = null;
   const caseInsensitive = host.platform === 'win32' || host.platform === 'darwin';
 
-  const nameFor = (path: string): string => (path === '' ? '작업 폴더' : nameOf(path));
+  const nameFor = (path: string): string => (path === '' ? 'Work folder' : nameOf(path));
   /** 이름 바꾸기·삭제·옮기기를 처음부터 막는 대상(main이 한 번 더 막는다) */
   const lockedLocal = (t: TreeTarget): string | null => {
-    if (t.kind === 'root') return '작업 폴더 자체는 바꾸거나 지울 수 없어요.';
-    if (t.repo !== null) return '레포·문서 폴더 자체는 바꾸거나 지울 수 없어요. 안의 파일은 조작할 수 있어요.';
-    if (inProtectedZone(t.path)) return 'node_modules 같은 생성물 안은 조작하지 않아요.';
+    if (t.kind === 'root') return 'The work folder itself cannot be renamed or deleted.';
+    if (t.repo !== null) return 'A repo or docs folder itself cannot be renamed or deleted. Files inside can be changed.';
+    if (inProtectedZone(t.path)) return 'Generated folders such as node_modules are left alone.';
     return null;
   };
 
@@ -58,9 +58,9 @@ export function createFileOps(host: FileOpsHost) {
   async function guardWorking(path: string): Promise<boolean> {
     const repo = workingRepoFor(path, host.repos());
     if (repo === null || warned.has(repo.relative)) return true;
-    const answer = await ask('작업 중인 레포예요', `@${repo.name}에서 팀이 지금 일하고 있어요. 여기서 파일을 바꾸면 팀 작업과 충돌할 수 있어요.`, [
-      { id: 'go', label: '그래도 계속', kind: 'primary' },
-      { id: 'cancel', label: '취소' },
+    const answer = await ask('Repo in use', `The team is working in @${repo.name}. Changing files here may conflict with its work.`, [
+      { id: 'go', label: 'Continue anyway', kind: 'primary' },
+      { id: 'cancel', label: 'Cancel' },
     ]);
     if (answer !== 'go') return false;
     warned.add(repo.relative);
@@ -89,21 +89,21 @@ export function createFileOps(host: FileOpsHost) {
     await host.tree.startCreate(dir, kind, (name) => {
       void (async () => {
         const r = await host.api.create({ parent: dir, name, kind });
-        if (!r.ok) return fail(r, kind === 'dir' ? '폴더를 만들지 못했어요' : '파일을 만들지 못했어요');
+        if (!r.ok) return fail(r, kind === 'dir' ? 'Could not create the folder' : 'Could not create the file');
         await done(r.path, kind === 'file' ? () => host.open(r.path) : undefined);
       })();
     });
   }
 
   async function rename(target: TreeTarget | null = host.tree.selection()): Promise<void> {
-    if (target === null) return host.say('이름을 바꿀 파일이나 폴더를 먼저 골라 주세요.');
+    if (target === null) return host.say('Pick a file or folder to rename first.');
     const why = lockedLocal(target);
     if (why !== null) return host.say(why);
     if (!(await guardWorking(target.path))) return;
     host.tree.startRename(target.path, (name) => {
       void (async () => {
         const r = await host.api.rename({ path: target.path, name });
-        if (!r.ok) return fail(r, `‘${nameOf(target.path)}’ 이름을 바꾸지 못했어요`);
+        if (!r.ok) return fail(r, `Could not rename "${nameOf(target.path)}"`);
         host.tabsMoved(target.path, r.path);
         if (r.kind === 'dir') host.tree.moveExpanded(target.path, r.path);
         await done(r.path);
@@ -112,17 +112,17 @@ export function createFileOps(host: FileOpsHost) {
   }
 
   async function duplicate(target: TreeTarget | null = host.tree.selection(), destDir?: string): Promise<void> {
-    if (target === null || target.kind === 'root') return host.say('복제할 파일이나 폴더를 먼저 골라 주세요.');
+    if (target === null || target.kind === 'root') return host.say('Pick a file or folder to duplicate first.');
     if (!(await guardWorking(destDir ?? parentOf(target.path)))) return;
     const r = await host.api.duplicate({ path: target.path, ...(destDir === undefined ? {} : { destDir }) });
-    if (!r.ok) return fail(r, `‘${nameOf(target.path)}’을(를) 복제하지 못했어요`);
-    host.say(`복제했어요: ${r.path}`);
+    if (!r.ok) return fail(r, `Could not duplicate "${nameOf(target.path)}"`);
+    host.say(`Duplicated: ${r.path}`);
     await done(r.path);
   }
 
   async function move(path: string, destDir?: string): Promise<void> {
     const kind = host.tree.kindOf(path);
-    if (kind === null) return host.say('옮길 파일이나 폴더를 찾지 못했어요. 목록을 새로 고쳐 주세요.');
+    if (kind === null) return host.say('The file or folder to move was not found. Refresh the list.');
     const target: TreeTarget = { path, kind, blocked: false, repo: host.repos().find((r) => r.relative.replace(/\\/g, '/') === path) ?? null };
     const why = lockedLocal(target);
     if (why !== null) return host.say(why);
@@ -130,77 +130,77 @@ export function createFileOps(host: FileOpsHost) {
     if (dest === null) return;
     if (!(await guardWorking(path)) || !(await guardWorking(dest))) return;
     const r = await host.api.move({ path, destDir: dest });
-    if (!r.ok) return fail(r, `‘${nameOf(path)}’을(를) 옮기지 못했어요`);
+    if (!r.ok) return fail(r, `Could not move "${nameOf(path)}"`);
     host.tabsMoved(path, r.path);
     if (r.kind === 'dir') host.tree.moveExpanded(path, r.path);
-    host.say(`옮겼어요: ${r.path}`);
+    host.say(`Moved: ${r.path}`);
     await done(r.path);
   }
 
   /** 삭제 = 휴지통. 확인 창에 폴더 안 파일 수와 수정 중인 탭을 알린다. */
   async function remove(target: TreeTarget | null = host.tree.selection()): Promise<void> {
-    if (target === null) return host.say('지울 파일이나 폴더를 먼저 골라 주세요.');
+    if (target === null) return host.say('Pick a file or folder to delete first.');
     const why = lockedLocal(target);
     if (why !== null) return host.say(why);
     const info = await host.api.inspect({ path: target.path });
-    if (!info.ok) return host.say(`지울 수 없어요: ${codeFailText(info.reason)}`);
-    if (info.locked) return host.say('이 항목은 바꾸거나 지울 수 없어요.');
+    if (!info.ok) return host.say(`Cannot delete: ${codeFailText(info.reason)}`);
+    if (info.locked) return host.say('This item cannot be changed or deleted.');
     if (!(await guardWorking(target.path))) return;
     const name = nameOf(target.path);
     const impact = deleteImpact(host.openPaths(), host.dirtyPaths(), target.path);
-    const notes: string[] = ['영구 삭제가 아니라 휴지통으로 가요. 휴지통에서 되돌릴 수 있어요.'];
-    if (info.link) notes.push('바로가기(링크)만 지워지고, 가리키는 파일은 그대로예요.');
-    if (impact.closing.length > 0) notes.push(`열려 있는 탭 ${impact.closing.length}개는 닫혀요.`);
-    if (impact.unsaved.length > 0) notes.push(`저장하지 않은 수정이 있는 탭: ${impact.unsaved.map(nameOf).join(', ')}. 지우면 그 수정은 사라져요(탭을 남기면 "삭제됨"으로 남아 다시 저장할 수 있어요).`);
-    const body = info.kind === 'dir' ? `‘${name}’ 폴더를 휴지통으로 보낼까요? 안의 파일 ${info.capped ? `${info.files.toLocaleString('ko-KR')}개 이상` : `${info.files}개`}가 함께 가요.` : `‘${name}’을(를) 휴지통으로 보낼까요?`;
-    const answer = await ask(`${name} 삭제`, body, [
-      { id: 'trash', label: '휴지통으로 보내기', kind: 'danger' },
-      ...(impact.unsaved.length > 0 ? [{ id: 'keep', label: '보내고 수정 중인 탭은 남기기', kind: 'danger' as const }] : []),
-      { id: 'cancel', label: '취소' },
+    const notes: string[] = ['It goes to the trash, not deleted for good. You can restore it from the trash.'];
+    if (info.link) notes.push('Only the link is removed. The file it points to stays.');
+    if (impact.closing.length > 0) notes.push(`${impact.closing.length} open tab(s) will close.`);
+    if (impact.unsaved.length > 0) notes.push(`Tabs with unsaved changes: ${impact.unsaved.map(nameOf).join(', ')}. Deleting loses those changes (or keep the tab and save it again).`);
+    const body = info.kind === 'dir' ? `Move folder "${name}" to the trash? ${info.capped ? `${info.files.toLocaleString('en-US')}+` : `${info.files}`} file(s) inside go with it.` : `Move "${name}" to the trash?`;
+    const answer = await ask(`Delete ${name}`, body, [
+      { id: 'trash', label: 'Move to trash', kind: 'danger' },
+      ...(impact.unsaved.length > 0 ? [{ id: 'keep', label: 'Move to trash, keep edited tab', kind: 'danger' as const }] : []),
+      { id: 'cancel', label: 'Cancel' },
     ], notes);
     if (answer !== 'trash' && answer !== 'keep') return;
     const r = await host.api.trash({ path: target.path });
-    if (!r.ok) return fail(r, `‘${name}’을(를) 지우지 못했어요`);
+    if (!r.ok) return fail(r, `Could not delete "${name}"`);
     host.tabsDeleted(target.path, answer === 'keep');
     if (info.kind === 'dir') host.tree.forgetExpanded(target.path);
     host.tree.pick(null);
-    host.say(`휴지통으로 보냈어요: ${target.path}`);
+    host.say(`Moved to trash: ${target.path}`);
     await host.refresh();
   }
 
   async function copyToClipboard(text: string, what: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      host.say(`${what}을 복사했어요.`);
+      host.say(`Copied ${what}.`);
     } catch {
-      host.say('클립보드에 복사하지 못했어요.');
+      host.say('Could not copy to the clipboard.');
     }
   }
 
   function copyPath(target: TreeTarget | null, absolute: boolean): Promise<void> {
     const rel = target?.path ?? '';
-    if (!absolute) return copyToClipboard(rel === '' ? '.' : rel, '상대 경로');
+    if (!absolute) return copyToClipboard(rel === '' ? '.' : rel, 'the relative path');
     const root = host.workFolder();
     if (root === null) {
       host.say(codeFailText('no-folder'));
       return Promise.resolve();
     }
-    return copyToClipboard(absolutePath(root, rel, host.platform === 'win32' ? '\\' : '/'), '절대 경로');
+    return copyToClipboard(absolutePath(root, rel, host.platform === 'win32' ? '\\' : '/'), 'the absolute path');
   }
 
   async function reveal(target: TreeTarget | null): Promise<void> {
     const r = await host.api.reveal({ path: target?.path ?? '' });
-    if (!r.ok) host.say('파일 관리자에서 열지 못했어요.');
+    if (!r.ok) host.say('Could not open the file manager.');
   }
 
   function copy(target: TreeTarget | null = host.tree.selection()): void {
-    if (target === null || target.kind === 'root') return host.say('복사할 파일이나 폴더를 먼저 골라 주세요.');
+    if (target === null || target.kind === 'root') return host.say('Pick a file or folder to copy first.');
     clipboard = { path: target.path, kind: target.kind };
-    host.say(`복사했어요: ${nameOf(target.path)} — 붙여넣을 폴더를 골라 Ctrl/Cmd+V`);
+    host.say(`Copied: ${nameOf(target.path)} - pick a folder and press Ctrl/Cmd+V`);
   }
 
   async function paste(target: TreeTarget | null = host.tree.selection()): Promise<void> {
-    if (clipboard === null) return host.say('복사해 둔 파일이 없어요.');
+    if (clipboard === null) return host.say('Nothing copied to paste.');
     const src = clipboard;
     await duplicate({ path: src.path, kind: src.kind, blocked: false, repo: null }, baseDir(target));
   }
@@ -233,21 +233,21 @@ export function createFileOps(host: FileOpsHost) {
     const why = lockedLocal(target);
     const isRoot = target.kind === 'root';
     const entries: MenuEntry[] = [
-      { label: '새 파일', run: () => void create('file', target) },
-      { label: '새 폴더', run: () => void create('dir', target) },
+      { label: 'New file', run: () => void create('file', target) },
+      { label: 'New folder', run: () => void create('dir', target) },
       'sep',
-      { label: '이름 바꾸기', hint: 'F2', disabled: why !== null, ...(why === null ? {} : { why }), run: () => void rename(target) },
-      { label: '복제', disabled: isRoot, run: () => void duplicate(target) },
-      { label: '복사', hint: `${mod}C`, disabled: isRoot, run: () => copy(target) },
-      { label: '붙여넣기', hint: `${mod}V`, disabled: clipboard === null, run: () => void paste(target) },
-      { label: '다른 폴더로 옮기기…', disabled: why !== null, ...(why === null ? {} : { why }), run: () => void move(target.path) },
+      { label: 'Rename', hint: 'F2', disabled: why !== null, ...(why === null ? {} : { why }), run: () => void rename(target) },
+      { label: 'Duplicate', disabled: isRoot, run: () => void duplicate(target) },
+      { label: 'Copy', hint: `${mod}C`, disabled: isRoot, run: () => copy(target) },
+      { label: 'Paste', hint: `${mod}V`, disabled: clipboard === null, run: () => void paste(target) },
+      { label: 'Move to another folder…', disabled: why !== null, ...(why === null ? {} : { why }), run: () => void move(target.path) },
       'sep',
-      { label: '경로 복사', run: () => void copyPath(target, true) },
-      { label: '상대 경로 복사', run: () => void copyPath(target, false) },
-      { label: host.platform === 'darwin' ? 'Finder에서 보기' : host.platform === 'win32' ? '탐색기에서 보기' : '파일 관리자에서 보기', run: () => void reveal(target) },
+      { label: 'Copy path', run: () => void copyPath(target, true) },
+      { label: 'Copy relative path', run: () => void copyPath(target, false) },
+      { label: host.platform === 'darwin' ? 'Reveal in Finder' : host.platform === 'win32' ? 'Show in Explorer' : 'Show in file manager', run: () => void reveal(target) },
     ];
-    if (target.repo !== null && target.repo.kind === 'repo') entries.push('sep', { label: 'Git 탭에서 보기', run: () => host.openGit(target.repo!.root) }, { label: '레포 다시 읽기', run: () => host.reloadRepos() });
-    entries.push('sep', { label: '휴지통으로 보내기', hint: 'Del', danger: true, disabled: why !== null, ...(why === null ? {} : { why }), run: () => void remove(target) });
+    if (target.repo !== null && target.repo.kind === 'repo') entries.push('sep', { label: 'Show in Git tab', run: () => host.openGit(target.repo!.root) }, { label: 'Reload repos', run: () => host.reloadRepos() });
+    entries.push('sep', { label: 'Move to trash', hint: 'Del', danger: true, disabled: why !== null, ...(why === null ? {} : { why }), run: () => void remove(target) });
     openMenu(entries, x, y);
   }
 

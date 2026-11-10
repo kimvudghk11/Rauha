@@ -29,7 +29,7 @@ export interface PreviewDeps {
   readonly changed: () => void;
 }
 
-const MODE_LABEL: Readonly<Record<MdMode, string>> = { edit: '편집', split: '나란히', preview: '미리보기' };
+const MODE_LABEL: Readonly<Record<MdMode, string>> = { edit: 'Edit', split: 'Split', preview: 'Preview' };
 
 function savedMode(): MdMode | null {
   try {
@@ -64,7 +64,7 @@ export class CodePreview {
     host: HTMLElement,
     private readonly deps: PreviewDeps,
   ) {
-    this.pane.setAttribute('aria-label', '마크다운 미리보기');
+    this.pane.setAttribute('aria-label', 'Markdown preview');
     this.body.append(host, this.pane, this.stage);
     for (const m of ['edit', 'split', 'preview'] as const) {
       const b = el('button', undefined, MODE_LABEL[m]);
@@ -166,7 +166,7 @@ export class CodePreview {
         return hit;
       },
     });
-    if (cut) root.append(el('p', 'md-empty', '글이 너무 길어 앞부분만 보여요.'));
+    if (cut) root.append(el('p', 'md-empty', 'The text is long, so only the start is shown.'));
     const top = this.pane.scrollTop;
     this.pane.replaceChildren(root);
     this.pane.scrollTop = top;
@@ -193,7 +193,7 @@ export class CodePreview {
       this.deps.changed();
     });
     img.addEventListener('click', () => img.classList.toggle('actual'));
-    img.title = '눌러서 원래 크기 / 창에 맞춤';
+    img.title = 'Click to toggle actual size / fit';
     img.src = r.dataUrl;
     this.stage.replaceChildren(img);
     this.apply();

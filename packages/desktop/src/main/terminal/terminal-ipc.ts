@@ -32,7 +32,7 @@ export function registerTerminalIpc(ipc: Pick<IpcMain, 'handle'>, deps: Terminal
     const work = deps.workFolder();
     if (work === null) return [];
     const workReal = real(work);
-    const list: StartRoot[] = [{ path: '', label: '작업 폴더', abs: workReal }];
+    const list: StartRoot[] = [{ path: '', label: 'Work folder', abs: workReal }];
     for (const repo of discoverRepos(work)) {
       const abs = real(repo);
       const rel = slash(relative(workReal, abs));
@@ -50,21 +50,21 @@ export function registerTerminalIpc(ipc: Pick<IpcMain, 'handle'>, deps: Terminal
       if (work === null) return abs;
       const workReal = real(work);
       if (!isInside(workReal, abs, process.platform === 'win32')) return abs;
-      return slash(relative(workReal, abs)) || '작업 폴더';
+      return slash(relative(workReal, abs)) || 'Work folder';
     },
     guard: (command) => {
       const work = deps.workFolder();
       const policy = deps.secrets.policy();
       if (work === null || policy === null) return null;
       const hit = policy.secretIn(command, { root: work, secretFiles: deps.secrets.files() });
-      return hit === null ? null : `비밀 파일을 건드리는 명령(${hit})은 이 칸에서 실행하지 않아요. 꼭 필요하면 직접 연 터미널에서 실행해 주세요.`;
+      return hit === null ? null : `Commands that touch secret files (${hit}) are not run here. If you really need it, run it in a terminal you open yourself.`;
     },
     emit: (event) => deps.send(TERM_IPC.event, event),
   });
   ipc.handle(TERM_IPC.roots, () => host.roots());
-  ipc.handle(TERM_IPC.open, (_e, path: unknown) => (typeof path === 'string' ? host.open(path) : { ok: false, message: '잘못된 요청이에요.' }));
+  ipc.handle(TERM_IPC.open, (_e, path: unknown) => (typeof path === 'string' ? host.open(path) : { ok: false, message: 'Invalid request.' }));
   ipc.handle(TERM_IPC.run, (_e, id: unknown, line: unknown) =>
-    typeof id === 'string' && typeof line === 'string' && line.length <= 8000 ? host.run(id, line) : { ok: false, reason: 'error', message: '잘못된 입력이에요.' },
+    typeof id === 'string' && typeof line === 'string' && line.length <= 8000 ? host.run(id, line) : { ok: false, reason: 'error', message: 'Invalid input.' },
   );
   ipc.handle(TERM_IPC.stop, (_e, id: unknown) => (typeof id === 'string' ? host.stop(id) : undefined));
   ipc.handle(TERM_IPC.close, (_e, id: unknown) => (typeof id === 'string' ? host.close(id) : undefined));

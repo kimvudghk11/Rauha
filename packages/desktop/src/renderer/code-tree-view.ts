@@ -37,7 +37,7 @@ export interface TreeHooks {
   readonly refused?: (name: string, reason: 'secret' | 'outside') => void;
 }
 
-const MORE = '항목이 너무 많아 일부만 보여요.';
+const MORE = 'Too many items; showing only some.';
 const DRAG_TYPE = 'text/x-rauha-path';
 
 
@@ -245,7 +245,7 @@ export class CodeTreeView {
     }
     listing.set(dir, result.entries);
     containers.set(dir, container);
-    if (result.entries.length === 0 && depth === 0) container.append(el('div', 'tree-note', '비어 있는 폴더예요.'));
+    if (result.entries.length === 0 && depth === 0) container.append(el('div', 'tree-note', 'Empty folder.'));
     for (const entry of result.entries) {
       const row = this.row(entry, depth);
       container.append(row.row);
@@ -273,9 +273,9 @@ export class CodeTreeView {
     const children = el('div', 'tree-children');
     const open = entry.kind === 'dir' && this.expanded.has(entry.path) && !entry.blocked;
     row.append(el('span', 'tree-chev', entry.kind === 'dir' ? (open ? '▾' : '▸') : ''), iconByName(entry.name, entry.kind === 'dir', open), el('span', 'tree-name', entry.name));
-    if (entry.link) row.append(el('span', 'chip tree-tag', '링크'));
+    if (entry.link) row.append(el('span', 'chip tree-tag', 'link'));
     this.decorate(row);
-    row.title = entry.locked ? '비밀 파일이라 열지 않아요(이름 바꾸기·삭제는 할 수 있어요)' : entry.blocked ? '작업 폴더 밖을 가리켜서 열지 않아요' : entry.path;
+    row.title = entry.locked ? 'Secret file: not opened (you can still rename or delete it)' : entry.blocked ? 'Points outside the work folder: not opened' : entry.path;
     row.addEventListener('click', () => {
       this.pick(this.targetOf(row));
       if (entry.locked || entry.blocked) {
@@ -397,7 +397,7 @@ export class CodeTreeView {
     const input = el('input', 'sm');
     input.value = o.initial;
     input.spellcheck = false;
-    input.setAttribute('aria-label', o.kind === 'dir' ? '폴더 이름' : '파일 이름');
+    input.setAttribute('aria-label', o.kind === 'dir' ? 'Folder name' : 'File name');
     const msg = el('div', 'tree-edit-msg err');
     wrap.append(el('span', 'tree-chev', ''), iconByName(o.initial === '' ? (o.kind === 'dir' ? 'folder' : 'file.txt') : o.initial, o.kind === 'dir', false), input);
     const box = el('div', 'tree-edit-box');

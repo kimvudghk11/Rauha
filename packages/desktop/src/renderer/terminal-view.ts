@@ -37,11 +37,11 @@ export function buildTerminal(api: TerminalApi) {
   const bar = el('div', 'term-bar');
   const tabsBox = el('div', 'term-tabs');
   const addBtn = el('button', 'btn ghost icon sm', '+');
-  addBtn.title = '새 터미널';
-  const stopBtn = el('button', 'btn sm danger', '멈추기');
+  addBtn.title = 'New terminal';
+  const stopBtn = el('button', 'btn sm danger', 'Stop');
   stopBtn.hidden = true;
   const hideBtn = el('button', 'btn ghost icon sm', '×');
-  hideBtn.title = '터미널 칸 접기';
+  hideBtn.title = 'Collapse terminal';
   bar.append(tabsBox, addBtn, stopBtn, hideBtn);
   const note = el('div', 'term-note', TERMINAL_LIMIT_NOTE);
   const out = el('pre', 'term-out');
@@ -50,7 +50,7 @@ export function buildTerminal(api: TerminalApi) {
   const input = el('input', 'term-input');
   input.spellcheck = false;
   input.autocomplete = 'off';
-  input.placeholder = '명령을 입력하고 Enter';
+  input.placeholder = 'Type a command and press Enter';
   inputRow.append(prompt, input);
   root.append(grip, bar, note, out, inputRow);
   root.style.height = `${readHeight()}px`;
@@ -79,7 +79,7 @@ export function buildTerminal(api: TerminalApi) {
       const b = el('div', `term-tab${t === active ? ' on' : ''}`);
       const name = el('span', 'term-tab-name', t.title);
       const x = el('button', 'btn ghost icon sm code-x', '×');
-      x.title = '터미널 닫기';
+      x.title = 'Close terminal';
       x.addEventListener('click', (e) => {
         e.stopPropagation();
         void closeTab(t);
@@ -112,7 +112,7 @@ export function buildTerminal(api: TerminalApi) {
       }
       return;
     }
-    const label = roots.find((x) => x.path === rootPath)?.label ?? '터미널';
+    const label = roots.find((x) => x.path === rootPath)?.label ?? 'Terminal';
     const tab: Tab = { id: r.id, title: `${label} · ${r.shell}`, screen: new TerminalScreen(), cwd: r.cwd, running: false, history: [], cursor: 0 };
     tabs.push(tab);
     activate(tab);
@@ -131,7 +131,7 @@ export function buildTerminal(api: TerminalApi) {
   async function newTab(): Promise<void> {
     roots = await api.roots();
     if (roots.length === 0) {
-      out.textContent = '작업 폴더를 먼저 골라 주세요(설정).';
+      out.textContent = 'Pick a work folder first (Settings).';
       return;
     }
     const first = roots[0];
@@ -201,7 +201,7 @@ export function buildTerminal(api: TerminalApi) {
       tab.running = false;
       tab.cwd = e.cwd;
       tab.screen.endLine();
-      if (e.code !== 0 || e.note !== null) tab.screen.write(`[${e.note ?? '끝났어요'}${e.code !== null && e.code !== 0 ? ` · 종료 코드 ${e.code}` : ''}]\n`);
+      if (e.code !== 0 || e.note !== null) tab.screen.write(`[${e.note ?? 'Finished'}${e.code !== null && e.code !== 0 ? ` · exit code ${e.code}` : ''}]\n`);
     }
     if (tab === active) {
       paintBar();

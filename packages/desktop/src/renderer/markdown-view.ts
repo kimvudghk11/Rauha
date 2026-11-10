@@ -20,7 +20,7 @@ const ALIGN_CLASS = { left: 'md-al-left', right: 'md-al-right', center: 'md-al-c
 export function renderMarkdown(blocks: readonly Block[], ctx: MarkdownContext): HTMLElement {
   const root = el('div', 'md');
   for (const b of blocks) root.append(block(b, ctx));
-  if (blocks.length === 0) root.append(el('p', 'md-empty', '내용이 없어요.'));
+  if (blocks.length === 0) root.append(el('p', 'md-empty', 'No content.'));
   return root;
 }
 
@@ -91,7 +91,7 @@ function listItem(item: ListItem, ctx: MarkdownContext): HTMLElement {
     box.type = 'checkbox';
     box.disabled = true;
     box.checked = item.checked;
-    box.setAttribute('aria-label', item.checked ? '완료' : '미완료');
+    box.setAttribute('aria-label', item.checked ? 'Done' : 'Not done');
     li.append(box);
   }
   for (const b of item.c) li.append(block(b, ctx));
@@ -149,18 +149,18 @@ function inlines(parent: HTMLElement, nodes: readonly Inline[], ctx: MarkdownCon
 function image(src: string, alt: string, ctx: MarkdownContext): HTMLElement {
   const rel = workImagePath(ctx.path, src);
   const off = (why: string): HTMLElement => {
-    const s = el('span', 'md-img-off', `[그림${alt === '' ? '' : `: ${alt}`}]`);
+    const s = el('span', 'md-img-off', `[Image${alt === '' ? '' : `: ${alt}`}]`);
     s.title = why;
     return s;
   };
-  if (rel === null) return off('작업 폴더 안의 그림 파일만 보여요. 인터넷 주소나 폴더 밖의 그림은 열지 않아요.');
+  if (rel === null) return off('Only image files inside the work folder are shown. Web addresses and images outside the folder are not opened.');
   const holder = el('span', 'md-img-wrap');
-  const placeholder = el('span', 'md-img-off', '그림 불러오는 중…');
+  const placeholder = el('span', 'md-img-off', 'Loading image…');
   holder.append(placeholder);
   void ctx.loadImage(rel).then(
     (r) => {
       if (!r.ok) {
-        holder.replaceChildren(off('그림을 열지 못했어요.'));
+        holder.replaceChildren(off('Could not open the image.'));
         return;
       }
       const img = el('img', 'md-img');
@@ -169,7 +169,7 @@ function image(src: string, alt: string, ctx: MarkdownContext): HTMLElement {
       img.src = r.dataUrl;
       holder.replaceChildren(img);
     },
-    () => holder.replaceChildren(off('그림을 열지 못했어요.')),
+    () => holder.replaceChildren(off('Could not open the image.')),
   );
   return holder;
 }

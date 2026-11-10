@@ -10,7 +10,7 @@ let events: TermEvent[] = [];
 let hosts: TerminalHost[] = [];
 
 const make = (guard: (c: string) => string | null = () => null): TerminalHost => {
-  const roots: StartRoot[] = [{ path: '', label: '작업 폴더', abs: dir }];
+  const roots: StartRoot[] = [{ path: '', label: 'Work folder', abs: dir }];
   const h = new TerminalHost({ platform: process.platform, env: () => process.env, home: homedir(), roots: () => roots, display: (abs) => abs, guard, emit: (e) => events.push(e) });
   hosts.push(h);
   return h;
@@ -91,7 +91,7 @@ describe('터미널 명령 실행', () => {
     await until(() => events.some((e) => e.type === 'start'));
     await h.stop(id);
     await until(() => exited(id) !== undefined);
-    expect(exited(id)?.note).toBe('멈췄어요.');
+    expect(exited(id)?.note).toBe('Stopped.');
     expect(await h.run(id, 'echo again')).toEqual({ ok: true });
   });
 
@@ -124,6 +124,6 @@ describe('터미널 명령 실행', () => {
     const id = opened(h);
     await h.run(id, 'node -e "const b=\'x\'.repeat(65536);const t=setInterval(()=>process.stdout.write(b),0)"');
     await until(() => exited(id) !== undefined, 30_000);
-    expect(exited(id)?.note).toBe('출력이 너무 많아 멈췄어요.');
+    expect(exited(id)?.note).toBe('Stopped: too much output.');
   }, 40_000);
 });

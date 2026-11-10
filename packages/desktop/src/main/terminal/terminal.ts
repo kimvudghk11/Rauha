@@ -27,14 +27,14 @@ export class Terminal {
 
   /** 폴더를 옮겼다(cd). 돌고 있는 명령이 있으면 옮기지 못한다. */
   movedTo(dir: string): void {
-    if (this.busy) throw new DomainError('TERMINAL_BUSY', '명령이 돌고 있는 동안은 폴더를 옮길 수 없어요.');
+    if (this.busy) throw new DomainError('TERMINAL_BUSY', 'Cannot change folder while a command is running.');
     this.before = this.dir;
     this.dir = dir;
   }
 
   /** 명령을 시작한다. 이미 돌고 있으면 시작하지 못한다. */
   started(): void {
-    if (this.busy) throw new DomainError('TERMINAL_BUSY', '앞선 명령이 아직 돌고 있어요.');
+    if (this.busy) throw new DomainError('TERMINAL_BUSY', 'The previous command is still running.');
     this.busy = true;
   }
 

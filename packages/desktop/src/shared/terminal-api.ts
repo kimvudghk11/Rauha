@@ -39,4 +39,4 @@ export interface TerminalApi {
 }
 
 /** 화면에 한 줄로 보이는 한계 안내 */
-export const TERMINAL_LIMIT_NOTE = '진짜 터미널(PTY)이 아니라서 vim·top·ssh 비밀번호 같은 대화형 프로그램은 안 돼요. 명령 하나마다 새 셸을 띄워요.';
+export const TERMINAL_LIMIT_NOTE = 'This is not a real terminal (PTY), so interactive programs such as vim, top or ssh password prompts do not work. Each command starts a new shell.';

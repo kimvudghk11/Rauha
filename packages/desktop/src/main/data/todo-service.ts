@@ -12,7 +12,7 @@ export interface TodoServiceDeps {
   readonly onChange: (list: TodoListJson) => void;
 }
 
-const MESSAGE_FALLBACK = '할 일을 저장하지 못했어요.';
+const MESSAGE_FALLBACK = 'Could not save the cards.';
 
 /**
  * 할 일 서비스: 불러오기 → 엔티티 메서드 → 저장. 도메인 규칙은 TodoList·Todo가 지키고 여기에는 없다.
@@ -55,7 +55,7 @@ export class TodoService {
         if (delegateId === null) return { ok: true, list: await this.commit(op.applyTo(list, this.deps.newId, this.deps.now())), jobId: null };
         list.assertCanDelegate(delegateId);
         const job = this.deps.submit(TodoDto.requestText(list.require(delegateId)));
-        if (job === null) throw new TodoError('지금은 팀에 맡길 수 없어요. 작업 폴더를 먼저 골라 주세요.');
+        if (job === null) throw new TodoError('Cannot hand to a team right now. Pick a work folder first.');
         return { ok: true, list: await this.commit(list.attachJob(delegateId, job.id, this.deps.now())), jobId: job.id };
       } catch (error) {
         return { ok: false, error: error instanceof TodoError ? error.message : MESSAGE_FALLBACK };

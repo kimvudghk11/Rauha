@@ -56,9 +56,9 @@ export class TerminalHost {
   }
 
   open(rootPath: string): OpenResult {
-    if (this.live.size >= MAX_TERMINALS) return { ok: false, message: `터미널은 ${MAX_TERMINALS}개까지 열 수 있어요.` };
+    if (this.live.size >= MAX_TERMINALS) return { ok: false, message: `Up to ${MAX_TERMINALS} terminals can be open.` };
     const root = this.deps.roots().find((r) => r.path === rootPath);
-    if (root === undefined) return { ok: false, message: '작업 폴더 밖이라 열 수 없어요.' };
+    if (root === undefined) return { ok: false, message: 'Outside the work folder: cannot open.' };
     const id = randomUUID();
     this.live.set(id, { terminal: Terminal.open(id, root.abs), child: null, stopping: false });
     return { ok: true, id, cwd: this.deps.display(root.abs), shell: shellInvocation(this.deps.platform, this.deps.env(), '').label };
@@ -66,7 +66,7 @@ export class TerminalHost {
 
   async run(id: string, line: string): Promise<RunResult> {
     const live = this.live.get(id);
-    if (live === undefined) return { ok: false, reason: 'unknown', message: '닫힌 터미널이에요.' };
+    if (live === undefined) return { ok: false, reason: 'unknown', message: 'That terminal is closed.' };
     // 돌고 있는 명령이 있으면 이 줄은 그 명령에게 보내는 입력이다
     if (live.terminal.isRunning()) {
       live.child?.stdin?.write(`${line}\n`);
@@ -109,11 +109,11 @@ export class TerminalHost {
   private async changeDir(live: Live, target: string | null): Promise<RunResult> {
     const { terminal } = live;
     const next = resolveTarget(this.deps.platform, terminal.cwd, target, this.deps.home, terminal.previous);
-    if (next === null) return { ok: false, reason: 'bad-dir', message: '이전 폴더가 없어요.' };
+    if (next === null) return { ok: false, reason: 'bad-dir', message: 'There is no previous folder.' };
     try {
-      if (!(await stat(next)).isDirectory()) return { ok: false, reason: 'bad-dir', message: `폴더가 아니에요: ${next}` };
+      if (!(await stat(next)).isDirectory()) return { ok: false, reason: 'bad-dir', message: `Not a folder: ${next}` };
     } catch {
-      return { ok: false, reason: 'bad-dir', message: `그런 폴더가 없어요: ${next}` };
+      return { ok: false, reason: 'bad-dir', message: `No such folder: ${next}` };
     }
     terminal.movedTo(next);
     this.deps.emit({ type: 'exit', id: terminal.id, code: 0, cwd: this.deps.display(next), note: null });
@@ -136,7 +136,7 @@ export class TerminalHost {
       child = spawn(sh.file, [...sh.args], { cwd: terminal.cwd, env: childEnv(this.deps.env()), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: this.deps.platform !== 'win32' });
     } catch (e) {
       terminal.finished();
-      return { ok: false, reason: 'error', message: e instanceof Error ? e.message : '명령을 시작하지 못했어요.' };
+      return { ok: false, reason: 'error', message: e instanceof Error ? e.message : 'Could not start the command.' };
     }
     live.child = child;
     live.stopping = false;
@@ -180,7 +180,7 @@ export class TerminalHost {
       flush();
       live.child = null;
       terminal.finished();
-      const why = tooMuch ? '출력이 너무 많아 멈췄어요.' : live.stopping ? '멈췄어요.' : note;
+      const why = tooMuch ? 'Stopped: too much output.' : live.stopping ? 'Stopped.' : note;
       this.deps.emit({ type: 'exit', id: terminal.id, code, cwd: this.deps.display(terminal.cwd), note: why });
     };
     child.on('error', (e) => {

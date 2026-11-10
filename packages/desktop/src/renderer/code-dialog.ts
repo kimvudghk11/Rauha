@@ -58,16 +58,16 @@ export function chooseFolder(name: string, path: string, kind: NodeKind, dirs: r
     };
     const all = moveChoices(path, kind, dirs);
     const search = el('input', 'sm');
-    search.placeholder = '폴더 찾기';
+    search.placeholder = 'Find folder';
     search.spellcheck = false;
     const list = el('div', 'choose-list');
     const paint = (): void => {
       const q = search.value.trim().toLowerCase();
-      const shown = all.filter((d) => q === '' || d.toLowerCase().includes(q) || (d === '' && '작업 폴더'.includes(q)));
+      const shown = all.filter((d) => q === '' || d.toLowerCase().includes(q) || (d === '' && 'work folder'.includes(q)));
       list.replaceChildren();
-      if (shown.length === 0) list.append(el('div', 'hint pad', '갈 수 있는 폴더가 없어요.'));
+      if (shown.length === 0) list.append(el('div', 'hint pad', 'No folders to move to.'));
       for (const d of shown.slice(0, 200)) {
-        const b = el('button', 'choose-row', d === '' ? '(작업 폴더)' : d);
+        const b = el('button', 'choose-row', d === '' ? '(work folder)' : d);
         b.type = 'button';
         b.addEventListener('click', () => finish(d));
         list.append(b);
@@ -79,11 +79,11 @@ export function chooseFolder(name: string, path: string, kind: NodeKind, dirs: r
       e.preventDefault();
       list.querySelector<HTMLElement>('.choose-row')?.click();
     });
-    const cancel = el('button', 'btn sm', '취소');
+    const cancel = el('button', 'btn sm', 'Cancel');
     cancel.addEventListener('click', () => finish(null));
     const btns = el('div', 'btns');
     btns.append(cancel);
-    box.append(el('b', undefined, `‘${name}’을(를) 어느 폴더로 옮길까요?`), el('p', 'hint', '같은 이름이 있는 곳은 덮어쓰지 않고 거절해요. 끌어서 놓아도 돼요.'), search, list, btns);
+    box.append(el('b', undefined, `Move "${name}" to which folder?`), el('p', 'hint', 'Nothing is overwritten: a folder with the same name is refused. You can also drag and drop.'), search, list, btns);
     veil.append(box);
     window.addEventListener('keydown', onKey, true);
     document.body.append(veil);

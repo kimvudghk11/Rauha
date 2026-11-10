@@ -130,20 +130,20 @@ const marksField = StateField.define<RangeSet<GutterMarker>>({
 });
 
 const PHRASES: Record<string, string> = {
-  Find: '찾기',
-  Replace: '바꿀 글',
-  next: '다음',
-  previous: '이전',
-  all: '모두',
-  'match case': '대소문자',
-  regexp: '정규식',
-  'by word': '단어',
-  replace: '바꾸기',
-  'replace all': '모두 바꾸기',
-  close: '닫기',
-  'Go to line': '줄 이동',
-  go: '이동',
-  'Selection deleted': '선택 영역이 지워졌어요',
+  Find: 'Find',
+  Replace: 'Replace with',
+  next: 'Next',
+  previous: 'Previous',
+  all: 'All',
+  'match case': 'Match case',
+  regexp: 'Regex',
+  'by word': 'Word',
+  replace: 'Replace',
+  'replace all': 'Replace all',
+  close: 'Close',
+  'Go to line': 'Go to line',
+  go: 'Go',
+  'Selection deleted': 'Selection deleted',
 };
 
 export function languageExtension(language: CodeLanguage): Extension {

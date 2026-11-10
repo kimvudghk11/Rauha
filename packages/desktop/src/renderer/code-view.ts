@@ -38,11 +38,11 @@ interface FileInfo {
 }
 
 const LANGUAGE_NAMES: Readonly<Record<CodeLanguage, string>> = {
-  plain: '일반 글', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JavaScript JSX', tsx: 'TypeScript JSX', json: 'JSON', css: 'CSS', html: 'HTML', markdown: 'Markdown',
-  python: 'Python', java: 'Java', yaml: 'YAML', xml: 'XML', sql: 'SQL', rust: 'Rust', cpp: 'C/C++', go: 'Go', shell: '셸', toml: 'TOML', properties: '설정', dockerfile: 'Dockerfile',
+  plain: 'Plain text', javascript: 'JavaScript', typescript: 'TypeScript', jsx: 'JavaScript JSX', tsx: 'TypeScript JSX', json: 'JSON', css: 'CSS', html: 'HTML', markdown: 'Markdown',
+  python: 'Python', java: 'Java', yaml: 'YAML', xml: 'XML', sql: 'SQL', rust: 'Rust', cpp: 'C/C++', go: 'Go', shell: 'Shell', toml: 'TOML', properties: 'Properties', dockerfile: 'Dockerfile',
 };
 
-const INDENT_SOURCE = { editorconfig: '.editorconfig', detected: '파일에서 알아냄', default: '기본값' } as const;
+const INDENT_SOURCE = { editorconfig: '.editorconfig', detected: 'detected from file', default: 'default' } as const;
 
 /**
  * 코드 탭: 왼쪽 탐색기, 오른쪽에 파일 탭들과 편집기. 파일 읽기·쓰기는 전부 main(api)이 한다.
@@ -56,11 +56,11 @@ export function buildCode(deps: CodeDeps) {
 
   // ── 탐색기 ──
   const head = el('div', 'code-ehead');
-  const modeFiles = el('button', 'tab sm on', '탐색기');
-  const modeSearch = el('button', 'tab sm', '검색');
+  const modeFiles = el('button', 'tab sm on', 'Explorer');
+  const modeSearch = el('button', 'tab sm', 'Search');
   const headName = el('b', 'code-folder');
   const refreshBtn = el('button', 'btn ghost icon sm', '↻');
-  refreshBtn.title = '목록 새로 고침';
+  refreshBtn.title = 'Refresh list';
   head.append(modeFiles, modeSearch, headName, refreshBtn);
   const tools = el('div', 'code-tools');
   const toolBtn = (kind: CodeIcon, title: string, run: () => void): HTMLButtonElement => {
@@ -85,15 +85,15 @@ export function buildCode(deps: CodeDeps) {
     onPick: (t) => paintTools(t),
     refused: (name, reason) => say(`${name}: ${codeFailText(reason)}`),
   });
-  const newFileBtn = toolBtn('newFile', '새 파일', () => void ops.create('file'));
-  const newDirBtn = toolBtn('newFolder', '새 폴더', () => void ops.create('dir'));
-  const renameBtn = toolBtn('rename', '이름 바꾸기 (F2)', () => void ops.rename());
-  const dupBtn = toolBtn('duplicate', '복제', () => void ops.duplicate());
-  const moveBtn = toolBtn('move', '다른 폴더로 옮기기', () => {
+  const newFileBtn = toolBtn('newFile', 'New file', () => void ops.create('file'));
+  const newDirBtn = toolBtn('newFolder', 'New folder', () => void ops.create('dir'));
+  const renameBtn = toolBtn('rename', 'Rename (F2)', () => void ops.rename());
+  const dupBtn = toolBtn('duplicate', 'Duplicate', () => void ops.duplicate());
+  const moveBtn = toolBtn('move', 'Move to another folder', () => {
     const t = tree.selection();
     if (t !== null && t.kind !== 'root') void ops.move(t.path);
   });
-  const delBtn = toolBtn('trash', '휴지통으로 보내기 (Delete)', () => void ops.remove());
+  const delBtn = toolBtn('trash', 'Move to trash (Delete)', () => void ops.remove());
   void newFileBtn;
   void newDirBtn;
   function paintTools(t: { kind: string } | null): void {
@@ -105,12 +105,12 @@ export function buildCode(deps: CodeDeps) {
   searchPanel.hidden = true;
   const searchRow = el('div', 'cs-row');
   const searchInput = el('input', 'cs-input');
-  searchInput.placeholder = '작업 폴더에서 찾기';
+  searchInput.placeholder = 'Search in work folder';
   searchInput.spellcheck = false;
   const caseBtn = el('button', 'btn ghost icon sm cs-opt', 'Aa');
-  caseBtn.title = '대소문자 구분';
+  caseBtn.title = 'Match case';
   const regexBtn = el('button', 'btn ghost icon sm cs-opt', '.*');
-  regexBtn.title = '정규식';
+  regexBtn.title = 'Regex';
   searchRow.append(searchInput, caseBtn, regexBtn);
   const searchSummary = el('div', 'cs-summary');
   const searchResults = el('div', 'cs-results');
@@ -120,16 +120,16 @@ export function buildCode(deps: CodeDeps) {
   // ── 오른쪽 ──
   const bar = el('div', 'code-bar');
   const toggle = el('button', 'btn ghost icon sm code-toggle', '☰');
-  toggle.title = '탐색기 접기/펴기';
+  toggle.title = 'Collapse/expand explorer';
   const strip = el('div', 'code-tabs');
   const termBtn = el('button', 'btn ghost icon sm code-termbtn', '>_');
-  termBtn.title = '터미널 (Ctrl/Cmd+`)';
+  termBtn.title = 'Terminal (Ctrl/Cmd+`)';
   bar.append(toggle, strip, termBtn);
   const notice = el('div', 'code-notice');
   notice.hidden = true;
   const host = el('div', 'code-host');
   const empty = el('div', 'code-empty');
-  empty.append(el('b', undefined, '파일을 골라 열어 보세요'), el('span', undefined, '왼쪽 탐색기에서 파일을 누르면 여기서 고칠 수 있어요.'), el('span', 'dim', 'Ctrl/Cmd+S 저장 · Ctrl/Cmd+F 찾기'));
+  empty.append(el('b', undefined, 'Pick a file to open'), el('span', undefined, 'Click a file in the explorer on the left to edit it here.'), el('span', 'dim', 'Ctrl/Cmd+S save · Ctrl/Cmd+F find'));
   const status = el('div', 'code-status');
   const sPath = el('span', 'sp');
   const sRight = el('span', 'sr');
@@ -198,14 +198,14 @@ export function buildCode(deps: CodeDeps) {
       const fi = info.get(active.path);
       if (active.stale) {
         const line = el('div', 'note warn');
-        line.append(el('span', undefined, '디스크에서 이 파일이 바뀌었거나 지워졌어요. '));
-        const reload = el('button', 'btn sm', '디스크 내용 불러오기');
+        line.append(el('span', undefined, 'This file changed or was deleted on disk. '));
+        const reload = el('button', 'btn sm', 'Load disk version');
         reload.addEventListener('click', () => void revert(active.path, true));
         line.append(reload);
         lines.push(line);
       }
-      if (fi?.readOnly === true) lines.push(el('div', 'note', '쓰기 권한이 없는 파일이라 읽기 전용으로 열었어요.'));
-      if (fi?.mixedEol === true) lines.push(el('div', 'note', '줄 끝이 섞여 있어요. 저장하면 한 가지로 통일돼요.'));
+      if (fi?.readOnly === true) lines.push(el('div', 'note', 'No write permission, so the file is open read-only.'));
+      if (fi?.mixedEol === true) lines.push(el('div', 'note', 'Line endings are mixed. Saving makes them all the same.'));
     }
     notice.replaceChildren(...lines);
     notice.hidden = lines.length === 0;
@@ -221,7 +221,7 @@ export function buildCode(deps: CodeDeps) {
       t.dataset['path'] = f.path;
       const dirty = isDirty(f.path);
       const close = el('button', 'btn ghost icon sm code-x');
-      close.title = dirty ? '수정됨 — 닫기' : '닫기';
+      close.title = dirty ? 'Modified - close' : 'Close';
       close.textContent = dirty ? '●' : '×';
       close.classList.toggle('dirty', dirty);
       close.addEventListener('click', (e) => {
@@ -241,7 +241,7 @@ export function buildCode(deps: CodeDeps) {
       t.title = img.path;
       t.dataset['path'] = img.path;
       const close = el('button', 'btn ghost icon sm code-x', '×');
-      close.title = '닫기';
+      close.title = 'Close';
       close.addEventListener('click', (e) => {
         e.stopPropagation();
         closeImageTab(img.path);
@@ -279,18 +279,18 @@ export function buildCode(deps: CodeDeps) {
     status.hidden = f === undefined && img === null;
     if (img !== null) {
       sPath.textContent = img.path;
-      sRight.textContent = [img.width === null ? '' : `${img.width}×${img.height} 픽셀`, bytesText(img.bytes), img.mime].filter((p) => p !== '').join('   ');
+      sRight.textContent = [img.width === null ? '' : `${img.width}×${img.height} px`, bytesText(img.bytes), img.mime].filter((p) => p !== '').join('   ');
       return;
     }
     if (f === undefined || path === null) return;
     const fi = info.get(path);
     sPath.textContent = path;
-    const ind = fi === undefined ? '' : `${fi.indent.unit === 'tab' ? '탭' : '스페이스'} ${fi.indent.size} (${INDENT_SOURCE[fi.indent.source]})`;
-    const parts = [`줄 ${cursor.line}, 칸 ${cursor.column}`, ind, f.eol === 'crlf' ? 'CRLF' : 'LF', f.bom ? 'UTF-8 BOM' : 'UTF-8', LANGUAGE_NAMES[fi?.language ?? 'plain'], isDirty(path) ? '수정됨' : '저장됨'];
+    const ind = fi === undefined ? '' : `${fi.indent.unit === 'tab' ? 'Tab' : 'Spaces'} ${fi.indent.size} (${INDENT_SOURCE[fi.indent.source]})`;
+    const parts = [`Ln ${cursor.line}, Col ${cursor.column}`, ind, f.eol === 'crlf' ? 'CRLF' : 'LF', f.bom ? 'UTF-8 BOM' : 'UTF-8', LANGUAGE_NAMES[fi?.language ?? 'plain'], isDirty(path) ? 'Modified' : 'Saved'];
     sRight.textContent = parts.filter((p) => p !== '').join('   ');
     const repo = repoOf(path);
     if (repo !== null) {
-      const link = el('button', 'link', changeMap.statusOf(path) === null ? 'git에서 보기' : '변경됨 · git에서 보기');
+      const link = el('button', 'link', changeMap.statusOf(path) === null ? 'View in git' : 'Changed · View in git');
       link.addEventListener('click', () => deps.openGit(repo.root));
       sRight.append(link);
     }
@@ -331,7 +331,7 @@ export function buildCode(deps: CodeDeps) {
     tree.setActive(preview.activeImage()?.path ?? tabs.active);
   }
 
-  const bytesText = (n: number): string => (n < 1024 ? `${n}바이트` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
+  const bytesText = (n: number): string => (n < 1024 ? `${n} bytes` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)}KB` : `${(n / 1024 / 1024).toFixed(1)}MB`);
   function tierNarrow(): boolean {
     return ['s', 'xs'].includes(document.querySelector<HTMLElement>('.app')?.dataset['tier'] ?? '');
   }
@@ -398,10 +398,10 @@ export function buildCode(deps: CodeDeps) {
   async function closeTab(path: string): Promise<void> {
     if (isDirty(path)) {
       const name = baseName(path);
-      const answer = await ask(`${name} 저장할까요?`, '저장하지 않고 닫으면 고친 내용이 사라져요.', [
-        { id: 'save', label: '저장하고 닫기', kind: 'primary' },
-        { id: 'discard', label: '저장 안 함', kind: 'danger' },
-        { id: 'cancel', label: '취소' },
+      const answer = await ask(`Save ${name}?`, 'If you close without saving, your changes are lost.', [
+        { id: 'save', label: 'Save and close', kind: 'primary' },
+        { id: 'discard', label: 'Do not save', kind: 'danger' },
+        { id: 'cancel', label: 'Cancel' },
       ]);
       if (answer === 'cancel') return;
       if (answer === 'save' && !(await save(path))) return;
@@ -437,10 +437,10 @@ export function buildCode(deps: CodeDeps) {
         }
         if ((r.reason === 'conflict' || r.reason === 'deleted') && !overwrite) {
           const gone = r.reason === 'deleted';
-          const answer = await ask(gone ? '디스크에서 지워진 파일이에요' : '디스크에서 이 파일이 바뀌었어요', gone ? '저장하면 이 파일을 다시 만들어요.' : '내 내용으로 덮어쓰면 다른 곳에서 고친 내용이 사라져요. 디스크 내용을 불러오면 내가 고친 내용이 사라져요.', [
-            { id: 'overwrite', label: gone ? '다시 만들어 저장' : '내 내용으로 덮어쓰기', kind: 'danger' },
-            ...(gone ? [] : [{ id: 'reload', label: '디스크 내용 불러오기' }]),
-            { id: 'cancel', label: '취소' },
+          const answer = await ask(gone ? 'File deleted on disk' : 'File changed on disk', gone ? 'Saving recreates this file.' : 'Overwriting loses the changes made elsewhere. Loading the disk version loses your edits.', [
+            { id: 'overwrite', label: gone ? 'Recreate and save' : 'Overwrite with mine', kind: 'danger' },
+            ...(gone ? [] : [{ id: 'reload', label: 'Load disk version' }]),
+            { id: 'cancel', label: 'Cancel' },
           ]);
           if (answer === 'overwrite') {
             overwrite = true;
@@ -450,7 +450,7 @@ export function buildCode(deps: CodeDeps) {
           return false;
         }
         const detail = r.detail === undefined ? '' : ` (${r.detail})`;
-        say(`${baseName(path)}를 저장하지 못했어요. ${codeFailText(r.reason)}${detail} 고친 내용은 그대로 남아 있어요.`);
+        say(`Could not save ${baseName(path)}. ${codeFailText(r.reason)}${detail} Your changes are still in the editor.`);
         return false;
       }
     } finally {
@@ -461,9 +461,9 @@ export function buildCode(deps: CodeDeps) {
   /** 마지막 저장 상태(디스크 내용)로 되돌린다. 수정 중이면 먼저 확인한다. */
   async function revert(path: string, skipAsk = false): Promise<void> {
     if (!skipAsk && isDirty(path)) {
-      const answer = await ask('고친 내용을 버릴까요?', '디스크에 저장된 내용으로 되돌려요. 고친 내용은 사라져요.', [
-        { id: 'revert', label: '되돌리기', kind: 'danger' },
-        { id: 'cancel', label: '취소' },
+      const answer = await ask('Discard your changes?', 'The file goes back to what is saved on disk. Your changes are lost.', [
+        { id: 'revert', label: 'Revert', kind: 'danger' },
+        { id: 'cancel', label: 'Cancel' },
       ]);
       if (answer !== 'revert') return;
     }
@@ -563,16 +563,16 @@ export function buildCode(deps: CodeDeps) {
       searchResults.replaceChildren();
       return;
     }
-    searchSummary.textContent = '찾는 중…';
+    searchSummary.textContent = 'Searching…';
     const r = await deps.api.search({ query, caseSensitive: caseOn, regex: regexOn });
     if (seq !== searchSeq) return;
     if (!r.ok) {
       searchResults.replaceChildren();
-      searchSummary.textContent = r.reason === 'bad-regex' ? '정규식이 올바르지 않아요.' : r.reason === 'empty' ? '' : codeFailText(r.reason);
+      searchSummary.textContent = r.reason === 'bad-regex' ? 'The regex is not valid.' : r.reason === 'empty' ? '' : codeFailText(r.reason);
       return;
     }
     const hitCount = r.files.reduce((n, f) => n + f.hits.length, 0);
-    searchSummary.textContent = hitCount === 0 ? '찾은 곳이 없어요.' : `${r.files.length}개 파일에서 ${hitCount}곳${r.truncated ? ' (너무 많아 일부만 보여요)' : ''}`;
+    searchSummary.textContent = hitCount === 0 ? 'No matches.' : `${hitCount} match(es) in ${r.files.length} file(s)${r.truncated ? ' (too many; showing some)' : ''}`;
     searchResults.replaceChildren(...r.files.map(resultGroup));
   }
 
@@ -610,7 +610,7 @@ export function buildCode(deps: CodeDeps) {
     const veil = el('div', 'qo-veil');
     const box = el('div', 'qo');
     const input = el('input', 'qo-input');
-    input.placeholder = '파일 이름으로 열기';
+    input.placeholder = 'Open by file name';
     input.spellcheck = false;
     const list = el('div', 'qo-list');
     box.append(input, list);
@@ -629,7 +629,7 @@ export function buildCode(deps: CodeDeps) {
       shown = rankFiles(input.value, all, 50);
       index = Math.min(index, Math.max(0, shown.length - 1));
       list.replaceChildren();
-      if (shown.length === 0) list.append(el('div', 'qo-empty', all.length === 0 ? '파일을 찾는 중…' : '맞는 파일이 없어요.'));
+      if (shown.length === 0) list.append(el('div', 'qo-empty', all.length === 0 ? 'Looking for files…' : 'No matching files.'));
       shown.forEach((p, i) => {
         const row = el('button', `qo-row${i === index ? ' on' : ''}`);
         row.type = 'button';
@@ -709,7 +709,7 @@ export function buildCode(deps: CodeDeps) {
   async function loadTree(): Promise<void> {
     const next = await deps.workFolder();
     if (next === null) {
-      headName.textContent = '탐색기';
+      headName.textContent = 'Explorer';
       tree.root.replaceChildren(el('div', 'tree-note', codeFailText('no-folder')));
       folder = next;
       return;
@@ -733,7 +733,7 @@ export function buildCode(deps: CodeDeps) {
     void term.reset();
     editor.hide();
     paintAll();
-    if (lost.length > 0) say(`작업 폴더가 바뀌어 열어 둔 파일을 닫았어요. 저장 안 한 ${lost.join(', ')}의 수정은 사라졌어요.`);
+    if (lost.length > 0) say(`The work folder changed, so open files were closed. Unsaved changes in ${lost.join(', ')} were lost.`);
   }
 
   // ── 레포 노드 ──

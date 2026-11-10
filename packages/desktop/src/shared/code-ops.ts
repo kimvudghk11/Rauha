@@ -27,19 +27,19 @@ const fold = (s: string, ci: boolean): string => (ci ? s.toLowerCase() : s);
 /** 화면에서 친 이름이 쓸 수 있는 이름인지. 안 되면 이유를 한 문장으로 돌려준다. */
 export function checkName(input: string, ctx: NameContext): NameCheck {
   const fail = (problem: NameProblem, text: string): NameCheck => ({ ok: false, problem, text });
-  if (input === '') return fail('empty', '이름을 입력해 주세요.');
-  if (input === '.' || input === '..') return fail('dots', '"." 와 ".." 는 이름으로 쓸 수 없어요.');
+  if (input === '') return fail('empty', 'Please enter a name.');
+  if (input === '.' || input === '..') return fail('dots', '"." and ".." cannot be used as names.');
   const bad = input.match(BAD_CHARS);
-  if (bad !== null) return fail('bad-char', bad[0] <= '\u001f' ? '제어 문자는 이름에 쓸 수 없어요.' : `이름에 ${bad[0]} 는 쓸 수 없어요.`);
-  if (input !== input.trim() || input.endsWith('.')) return fail('trailing', '이름 앞뒤에 빈칸이나 끝에 점을 둘 수 없어요.');
-  if (input.toLowerCase() === '.git') return fail('git', '.git 은 git이 쓰는 이름이라 쓸 수 없어요.');
-  if (RESERVED.test(input)) return fail('reserved', `${input.split('.')[0]} 는 Windows 예약 이름이라 쓸 수 없어요.`);
-  if (new TextEncoder().encode(input).length > MAX_NAME_BYTES) return fail('too-long', `이름이 너무 길어요(${MAX_NAME_BYTES}바이트까지).`);
-  if (ctx.self !== undefined && input === ctx.self) return fail('same', '지금 이름과 같아요.');
+  if (bad !== null) return fail('bad-char', bad[0] <= '\u001f' ? 'Control characters cannot be used in a name.' : `${bad[0]} cannot be used in a name.`);
+  if (input !== input.trim() || input.endsWith('.')) return fail('trailing', 'A name cannot start or end with a space, or end with a dot.');
+  if (input.toLowerCase() === '.git') return fail('git', '.git is reserved for git.');
+  if (RESERVED.test(input)) return fail('reserved', `${input.split('.')[0]} is a reserved Windows name.`);
+  if (new TextEncoder().encode(input).length > MAX_NAME_BYTES) return fail('too-long', `The name is too long (up to ${MAX_NAME_BYTES} bytes).`);
+  if (ctx.self !== undefined && input === ctx.self) return fail('same', 'That is the current name.');
   const key = fold(input, ctx.caseInsensitive);
   const selfKey = ctx.self === undefined ? null : fold(ctx.self, ctx.caseInsensitive);
   // 이름 바꾸기에서 대소문자만 바꾸는 것은 자기 자신과 겹치는 게 아니다
-  if (ctx.siblings.some((s) => fold(s, ctx.caseInsensitive) === key && !(selfKey !== null && key === selfKey))) return fail('exists', '같은 이름이 이미 있어요.');
+  if (ctx.siblings.some((s) => fold(s, ctx.caseInsensitive) === key && !(selfKey !== null && key === selfKey))) return fail('exists', 'The same name already exists.');
   return { ok: true, name: input };
 }
 
@@ -92,10 +92,10 @@ export type MoveRefusal = 'same-folder' | 'into-self' | 'exists' | 'protected';
 export type MovePlan = { readonly ok: true; readonly target: string } | { readonly ok: false; readonly reason: MoveRefusal; readonly text: string };
 
 const MOVE_TEXT: Readonly<Record<MoveRefusal, string>> = {
-  'same-folder': '이미 그 폴더에 있어요.',
-  'into-self': '폴더를 자기 자신 안으로는 옮길 수 없어요.',
-  exists: '그 폴더에 같은 이름이 이미 있어서 옮기지 않아요(덮어쓰지 않아요).',
-  protected: 'node_modules 같은 조작 금지 구역으로는 옮길 수 없어요.',
+  'same-folder': 'It is already in that folder.',
+  'into-self': 'A folder cannot be moved into itself.',
+  exists: 'The same name already exists in that folder, so nothing was moved (nothing is overwritten).',
+  protected: 'Cannot move into protected areas such as node_modules.',
 };
 
 /** 옮기면 어디에 놓이는지. 안 되는 까닭이 있으면 거절한다. */

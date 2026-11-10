@@ -38,7 +38,7 @@ describe('할 일 서비스', () => {
   it('규칙을 어기면 이유를 돌려주고 저장하지 않는다', async () => {
     const t = setup();
     const res = await t.service.apply({ kind: 'add', title: '  ' });
-    expect(res).toEqual({ ok: false, error: '할 일 제목을 적어 주세요.' });
+    expect(res).toEqual({ ok: false, error: 'Please enter a card title.' });
     expect(t.saves()).toBe(0);
   });
 
@@ -110,7 +110,7 @@ describe('할 일 서비스', () => {
     const moved = await t.service.apply({ kind: 'move', id, columnId: 'done', beforeId: null });
     expect(moved.ok && moved.list.items[0]!.columnId).toBe('done');
     expect(t.saved().items[0]!.columnId).toBe('done');
-    expect(await t.service.apply({ kind: 'column-edit', id: 'todo', patch: { name: ' ' } })).toEqual({ ok: false, error: '칸 이름을 적어 주세요.' });
+    expect(await t.service.apply({ kind: 'column-edit', id: 'todo', patch: { name: ' ' } })).toEqual({ ok: false, error: 'Please enter a column name.' });
     expect((await t.service.apply({ kind: 'move', id, columnId: '없는칸' })).ok).toBe(false);
   });
 

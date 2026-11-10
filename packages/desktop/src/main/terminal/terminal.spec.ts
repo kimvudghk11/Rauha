@@ -14,8 +14,8 @@ describe('터미널 한 칸', () => {
     const t = Terminal.open('t1', '/w');
     t.started();
     expect(t.isRunning()).toBe(true);
-    expect(() => t.movedTo('/x')).toThrowError(/돌고 있는 동안/);
-    expect(() => t.started()).toThrowError(/아직 돌고/);
+    expect(() => t.movedTo('/x')).toThrowError(/while a command is running/);
+    expect(() => t.started()).toThrowError(/still running/);
     t.finished();
     expect(t.isRunning()).toBe(false);
     t.movedTo('/x');
