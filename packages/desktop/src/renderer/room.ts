@@ -20,11 +20,11 @@ export function characterStateOf(job: Pick<JobView, 'status' | 'role'>): Charact
   }
 }
 
-/** 걸린 시간 글. 1분 미만은 초만, 그 이상은 "4분 12초", 1시간 넘으면 "1시간 5분". */
+/** 걸린 시간 글. 1분 미만은 초만, 그 이상은 "4m 12s", 1시간 넘으면 "1h 5m". */
 export function elapsedText(startIso: string, endIso: string | null, nowMs: number): string {
   const end = endIso === null ? nowMs : Date.parse(endIso);
   const sec = Math.max(0, Math.floor((end - Date.parse(startIso)) / 1000));
-  if (sec < 60) return `${sec}초`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}분 ${String(sec % 60).padStart(2, '0')}초`;
-  return `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`;
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ${String(sec % 60).padStart(2, '0')}s`;
+  return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
 }

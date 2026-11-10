@@ -19,11 +19,11 @@ import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../sha
 import { mountStage, paintOnce } from './stage.js';
 
 const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
-  queued: '대기',
-  running: '진행 중',
-  waiting: '기다림',
-  done: '끝',
-  stopped: '멈춤',
+  queued: 'Queued',
+  running: 'Running',
+  waiting: 'Waiting',
+  done: 'Done',
+  stopped: 'Stopped',
 };
 
 /** 끝난 방이 사라지기까지 보여 주는 시간 */
@@ -74,9 +74,9 @@ export function buildChat(actions: ChatActions) {
   paintOnce(headFace, 'intake', 2);
   const layoutToggle = el('div', 'seg ltoggle');
   const leadHint = el('span', 'hint');
-  const leadHintText = (): string => `${leadName()}에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.`;
+  const leadHintText = (): string => `Hand work to ${leadName()}. You can send the next task right away.`;
   leadHint.textContent = leadHintText();
-  head.append(headFace, el('b', undefined, '메인'), leadHint, layoutToggle);
+  head.append(headFace, el('b', undefined, 'Main'), leadHint, layoutToggle);
   /** 화면의 말풍선을 비운다(돌고 있는 작업과 기록은 그대로). /clear 와 '대화 초기화' 단추가 같이 쓴다. */
   function clearVisibleChat(): void {
     msgs.replaceChildren(empty);
@@ -88,8 +88,8 @@ export function buildChat(actions: ChatActions) {
   }
   if (actions.resetConversation !== undefined) {
     const resetConversation = actions.resetConversation;
-    const reset = el('button', 'btn sm reset-conv', '대화 초기화');
-    reset.title = '앞 대화와 이어 일할 파일 목록을 비워요. 기억은 남아요.';
+    const reset = el('button', 'btn sm reset-conv', 'Reset chat');
+    reset.title = 'Clears the earlier chat and the carried-over file list. Memory is kept.';
     reset.addEventListener('click', async () => {
       const answer = await askDialog({ ...RESET_CONFIRM, danger: true });
       if (!answer.ok) return;
@@ -109,14 +109,14 @@ export function buildChat(actions: ChatActions) {
   const empty = el('div', 'empty');
   const emptyFace = el('canvas', 'sp');
   paintOnce(emptyFace, 'intake', 5);
-  empty.append(emptyFace, el('div', undefined, '무엇을 맡길까요? 여러 개를 연달아 보내도 돼요.'));
+  empty.append(emptyFace, el('div', undefined, 'What should the team do? You can send several in a row.'));
   msgs.appendChild(empty);
   const composer = el('div', 'composer');
   const input = el('textarea');
-  input.placeholder = '새 업무를 입력하세요…  (@폴더이름 으로 대상 지정)';
+  input.placeholder = 'Type a new task…  (@folder to pick a target)';
   input.rows = 1;
   const hint = el('div', 'hint');
-  hint.innerHTML = '<span><span class="kbd">Enter</span> 보내기</span><span class="more"><span class="kbd">Shift+Enter</span> 줄바꿈</span><span class="more"><span class="kbd">@</span> 폴더 지정</span>';
+  hint.innerHTML = '<span><span class="kbd">Enter</span> Send</span><span class="more"><span class="kbd">Shift+Enter</span> New line</span><span class="more"><span class="kbd">@</span> Pick folder</span>';
   composer.append(input, hint);
   mainPane.append(head, msgs, composer);
 
@@ -154,7 +154,7 @@ export function buildChat(actions: ChatActions) {
         input.value = text;
         fit();
       }
-      flash('작업 폴더를 먼저 골라 허락해 주세요(Settings 탭의 작업 폴더). 쓰던 글은 그대로 두었어요.');
+      flash('Pick and allow a work folder first (Settings > Work folder). Your draft is kept.');
     }
     input.focus();
   };
@@ -214,19 +214,19 @@ export function buildChat(actions: ChatActions) {
     const dot = el('span', 'dot');
     const line = el('span', 'handline', short(job.request, 40));
     const state = el('span', 'state');
-    const go = el('button', 'link go', '진행 보기 →');
+    const go = el('button', 'link go', 'View progress →');
     go.addEventListener('click', () => open(job.id));
-    const stop = el('button', 'btn sm danger', '멈추기');
+    const stop = el('button', 'btn sm danger', 'Stop');
     stop.addEventListener('click', () => actions.stop(job.id));
     hand.append(dot, line, state, go);
     if (actions.saveTodo !== undefined) {
-      const keep = el('button', 'link keep', '할 일로 담기');
-      keep.title = '이 일을 Todo 탭에 담아 둬요';
+      const keep = el('button', 'link keep', 'Save to Todo');
+      keep.title = 'Save this task in the Todo tab';
       keep.addEventListener('click', () => {
         keep.disabled = true;
         void actions.saveTodo!(job.request).then((res) => {
-          keep.textContent = res.ok ? '담았어요 ✓' : '담지 못했어요';
-          keep.title = res.ok ? 'Todo 탭에서 볼 수 있어요' : res.error;
+          keep.textContent = res.ok ? 'Saved ✓' : 'Could not save';
+          keep.title = res.ok ? 'You can see it in the Todo tab' : res.error;
           keep.disabled = res.ok;
         });
       });
@@ -264,17 +264,17 @@ export function buildChat(actions: ChatActions) {
     // 로그인이 필요해서 멈춘 일: 터미널로 보내지 않고 이 카드에서 바로 로그인한다
     if (job.status === 'stopped' && needsLogin(`${text} ${job.stopReason ?? ''}`)) card.appendChild(loginCard());
     // 지식 없이 먼저 답한 깊은 답: 그 답 카드 안에 작게 알린다(알림·로그가 아니다)
-    if (job.knowledgeMissing) card.appendChild(el('div', 'kn', '저장소 정보를 아직 못 읽었어요. 배경에서 읽는 중이라 다음 질문부터는 더 정확해져요.'));
+    if (job.knowledgeMissing) card.appendChild(el('div', 'kn', 'Repo info is not read yet. It is loading in the background, so later questions will be more accurate.'));
     // 팀원이 찾아본 도구(Grep·Read 횟수): 폴더를 제대로 훑었는지 보이게 작게 한 줄. 쓴 도구가 없으면 줄이 없다.
-    if (job.toolsLine !== null) card.appendChild(el('div', 'kn', `찾아본 것: ${job.toolsLine}`));
+    if (job.toolsLine !== null) card.appendChild(el('div', 'kn', `Looked up: ${job.toolsLine}`));
     // 멈춘 일은 같은 요청을 그대로 다시 맡길 수 있다(로그인 때문이면 로그인한 뒤 누른다)
     if (job.status === 'stopped') {
-      const again = el('button', 'btn sm retry', '다시 맡기기');
+      const again = el('button', 'btn sm retry', 'Retry');
       again.addEventListener('click', () => {
         if (again.disabled) return;
         again.disabled = true;
         void handIn(job.request).then((next) => {
-          again.textContent = next === null ? '작업 폴더를 먼저 허락해 주세요' : '다시 맡겼어요 ✓';
+          again.textContent = next === null ? 'Allow a work folder first' : 'Sent again ✓';
           again.disabled = next !== null;
         });
       });
@@ -282,7 +282,7 @@ export function buildChat(actions: ChatActions) {
     }
     // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
     if (job.canGoDeeper) {
-      const deeper = el('button', 'btn sm deeper', '더 깊게');
+      const deeper = el('button', 'btn sm deeper', 'Go deeper');
       deeper.addEventListener('click', () => {
         deeper.disabled = true;
         void actions.deeper(job.id);
@@ -328,7 +328,7 @@ export function buildChat(actions: ChatActions) {
         title.textContent = short(next.request, 28);
         const mineAsks = pend.filter((p) => p.jobId === next.id);
         const need = mineAsks.length > 0;
-        time.textContent = need ? needLabel(mineAsks) : next.status === 'queued' ? '대기' : elapsedText(next.queuedAt, next.endedAt, Date.now());
+        time.textContent = need ? needLabel(mineAsks) : next.status === 'queued' ? 'Queued' : elapsedText(next.queuedAt, next.endedAt, Date.now());
         time.className = need ? 'time chip yellow' : 'time';
         bubble.textContent = next.status === 'done' ? '끝!' : next.status === 'stopped' ? '멈췄어요' : (next.lastLine !== null ? short(next.lastLine, 18) : '시작하는 중');
         bubble.classList.toggle('t', next.status === 'running');
@@ -400,12 +400,12 @@ export function buildChat(actions: ChatActions) {
 
   const reviews = new Map<string, Promise<ChangeReview | null>>();
 
-  const yesNo = (v: boolean | null, yes: string, no: string) => (v === null ? '모름' : v ? yes : no);
-  const deployText = (v: 'yes' | 'no' | 'unknown') => (v === 'yes' ? '예' : v === 'no' ? '아니요' : '모름');
+  const yesNo = (v: boolean | null, yes: string, no: string) => (v === null ? 'Unknown' : v ? yes : no);
+  const deployText = (v: 'yes' | 'no' | 'unknown') => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Unknown');
 
   /** 코드 허락의 정리: 보호 브랜치별 영향 표, 바뀐 파일, diff. git으로 계산한 값이다. */
   function reviewBox(a: ApprovalView): HTMLElement {
-    const box = el('div', 'review', '변경을 확인하는 중…');
+    const box = el('div', 'review', 'Checking changes…');
     let pending = reviews.get(a.id);
     if (pending === undefined) {
       pending = actions.review(a.id).catch(() => null);
@@ -414,32 +414,32 @@ export function buildChat(actions: ChatActions) {
     void pending.then((r) => {
       box.replaceChildren();
       if (r === null) {
-        box.textContent = '이 요청의 레포를 알 수 없어 변경을 보여 줄 수 없어요.';
+        box.textContent = 'Cannot show changes: the repo for this request is unknown.';
         return;
       }
       const table = el('table', 'impact');
       const head = el('tr');
-      for (const h of ['브랜치', '앞섬', '뒤처짐', '충돌', '자동 배포']) head.appendChild(el('th', undefined, h));
+      for (const h of ['Branch', 'Ahead', 'Behind', 'Conflicts', 'Auto-deploy']) head.appendChild(el('th', undefined, h));
       table.appendChild(head);
       for (const i of r.impacts) {
         const row = el('tr');
         const cells = i.exists
-          ? [i.branch, i.ahead === null ? '모름' : `${i.ahead}개`, i.behind === null ? '모름' : `${i.behind}개`, yesNo(i.conflicts, '충돌 있음', '없음'), deployText(i.autoDeploy)]
-          : [i.branch, '브랜치 없음', '', '', deployText(i.autoDeploy)];
-        cells.forEach((c, n) => row.appendChild(el('td', n === 3 && c === '충돌 있음' ? 'bad' : undefined, c)));
+          ? [i.branch, i.ahead === null ? 'Unknown' : `${i.ahead}`, i.behind === null ? 'Unknown' : `${i.behind}`, yesNo(i.conflicts, 'Conflict', 'None'), deployText(i.autoDeploy)]
+          : [i.branch, 'No branch', '', '', deployText(i.autoDeploy)];
+        cells.forEach((c, n) => row.appendChild(el('td', n === 3 && c === 'Conflict' ? 'bad' : undefined, c)));
         table.appendChild(row);
       }
-      box.appendChild(el('div', 'sub', `지금 브랜치: ${r.branch ?? '(분리된 HEAD)'}`));
+      box.appendChild(el('div', 'sub', `Current branch: ${r.branch ?? '(detached HEAD)'}`));
       box.appendChild(table);
       if (r.files.length === 0) {
-        box.appendChild(el('div', 'sub', '바뀐 파일이 없어요.'));
+        box.appendChild(el('div', 'sub', 'No changed files.'));
         return;
       }
       const files = el('ul', 'files');
       for (const f of r.files) files.appendChild(el('li', undefined, `${f.path}  ${f.additions === null ? '' : `+${f.additions} -${f.deletions}`}`));
       box.appendChild(files);
       const diff = el('details');
-      diff.appendChild(el('summary', undefined, `diff 보기${r.truncated ? ' (앞부분만)' : ''}`));
+      diff.appendChild(el('summary', undefined, `Show diff${r.truncated ? ' (first part only)' : ''}`));
       const pre = el('pre', 'diff');
       for (const line of r.diff.split('\n')) pre.appendChild(el('div', `dl ${classifyDiffLine(line)}`, line === '' ? ' ' : line));
       diff.appendChild(pre);
@@ -451,18 +451,18 @@ export function buildChat(actions: ChatActions) {
   /** 인프라 허락의 위험도 표. 명령에서 읽을 수 있는 것만 채우고 나머지는 모른다고 쓴다(추측하지 않는다). */
   function riskTable(s: ApprovalSummary, risk: InfraRisk | null): HTMLElement {
     const rows: [string, string][] = [
-      ['환경', s.environment ?? '모름'],
-      ['계정·리전', [s.profile, s.region].filter((x) => x !== null).join(' · ') || '모름'],
-      ['영향 범위', risk?.scope ?? '모름'],
-      ['중단 여부', risk?.downtime === 'none' ? '없음' : risk?.downtime === 'brief' ? '잠깐' : risk?.downtime === 'long' ? '오래' : '모름'],
-      ['비용 방향', risk?.cost === 'up' ? '늘어남' : risk?.cost === 'down' ? '줄어듦' : risk?.cost === 'same' ? '같음' : '모름'],
-      ['되돌리는 데 걸리는 시간', risk?.rollback ?? '모름'],
-      ['qa에 먼저 적용했는지', risk?.qaFirst === true ? '예' : risk?.qaFirst === false ? '아니요' : '모름'],
+      ['Environment', s.environment ?? 'Unknown'],
+      ['Account · Region', [s.profile, s.region].filter((x) => x !== null).join(' · ') || 'Unknown'],
+      ['Scope', risk?.scope ?? 'Unknown'],
+      ['Downtime', risk?.downtime === 'none' ? 'None' : risk?.downtime === 'brief' ? 'Brief' : risk?.downtime === 'long' ? 'Long' : 'Unknown'],
+      ['Cost direction', risk?.cost === 'up' ? 'Up' : risk?.cost === 'down' ? 'Down' : risk?.cost === 'same' ? 'Same' : 'Unknown'],
+      ['Time to roll back', risk?.rollback ?? 'Unknown'],
+      ['Applied to qa first', risk?.qaFirst === true ? 'Yes' : risk?.qaFirst === false ? 'No' : 'Unknown'],
     ];
     const table = el('table', 'impact risk');
     for (const [k, val] of rows) {
       const tr = el('tr');
-      tr.append(el('th', undefined, k), el('td', val === '모름' ? 'dim' : undefined, val));
+      tr.append(el('th', undefined, k), el('td', val === 'Unknown' ? 'dim' : undefined, val));
       table.appendChild(tr);
     }
     return table;
@@ -473,9 +473,9 @@ export function buildChat(actions: ChatActions) {
     const card = el('div', `approval ${a.summary.kind}`);
     card.tabIndex = 0;
     card.setAttribute('role', 'group');
-    card.setAttribute('aria-label', '허락 요청');
-    card.appendChild(el('div', 'ah', `허락이 필요해요 · ${a.summary.headline}`));
-    card.appendChild(el('div', 'who', `요청한 팀원: ${a.roleName}`));
+    card.setAttribute('aria-label', 'Permission request');
+    card.appendChild(el('div', 'ah', `Permission needed · ${a.summary.headline}`));
+    card.appendChild(el('div', 'who', `Requested by: ${a.roleName}`));
     if (a.summary.risks.length > 0) {
       const ul = el('ul');
       for (const r of a.summary.risks) ul.appendChild(el('li', undefined, r));
@@ -484,20 +484,20 @@ export function buildChat(actions: ChatActions) {
     const facts = el('div', 'facts');
     if (a.summary.kind === 'code') {
       facts.append(
-        el('span', 'chip', a.summary.protectedBranch !== null ? `보호 브랜치: ${a.summary.protectedBranch}` : '보호 브랜치 아님'),
-        el('span', 'chip', a.summary.forcePush ? '강제 push' : '일반 push'),
+        el('span', 'chip', a.summary.protectedBranch !== null ? `Protected branch: ${a.summary.protectedBranch}` : 'Not a protected branch'),
+        el('span', 'chip', a.summary.forcePush ? 'Force push' : 'Normal push'),
       );
     } else if (a.summary.kind === 'infra') {
-      facts.append(el('span', 'chip', `환경: ${a.summary.environment ?? '모름'}`), el('span', 'chip', '비용: 방향만(모름)'));
+      facts.append(el('span', 'chip', `Environment: ${a.summary.environment ?? 'Unknown'}`), el('span', 'chip', 'Cost: direction only (unknown)'));
     }
     if (facts.childElementCount > 0) card.appendChild(facts);
     if (a.summary.kind === 'code') card.appendChild(reviewBox(a));
     if (a.summary.kind === 'infra') card.appendChild(riskTable(a.summary, a.risk));
     const raw = el('details');
-    raw.append(el('summary', undefined, '원본 명령'), el('pre', undefined, `${a.tool}: ${a.detail}`));
+    raw.append(el('summary', undefined, 'Raw command'), el('pre', undefined, `${a.tool}: ${a.detail}`));
     card.appendChild(raw);
     const note = el('input', 'note');
-    note.placeholder = '다르게 해 줘: 이렇게 바꿔 달라고 적어요';
+    note.placeholder = 'Revise: describe what to change';
     const row = el('div', 'btns');
     const btn = (label: string, cls: string, choice: () => ApprovalChoice) => {
       const b = el('button', cls === '' ? 'btn' : `btn ${cls}`, label);
@@ -509,15 +509,15 @@ export function buildChat(actions: ChatActions) {
       return b;
     };
     row.append(
-      btn('한 번만 허락', 'primary', () => ({ kind: 'once' })),
-      btn('이번 작업 동안 허락', '', () => ({ kind: 'job' })),
-      btn('다르게 해 줘', '', () => ({ kind: 'revise', note: note.value })),
-      btn('거절', 'danger', () => ({ kind: 'deny' })),
+      btn('Allow once', 'primary', () => ({ kind: 'once' })),
+      btn('Allow for this job', '', () => ({ kind: 'job' })),
+      btn('Revise', '', () => ({ kind: 'revise', note: note.value })),
+      btn('Deny', 'danger', () => ({ kind: 'deny' })),
     );
     // 어떻게 바꿀지 적기 전에는 '다르게 해 줘'를 누를 수 없다
     const revise = row.children[2] as HTMLButtonElement;
     revise.disabled = !canRevise(note.value);
-    revise.title = '어떻게 바꿀지 위 칸에 적어 주세요';
+    revise.title = 'Describe the change in the box above';
     note.addEventListener('input', () => (revise.disabled = !canRevise(note.value)));
     card.append(note, row);
     return card;
@@ -532,9 +532,9 @@ export function buildChat(actions: ChatActions) {
     const main = el('div', 'pane');
     const ph = el('div', 'ph');
     const cast = castCanvases(job.cast.filter(isRole), 2);
-    const back = el('button', 'btn', '← 메인');
+    const back = el('button', 'btn', '← Main');
     back.addEventListener('click', close);
-    const stop = el('button', 'btn danger', '멈추기');
+    const stop = el('button', 'btn danger', 'Stop');
     stop.hidden = job.status === 'done' || job.status === 'stopped';
     stop.addEventListener('click', () => actions.stop(job.id));
     const actionsBox = el('span', 'right');
@@ -542,7 +542,7 @@ export function buildChat(actions: ChatActions) {
     ph.append(el('span', `dot ${job.status}`), cast, el('b', undefined, short(job.request, 40)), actionsBox);
 
     const tabs = el('div', 'tabs dtabs');
-    for (const [id, label] of [['summary', '정리'], ['log', '원본 로그']] as const) {
+    for (const [id, label] of [['summary', 'Summary'], ['log', 'Raw log']] as const) {
       const b = el('button', detailTab === id ? 'tab sm on' : 'tab sm', label);
       b.addEventListener('click', () => {
         detailTab = id;
@@ -560,17 +560,17 @@ export function buildChat(actions: ChatActions) {
         line.append(n.message);
         body.appendChild(line);
       }
-      if (job.notes.length === 0) body.appendChild(el('div', 'dim', '아직 로그가 없어요.'));
+      if (job.notes.length === 0) body.appendChild(el('div', 'dim', 'No log yet.'));
     } else {
       for (const a of mine) body.appendChild(approvalCard(a));
       const now = el('div', 'sumline');
-      now.textContent = job.status === 'done' ? '끝났어요.' : job.status === 'stopped' ? `멈췄어요${job.stopReason !== null ? ` · ${job.stopReason}` : ''}` : job.status === 'waiting' ? '허락이나 선택을 기다려요.' : job.status === 'queued' ? '차례를 기다려요.' : `${job.roleName ?? '팀'}이(가) ${job.lastLine ?? '시작하는 중'}`;
+      now.textContent = job.status === 'done' ? 'Done.' : job.status === 'stopped' ? `Stopped${job.stopReason !== null ? ` · ${job.stopReason}` : ''}` : job.status === 'waiting' ? 'Waiting for a permission or a choice.' : job.status === 'queued' ? 'Waiting in the queue.' : `${job.roleName ?? 'Team'}: ${job.lastLine ?? 'starting'}`;
       body.appendChild(now);
       if (job.result !== null) body.appendChild(el('div', 'result', job.result));
       if (job.status === 'stopped' && needsLogin(`${job.result ?? ''} ${job.stopReason ?? ''}`)) body.appendChild(loginCard());
       const doneNotes = job.notes.filter((n) => n.role !== null).slice(-8);
       if (doneNotes.length > 0) {
-        body.appendChild(el('div', 'sub', '지금까지'));
+        body.appendChild(el('div', 'sub', 'So far'));
         const ul = el('ul');
         for (const n of doneNotes) ul.appendChild(el('li', undefined, `${n.roleName}: ${n.message}`));
         body.appendChild(ul);
@@ -580,9 +580,9 @@ export function buildChat(actions: ChatActions) {
 
     const side = el('div', 'dside');
     const tl = el('div', 'pane');
-    tl.appendChild(el('div', 'ph', '진행 단계'));
+    tl.appendChild(el('div', 'ph', 'Steps'));
     const list = el('div', 'tl');
-    if (job.steps.length === 0) list.appendChild(el('div', 'x', '아직 단계가 없어요.'));
+    if (job.steps.length === 0) list.appendChild(el('div', 'x', 'No steps yet.'));
     for (const s of job.steps) {
       const row = el('div', `s ${s.state === 'done' ? 'd' : 'n'}`);
       row.append(el('span', 'k'), el('div', 't', s.label));
@@ -596,7 +596,7 @@ export function buildChat(actions: ChatActions) {
   // ── 레이아웃 토글(A 나란히 · B 위아래) ──
   function layoutButtons(current: 'A' | 'B', pick: (l: 'A' | 'B') => void): void {
     layoutToggle.replaceChildren();
-    for (const [id, label] of [['A', '나란히'], ['B', '위아래']] as const) {
+    for (const [id, label] of [['A', 'Side by side'], ['B', 'Stacked']] as const) {
       const b = el('button', current === id ? 'on' : '', label);
       b.addEventListener('click', () => pick(id));
       layoutToggle.appendChild(b);

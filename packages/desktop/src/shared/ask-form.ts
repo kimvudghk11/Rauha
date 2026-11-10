@@ -30,5 +30,5 @@ export function reviseChoice(note: string): ApprovalChoice | null {
 
 /** 질문 카드가 뜬 작업의 상태 칩 글. 허락과 선택을 구분해서 쓴다. */
 export function needLabel(asks: readonly { readonly ask: unknown }[]): string {
-  return asks.length > 0 && asks.every((a) => a.ask !== null) ? '선택 필요' : '허락 필요';
+  return asks.length > 0 && asks.every((a) => a.ask !== null) ? 'Choice needed' : 'Permission needed';
 }

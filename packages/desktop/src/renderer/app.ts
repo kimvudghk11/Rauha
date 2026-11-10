@@ -89,9 +89,9 @@ function renderTabs(): void {
   TABS.filter((t) => t.bottom).forEach(add);
   // 탭이 아닌 단추: 어느 탭에서나 답답한 점을 적는 창을 연다(단축키와 같다). 막대 맨 끝에 둬서 탭 순서를 건드리지 않는다.
   const bug = el('button', 'bug-open');
-  bug.title = `리포트 적기 (${shortcutText(platform)})`;
-  bug.setAttribute('aria-label', '리포트 적기');
-  bug.append(icon('M12 8v5 M12 16.5v.5 M10.3 3.9L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'), el('span', undefined, '리포트'));
+  bug.title = `Write a report (${shortcutText(platform)})`;
+  bug.setAttribute('aria-label', 'Write a report');
+  bug.append(icon('M12 8v5 M12 16.5v.5 M10.3 3.9L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'), el('span', undefined, 'Report'));
   bug.addEventListener('click', openBug);
   tabsNav.appendChild(bug);
 }
@@ -137,7 +137,7 @@ function show(id: TabId): void {
   else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid), update: (r) => window.rauha.updateRule(r), defaults: { list: () => window.rauha.listDefaultRules(), apply: (op) => window.rauha.applyDefaultRule(op) } }).root);
   else {
     const soon = el('div', 'soon');
-    soon.append(el('b', undefined, tab.label), el('span', undefined, '곧 열려요'));
+    soon.append(el('b', undefined, tab.label), el('span', undefined, 'Coming soon'));
     screen.replaceChildren(soon);
   }
 }
@@ -213,15 +213,15 @@ function toast(a: ApprovalView): void {
   if (toasted.has(a.id)) return;
   toasted.add(a.id);
   const t = el('div', 'toast');
-  t.append(el('b', undefined, '허락이 필요해요'), el('span', undefined, `${a.roleName} · ${a.summary.headline}`));
-  const go = el('button', 'btn sm primary', '정리 보기');
+  t.append(el('b', undefined, 'Permission needed'), el('span', undefined, `${a.roleName} · ${a.summary.headline}`));
+  const go = el('button', 'btn sm primary', 'Review');
   go.addEventListener('click', () => {
     show('chat');
     chat.open(a.jobId);
     t.remove();
   });
   t.appendChild(go);
-  if (window.rauha.platform === 'darwin' && !notifyHintSeen()) t.appendChild(el('small', 'hint', '알림이 안 보이면 시스템 설정 > 알림에서 rauha를 허용해 주세요.'));
+  if (window.rauha.platform === 'darwin' && !notifyHintSeen()) t.appendChild(el('small', 'hint', 'If you do not see notifications, allow rauha in System Settings > Notifications.'));
   toasts.appendChild(t);
   setTimeout(() => t.remove(), 12000);
 }
@@ -231,7 +231,7 @@ function paintLimits(usage: UsageView | null): void {
   const box = document.getElementById('status-usage')!;
   box.replaceChildren();
   if (usage === null) return;
-  box.append(limitBar('세션', usage.session), limitBar('주간', usage.weekly));
+  box.append(limitBar('Session', usage.session), limitBar('Weekly', usage.weekly));
 }
 const statusUsage = document.getElementById('status-usage')!;
 /** 툴팁은 보기 직전에 "n초 전"을 새로 계산한다 */
@@ -245,7 +245,7 @@ window.addEventListener('focus', () => void usageFeed.refresh('focus'));
 function renderStatus(view: BoardView): void {
   lastBoard = view;
   document.getElementById('status-jobs')!.textContent = statusText(view);
-  document.getElementById('status-limit')!.textContent = `동시에 ${view.limit}개까지`;
+  document.getElementById('status-limit')!.textContent = `Up to ${view.limit} at once`;
 }
 
 function onApprovals(list: readonly ApprovalView[]): void {

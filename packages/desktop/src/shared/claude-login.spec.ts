@@ -54,11 +54,11 @@ describe('needsLogin', () => {
 
 describe('failureReason', () => {
   it('실행 파일이 없으면 그 이유 한 줄이다', () => {
-    expect(failureReason({ kind: 'no-executable' })).toBe('앱에 들어 있는 Claude 실행 파일을 찾지 못했어요.');
+    expect(failureReason({ kind: 'no-executable' })).toBe('Could not find the Claude executable bundled with the app.');
   });
 
   it('시간이 지났으면 그 이유 한 줄이다', () => {
-    expect(failureReason({ kind: 'timeout' })).toContain('시간이 지나');
+    expect(failureReason({ kind: 'timeout' })).toContain('timed out');
   });
 
   it('종료 코드가 0이 아니면 출력의 마지막 줄을 이유로 쓴다(길면 자른다)', () => {
@@ -67,20 +67,20 @@ describe('failureReason', () => {
   });
 
   it('출력이 비어 있으면 종료 코드만 알린다', () => {
-    expect(failureReason({ kind: 'exit', code: 2, output: '' })).toBe('로그인이 끝나지 않았어요(종료 코드 2).');
+    expect(failureReason({ kind: 'exit', code: 2, output: '' })).toBe('Login did not finish (code 2).');
   });
 
   it('로그인은 끝났는데 로그인 상태가 확인되지 않으면 그렇게 알린다', () => {
-    expect(failureReason({ kind: 'not-confirmed' })).toContain('확인하지 못');
+    expect(failureReason({ kind: 'not-confirmed' })).toContain('could not be confirmed');
   });
 });
 
 describe('loginText', () => {
   it('진행 중·성공·실패·취소를 한 줄로 보여 준다', () => {
     expect(loginText({ state: 'idle', message: null })).toBe('');
-    expect(loginText({ state: 'running', message: null })).toContain('브라우저');
-    expect(loginText({ state: 'success', message: null })).toBe('로그인됐어요.');
-    expect(loginText({ state: 'failed', message: '시간이 지났어요.' })).toBe('로그인하지 못했어요: 시간이 지났어요.');
-    expect(loginText({ state: 'cancelled', message: null })).toBe('로그인을 취소했어요.');
+    expect(loginText({ state: 'running', message: null })).toContain('browser');
+    expect(loginText({ state: 'success', message: null })).toBe('Logged in.');
+    expect(loginText({ state: 'failed', message: 'timed out.' })).toBe('Login failed: timed out.');
+    expect(loginText({ state: 'cancelled', message: null })).toBe('Login cancelled.');
   });
 });

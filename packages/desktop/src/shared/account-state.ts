@@ -23,7 +23,7 @@ export type StatusFailure =
 const REASON_MAX = 160;
 const clip = (text: string): string => (text.length > REASON_MAX ? `${text.slice(0, REASON_MAX - 1)}…` : text);
 
-const METHOD_NAMES: Readonly<Record<string, string>> = { 'claude.ai': 'Claude 구독', api_key: 'API 키' };
+const METHOD_NAMES: Readonly<Record<string, string>> = { 'claude.ai': 'Claude subscription', api_key: 'API key' };
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null);
 
@@ -40,7 +40,7 @@ export function accountFromStatus(stdout: string): AccountState {
   if (data['loggedIn'] === false) return { kind: 'signed-out' };
   if (data['loggedIn'] !== true) return unknownBecause({ kind: 'unreadable' });
   const method = text(data['authMethod']);
-  const who = text(data['email']) ?? (method !== null ? (METHOD_NAMES[method] ?? method) : 'Claude 계정');
+  const who = text(data['email']) ?? (method !== null ? (METHOD_NAMES[method] ?? method) : 'Claude account');
   const detail = [text(data['orgName']), text(data['subscriptionType'])].filter((v): v is string => v !== null).join(' · ');
   return { kind: 'signed-in', who, detail: detail === '' ? null : detail };
 }
@@ -53,19 +53,19 @@ export function unknownBecause(failure: StatusFailure): { readonly kind: 'unknow
 function reasonOf(failure: StatusFailure): string {
   switch (failure.kind) {
     case 'no-executable':
-      return '앱에 들어 있는 Claude 실행 파일을 찾지 못했어요.';
+      return 'Could not find the Claude executable bundled with the app.';
     case 'config':
-      return `계정 설정을 읽지 못했어요: ${failure.message}`;
+      return `Could not read the account settings: ${failure.message}`;
     case 'timeout':
-      return `Claude가 ${failure.seconds}초 안에 답하지 않았어요.`;
+      return `Claude did not answer within ${failure.seconds}s.`;
     case 'spawn':
-      return `Claude 실행 파일을 띄우지 못했어요: ${failure.message}`;
+      return `Could not start the Claude executable: ${failure.message}`;
     case 'exit': {
       const last = failure.stderr.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '').pop();
-      return last === undefined ? `Claude가 오류로 끝났어요(종료 코드 ${failure.code}).` : `Claude가 오류로 끝났어요(종료 코드 ${failure.code}): ${last}`;
+      return last === undefined ? `Claude exited with an error (code ${failure.code}).` : `Claude exited with an error (code ${failure.code}): ${last}`;
     }
     case 'unreadable':
-      return 'Claude의 답을 읽지 못했어요.';
+      return 'Could not read the reply from Claude.';
   }
 }
 
@@ -93,23 +93,23 @@ export interface AccountCardView {
 
 /** 읽은 결과(아직 읽는 중이면 null) → 카드. 로그인 버튼은 "로그인 안 됨"일 때만 두드러진다. */
 export function accountCard(check: AccountCheck | null): AccountCardView {
-  if (check === null) return { tone: 'warn', title: '로그인 상태를 읽는 중이에요', detail: '', loginLabel: '다른 계정으로 로그인', loginProminent: false, canRecheck: false };
-  const folder = check.configDir === null ? '' : `계정 폴더 ${check.configDir}`;
+  if (check === null) return { tone: 'warn', title: 'Checking login status…', detail: '', loginLabel: 'Log in with another account', loginProminent: false, canRecheck: false };
+  const folder = check.configDir === null ? '' : `Account folder ${check.configDir}`;
   const join = (...parts: Array<string | null>): string => parts.filter((p): p is string => p !== null && p !== '').join(' · ');
   const { state } = check;
   switch (state.kind) {
     case 'signed-in':
-      return { tone: 'ok', title: `로그인됨 · ${state.who}`, detail: join(state.detail, folder), loginLabel: '다른 계정으로 로그인', loginProminent: false, canRecheck: false };
+      return { tone: 'ok', title: `Logged in · ${state.who}`, detail: join(state.detail, folder), loginLabel: 'Log in with another account', loginProminent: false, canRecheck: false };
     case 'signed-out':
       return {
         tone: 'off',
-        title: '로그인 안 됨',
-        detail: join(folder, '터미널의 Claude Code 로그인과는 따로예요. 여기서 한 번 로그인해 주세요'),
-        loginLabel: 'Claude 로그인',
+        title: 'Not logged in',
+        detail: join(folder, 'Separate from your terminal Claude Code login. Log in here once.'),
+        loginLabel: 'Log in to Claude',
         loginProminent: true,
         canRecheck: false,
       };
     case 'unknown':
-      return { tone: 'warn', title: '로그인 상태를 확인하지 못했어요', detail: state.reason, loginLabel: '다른 계정으로 로그인', loginProminent: false, canRecheck: true };
+      return { tone: 'warn', title: 'Could not check login status', detail: state.reason, loginLabel: 'Log in with another account', loginProminent: false, canRecheck: true };
   }
 }

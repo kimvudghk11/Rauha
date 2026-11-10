@@ -91,7 +91,7 @@ describe('ClaudeLogin', () => {
     const s = setup({ login: {}, status: { stdout: '{"loggedIn": false}' } });
     const done = await s.login.start();
     expect(done.state).toBe('failed');
-    expect(done.message).toContain('확인하지 못');
+    expect(done.message).toContain('could not be confirmed');
   });
 
   it('종료 코드가 0이 아니면 출력의 마지막 줄을 실패 이유로 보인다', async () => {
@@ -102,7 +102,7 @@ describe('ClaudeLogin', () => {
   it('실행 파일이 없으면 PATH의 claude를 찾지 않고 이유를 알린다', async () => {
     const s = setup({}, { executable: undefined });
     const done = await s.login.start();
-    expect(done).toEqual({ state: 'failed', message: '앱에 들어 있는 Claude 실행 파일을 찾지 못했어요.' });
+    expect(done).toEqual({ state: 'failed', message: 'Could not find the Claude executable bundled with the app.' });
     expect(s.calls).toHaveLength(0);
   });
 
@@ -115,7 +115,7 @@ describe('ClaudeLogin', () => {
     const s = setup({ login: { hang: true } }, { timeoutMs: 30 });
     const done = await s.login.start();
     expect(done.state).toBe('failed');
-    expect(done.message).toContain('시간이 지나');
+    expect(done.message).toContain('timed out');
     expect(s.killed).toContain('login');
   });
 
@@ -161,17 +161,17 @@ describe('ClaudeLogin', () => {
   });
 
   it('계정 상태: 답이 없거나 깨졌으면 로그인 안 됨이 아니라 이유가 달린 확인 못 함이다', async () => {
-    expect((await setup({ status: { hang: true } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('답하지 않았어요') });
-    expect((await setup({ status: { error: true } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('띄우지 못했어요') });
-    expect((await setup({ status: { stdout: 'garbage' } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: 'Claude의 답을 읽지 못했어요.' });
-    expect((await setup({ status: { stderr: 'boom', code: 3 } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: 'Claude가 오류로 끝났어요(종료 코드 3): boom' });
-    expect((await setup({}, { executable: undefined }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('실행 파일을 찾지 못했어요') });
+    expect((await setup({ status: { hang: true } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('did not answer') });
+    expect((await setup({ status: { error: true } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('Could not start') });
+    expect((await setup({ status: { stdout: 'garbage' } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: 'Could not read the reply from Claude.' });
+    expect((await setup({ status: { stderr: 'boom', code: 3 } }).login.check()).state).toMatchObject({ kind: 'unknown', reason: 'Claude exited with an error (code 3): boom' });
+    expect((await setup({}, { executable: undefined }).login.check()).state).toMatchObject({ kind: 'unknown', reason: expect.stringContaining('Could not find the Claude executable') });
   });
 
   it('계정 상태: 계정 설정을 읽다 실패하면 그 이유를 말한다', async () => {
     const f = fake({});
     const login = new ClaudeLogin({ executable: () => '/x/claude', env: async () => Promise.reject(new Error('config.toml이 깨졌어요')), openExternal: async () => undefined, onChange: () => undefined, spawn: f.spawn });
-    expect((await login.check()).state).toEqual({ kind: 'unknown', reason: '계정 설정을 읽지 못했어요: config.toml이 깨졌어요' });
+    expect((await login.check()).state).toEqual({ kind: 'unknown', reason: 'Could not read the account settings: config.toml이 깨졌어요' });
   });
 });
 

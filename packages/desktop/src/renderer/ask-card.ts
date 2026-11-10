@@ -11,16 +11,16 @@ function optionBox(o: AskOptionView, canGoOn: boolean, reason: HTMLInputElement,
   const box = el('div', o.recommended ? 'item opt rec' : 'item opt');
   const head = el('div', 'facts');
   head.appendChild(el('b', undefined, `${o.id}. ${o.title}`));
-  if (o.recommended) head.appendChild(el('span', 'chip blue', 'AI 추천'));
-  head.appendChild(el('span', `chip ${reversibilityTone(o.reversibility)}`, `되돌리기 ${o.reversibility}`));
+  if (o.recommended) head.appendChild(el('span', 'chip blue', 'AI pick'));
+  head.appendChild(el('span', `chip ${reversibilityTone(o.reversibility)}`, `Undo: ${o.reversibility}`));
   box.append(head, el('div', undefined, o.summary));
-  for (const line of [list('장점', o.pros), list('단점', o.cons), o.risk === '' ? null : list('위험', [o.risk]), list('손댈 곳', o.touches)]) if (line !== null) box.appendChild(line);
+  for (const line of [list('Pros', o.pros), list('Cons', o.cons), o.risk === '' ? null : list('Risk', [o.risk]), list('Touches', o.touches)]) if (line !== null) box.appendChild(line);
   const row = el('div', 'btns');
-  const pick = el('button', o.recommended ? 'btn sm primary' : 'btn sm', '이 방향으로');
+  const pick = el('button', o.recommended ? 'btn sm primary' : 'btn sm', 'Go this way');
   pick.addEventListener('click', () => send(pickChoice(o.id, reason.value, false)));
   row.appendChild(pick);
   if (canGoOn) {
-    const goOn = el('button', 'btn sm', '고르고 설계·계획까지');
+    const goOn = el('button', 'btn sm', 'Pick and continue to design');
     goOn.addEventListener('click', () => send(pickChoice(o.id, reason.value, true)));
     row.appendChild(goOn);
   }
@@ -37,39 +37,39 @@ export function askCard(a: ApprovalView, answer: Send): HTMLElement {
     if (c === null) input?.focus();
     else answer(a.id, c);
   };
-  const stop = el('button', 'btn sm danger', '여기서 멈추기');
+  const stop = el('button', 'btn sm danger', 'Stop here');
   stop.addEventListener('click', () => answer(a.id, { kind: 'stop' }));
 
   if (ask.kind === 'directions') {
-    card.appendChild(el('div', undefined, `증상: ${ask.symptom}`));
+    card.appendChild(el('div', undefined, `Symptom: ${ask.symptom}`));
     const reason = el('input', 'sm');
-    reason.placeholder = '이유 한 줄(선택)';
+    reason.placeholder = 'One-line reason (optional)';
     const opts = el('div', 'opts');
     for (const o of ask.options) opts.appendChild(optionBox(o, ask.canGoOn, reason, (c) => send(c)));
-    card.append(opts, el('div', 'hint', `AI 추천 이유: ${ask.recommendedReason}`), reason);
+    card.append(opts, el('div', 'hint', `Why AI picked it: ${ask.recommendedReason}`), reason);
     const own = el('input', 'sm');
-    own.placeholder = '직접 쓴 방향';
-    const ownBtn = el('button', 'btn sm', '내가 쓴 방향으로');
+    own.placeholder = 'Your own direction';
+    const ownBtn = el('button', 'btn sm', 'Use my direction');
     ownBtn.addEventListener('click', () => send(customChoice(own.value, reason.value, false), own));
     const row = el('div', 'btns');
     row.append(ownBtn, stop);
     card.append(own, row);
   } else {
-    card.append(el('div', undefined, `고른 방향: ${ask.chosen}`), el('div', undefined, `목표: ${ask.goal}`));
+    card.append(el('div', undefined, `Chosen direction: ${ask.chosen}`), el('div', undefined, `Goal: ${ask.goal}`));
     const steps = el('ol');
     for (const s of ask.steps) steps.appendChild(el('li', undefined, s.title));
     card.appendChild(steps);
-    if (ask.risks.length > 0) card.appendChild(el('div', 'hint', `확인하지 못한 것: ${ask.risks.join(' / ')}`));
+    if (ask.risks.length > 0) card.appendChild(el('div', 'hint', `Not verified: ${ask.risks.join(' / ')}`));
     const note = el('input', 'sm');
-    note.placeholder = '고칠 점이 있으면 적어요';
-    const go = el('button', 'btn sm primary', '이대로 고치기');
+    note.placeholder = 'Describe anything to change';
+    const go = el('button', 'btn sm primary', 'Apply as is');
     go.addEventListener('click', () => answer(a.id, { kind: 'proceed' }));
-    const revise = el('button', 'btn sm', '고칠 점 적고 다시');
+    const revise = el('button', 'btn sm', 'Revise and redo');
     revise.addEventListener('click', () => send(reviseChoice(note.value), note));
     const row = el('div', 'btns');
     row.append(go, revise, stop);
     card.append(note, row);
   }
-  if (ask.docPath !== null) card.appendChild(el('div', 'hint', `문서: ${ask.docPath}`));
+  if (ask.docPath !== null) card.appendChild(el('div', 'hint', `Doc: ${ask.docPath}`));
   return card;
 }

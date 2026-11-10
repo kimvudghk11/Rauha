@@ -46,14 +46,14 @@ const REASON_MAX = 120;
 export function failureReason(failure: LoginFailure): string {
   switch (failure.kind) {
     case 'no-executable':
-      return '앱에 들어 있는 Claude 실행 파일을 찾지 못했어요.';
+      return 'Could not find the Claude executable bundled with the app.';
     case 'timeout':
-      return '시간이 지나서 로그인을 멈췄어요. 다시 눌러 주세요.';
+      return 'Login timed out. Press the button to try again.';
     case 'not-confirmed':
-      return '로그인 창은 닫혔지만 로그인된 것을 확인하지 못했어요.';
+      return 'The login window closed, but the login could not be confirmed.';
     case 'exit': {
       const last = failure.output.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '').pop();
-      if (last === undefined) return `로그인이 끝나지 않았어요(종료 코드 ${failure.code}).`;
+      if (last === undefined) return `Login did not finish (code ${failure.code}).`;
       return last.length > REASON_MAX ? `${last.slice(0, REASON_MAX - 1)}…` : last;
     }
   }
@@ -65,12 +65,12 @@ export function loginText(view: LoginView): string {
     case 'idle':
       return '';
     case 'running':
-      return '브라우저에서 로그인해 주세요. 끝나면 여기에 반영돼요.';
+      return 'Log in in your browser. This updates here when you finish.';
     case 'success':
-      return '로그인됐어요.';
+      return 'Logged in.';
     case 'failed':
-      return `로그인하지 못했어요: ${view.message ?? '이유를 알 수 없어요.'}`;
+      return `Login failed: ${view.message ?? 'unknown reason.'}`;
     case 'cancelled':
-      return '로그인을 취소했어요.';
+      return 'Login cancelled.';
   }
 }

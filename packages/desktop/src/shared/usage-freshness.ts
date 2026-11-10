@@ -30,13 +30,13 @@ export function decideRead(ctx: ReadContext): ReadDecision {
 
 /** 읽은 시각 → "방금 / n초 전 / n분 전 / n시간 전". 못 읽었으면 그렇게 말한다. */
 export function ageText(readAt: number | null, now: number): string {
-  if (readAt === null) return '아직 못 읽었어요';
+  if (readAt === null) return 'Not read yet';
   const seconds = Math.floor(Math.max(0, now - readAt) / 1000);
-  if (seconds < 1) return '방금';
-  if (seconds < 60) return `${seconds}초 전`;
+  if (seconds < 1) return 'Just now';
+  if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}분 전`;
-  return `${Math.floor(minutes / 60)}시간 전`;
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
 }
 
 export function isStale(readAt: number | null, now: number): boolean {

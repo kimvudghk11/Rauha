@@ -45,6 +45,6 @@ export function createUsageFeed(bridge: UsageBridge | undefined = window.rauhaUs
 /** 툴팁 글: 읽은 시각과, 오래됐으면 그 사실 */
 export function usageTooltip(view: UsageSnapshotView | null, now = Date.now()): string {
   const readAt = view?.readAt ?? null;
-  const base = `한도를 읽은 시각: ${ageText(readAt, now)}`;
-  return isStale(readAt, now) && readAt !== null ? `${base} (오래된 값일 수 있어요)` : base;
+  const base = `Limits read: ${ageText(readAt, now)}`;
+  return isStale(readAt, now) && readAt !== null ? `${base} (may be out of date)` : base;
 }

@@ -42,21 +42,21 @@ describe('한도 읽기 시점', () => {
 
 describe('읽은 지 얼마나 됐는지', () => {
   it('아직 못 읽었으면 그렇게 말한다', () => {
-    expect(ageText(null, NOW)).toBe('아직 못 읽었어요');
+    expect(ageText(null, NOW)).toBe('Not read yet');
   });
 
   it('1분 안이면 n초 전으로 보인다', () => {
-    expect(ageText(NOW - 12_000, NOW)).toBe('12초 전');
-    expect(ageText(NOW - 400, NOW)).toBe('방금');
+    expect(ageText(NOW - 12_000, NOW)).toBe('12s ago');
+    expect(ageText(NOW - 400, NOW)).toBe('Just now');
   });
 
   it('1분이 넘으면 n분 전, 1시간이 넘으면 n시간 전으로 보인다', () => {
-    expect(ageText(NOW - 150_000, NOW)).toBe('2분 전');
-    expect(ageText(NOW - 3 * 3_600_000, NOW)).toBe('3시간 전');
+    expect(ageText(NOW - 150_000, NOW)).toBe('2m ago');
+    expect(ageText(NOW - 3 * 3_600_000, NOW)).toBe('3h ago');
   });
 
   it('시계가 거꾸로 가도 방금으로 본다', () => {
-    expect(ageText(NOW + 5000, NOW)).toBe('방금');
+    expect(ageText(NOW + 5000, NOW)).toBe('Just now');
   });
 
   it('정해 둔 시간보다 오래되면 오래된 값으로 본다', () => {

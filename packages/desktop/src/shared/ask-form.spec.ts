@@ -32,8 +32,8 @@ describe('질문 카드 화면 규칙', () => {
   });
 
   it('질문 카드만 떠 있으면 "선택 필요", 허락이 하나라도 섞이면 "허락 필요"다', () => {
-    expect(needLabel([{ ask: {} }, { ask: {} }])).toBe('선택 필요');
-    expect(needLabel([{ ask: {} }, { ask: null }])).toBe('허락 필요');
-    expect(needLabel([])).toBe('허락 필요');
+    expect(needLabel([{ ask: {} }, { ask: {} }])).toBe('Choice needed');
+    expect(needLabel([{ ask: {} }, { ask: null }])).toBe('Permission needed');
+    expect(needLabel([])).toBe('Permission needed');
   });
 });
