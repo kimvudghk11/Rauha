@@ -216,9 +216,9 @@ export function buildBlogPanel(deps: BlogPanelDeps, entries: readonly RecordEntr
   const pre = el('pre', 'bg-pre');
   const changeList = el('div', 'bg-changes');
   const empty = el('div', 'rnone', '글감이 없어요. 기록을 하나 이상 골라 주세요.');
-  const copyBtn = actionButton({ label: 'Copy .md', icon: 'copy', title: '공개용으로 가린 정리 노트를 복사해요', onClick: () => void deps.copy(preview().markdown).then((ok) => done(ok)) });
+  const copyBtn = actionButton({ label: 'Copy', icon: 'copy', title: 'Copy as Markdown (.md): 공개용으로 가린 글을 복사해요', onClick: () => void deps.copy(preview().markdown).then((ok) => done(ok)) });
   copyBtn.classList.add('end');
-  const saveBtn = actionButton({ label: 'Save .md', icon: 'save', title: '정리 노트를 .md 파일로 저장해요', onClick: () => void save(preview().markdown, preview().title, [...keep]) });
+  const saveBtn = actionButton({ label: 'Save', icon: 'save', title: 'Save as a .md file: 정리 노트를 .md 파일로 저장해요', onClick: () => void save(preview().markdown, preview().title, [...keep]) });
   const draftBtn = actionButton({
     label: '초안 쓰기',
     icon: 'edit',
