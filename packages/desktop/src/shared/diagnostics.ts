@@ -16,6 +16,8 @@ const USER_MIN = 3;
 const escapeRe = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
 const OTHER_HOME = /(?:[A-Za-z]:)?[\\/](?:Users|home)[\\/][^\\/\s"'<>:]+/gi;
+/** ARN 속 AWS 계정 번호(12자리): arn:aws:iam::123456789012:role/x */
+const AWS_ARN_ACCOUNT = /(arn:aws[a-z-]*:[a-z0-9-]*:[a-z0-9-]*:)\d{12}(?!\d)/gi;
 
 /** 이메일은 앞 2글자와 ***만 남긴다(도메인도 지운다). */
 export function maskEmail(email: string): string {
@@ -43,9 +45,9 @@ export class Redactor {
     return this.names(this.homes(path)).replace(/\\/g, '/');
   }
 
-  /** 글 한 줄: 경로·이메일·사용자 이름·비밀·달러 금액을 가린다. 몇 번 거쳐도 결과가 같다. */
+  /** 글 한 줄: 경로·이메일·AWS 계정 번호·사용자 이름·비밀·달러 금액을 가린다. 몇 번 거쳐도 결과가 같다. */
   text(text: string): string {
-    return scrub(this.names(this.homes(text).replace(EMAIL, (m) => maskEmail(m))));
+    return scrub(this.names(this.homes(text).replace(EMAIL, (m) => maskEmail(m)).replace(AWS_ARN_ACCOUNT, '$1<계정>')));
   }
 
   private homes(text: string): string {

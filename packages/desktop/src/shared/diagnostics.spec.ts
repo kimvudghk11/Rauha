@@ -207,6 +207,14 @@ describe('진단 정보 마크다운', () => {
     expect(md).toContain('최근 앱 오류 로그 (50줄)');
   });
 
+  it('로그 속 ARN의 AWS 계정 번호 12자리를 가리고 몇 번 거쳐도 같다', () => {
+    const line = 'denied arn:aws:iam::123456789012:role/dev and arn:aws:sts::210987654321:assumed-role/x/y';
+    const once = r.text(line);
+    expect(once).not.toMatch(/\d{12}/);
+    expect(once).toContain('arn:aws:iam::<계정>:role/dev');
+    expect(r.text(once)).toBe(once);
+  });
+
   it('로그가 없으면 없다고 쓴다', () => {
     expect(DiagnosticReport.of(snapshot(), r).toMarkdown()).toContain('오류 기록 없음');
   });
