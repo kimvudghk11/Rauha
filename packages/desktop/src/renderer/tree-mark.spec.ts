@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ChangeMap } from '../shared/code-changes.js';
-import { changeTitle, folderMark } from './tree-mark.js';
+import { changeTitle, folderMark, shownCode } from './tree-mark.js';
 
 const map = ChangeMap.of([
   { path: 'src/a.ts', code: 'M' },
@@ -31,5 +31,13 @@ describe('폴더 줄 상태 표시', () => {
     expect(changeTitle('M')).toBe('수정됨');
     expect(changeTitle('D')).toBe('삭제됨');
     expect(changeTitle('U')).toBe('새 파일(추적 안 함)');
+  });
+});
+
+describe('탐색기에 보이는 글자', () => {
+  it('M·A·D·U만 그대로 보이고 이름 바뀜(R)은 수정(M)으로 보인다', () => {
+    expect(['M', 'A', 'D', 'U'].map((c) => shownCode(c as 'M'))).toEqual(['M', 'A', 'D', 'U']);
+    expect(shownCode('R')).toBe('M');
+    expect(shownCode('!')).toBe('!');
   });
 });

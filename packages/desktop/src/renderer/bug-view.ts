@@ -37,7 +37,7 @@ export function openBugDialog(deps: BugViewDeps): void {
   const box = el('div', 'dialog bugs');
   box.tabIndex = -1;
   box.setAttribute('role', 'dialog');
-  box.setAttribute('aria-label', '답답한 점 적기');
+  box.setAttribute('aria-label', '버그 리포트 적기');
   veil.appendChild(box);
   document.body.appendChild(veil);
 
@@ -192,7 +192,7 @@ export function openBugDialog(deps: BugViewDeps): void {
     const hadFocus = box.contains(document.activeElement);
     box.replaceChildren();
     const head = el('div', 'bar');
-    head.append(el('b', 'grow', '답답한 점 적기'), el('span', 'hint', shortcutText(deps.platform)), iconButton('close', '닫기', close));
+    head.append(el('b', 'grow', '버그 리포트 적기'), el('span', 'hint', shortcutText(deps.platform)), iconButton('close', '닫기', close));
     box.appendChild(head);
     if (preview !== null) {
       previewBody(preview);
@@ -202,7 +202,7 @@ export function openBugDialog(deps: BugViewDeps): void {
 
     // 적기
     const title = el('input', 'bug-title');
-    title.placeholder = '어떤 점이 답답했나요? (한 줄, 꼭 적어요)';
+    title.placeholder = '어떤 점이 불편했나요? (한 줄, 꼭 적어요)';
     title.maxLength = BUG_TITLE_LIMIT;
     title.value = draft.title;
     title.addEventListener('input', () => {

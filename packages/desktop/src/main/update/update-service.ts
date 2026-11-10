@@ -142,6 +142,8 @@ export class UpdateService {
   async installNow(): Promise<boolean> {
     const installer = this.deps.installer;
     if (this.record.downloadUrl() === null || installer === undefined) return false;
+    // 이미 최신(또는 더 높은 버전)이면 설치하지 않는다. 같은 버전을 또 받아 앱을 다시 켜는 일을 막는다.
+    if (!this.view().newer) return false;
     if (isInstallBusy(this.install)) return false;
     this.attempt = null;
     const abort = new AbortController();

@@ -5,7 +5,7 @@ import { repoNodeMark } from '../shared/repo-node.js';
 import type { RepoRow } from '../shared/ipc.js';
 import { el, isEnterKey } from './dom.js';
 import { iconByName } from './file-icons.js';
-import { changeTitle, folderMark } from './tree-mark.js';
+import { changeTitle, folderMark, shownCode } from './tree-mark.js';
 
 
 /** 오른쪽 클릭·키보드로 고른 대상. 빈 곳이면 kind가 'root'(작업 폴더). */
@@ -173,11 +173,12 @@ export class CodeTreeView {
       row.append(b);
       return;
     }
-    const code = this.changes.statusOf(path);
-    if (code === null) return;
+    const raw = this.changes.statusOf(path);
+    if (raw === null) return;
+    const code = shownCode(raw);
     row.classList.add(`chg-${code}`);
     const badge = el('span', 'tree-badge', code);
-    badge.title = changeTitle(code);
+    badge.title = changeTitle(raw);
     row.append(badge);
   }
 

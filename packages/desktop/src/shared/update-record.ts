@@ -88,7 +88,8 @@ export class UpdateRecord {
       checking: flags.checking ?? false,
       failed: flags.failed ?? false,
       failReason: flags.failed === true ? flags.failReason ?? null : null,
-      canInstall: (flags.canInstall ?? false) && this.downloadUrl() !== null,
+      // 이미 최신이면 새로 설치할 것이 없다(같은 버전을 다시 설치하고 앱을 또 다시 켜는 일을 막는다)
+      canInstall: (flags.canInstall ?? false) && this.downloadUrl() !== null && this.latest !== null && this.latest.isNewerThan(current),
       install: flags.install ?? IDLE_INSTALL,
       attempt: flags.attempt ?? null,
     };

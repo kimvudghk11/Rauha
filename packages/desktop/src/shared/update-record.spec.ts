@@ -7,6 +7,12 @@ const URL1 = 'https://github.com/kimvudghk11/rauha/releases/download/v0.1.2/rauh
 const found = (at = '2026-11-08T01:00:00.000Z') => UpdateRecord.empty().recordChecked({ latest: AppVersion.parse('v0.1.2'), downloadUrl: URL1 }, at);
 
 describe('UpdateRecord', () => {
+  it('이미 최신이면 설치 단추를 줄 수 없다(같은 버전을 다시 설치하지 않는다)', () => {
+    const same = found().toView(AppVersion.parse('0.1.2')!, { canInstall: true });
+    expect(same).toMatchObject({ newer: false, canInstall: false });
+    expect(found().toView(cur, { canInstall: true }).canInstall).toBe(true);
+  });
+
   it('처음에는 아무것도 모르고 배너도 없다', () => {
     const view = UpdateRecord.empty().toView(cur);
     expect(view).toMatchObject({ current: '0.1.1', checkedAt: null, latest: null, showBanner: false, hasDownload: false });

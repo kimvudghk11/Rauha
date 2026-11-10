@@ -5,6 +5,9 @@ const CHANGE_TITLE: Readonly<Record<ChangeCode, string>> = { M: '수정됨', A: 
 /** 파일 상태 글자의 툴팁 */
 export const changeTitle = (code: ChangeCode): string => CHANGE_TITLE[code];
 
+/** 탐색기에는 M·A·D·U 글자만 보인다. 이름 바뀜(R)은 수정(M)으로 묶고, 충돌(!)만 따로 둔다. */
+export const shownCode = (code: ChangeCode): ChangeCode => (code === 'R' ? 'M' : code);
+
 export interface FolderMark {
   /** 이름 오른쪽에 붙일 한 글자(없으면 null). git이 폴더 자체에 알려 준 상태만 쓴다. */
   readonly badge: ChangeCode | null;

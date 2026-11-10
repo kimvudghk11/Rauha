@@ -222,7 +222,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     const awsHint = syncBlockReason({ profile: s.awsProfile, bucket: s.awsBucket, region: s.awsRegion, account: s.awsAccount });
     root.appendChild(
       section(
-        '내 AWS (답답한 점 올리기)',
+        '내 AWS (버그 리포트 올리기)',
         awsField('awsProfile', '프로필 이름', '예: rauha-personal'),
         awsField('awsBucket', '버킷', '예: example-bucket'),
         awsField('awsRegion', '리전', '예: ap-northeast-2'),

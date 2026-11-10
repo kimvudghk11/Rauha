@@ -128,6 +128,17 @@ describe('UpdateService', () => {
     expect(await t.service.installNow()).toBe(false);
   });
 
+  it('이미 최신 버전이면 지금 업데이트를 눌러도 설치기를 돌리지 않는다(앱을 또 다시 켜지 않는다)', async () => {
+    let ran = 0;
+    const installer: Installer = { async run() { ran += 1; } };
+    const saved = { latest: '0.1.1', downloadUrl: `${DL}rauha-0.1.1-mac-arm64.dmg`, checkedAt: '2026-11-08T00:00:00.000Z', dismissed: null };
+    const t = setup(ok(releases), { installer, saved });
+    await t.service.init();
+    expect(t.service.view()).toMatchObject({ newer: false, canInstall: false });
+    expect(await t.service.installNow()).toBe(false);
+    expect(ran).toBe(0);
+  });
+
   it('앱 안 설치는 검증된 주소로 설치기를 돌리고 내려받는 중 → 확인 → 설치 중 상태를 알린다', async () => {
     const seen: Array<{ url: string; sha256: string; from: string; to: string }> = [];
     const installer: Installer = {
