@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRevise, composerHeight, replyWho, stopReasonText } from './chat-text.js';
+import { canRevise, composerHeight, replyWho, roomLogLine, stopReasonText } from './chat-text.js';
 
 describe('입력칸 높이', () => {
   it('내용이 한 줄이면 기본 높이를 지킨다', () => {
@@ -51,5 +51,20 @@ describe('멈춤 이유 한국어 문구', () => {
   });
   it('그 밖의 영어 오류는 원문을 괄호로 남긴다', () => {
     expect(stopReasonText('boom')).toBe('예상하지 못한 오류로 멈췄어요. (boom)');
+  });
+});
+
+describe('팀 방의 마지막 줄', () => {
+  it('끝난 일은 마지막 진행 줄 대신 완료로 보인다', () => {
+    expect(roomLogLine('done', '리뷰어 작업 중…')).toBe('▸ Done');
+  });
+
+  it('멈춘 일은 마지막 진행 줄 대신 멈춤으로 보인다', () => {
+    expect(roomLogLine('stopped', '리뷰어 작업 중…')).toBe('▸ Stopped');
+  });
+
+  it('도는 일은 마지막 진행 줄을 그대로 보이고, 줄이 없으면 시작을 기다린다고 한다', () => {
+    expect(roomLogLine('running', '리뷰어 작업 중…')).toBe('▸ 리뷰어 작업 중…');
+    expect(roomLogLine('queued', null)).toBe('▸ 시작을 기다려요');
   });
 });

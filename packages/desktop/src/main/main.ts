@@ -65,6 +65,8 @@ import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
 import { RecordStore } from './data/record-store.js';
+import { ChatHistoryStore } from './data/chat-history-store.js';
+import { ChatHistoryKeeper } from './team/chat-history-keeper.js';
 import { RecordService } from './data/record-service.js';
 import { decisionOf, JobTrail } from './team/job-trail.js';
 import { askCardFlow } from './team/ask-flow.js';
@@ -291,7 +293,9 @@ async function startRunner(): Promise<JobRunner> {
     newId: () => randomUUID(),
     now: () => new Date().toISOString(),
     onChange: (board) => {
-      window?.webContents.send(IPC.board, boardView(board));
+      const view = boardView(board);
+      window?.webContents.send(IPC.board, view);
+      void chatHistoryReady.then(() => chatHistory.observe(view.jobs));
       for (const job of board.jobs) {
         if (!job.isOver) continue;
         onJobOver(job);
@@ -322,6 +326,9 @@ const todoService = new TodoService({
   submit: (text) => submitJob(text),
   onChange: (list) => window?.webContents.send(DATA_IPC.todoChanged, list),
 });
+/** 채팅 말풍선 기록: 앱을 다시 켜도 끝난 일의 요청·결과가 말풍선으로 돌아온다. 대화 초기화·/clear 때 비운다. */
+const chatHistory = new ChatHistoryKeeper(new ChatHistoryStore(join(dataDir, 'chat-history.json')));
+const chatHistoryReady = chatHistory.load().catch(() => undefined);
 const recordService = new RecordService({
   store: new RecordStore(join(dataDir, 'records.json')),
   onChange: (book) => window?.webContents.send(DATA_IPC.recordsChanged, book),
@@ -692,11 +699,17 @@ void app.whenReady().then(async () => {
       const roots = ConversationResetDto.from(input).targets(folders().map((f) => f.root));
       const profileFor = await profileResolver(home, settings.account);
       for (const root of roots) await RepoConversations.under(profileFor(root).sessionsDir(home)).clear(root);
+      await chatHistory.clear(runner.board.jobs.map((j) => j.id));
       return { ok: true, cleared: roots.length };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : '대화를 비우지 못했어요.' };
     }
   });
+  ipcMain.handle(IPC.chatHistoryNow, async () => {
+    await chatHistoryReady;
+    return chatHistory.restored();
+  });
+  ipcMain.handle(IPC.chatHistoryClear, () => chatHistory.clear(runner.board.jobs.map((j) => j.id)));
   registerUsageIpc(ipcMain, usage);
   ipcMain.handle(IPC.accountsList, async () => {
     // 설정 파일이 깨졌어도 설정 화면은 열려야 한다(계정 목록만 비운다).

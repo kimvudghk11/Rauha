@@ -43,6 +43,10 @@ export const IPC = {
   usageGet: 'usage:get',
   /** 채팅 탭: 레포의 앞 대화(와 이어 일할 파일 목록)를 비운다. 기억·지식·사용자 파일은 그대로 */
   conversationReset: 'conversation:reset',
+  /** 화면 → main: 앱을 켠 뒤 지난 채팅 말풍선(끝난 일, 돌던 일은 중단됨)을 달라 */
+  chatHistoryNow: 'chat:history-now',
+  /** 화면 → main: /clear 처럼 화면만 비울 때 저장된 말풍선 기록도 비운다 */
+  chatHistoryClear: 'chat:history-clear',
   accountsList: 'accounts:list',
   folderPick: 'folder:pick',
   reposList: 'repos:list',
@@ -184,6 +188,10 @@ export interface RauhaApi {
   getUsage(): Promise<UsageView | null>;
   /** 앞 대화 초기화. root가 null이면 작업 폴더의 레포 전부 */
   resetConversation(root: string | null): Promise<ConversationResetResult>;
+  /** 앱을 켠 뒤 복원할 지난 채팅 말풍선 */
+  chatHistoryNow(): Promise<readonly JobView[]>;
+  /** 저장된 말풍선 기록을 비운다(/clear) */
+  clearChatHistory(): Promise<void>;
   listAccounts(): Promise<AccountsView>;
   /** 폴더 고르기 창을 연다. 취소하면 null */
   pickFolder(): Promise<string | null>;

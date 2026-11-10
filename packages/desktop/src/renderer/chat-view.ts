@@ -14,7 +14,7 @@ import { roomSplit } from '../shared/room-split.js';
 import { characterStateOf, elapsedText } from './room.js';
 import { askDialog } from './git-common.js';
 import { flash } from './record-parts.js';
-import { canRevise, composerHeight, replyWho, stopReasonText } from '../shared/chat-text.js';
+import { canRevise, composerHeight, replyWho, roomLogLine, stopReasonText } from '../shared/chat-text.js';
 import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { mountStage, paintOnce } from './stage.js';
 
@@ -334,7 +334,7 @@ export function buildChat(actions: ChatActions) {
         bubble.classList.toggle('t', next.status === 'running');
         steps.replaceChildren(...next.steps.map((s) => el('i', s.state === 'done' ? 'd' : 'n')));
         stepLabels.replaceChildren(...next.steps.map((s) => el('span', undefined, s.label)));
-        log.textContent = next.lastLine !== null ? `▸ ${next.lastLine}` : '▸ 시작을 기다려요';
+        log.textContent = roomLogLine(next.status, next.lastLine);
       },
     };
   }
@@ -636,6 +636,16 @@ export function buildChat(actions: ChatActions) {
     },
     /** 채팅 화면을 비운다(돌고 있는 작업과 기록은 그대로) */
     clearScreen: clearVisibleChat,
+    /** 앱을 다시 켠 뒤 지난 일을 말풍선으로 되살린다(끝난 일은 결과 카드까지, 돌던 일은 중단됨) */
+    restore(past: readonly JobView[]): void {
+      for (const job of past) {
+        if (jobs.has(job.id)) continue;
+        jobs.set(job.id, job);
+        addJob(job);
+        updateCard(job);
+        report(job);
+      }
+    },
     jobList: (): readonly JobView[] => [...jobs.values()],
     board(view: BoardView): void {
       for (const job of view.jobs) {

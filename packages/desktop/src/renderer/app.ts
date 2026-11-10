@@ -148,7 +148,10 @@ let lastBoard: BoardView | null = null;
 const runner = createRunner({
   book: () => commandBook,
   say: (content) => chat.notice(content),
-  clear: () => chat.clearScreen(),
+  clear: () => {
+    chat.clearScreen();
+    void window.rauha.clearChatHistory();
+  },
   openTab: (tab) => {
     const id = resolveTab(tab);
     if (id !== null) show(id);
@@ -267,10 +270,18 @@ window.rauha.onOpenJob((id) => {
   show('chat');
   chat.open(id);
 });
-void window.rauha.boardNow().then((view) => {
-  chat.board(view);
-  renderStatus(view);
-});
+// 지난 말풍선을 먼저 올리고(앱을 다시 켠 뒤), 그다음 지금 작업 판을 올린다
+void window.rauha
+  .chatHistoryNow()
+  .catch(() => [])
+  .then((past) => {
+    chat.restore(past);
+    return window.rauha.boardNow();
+  })
+  .then((view) => {
+    chat.board(view);
+    renderStatus(view);
+  });
 void window.rauha.approvalsNow().then(onApprovals);
 
 void (async () => {

@@ -30,3 +30,10 @@ export function stopReasonText(reason: string | null): string {
   if (/ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|fetch failed|network|socket hang up/i.test(text)) return '네트워크 연결이 끊겼어요. 연결을 확인하고 다시 맡겨 주세요.';
   return `예상하지 못한 오류로 멈췄어요. (${text.length > 120 ? `${text.slice(0, 119)}…` : text})`;
 }
+
+/** 팀 방 맨 아래 줄: 끝난 일은 마지막 진행 줄("리뷰어 작업 중…")이 남지 않게 완료·멈춤으로 바꾼다. */
+export function roomLogLine(status: 'queued' | 'running' | 'waiting' | 'done' | 'stopped', lastLine: string | null): string {
+  if (status === 'done') return '▸ Done';
+  if (status === 'stopped') return '▸ Stopped';
+  return lastLine !== null ? `▸ ${lastLine}` : '▸ 시작을 기다려요';
+}
