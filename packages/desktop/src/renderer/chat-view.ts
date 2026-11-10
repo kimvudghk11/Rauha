@@ -10,6 +10,7 @@ import { needLabel } from '../shared/ask-form.js';
 import { el, isEnterKey } from './dom.js';
 import { needsLogin } from '../shared/claude-login.js';
 import { loginCard } from './login-view.js';
+import { roomSplit } from '../shared/room-split.js';
 import { characterStateOf, elapsedText } from './room.js';
 import { askDialog } from './git-common.js';
 import { flash } from './record-parts.js';
@@ -364,6 +365,7 @@ export function buildChat(actions: ChatActions) {
       r.update(job, approvals);
     }
     rooms.classList.toggle('none', visible.length === 0);
+    root.dataset['split'] = roomSplit(visible.length);
     renderStrip(visible);
   }
 

@@ -184,3 +184,10 @@
 .hand { flex-wrap: wrap; }
 /* 허락 카드는 Tab으로 닿고 포커스가 보여야 한다 */
 .approval:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 작업자 칸 비율: 일이 들어오는 만큼 넓어진다(0명 메인만 · 1~2명 7:3 · 3~4명 6:4 · 5명~ 5:5). 상세 패널이 열려 있으면 기존 배치를 쓴다. */
+.app:is([data-mode=side], [data-mode=xl]):not([data-detail="1"]) .chat[data-split="0"] { grid-template-columns: minmax(0, 1fr); }
+.app:is([data-mode=side], [data-mode=xl]):not([data-detail="1"]) .chat[data-split="a"] { grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr); }
+.app:is([data-mode=side], [data-mode=xl]):not([data-detail="1"]) .chat[data-split="b"] { grid-template-columns: minmax(0, 6fr) minmax(280px, 4fr); }
+.app:is([data-mode=side], [data-mode=xl]):not([data-detail="1"]) .chat[data-split="c"] { grid-template-columns: minmax(0, 5fr) minmax(280px, 5fr); }
+.app[data-mode=xl]:not([data-detail="1"]) .chat:is([data-split="0"], [data-split="a"]) .rooms { grid-template-columns: minmax(0, 1fr); }
