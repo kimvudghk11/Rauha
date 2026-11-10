@@ -37,7 +37,7 @@ export class ChatHistoryDto {
     const queuedAt = text(o['queuedAt'], 100);
     const status = STATUSES.find((s) => s === o['status']);
     if (id === null || id === '' || request === null || queuedAt === null || status === undefined) return null;
-    const cast = Array.isArray(o['cast']) ? (o['cast'] as unknown[]).filter((r): r is string => typeof r === 'string' && r in ROLE_INFO).slice(-HISTORY_LIMITS.cast) : [];
+    const cast = Array.isArray(o['cast']) ? (o['cast'] as unknown[]).filter((r): r is string => typeof r === 'string' && Object.hasOwn(ROLE_INFO, r)).slice(-HISTORY_LIMITS.cast) : [];
     return { id, request, status, stopReason: text(o['stopReason']), result: text(o['result']), toolsLine: text(o['toolsLine']), cast, queuedAt, endedAt: text(o['endedAt'], 100) };
   }
 
