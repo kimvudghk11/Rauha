@@ -7,6 +7,12 @@ const os = require('node:os');
 const path = require('node:path');
 
 process.env.RAUHA_FAKE_TEAM = '1';
+// 실제 ~/.rauha 설정(작업 폴더·AWS 등)을 건드리지 않게 홈과 앱 데이터 폴더를 임시 폴더로 돌린다(os.homedir()은 USERPROFILE/HOME을 읽는다)
+const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-home-'));
+process.env.USERPROFILE = fakeHome;
+process.env.HOME = fakeHome;
+process.env.APPDATA = path.join(fakeHome, 'AppData', 'Roaming');
+process.env.LOCALAPPDATA = path.join(fakeHome, 'AppData', 'Local');
 app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-')));
 // 기록·할 일 파일도 임시 폴더에 둔다(내 실제 기록에 시험 기록이 쌓이지 않게)
 process.env.RAUHA_DATA_DIR = process.env.RAUHA_DATA_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-data-'));
@@ -139,6 +145,7 @@ const rowByName = (name) => "(() => { " + rowOf(name) + "?.click(); })()";
 const rightClick = (name) => "(() => { const r = " + rowOf(name) + "; const b = r.getBoundingClientRect(); r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.x + 24, clientY: b.y + 10 })); })()";
 const pressKey = (name, key) => "(() => { " + rowOf(name) + "?.dispatchEvent(new KeyboardEvent('keydown', { key: " + JSON.stringify(key) + ", bubbles: true, cancelable: true })); })()";
 const typeInto = (sel, text) => `(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.focus(); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`;
+const TODO_SEED = "(() => { window.rauha.todo.apply({ kind: 'add', title: '시험 카드', priority: 'high', labels: [{ name: '중요', color: 'blue' }], checklist: [{ id: 'c1', text: '항목', done: true }] }); return new Promise((r) => setTimeout(r, 500)); })() /* querySelector */";
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
@@ -152,7 +159,13 @@ const SCENES = [
   ['code-term', 'code', ['.code-termbtn']],
   ['code-search', 'code', ['.code-mode:nth-child(2)']],
   ['todo', 'todo', []],
-  ['todo-form', 'todo', [byText('button', '새 할 일')]],
+  // 칸반: 카드 하나를 넣고(체크리스트·라벨·우선순위 포함) 보드 · 새 카드 입력 · 카드 모달 · 우클릭 메뉴 · 칸 메뉴 · 칸 지우기 창
+  ['todo-seeded', 'todo', [TODO_SEED]],
+  ['todo-adder', 'todo', [TODO_SEED, byText('.tcol .tadd', '새로 만들기')]],
+  ['todo-card-modal', 'todo', [TODO_SEED, '.tcard']],
+  ['todo-card-menu', 'todo', [TODO_SEED, "(() => { const c = document.querySelector('.tcard'); const b = c.getBoundingClientRect(); c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.x + 24, clientY: b.y + 10 })); })()"]],
+  ['todo-col-menu', 'todo', [TODO_SEED, '.tch .btn.icon:last-child']],
+  ['todo-col-delete', 'todo', [TODO_SEED, '.tch .btn.icon:last-child', byText('.menu button', '칸 지우기')]],
   ['records', 'records', []],
   ['records-detail', 'records', ['.ri']],
   ['records-picked', 'records', [`(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`]],

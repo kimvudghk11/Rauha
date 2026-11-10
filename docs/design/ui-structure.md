@@ -64,16 +64,26 @@ section.code  (flex, 테두리 1px, 둥근 6px)
  오버레이 .qo-veil > .qo(input.qo-input · .qo-row)
 ```
 
-### 할 일 (`todo-view.ts`, `data-tabs.css`)
+### 할 일 (`todo-view.ts`, `todo-board.ts`, `todo-detail.ts`, `todo.css`)
 
 ```
 section.todo
- ├─ .rhead   b 제목 · .hint · .btn.primary 「＋ 새 할 일」
- ├─ .tnotice (경고 줄)
- ├─ form.tform.pane   .tfields(.tgrid 4칸 .tfield(.tlab input/select) · textarea) · .trow[.btn.primary 더하기 · .btn.sec 취소]
- ├─ .ttools  input 검색 · .tselects select 4개 · label.tg
- └─ .tboard  .tcol 3개(.tch 머리 · .tcard(.ttop input[checkbox] .tt · .tchips .chip · .tnote · .tbtns .btn))
+ ├─ .rhead   b 제목 · .hint · .seg 보드/목록 · .btn.primary 「＋ 새 카드」
+ ├─ .ttools  input 검색 · select 3개 · label.tg
+ ├─ .notice (경고 줄)
+ ├─ .tbody > .tmain > .tboard > .tcolumns (가로 스크롤, 칸 폭 272px 고정)
+ │    ├─ .tcol[data-col] × 보이는 칸
+ │    │    ├─ .tch   .chip.tname(색 칩=칸 이름) · .tcount · .grow · .btn.icon.sm.ghost 「+」 「⋯」
+ │    │    ├─ .tcards  .tadding(input, 입력 중일 때) · .item.tcard[data-id](.tt 제목 · .tchips 값 있는 속성 칩만)
+ │    │    └─ .btn.ghost.sm.tadd 「+ 새로 만들기」
+ │    └─ .ttail  「+ 칸 추가」(누르면 input) · .thidden(.lbl 숨긴 칸 N · .thid.row-item × N: 점 · 이름 · 수 · .btn.sm 「보이기」)
+ └─ .veil.tveil > .tmodal  (카드 창: 화면 가운데 모달, 폭 720px·최대 높이 85vh. 사이드 패널이 아니다)
+      ├─ .btn.icon.ghost.dclose 「×」
+      ├─ .dbody  input.dtitle(큰 제목) · .dprops(.dprop × 6 = span.dpk 「이름 :」 + 값) · .dsection 설명(textarea.dnote, 자동 높이) · .dsection 체크리스트(.dcheck: .dcrow × N · input.dcnew) · .btns 맡기기/진행 보기/복제/지우기
+      └─ .dfoot  저장 상태 · 날짜 · 오류
 ```
+
+카드 창 키보드: Esc·바깥 누르기·×로 닫고 닫기 직전에 안 보낸 고침을 바로 저장한다. Tab은 창 안에서만 돌고, 한글 입력기 조합 중 Enter는 `dom.ts`의 `isEnterKey`로 무시한다. 메뉴·확인 창이 위에 떠 있을 때 Esc는 그 창만 닫는다(`stopPropagation`).
 
 ### 기록 (`records-view.ts`, `blog-view.ts`, `record-parts.ts`, `data-tabs.css`, `blog.css`)
 

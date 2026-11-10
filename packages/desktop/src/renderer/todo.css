@@ -48,7 +48,7 @@
 .tmodal { position: relative; box-sizing: border-box; width: min(720px, calc(100vw - 32px)); max-height: 85vh; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border2); border-radius: var(--r-lg); box-shadow: 0 10px 40px #000c; overflow: hidden; }
 .dclose { position: absolute; top: var(--s2); right: var(--s2); z-index: 1; }
 .dbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--s4) var(--s5); display: flex; flex-direction: column; gap: var(--s4); }
-.dtitle { width: 100%; box-sizing: border-box; height: 44px; padding-right: 40px; font-size: 22px; font-weight: 600; color: var(--bright); background: transparent; border-color: transparent; }
+.dtitle { width: calc(100% + var(--s2)); margin-left: calc(var(--s2) * -1); box-sizing: border-box; height: 44px; padding-right: 40px; font-size: 22px; font-weight: 600; color: var(--bright); background: transparent; border-color: transparent; }
 .dtitle:hover:not(:focus) { border-color: var(--border); }
 .dprops { display: flex; flex-direction: column; gap: var(--s1); }
 .dprop { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--s2); align-items: start; min-width: 0; }
