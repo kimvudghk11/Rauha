@@ -5,6 +5,7 @@ const FOLDER_KIND: Readonly<Record<string, string>> = {
   test: 'test', tests: 'test', __tests__: 'test', scripts: 'scripts', config: 'config', configs: 'config',
   public: 'assets', assets: 'assets', images: 'assets', components: 'components', packages: 'packages',
   '.git': 'git', '.github': 'github', '.vscode': 'vscode',
+  api: 'api', routes: 'api', db: 'db', database: 'db', migrations: 'db', styles: 'styles', utils: 'utils', helpers: 'utils', types: 'types', hooks: 'hooks', static: 'assets', bin: 'scripts',
 };
 
 const EXT_ICON: Readonly<Record<string, string>> = {
@@ -13,14 +14,18 @@ const EXT_ICON: Readonly<Record<string, string>> = {
   kt: 'kt', swift: 'swift', c: 'c', cpp: 'cpp', h: 'h', cs: 'cs', rb: 'rb', php: 'php',
   sh: 'sh', bash: 'sh', zsh: 'sh', ps1: 'ps1', bat: 'bat', sql: 'sql', yaml: 'yaml', yml: 'yaml', toml: 'toml', ini: 'ini',
   xml: 'xml', csv: 'csv', txt: 'txt', log: 'log', lock: 'lock', env: 'env', pem: 'key', key: 'key',
-  png: 'img', jpg: 'img', jpeg: 'img', gif: 'img', webp: 'img', ico: 'img', svg: 'svg',
+  png: 'img', jpg: 'img', jpeg: 'img', gif: 'img', webp: 'img', ico: 'img', bmp: 'img', avif: 'img', svg: 'svg',
+  mts: 'ts', cts: 'ts', jsonc: 'json', json5: 'json', htm: 'html', sass: 'scss', less: 'css', graphql: 'graphql', gql: 'graphql', lua: 'lua', dart: 'dart',
+  woff: 'font', woff2: 'font', ttf: 'font', otf: 'font', wav: 'audio', ogg: 'audio', flac: 'audio', m4a: 'audio', webm: 'video', mkv: 'video', avi: 'video', '7z': 'zip', rar: 'zip', fish: 'sh', cmd: 'bat',
   pdf: 'pdf', zip: 'zip', tar: 'zip', gz: 'zip', dmg: 'zip', exe: 'exe', mp4: 'video', mov: 'video', mp3: 'audio',
 };
 
 const NAME_ICON: Readonly<Record<string, string>> = {
   'package.json': 'pkg', 'package-lock.json': 'lock', 'yarn.lock': 'lock', 'pnpm-lock.yaml': 'lock',
   dockerfile: 'docker', makefile: 'make', 'claude.md': 'claude', '.gitignore': 'git', '.gitattributes': 'git',
-  '.gitmodules': 'git', '.editorconfig': 'editorconfig',
+  '.gitmodules': 'git', '.gitkeep': 'git', '.editorconfig': 'editorconfig', '.dockerignore': 'docker',
+  '.npmrc': 'config', '.nvmrc': 'config', '.prettierignore': 'config', '.eslintignore': 'config', '.browserslistrc': 'config', '.yarnrc.yml': 'config',
+  'cargo.toml': 'pkg', 'pyproject.toml': 'pkg', 'requirements.txt': 'pkg', 'go.mod': 'pkg', gemfile: 'pkg', 'cargo.lock': 'lock', 'go.sum': 'lock', 'composer.lock': 'lock', 'gemfile.lock': 'lock',
 };
 
 export function iconFor(name: string, isDir: boolean, open: boolean): string {
@@ -33,9 +38,9 @@ export function iconFor(name: string, isDir: boolean, open: boolean): string {
   if (byName !== undefined) return byName;
   if (n === '.env' || n.startsWith('.env.')) return 'env';
   if (/^tsconfig.*\.json$/.test(n)) return 'tsconfig';
-  if (/^(vite|vitest|webpack)\.config\./.test(n) || /^\.?eslintrc/.test(n) || /^eslint\.config\./.test(n) || /^\.?prettier(rc|\.config)/.test(n)) return 'config';
+  if (/^[\w-]+\.config\.[cm]?[jt]s$/.test(n) ||/^\.?eslintrc/.test(n) || /^eslint\.config\./.test(n) || /^\.?prettier(rc|\.config)/.test(n)) return 'config';
   if (/^docker-compose.*\.ya?ml$/.test(n)) return 'docker';
-  if (/^readme(\.|$)/.test(n)) return 'readme';
+  if (/^(readme|changelog|contributing)(\.|$)/.test(n)) return 'readme';
   if (/^license(\.|$)/.test(n)) return 'license';
   if (/\.(spec|test)\.[cm]?[jt]sx?$/.test(n)) return 'test';
   const dot = n.lastIndexOf('.');
