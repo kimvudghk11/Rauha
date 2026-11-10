@@ -318,9 +318,9 @@ export function buildBoard(ctx: TodoCtx): BoardView {
       }
     });
     input.addEventListener('blur', () => {
-      // 다른 곳을 누르는 중에 화면을 다시 그리면 그 클릭이 사라진다. 잠깐 뒤에 아직 비어 있고 초점이 없을 때만 닫는다.
+      // (화면이 다시 그려져 이 입력칸이 이미 새 것으로 바뀌었다면 아무것도 안 한다) 다른 곳을 누르는 중에 화면을 다시 그리면 그 클릭이 사라진다. 잠깐 뒤에 아직 비어 있고 초점이 없을 때만 닫는다.
       setTimeout(() => {
-        if (adding?.columnId === col.id && input.value.trim() === '' && document.activeElement !== input) {
+        if (input.isConnected && adding?.columnId === col.id && input.value.trim() === '' && document.activeElement !== input) {
           adding = null;
           addDraft = '';
           render();
@@ -470,7 +470,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     });
     input.addEventListener('blur', () => {
       setTimeout(() => {
-        if (addingColumn && input.value.trim() === '' && document.activeElement !== input) {
+        if (input.isConnected && addingColumn && input.value.trim() === '' && document.activeElement !== input) {
           addingColumn = false;
           columnDraft = '';
           render();
