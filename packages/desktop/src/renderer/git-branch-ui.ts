@@ -13,7 +13,7 @@ export function trackBadgeEl(b: BranchView): HTMLElement | null {
   const box = el('span', 'tg');
   if (t.ahead > 0) box.append(el('span', 'sbadge up', `↑${t.ahead}`));
   if (t.behind > 0) box.append(el('span', 'sbadge down', `↓${t.behind}`));
-  box.title = [t.ahead > 0 ? `원격보다 ${t.ahead}개 앞서 있어요(올릴 것)` : '', t.behind > 0 ? `원격보다 ${t.behind}개 뒤처져 있어요(받을 것)` : ''].filter((x) => x !== '').join(' · ');
+  box.title = [t.ahead > 0 ? `${t.ahead} commit(s) ahead of the remote (to push)` : '', t.behind > 0 ? `${t.behind} commit(s) behind the remote (to pull)` : ''].filter((x) => x !== '').join(' · ');
   return box;
 }
 
@@ -26,7 +26,7 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
   const menu = el('div', 'menu gbm');
   menu.setAttribute('role', 'menu');
   const search = el('input', 'sm');
-  search.placeholder = '브랜치 검색';
+  search.placeholder = 'Search branches';
   const close = (): void => {
     menu.remove();
     document.removeEventListener('pointerdown', onDown, true);
@@ -51,7 +51,7 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
     if (mark.badge !== null) row.append(el('span', 'chip blue', mark.badge));
     if (ctx.isProtected(b.name)) {
       const lock = gitIcon('lock');
-      lock.setAttribute('aria-label', '보호 브랜치');
+      lock.setAttribute('aria-label', 'Protected branch');
       row.append(lock);
     }
     if (b.author !== '') row.append(el('span', 'gbauthor', b.author));
@@ -70,12 +70,12 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
     const q = search.value.trim().toLowerCase();
     const hit = all.filter((b) => b.name.toLowerCase().includes(q));
     const local = sortBranchesRecent(hit.filter((b) => !b.remote));
-    if (local.length > 0) menu.append(el('div', 'lbl', `내 브랜치 · 최근 커밋 순 (${local.length})`), ...local.map(item));
-    if (hit.length === 0) menu.append(el('div', 'lbl', '맞는 브랜치가 없어요.'));
+    if (local.length > 0) menu.append(el('div', 'lbl', `My branches · latest commit first (${local.length})`), ...local.map(item));
+    if (hit.length === 0) menu.append(el('div', 'lbl', 'No matching branches.'));
     menu.append(el('div', 'sep'));
     const add = el('button');
     add.type = 'button';
-    add.append(gitIcon('plus'), el('span', 'grow', q === '' ? '새 브랜치 만들기…' : `"${search.value.trim()}" 새 브랜치 만들기…`));
+    add.append(gitIcon('plus'), el('span', 'grow', q === '' ? 'New branch…' : `New branch "${search.value.trim()}"…`));
     add.addEventListener('click', () => {
       const prefill = search.value.trim();
       close();
@@ -109,13 +109,13 @@ export async function openNewBranchDialog(ctx: GitCtx, prefill = ''): Promise<vo
   const veil = el('div', 'veil');
   const box = el('div', 'dialog gnew');
   box.setAttribute('role', 'dialog');
-  box.append(el('b', undefined, '새 브랜치'));
+  box.append(el('b', undefined, 'New branch'));
 
   const nameField = el('div', 'gfield');
-  nameField.append(el('span', 'lbl', '이름'));
+  nameField.append(el('span', 'lbl', 'Name'));
   const name = el('input');
   name.value = prefill;
-  name.placeholder = conv !== null && conv.branch.fromRepo ? `${conv.branch.prefixes[0] ?? ''}작업-이름` : 'feature/작업-이름';
+  name.placeholder = conv !== null && conv.branch.fromRepo ? `${conv.branch.prefixes[0] ?? ''}task-name` : 'feature/task-name';
   name.spellcheck = false;
   nameField.append(name);
   const verdict = el('div', 'hint');
@@ -123,13 +123,13 @@ export async function openNewBranchDialog(ctx: GitCtx, prefill = ''): Promise<vo
     const r = checkBranchName(name.value, local, remotes);
     const empty = name.value.trim() === '';
     verdict.className = r.ok || empty ? 'hint' : 'err';
-    verdict.textContent = r.ok ? `만들 이름: ${r.name}` : empty ? '' : r.reason;
+    verdict.textContent = r.ok ? `Will be named: ${r.name}` : empty ? '' : r.reason;
     ok.disabled = !r.ok || all.length === 0;
     why.textContent = r.ok ? '' : r.reason;
   };
   if (conv !== null) {
     const chips = el('div', 'chips');
-    chips.append(el('span', 'hint', conv.branch.fromRepo ? '이 레포 방식:' : '자주 쓰는 말머리:'));
+    chips.append(el('span', 'hint', conv.branch.fromRepo ? 'This repo uses:' : 'Common prefixes:'));
     for (const p of conv.branch.prefixes) {
       const c = el('button', 'chip', p);
       c.type = 'button';
@@ -145,11 +145,11 @@ export async function openNewBranchDialog(ctx: GitCtx, prefill = ''): Promise<vo
   nameField.append(verdict);
 
   const baseField = el('div', 'gfield');
-  baseField.append(el('span', 'lbl', '기준 브랜치(여기서 갈라져요)'));
+  baseField.append(el('span', 'lbl', 'Base branch (branches off here)'));
   const base = el('select');
   const cur = ctx.branch();
   for (const b of sortBranchesRecent(all)) {
-    const o = el('option', undefined, `${b.name}${b.name === cur ? ' (현재)' : ''}${b.remote ? ' · 원격' : ''}`);
+    const o = el('option', undefined, `${b.name}${b.name === cur ? ' (current)' : ''}${b.remote ? ' · remote' : ''}`);
     o.value = b.name;
     o.selected = cur !== null ? b.name === cur : b.current;
     base.append(o);
@@ -160,12 +160,12 @@ export async function openNewBranchDialog(ctx: GitCtx, prefill = ''): Promise<vo
   const goBox = el('input');
   goBox.type = 'checkbox';
   goBox.checked = true;
-  go.append(goBox, el('span', undefined, '만들고 바로 이동'));
+  go.append(goBox, el('span', undefined, 'Create and switch'));
 
   const row = el('div', 'btns end');
   const why = el('span', 'hint grow');
-  const cancel = el('button', 'btn', '취소');
-  const ok = el('button', 'btn primary', '만들기');
+  const cancel = el('button', 'btn', 'Cancel');
+  const ok = el('button', 'btn primary', 'Create');
   row.append(why, cancel, ok);
   box.append(nameField, baseField, go, row);
   veil.append(box);

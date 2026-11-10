@@ -13,5 +13,5 @@ export async function assertPlainFile(path: string): Promise<void> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
     throw error;
   }
-  if (info.isSymbolicLink()) throw new GitFailure('BLOCKED', '링크 파일은 앱에서 직접 열거나 고치지 않아요. 터미널에서 풀어 주세요.');
+  if (info.isSymbolicLink()) throw new GitFailure('BLOCKED', 'Link files are not opened or edited in the app. Resolve them in a terminal.');
 }

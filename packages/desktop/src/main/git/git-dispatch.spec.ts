@@ -327,17 +327,17 @@ describe('git 탭 main (임시 저장소)', () => {
     const { r, other } = withRemote();
     const first = await data<{ message: string; received: number }>(r, 'fetch');
     expect(first.received).toBe(0);
-    expect(first.message).toBe('새 소식이 없어요.');
+    expect(first.message).toBe('Nothing new.');
     write(other, 'b.txt', 'b\n');
     commitAll(other, 'b');
     write(other, 'c.txt', 'c\n');
     commitAll(other, 'c');
     sh(other, 'push', '-q');
     const f = await data<{ message: string; received: number }>(r, 'fetch');
-    expect(f).toMatchObject({ received: 2, message: '원격에 새 커밋 2개가 있어요. pull로 받을 수 있어요.' });
+    expect(f).toMatchObject({ received: 2, message: 'The remote has 2 new commit(s). You can pull them.' });
     const p = await data<{ message: string; received: number }>(r, 'pull', { mode: 'ff' });
-    expect(p).toMatchObject({ received: 2, message: '새 커밋 2개를 받았어요.' });
-    expect(await data(r, 'pull', { mode: 'ff' })).toMatchObject({ received: 0, message: '이미 최신이에요.' });
+    expect(p).toMatchObject({ received: 2, message: 'Pulled 2 new commit(s).' });
+    expect(await data(r, 'pull', { mode: 'ff' })).toMatchObject({ received: 0, message: 'Already up to date.' });
   });
 
   it('push가 거절되면 쉬운 말로 먼저 pull 하라고 알린다', async () => {
@@ -349,7 +349,7 @@ describe('git 탭 main (임시 저장소)', () => {
     commitAll(r, 'c');
     const res = await call(r, 'push', { confirmed: true });
     expect(res).toMatchObject({ ok: false });
-    expect(res.ok ? '' : res.error).toMatch(/먼저 pull/);
+    expect(res.ok ? '' : res.error).toMatch(/Pull first/);
   });
 
   it('새 브랜치는 기준 브랜치에서 만들고, 옮기지 않을 수도 있다', async () => {
@@ -361,7 +361,7 @@ describe('git 탭 main (임시 저장소)', () => {
     commitAll(r, 'b');
     await data(r, 'switchBranch', { name: 'main' });
     const done = await data<{ message: string }>(r, 'createBranch', { name: 'fix/y', base: 'base1', checkout: false });
-    expect(done.message).toContain('옮기지는 않았어요');
+    expect(done.message).toContain('Did not switch to it');
     expect(sh(r, 'branch', '--show-current').trim()).toBe('main');
     expect(sh(r, 'rev-parse', 'fix/y').trim()).toBe(sh(r, 'rev-parse', 'base1').trim());
     await data(r, 'createBranch', { name: 'fix/z', base: 'base1' });
@@ -390,7 +390,7 @@ describe('git 탭 main (임시 저장소)', () => {
     }
     const v = await data<{ commit: { known: boolean; text: string } }>(r, 'conventions');
     expect(v.commit.known).toBe(true);
-    expect(v.commit.text).toContain('feat(범위): 내용');
+    expect(v.commit.text).toContain('feat(scope): text');
   });
 
   it('직전 커밋 취소는 soft reset이라 변경이 스테이지에 남고, 이미 올린 커밋과 첫 커밋은 막는다', async () => {

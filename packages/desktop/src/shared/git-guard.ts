@@ -14,10 +14,10 @@ export class BranchName {
   private constructor(readonly value: string) {}
 
   static parse(input: string): BranchName {
-    if (CONTROL.test(input)) throw new GitInputError('브랜치 이름에 쓸 수 없는 문자가 있어요.');
+    if (CONTROL.test(input)) throw new GitInputError('The branch name has a character that is not allowed.');
     const v = input.trim();
     if (v === '' || v.startsWith('-') || v.startsWith('/') || v.endsWith('/') || v.startsWith('.') || v.endsWith('.') || v === '@' || BAD_BRANCH.test(v) || v.split('/').some((p) => p.startsWith('.'))) {
-      throw new GitInputError(`브랜치 이름을 쓸 수 없어요: ${v === '' ? '(비어 있음)' : v}`);
+      throw new GitInputError(`That branch name cannot be used: ${v === '' ? '(empty)' : v}`);
     }
     return new BranchName(v);
   }
@@ -50,7 +50,7 @@ export class RepoPath {
     const v = input.replace(/\\/g, '/');
     const parts = v.split('/');
     if (v === '' || v.startsWith('/') || /^[A-Za-z]:/.test(v) || v.startsWith('-') || v.includes('\0') || parts.some((p) => p === '..' || p.toLowerCase() === '.git')) {
-      throw new GitInputError(`이 경로는 쓸 수 없어요: ${input}`);
+      throw new GitInputError(`This path cannot be used: ${input}`);
     }
     return new RepoPath(v);
   }

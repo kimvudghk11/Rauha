@@ -9,5 +9,5 @@ export interface BranchMark {
 /** 지금 체크아웃한 브랜치를 한눈에 알아보게 하는 표시 규칙. 색에만 기대지 않고 글자 배지와 설명도 준다. */
 export function branchMark(name: string | null, current: boolean): BranchMark {
   if (!current) return { className: '', badge: null, title: name ?? '' };
-  return { className: 'is-current', badge: '현재', title: name === null ? '지금 체크아웃한 상태: 분리된 HEAD' : `지금 체크아웃한 브랜치: ${name}` };
+  return { className: 'is-current', badge: 'Current', title: name === null ? 'Checked out now: detached HEAD' : `Checked out now: ${name}` };
 }

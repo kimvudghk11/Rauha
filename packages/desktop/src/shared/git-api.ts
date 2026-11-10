@@ -94,4 +94,4 @@ export type GitErrorCode = 'PROTECTED' | 'BLOCKED' | 'INVALID' | 'UNKNOWN_REPO' 
 export type GitApi = { readonly [K in GitFn]: (root: string, arg: GitArg<K>) => Promise<GitResult<GitData<K>>> };
 
 /** 보호 브랜치로 push·머지할 때 main이 돌려주는 안내. 화면은 이 문구로 확인 창을 띄운다. */
-export const protectedMessage = (branch: string): string => `${branch} 브랜치는 보호 브랜치예요.`;
+export const protectedMessage = (branch: string): string => `Branch ${branch} is protected.`;

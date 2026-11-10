@@ -14,11 +14,11 @@ export interface GitContext {
 }
 
 const str = (v: unknown): string => {
-  if (typeof v !== 'string') throw new GitInputError('값이 올바르지 않아요.');
+  if (typeof v !== 'string') throw new GitInputError('The value is not valid.');
   return v;
 };
 const strs = (v: unknown): string[] => {
-  if (!Array.isArray(v)) throw new GitInputError('값이 올바르지 않아요.');
+  if (!Array.isArray(v)) throw new GitInputError('The value is not valid.');
   return v.map(str);
 };
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {});
@@ -36,9 +36,9 @@ const sel = (v: unknown) => {
  */
 export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, rawArg: unknown): Promise<GitResult<unknown>> {
   const fail = (code: GitErrorCode, error: string): GitResult<never> => ({ ok: false, error, code });
-  if (typeof fn !== 'string' || !(GIT_FUNCTIONS as readonly string[]).includes(fn)) return fail('INVALID', '알 수 없는 git 요청이에요.');
+  if (typeof fn !== 'string' || !(GIT_FUNCTIONS as readonly string[]).includes(fn)) return fail('INVALID', 'Unknown git request.');
   const checked = await ctx.gate.check(root);
-  if (checked === null) return fail('UNKNOWN_REPO', '이 폴더는 앱이 아는 레포가 아니에요. Repo 탭에서 레포 다시 읽기(↻)를 눌러 주세요.');
+  if (checked === null) return fail('UNKNOWN_REPO', 'This folder is not a repo the app knows. Press Reload repos (↻) in the Repo tab.');
   const repo = GitRepo.open(checked, ctx.protectedBranches());
   const a = obj(rawArg);
   const confirm = { confirmed: a['confirmed'] === true };
@@ -73,7 +73,7 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       abortMerge: () => repo.abortMerge(),
       openPr: async () => {
         const { url } = await repo.prUrl(str(a['base']));
-        if (!url.startsWith('https://')) throw new GitFailure('INVALID', 'https 주소만 열 수 있어요.');
+        if (!url.startsWith('https://')) throw new GitFailure('INVALID', 'Only https addresses can be opened.');
         await ctx.openExternal(url);
         return { url };
       },
@@ -82,6 +82,6 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
   } catch (e) {
     if (e instanceof GitFailure) return fail(e.code, e.message);
     if (e instanceof GitInputError) return fail('INVALID', e.message);
-    return fail('FAILED', e instanceof Error ? e.message : '알 수 없는 오류');
+    return fail('FAILED', e instanceof Error ? e.message : 'Unknown error');
   }
 }

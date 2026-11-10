@@ -19,19 +19,19 @@ export function buildWorktreeGraph(ctx: GitCtx) {
     if (rows.length === 0) return;
     const here = norm(ctx.root());
     const now = Math.floor(Date.now() / 1000);
-    root.append(el('div', 'gall', `작업 트리 ${rows.length}`));
+    root.append(el('div', 'gall', `Worktrees ${rows.length}`));
     const list = el('ol', 'gwtl');
     rows.forEach((w, i) => {
       const li = el('li', `gwti${norm(w.path) === here ? ' on' : ''}${i === rows.length - 1 ? ' last' : ''}`);
       const dot = el('span', `gwdot${w.changed > 0 ? ' dirty' : ''}${w.prunable ? ' gone' : ''}`);
       const info = el('div', 'gwinfo');
       const top = el('div', 'gwtop');
-      top.append(el('b', 'mono gwbranch', w.branch ?? '(분리된 HEAD)'));
-      if (w.main) top.append(el('span', 'chip', '메인'));
-      if (norm(w.path) === here) top.append(el('span', 'chip blue', '여기'));
-      if (w.changed > 0) top.append(el('span', 'chip yellow', `변경 ${w.changed}`));
-      if (w.locked) top.append(el('span', 'chip', '잠김'));
-      if (w.prunable) top.append(el('span', 'chip red', '폴더 없음'));
+      top.append(el('b', 'mono gwbranch', w.branch ?? '(detached HEAD)'));
+      if (w.main) top.append(el('span', 'chip', 'Main'));
+      if (norm(w.path) === here) top.append(el('span', 'chip blue', 'Here'));
+      if (w.changed > 0) top.append(el('span', 'chip yellow', `${w.changed} changed`));
+      if (w.locked) top.append(el('span', 'chip', 'Locked'));
+      if (w.prunable) top.append(el('span', 'chip red', 'Folder missing'));
       const sub = [worktreeName(w.path), w.author, w.at > 0 ? ago(w.at, now) : ''].filter((x) => x !== '').join(' · ');
       info.append(top, el('div', 'dim gwsub', sub));
       li.title = `${w.path}${w.subject === '' ? '' : `\n${w.subject}`}`;

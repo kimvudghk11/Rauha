@@ -51,7 +51,7 @@ export function askDialog(o: AskOptions): Promise<{ ok: boolean; value: string }
       box.appendChild(field);
     }
     const row = el('div', 'btns');
-    const cancel = el('button', 'btn', '취소');
+    const cancel = el('button', 'btn', 'Cancel');
     const ok = el('button', o.danger === true ? 'btn danger' : 'btn primary', o.okLabel);
     const close = (result: boolean) => {
       document.removeEventListener('keydown', onKey, true);
@@ -82,16 +82,16 @@ export interface DiffOptions {
 /** diff를 좌우 줄 번호와 추가·삭제 색으로 그린다. stage·unstage 모드는 줄과 hunk를 골라 적용한다. */
 export function renderDiff(diff: DiffView, options: DiffOptions): HTMLElement {
   const root = el('div', 'gdiff');
-  if (diff.binary) return (root.appendChild(el('div', 'dim pad', '바이너리 파일이라 내용을 보여 줄 수 없어요.')), root);
-  if (diff.hunks.length === 0) return (root.appendChild(el('div', 'dim pad', '바뀐 내용이 없어요.')), root);
+  if (diff.binary) return (root.appendChild(el('div', 'dim pad', 'Binary file: the content cannot be shown.')), root);
+  if (diff.hunks.length === 0) return (root.appendChild(el('div', 'dim pad', 'No changes.')), root);
   const selectable = options.mode !== 'view';
   const picked = new Map<number, Set<number>>();
   const bar = el('div', 'gdbar');
   const count = el('span', 'dim', '');
-  const applyBtn = el('button', 'btn', options.mode === 'stage' ? '고른 줄 스테이지' : '고른 줄 스테이지 해제');
+  const applyBtn = el('button', 'btn', options.mode === 'stage' ? 'Stage selected lines' : 'Unstage selected lines');
   const refreshBar = () => {
     const n = [...picked.values()].reduce((s, v) => s + v.size, 0);
-    count.textContent = n === 0 ? '줄 번호 옆 칸을 눌러 줄을 고르거나, hunk의 버튼으로 덩어리째 옮겨요.' : `고른 줄 ${n}개`;
+    count.textContent = n === 0 ? 'Click the box next to a line number to pick lines, or use a hunk button to move a whole chunk.' : `${n} line(s) selected`;
     applyBtn.disabled = n === 0;
   };
   const finish = (sel: Selection) => options.apply?.(sel);
@@ -124,7 +124,7 @@ export function renderDiff(diff: DiffView, options: DiffOptions): HTMLElement {
         hunkChecks[hi] = hcheck;
         const me = hi;
         if (selectable) {
-          const hb = el('button', 'btn sm', options.mode === 'stage' ? '이 덩어리 스테이지' : '이 덩어리 스테이지 해제');
+          const hb = el('button', 'btn sm', options.mode === 'stage' ? 'Stage this hunk' : 'Unstage this hunk');
           hb.addEventListener('click', () => finish({ hunks: [me] }));
           head.appendChild(hb);
         }

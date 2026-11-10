@@ -19,7 +19,7 @@ interface SubView {
   refresh(): Promise<void>;
 }
 
-const VIEW_LABEL: Readonly<Record<ViewId, string>> = { changes: '변경', branches: '브랜치', history: '히스토리', conflicts: '충돌' };
+const VIEW_LABEL: Readonly<Record<ViewId, string>> = { changes: 'Changes', branches: 'Branches', history: 'History', conflicts: 'Conflicts' };
 export const REMEMBER = 'rauha.git.repo';
 
 const remembered = (): string | null => {
@@ -74,7 +74,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   const call: CallFn = async (fn, arg) => {
     let r = await callRaw(fn, arg);
     if (!r.ok && r.code === 'PROTECTED') {
-      const a = await askDialog({ title: '보호 브랜치예요', body: r.error, okLabel: '그래도 진행', danger: true });
+      const a = await askDialog({ title: 'Protected branch', body: r.error, okLabel: 'Continue anyway', danger: true });
       if (!a.ok) return null;
       r = await callRaw(fn, arg, true);
     }
@@ -111,7 +111,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   const sub = (id: ViewId): SubView => {
     const found = views[id] ?? (id === 'changes' ? buildChanges(ctx) : id === 'branches' ? buildBranches(ctx) : id === 'history' ? buildHistory(ctx) : buildConflicts(ctx));
     if (found === undefined) {
-      const stub = { root: el('div', 'dim pad', '준비 중이에요.'), refresh: async () => {} };
+      const stub = { root: el('div', 'dim pad', 'Coming soon.'), refresh: async () => {} };
       return (views[id] = stub);
     }
     return (views[id] = found);
@@ -131,10 +131,10 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   function renderHead(): void {
     head.replaceChildren();
     const select = el('select', 'gselect');
-    select.title = '레포 고르기';
+    select.title = 'Pick a repo';
     const sorted = [...repos].sort((a, b) => (b.status?.changed ?? 0) - (a.status?.changed ?? 0) || a.name.localeCompare(b.name));
     for (const r of sorted) {
-      const o = el('option', undefined, `${r.name}${r.status !== null && r.status.changed > 0 ? ` · 변경 ${r.status.changed}` : ''}`);
+      const o = el('option', undefined, `${r.name}${r.status !== null && r.status.changed > 0 ? ` · ${r.status.changed} changed` : ''}`);
       o.value = r.root;
       o.selected = r.root === repo;
       select.appendChild(o);
@@ -145,17 +145,17 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     // 현재 브랜치를 크게: 누르면 검색·전환·새 브랜치 팝업
     const mark = branchMark(overview.branch, true);
     const branch = el('button', `btn gbranch ${mark.className}`);
-    branch.title = `${mark.title} · 눌러서 브랜치 바꾸기·새 브랜치`;
-    branch.append(gitIcon('branch'), el('span', 'gbranchname', overview.branch ?? '(분리된 HEAD)'));
+    branch.title = `${mark.title} · click to switch or create a branch`;
+    branch.append(gitIcon('branch'), el('span', 'gbranchname', overview.branch ?? '(detached HEAD)'));
     if (overview.branch !== null && protectedList.has(overview.branch)) {
       const lock = gitIcon('lock');
-      lock.setAttribute('aria-label', '보호 브랜치');
+      lock.setAttribute('aria-label', 'Protected branch');
       branch.append(lock);
     }
     branch.addEventListener('click', () => void openBranchMenu(branch, ctx, (prefill) => void openNewBranchDialog(ctx, prefill)));
     head.append(branch);
-    if (overview.merging) head.appendChild(el('span', 'chip red', '머지 중'));
-    if (!overview.hasRemote) head.appendChild(el('span', 'chip', '원격 없음'));
+    if (overview.merging) head.appendChild(el('span', 'chip red', 'Merging'));
+    if (!overview.hasRemote) head.appendChild(el('span', 'chip', 'No remote'));
     head.appendChild(el('span', 'grow'));
 
     const hasRemote = overview.hasRemote;
@@ -164,7 +164,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     const syncBtn = (kind: 'fetch' | 'pull' | 'push', label: string, progress: string, fn: () => Promise<void>, tip: string, primary: boolean, badge: HTMLElement | null) => {
       const b = el('button', primary ? 'btn primary' : 'btn');
       b.disabled = !hasRemote || busy;
-      b.title = hasRemote ? tip : '이 레포에는 원격이 없어요.';
+      b.title = hasRemote ? tip : 'This repo has no remote.';
       b.setAttribute('aria-label', label);
       b.append(running === kind ? el('span', 'spinner') : gitIcon(kind, true), el('span', 'glabel', running === kind ? progress : label));
       if (badge !== null) b.append(badge);
@@ -190,17 +190,17 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
       const text = directionText(kind === 'up' ? n : null, kind === 'down' ? n : null);
       if (text === '') return null;
       const s = el('span', `sbadge ${kind}`, text);
-      s.title = kind === 'down' ? `원격에 받을 커밋이 ${n}개 있어요` : `올릴 커밋이 ${n}개 있어요`;
+      s.title = kind === 'down' ? `${n} commit(s) to pull` : `${n} commit(s) to push`;
       return s;
     };
     const fetched = fetchedLabel(o.fetchedAt, Math.floor(Date.now() / 1000));
-    const fb = el('span', 'sbadge faint fbadge', fetched.replace('마지막 확인 ', '').replace('방금 확인', '방금'));
-    syncBtn('fetch', 'Fetch', '가져오는 중…', async () => void (await call('fetch', undefined as never)), `원격 소식을 확인해요(받지는 않아요) · ${fetched}`, false, fb);
-    syncBtn('pull', 'Pull', '받는 중…', pull, '원격의 새 커밋을 받아 합쳐요', primary === 'pull', dir('down', o.behind));
-    syncBtn('push', 'Push', '올리는 중…', async () => void (await call('push', {})), '내 커밋을 원격에 올려요', primary === 'push', dir('up', o.ahead));
+    const fb = el('span', 'sbadge faint fbadge', fetched.replace('Last checked ', '').replace('Checked just now', 'just now'));
+    syncBtn('fetch', 'Fetch', 'Fetching…', async () => void (await call('fetch', undefined as never)), `Check the remote for news (nothing is downloaded into your branch) · ${fetched}`, false, fb);
+    syncBtn('pull', 'Pull', 'Pulling…', pull, 'Get new commits from the remote and merge them', primary === 'pull', dir('down', o.behind));
+    syncBtn('push', 'Push', 'Pushing…', async () => void (await call('push', {})), 'Send my commits to the remote', primary === 'push', dir('up', o.ahead));
     const pr = el('button', 'btn prbtn');
     pr.disabled = !hasRemote || busy;
-    pr.title = hasRemote ? 'GitHub에서 PR 열기' : '이 레포에는 원격이 없어요.';
+    pr.title = hasRemote ? 'Open a PR on GitHub' : 'This repo has no remote.';
     pr.append(gitIcon('pr'), el('span', 'glabel', 'PR'));
     pr.addEventListener('click', async () => {
       busy = true;
@@ -216,7 +216,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     head.appendChild(sync);
     // 진행 중 글: 결과 줄 자리에 보인다
     if (running !== null) {
-      status.replaceChildren(el('span', 'spinner'), el('span', 'hint grow', running === 'fetch' ? '원격 소식을 가져오는 중…' : running === 'pull' ? '새 커밋을 받는 중…' : '커밋을 올리는 중…'));
+      status.replaceChildren(el('span', 'spinner'), el('span', 'hint grow', running === 'fetch' ? 'Fetching from the remote…' : running === 'pull' ? 'Pulling new commits…' : 'Pushing commits…'));
     } else if (status.firstChild !== msg) status.replaceChildren(msg);
   }
 
@@ -224,17 +224,17 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     const r = await callRaw('pull', { mode: 'ff' });
     if (r.ok) return say(r.data.message), void (r.data.conflicts === true && (await open('conflicts')));
     if (r.code !== 'BLOCKED') return say(r.error, true);
-    const a = await askDialog({ title: '빨리감기로는 합칠 수 없어요', body: `${r.error}\n\n병합(merge)으로 가져올까요? 충돌이 나면 충돌 탭에서 풀 수 있어요.`, okLabel: '병합으로 pull' });
-    if (!a.ok) return say('pull을 하지 않았어요.');
+    const a = await askDialog({ title: 'Cannot fast-forward', body: `${r.error}\n\nPull with a merge instead? If it conflicts, resolve it in the Conflicts tab.`, okLabel: 'Pull with merge' });
+    if (!a.ok) return say('Did not pull.');
     const m = await call('pull', { mode: 'merge' });
     if (m?.conflicts === true) await open('conflicts');
   }
 
   async function openPr(): Promise<void> {
-    const a = await askDialog({ title: 'GitHub에서 PR 열기', body: `${overview?.branch ?? ''} 브랜치를 어디로 합칠지 골라 주세요. 브라우저가 열려요.`, input: { label: '받는 브랜치', value: 'main' }, okLabel: '브라우저로 열기' });
+    const a = await askDialog({ title: 'Open a PR on GitHub', body: `Pick the branch to merge ${overview?.branch ?? ''} into. A browser opens.`, input: { label: 'Target branch', value: 'main' }, okLabel: 'Open in browser' });
     if (a.ok) {
       const out = await call('openPr', { base: a.value.trim() });
-      if (out !== null) say('브라우저에서 PR 화면을 열었어요. (먼저 push가 돼 있어야 보여요)');
+      if (out !== null) say('Opened the PR page in your browser (push first, or it will not show).');
     }
   }
 
@@ -281,13 +281,13 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   }
 
   async function load(): Promise<void> {
-    body.replaceChildren(el('div', 'dim pad', '레포를 찾는 중…'));
+    body.replaceChildren(el('div', 'dim pad', 'Looking for repos…'));
     const [all, prot] = await Promise.all([listRepos(), protectedNames()]);
     protectedList = ProtectedBranches.of(prot);
     repos = all.filter((r) => r.kind === 'repo');
     if (repos.length === 0) {
       head.replaceChildren();
-      body.replaceChildren(el('div', 'dim pad', '작업 폴더에서 레포를 찾지 못했어요. 설정에서 작업 폴더를 골라 주세요.'));
+      body.replaceChildren(el('div', 'dim pad', 'No repos found in the work folder. Pick a work folder in Settings.'));
       return;
     }
     const keep = remembered();

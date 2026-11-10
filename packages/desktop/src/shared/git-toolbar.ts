@@ -2,12 +2,12 @@
 
 /** Fetch 버튼 배지: 마지막으로 원격을 확인한 시각(초 단위 UNIX 시각, 모르면 null) */
 export function fetchedLabel(atSec: number | null, nowSec: number): string {
-  if (atSec === null) return '아직 안 함';
+  if (atSec === null) return 'Not yet';
   const d = Math.max(0, nowSec - atSec);
-  if (d < 60) return '방금 확인';
-  if (d < 3600) return `마지막 확인 ${Math.floor(d / 60)}분 전`;
-  if (d < 86400) return `마지막 확인 ${Math.floor(d / 3600)}시간 전`;
-  return `마지막 확인 ${Math.floor(d / 86400)}일 전`;
+  if (d < 60) return 'Checked just now';
+  if (d < 3600) return `Last checked ${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `Last checked ${Math.floor(d / 3600)}h ago`;
+  return `Last checked ${Math.floor(d / 86400)}d ago`;
 }
 
 /** Pull(↓ 뒤처진 수)·Push(↑ 앞선 수) 배지. 0이거나 모르면 빈 글 */
@@ -16,16 +16,16 @@ export function syncBadge(dir: 'up' | 'down', n: number | null): string {
 }
 
 export function pullDoneMessage(received: number | null): string {
-  if (received === null) return '새 커밋을 받았어요.';
-  return received > 0 ? `새 커밋 ${received}개를 받았어요.` : '이미 최신이에요.';
+  if (received === null) return 'Pulled new commits.';
+  return received > 0 ? `Pulled ${received} new commit(s).` : 'Already up to date.';
 }
 
 /** 원격이 아닌 로컬 git 작업(커밋·전환·머지·브랜치 삭제)이 실패한 이유를 쉬운 말로. 아는 모양이 아니면 null. */
 export function knownLocalGitError(raw: string): string | null {
   const t = raw.trim();
-  if (/Author identity unknown|unable to auto-detect email|empty ident name|Please tell me who you are/i.test(t)) return '커밋에 쓸 이름과 이메일이 아직 없어요. 터미널에서 git config --global user.name "내 이름" 과 git config --global user.email "내 메일" 을 한 번 실행한 뒤 다시 눌러 주세요.';
-  if (/not fully merged/i.test(t)) return '아직 합치지 않은 커밋이 있는 브랜치라서 지우지 않았어요. 먼저 머지하거나, 정말 필요 없다면 터미널에서 git branch -D 로 지워 주세요.';
-  if (/would be overwritten|commit your changes or stash/i.test(t)) return '아직 커밋하지 않은 내 변경이 덮어써질 수 있어요. 먼저 커밋하거나 변경을 정리해 주세요.';
+  if (/Author identity unknown|unable to auto-detect email|empty ident name|Please tell me who you are/i.test(t)) return 'Git does not know your name and email yet. Run git config --global user.name "Your Name" and git config --global user.email "you@example.com" in a terminal once, then try again.';
+  if (/not fully merged/i.test(t)) return 'This branch has unmerged commits, so it was not deleted. Merge it first, or run git branch -D in a terminal if you really do not need it.';
+  if (/would be overwritten|commit your changes or stash/i.test(t)) return 'Your uncommitted changes could be overwritten. Commit or stash them first.';
   return null;
 }
 
@@ -34,12 +34,12 @@ export function knownGitError(raw: string): string | null {
   const t = raw.trim();
   const local = knownLocalGitError(t);
   if (local !== null) return local;
-  if (/non-fast-forward|rejected|fetch first|contains work that you do not have/i.test(t)) return '원격에 내 컴퓨터에 없는 새 커밋이 있어서 올릴 수 없어요. 먼저 pull로 받아 합친 뒤 다시 push해 주세요.';
-  if (/Authentication failed|could not read Username|invalid credentials/i.test(t)) return '로그인(인증)이 안 됐어요. GitHub 로그인 정보나 토큰을 확인해 주세요.';
-  if (/Permission denied|publickey|access denied|403/i.test(t)) return '이 저장소에 올릴 권한이 없거나 접속 열쇠(SSH 키)가 맞지 않아요.';
-  if (/Could not resolve host|unable to access|Network is unreachable|timed out|Connection refused/i.test(t)) return '원격에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.';
-  if (/no upstream branch|has no upstream/i.test(t)) return '이 브랜치에는 연결된 원격 브랜치가 없어요. push를 누르면 새로 만들어 연결해요.';
-  if (/Not possible to fast-forward|diverged|Diverging branches|can't be fast-forwarded/i.test(t)) return '내 브랜치와 원격 브랜치가 서로 갈라졌어요. 병합으로 합칠 수 있어요.';
+  if (/non-fast-forward|rejected|fetch first|contains work that you do not have/i.test(t)) return 'The remote has commits you do not have, so you cannot push yet. Pull first, then push again.';
+  if (/Authentication failed|could not read Username|invalid credentials/i.test(t)) return 'Sign-in failed. Check your GitHub login or token.';
+  if (/Permission denied|publickey|access denied|403/i.test(t)) return 'You may not have permission to push here, or your SSH key does not match.';
+  if (/Could not resolve host|unable to access|Network is unreachable|timed out|Connection refused/i.test(t)) return 'Could not reach the remote. Check your internet connection.';
+  if (/no upstream branch|has no upstream/i.test(t)) return 'This branch has no remote branch yet. Push creates and links one.';
+  if (/Not possible to fast-forward|diverged|Diverging branches|can't be fast-forwarded/i.test(t)) return 'Your branch and the remote branch have diverged. You can combine them with a merge.';
   return null;
 }
 
@@ -58,7 +58,7 @@ export function subjectState(subject: string): { readonly length: number; readon
 
 /** "3개 파일, +12 −4" */
 export function stageSummary(files: number, added: number | null, removed: number | null): string {
-  return added === null || removed === null ? `${files}개 파일` : `${files}개 파일, +${added} −${removed}`;
+  return added === null || removed === null ? `${files} file(s)` : `${files} file(s), +${added} −${removed}`;
 }
 
 export interface CommitInput {
@@ -69,9 +69,9 @@ export interface CommitInput {
 
 /** 커밋 버튼을 못 누르는 이유(누를 수 있으면 null) */
 export function commitBlockReason(i: CommitInput): string | null {
-  if (i.conflicts) return '풀지 않은 충돌이 있어요. 충돌을 먼저 풀어 주세요.';
-  if (i.staged === 0) return '커밋할 파일이 없어요. 왼쪽에서 파일을 체크해 스테이지해 주세요.';
-  if (i.subject.trim() === '') return '커밋 제목을 적어 주세요.';
+  if (i.conflicts) return 'There are unresolved conflicts. Resolve them first.';
+  if (i.staged === 0) return 'Nothing to commit. Check files on the left to stage them.';
+  if (i.subject.trim() === '') return 'Please enter a commit subject.';
   return null;
 }
 
