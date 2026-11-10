@@ -1,6 +1,6 @@
 import type { ImageResult } from '../shared/code-api.js';
 import type { Block, Inline, ListItem } from '../shared/markdown.js';
-import { workImagePath } from '../shared/preview-kind.js';
+import { imageBudget, workImagePath } from '../shared/preview-kind.js';
 import { el } from './dom.js';
 
 /**
@@ -17,7 +17,10 @@ export interface MarkdownContext {
 
 const ALIGN_CLASS = { left: 'md-al-left', right: 'md-al-right', center: 'md-al-center' } as const;
 
-export function renderMarkdown(blocks: readonly Block[], ctx: MarkdownContext): HTMLElement {
+export function renderMarkdown(blocks: readonly Block[], base: MarkdownContext): HTMLElement {
+  // 한 문서에서 읽는 그림 수에 상한을 둔다(넘는 그림은 대체 글만 보인다)
+  const allowed = imageBudget();
+  const ctx: MarkdownContext = { ...base, loadImage: (path) => (allowed(path) ? base.loadImage(path) : Promise.reject(new Error('Too many images'))) };
   const root = el('div', 'md');
   for (const b of blocks) root.append(block(b, ctx));
   if (blocks.length === 0) root.append(el('p', 'md-empty', 'No content.'));

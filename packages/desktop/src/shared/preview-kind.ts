@@ -55,3 +55,17 @@ export function workImagePath(markdownPath: string, src: string): string | null 
   const out = parts.join('/');
   return imageMimeOf(out) === null ? null : out;
 }
+
+/** 마크다운 한 문서에서 읽어 오는 그림 수의 상한(그림마다 최대 5MB를 data: URL로 받으므로 수천 장을 걸어 두는 문서가 화면을 멈추지 못하게 한다) */
+export const MAX_MARKDOWN_IMAGES = 40;
+
+/** 그림을 하나씩 읽을 때마다 부르는 예산. 상한을 넘으면 false를 돌려준다(같은 주소는 한 번만 센다). */
+export function imageBudget(max: number = MAX_MARKDOWN_IMAGES): (path: string) => boolean {
+  const seen = new Set<string>();
+  return (path) => {
+    if (seen.has(path)) return true;
+    if (seen.size >= max) return false;
+    seen.add(path);
+    return true;
+  };
+}

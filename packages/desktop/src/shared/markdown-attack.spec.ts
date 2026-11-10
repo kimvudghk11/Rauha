@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseMarkdown, safeHref, type Block, type Inline } from './markdown.js';
-import { workImagePath } from './preview-kind.js';
+import { imageBudget, MAX_MARKDOWN_IMAGES, workImagePath } from './preview-kind.js';
 
 /** 구조 안의 모든 글 속 노드를 모은다 */
 function inlinesOf(blocks: readonly Block[]): Inline[] {
@@ -128,5 +128,18 @@ describe('마크다운 이미지 주소 공격', () => {
   it('인코딩된 구분자가 든 이름은 실제 폴더 이동이 되지 않는다', () => {
     const r = workImagePath('readme.md', 'a%2f..%2f..%2fx.png');
     expect(r === null || !r.split('/').includes('..')).toBe(true);
+  });
+});
+
+describe('마크다운 그림 읽기 예산', () => {
+  it('한 문서에서 읽는 서로 다른 그림은 상한까지만 허락하고, 같은 그림은 다시 세지 않는다', () => {
+    const allowed = imageBudget(3);
+    expect(['a.png', 'b.png', 'c.png', 'a.png', 'd.png', 'e.png', 'b.png'].map(allowed)).toEqual([true, true, true, true, false, false, true]);
+  });
+  it('기본 상한은 수십 장 수준이다', () => {
+    const allowed = imageBudget();
+    const granted = Array.from({ length: 5000 }, (_, i) => allowed(`i${i}.png`)).filter(Boolean).length;
+    expect(granted).toBe(MAX_MARKDOWN_IMAGES);
+    expect(MAX_MARKDOWN_IMAGES).toBeLessThanOrEqual(100);
   });
 });

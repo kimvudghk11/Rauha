@@ -161,6 +161,8 @@ export class CodePreview {
         let hit = this.cache.get(p);
         if (hit === undefined) {
           hit = this.deps.api.readImage(p);
+          // 그림 캐시는 최근 몇 장만 둔다(한 장이 data: URL로 최대 5MB라 끝없이 쌓이지 않게)
+          if (this.cache.size >= 40) this.cache.delete(this.cache.keys().next().value as string);
           this.cache.set(p, hit);
         }
         return hit;
