@@ -76,6 +76,15 @@ export function buildChat(actions: ChatActions) {
   const leadHintText = (): string => `${leadName()}에게 일을 맡겨요. 맡긴 뒤에도 바로 다음 일을 보낼 수 있어요.`;
   leadHint.textContent = leadHintText();
   head.append(headFace, el('b', undefined, '메인'), leadHint, layoutToggle);
+  /** 화면의 말풍선을 비운다(돌고 있는 작업과 기록은 그대로). /clear 와 '대화 초기화' 단추가 같이 쓴다. */
+  function clearVisibleChat(): void {
+    msgs.replaceChildren(empty);
+    cards.clear();
+    for (const j of jobs.values()) {
+      reported.add(j.id);
+      if (j.status === 'done' || j.status === 'stopped') cleared.add(j.id);
+    }
+  }
   if (actions.resetConversation !== undefined) {
     const resetConversation = actions.resetConversation;
     const reset = el('button', 'btn sm reset-conv', '대화 초기화');
@@ -85,7 +94,10 @@ export function buildChat(actions: ChatActions) {
       if (!answer.ok) return;
       reset.disabled = true;
       try {
-        flash(resetNotice(await resetConversation()));
+        const result = await resetConversation();
+        // /clear 처럼 화면도 함께 비운다(모델이 기억하는 앞 대화만 비우고 화면은 그대로여서 초기화가 안 된 것처럼 보였다)
+        if (result.ok) clearVisibleChat();
+        flash(resetNotice(result));
       } finally {
         reset.disabled = false;
       }
@@ -621,14 +633,7 @@ export function buildChat(actions: ChatActions) {
       msgs.scrollTop = msgs.scrollHeight;
     },
     /** 채팅 화면을 비운다(돌고 있는 작업과 기록은 그대로) */
-    clearScreen(): void {
-      msgs.replaceChildren(empty);
-      cards.clear();
-      for (const j of jobs.values()) {
-        reported.add(j.id);
-        if (j.status === 'done' || j.status === 'stopped') cleared.add(j.id);
-      }
-    },
+    clearScreen: clearVisibleChat,
     jobList: (): readonly JobView[] => [...jobs.values()],
     board(view: BoardView): void {
       for (const job of view.jobs) {
