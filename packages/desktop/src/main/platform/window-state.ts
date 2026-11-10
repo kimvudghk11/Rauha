@@ -61,6 +61,12 @@ export function parseWindowFile(input: unknown): Readonly<Record<string, SavedWi
   return out;
 }
 
+/** 시험·확인용 실행인가: RAUHA_DISPLAY를 뺀 RAUHA_ 환경 변수가 하나라도 있으면 그렇다(일반 사용자는 설정하지 않는다). */
+export const isAutomatedRun = (env: Record<string, string | undefined>): boolean => Object.keys(env).some((k) => k.startsWith('RAUHA_') && k !== 'RAUHA_DISPLAY' && env[k] !== undefined);
+
+/** 시험 실행이 창을 띄울 모니터: 직접 정한 값이 먼저, 없으면 시험 실행은 2번 모니터, 일반 실행은 정하지 않는다(null). */
+export const testDisplay = (env: Record<string, string | undefined>): string | undefined => env['RAUHA_DISPLAY'] ?? (isAutomatedRun(env) ? '2' : undefined);
+
 /**
  * 확인용 실행에서 창을 N번째 모니터(1이 주 모니터, 나머지는 그다음 순서)의 가운데에 놓는다.
  * N번째 모니터가 없거나 값이 이상하면 null(원래 위치 규칙을 그대로 쓴다).

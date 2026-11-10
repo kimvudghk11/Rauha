@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayKey, isVisible, parseWindowFile, restoreBounds, type Rect, placeOnDisplay } from './window-state.js';
+import { displayKey, isVisible, parseWindowFile, restoreBounds, type Rect, placeOnDisplay, isAutomatedRun, testDisplay } from './window-state.js';
 
 const main: Rect = { x: 0, y: 0, width: 1920, height: 1040 };
 const second: Rect = { x: 1920, y: 0, width: 2560, height: 1400 };
@@ -83,5 +83,18 @@ describe('확인용 모니터 지정', () => {
   });
   it('모니터보다 큰 창은 모니터 크기로 줄인다', () => {
     expect(placeOnDisplay('1', [{ x: 0, y: 0, width: 800, height: 600 }], { width: 1280, height: 820 })).toEqual({ x: 0, y: 0, width: 800, height: 600, maximized: false });
+  });
+});
+
+describe('시험 실행은 1번 모니터에 뜨지 않는다', () => {
+  it('RAUHA_ 환경 변수가 있으면 시험 실행이고, 평범한 실행은 아니다', () => {
+    expect(isAutomatedRun({ RAUHA_DATA_DIR: 'x' })).toBe(true);
+    expect(isAutomatedRun({ PATH: 'x' })).toBe(false);
+    expect(isAutomatedRun({ RAUHA_DISPLAY: '2' })).toBe(false);
+  });
+  it('시험 실행은 기본 2번 모니터, 직접 정하면 그 값, 평범한 실행은 정하지 않는다', () => {
+    expect(testDisplay({ RAUHA_FAKE_TEAM: '1' })).toBe('2');
+    expect(testDisplay({ RAUHA_FAKE_TEAM: '1', RAUHA_DISPLAY: '3' })).toBe('3');
+    expect(testDisplay({})).toBeUndefined();
   });
 });

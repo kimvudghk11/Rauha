@@ -31,7 +31,7 @@ import { parseTarget, type TargetFolder } from './team/target.js';
 import { teamWork } from './team/team-work.js';
 import { appMenuTemplate, quitWhenAllClosed, windowChrome } from './platform/app-menu.js';
 import { claudeBinaryPath, fallbackWorkDir, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
-import { displayKey, parseWindowFile, placeOnDisplay, restoreBounds, type Rect } from './platform/window-state.js';
+import { displayKey, parseWindowFile, isAutomatedRun, placeOnDisplay, restoreBounds, testDisplay, type Rect } from './platform/window-state.js';
 import { adoptShellPath } from './platform/shell-path.js';
 import { findTerminalRauha, removeTerminalRauha, type TerminalRauhaFile } from './platform/terminal-rauha.js';
 import { AppVersion } from '../shared/app-update.js';
@@ -395,7 +395,10 @@ const readWindows = () => {
 
 function open(runner: JobRunner): void {
   // 확인용: RAUHA_DISPLAY=2 처럼 정하면 창을 그 모니터(1이 주 모니터)에 띄운다. 쓰는 모니터를 가리지 않고 눈으로 따라가 볼 때 쓴다.
-  const placed = placeOnDisplay(process.env['RAUHA_DISPLAY'], workAreas(), { width: 1280, height: 820 }) ?? restoreBounds(remembers() ? (readWindows()[screenKey()] ?? null) : null, workAreas(), { width: 1280, height: 820 });
+  // 시험 실행(RAUHA_ 환경 변수가 있는 실행)은 정하지 않아도 2번 모니터에 띄우고, 2번이 없으면 창을 아예 보이지 않는다(1번 모니터를 가리지 않게).
+  const auto = isAutomatedRun(process.env);
+  const forced = placeOnDisplay(testDisplay(process.env), workAreas(), { width: 1280, height: 820 });
+  const placed = forced ?? restoreBounds(remembers() ? (readWindows()[screenKey()] ?? null) : null, workAreas(), { width: 1280, height: 820 });
   window = new BrowserWindow({
     x: placed.x,
     y: placed.y,
@@ -404,7 +407,7 @@ function open(runner: JobRunner): void {
     minWidth: 480,
     minHeight: 360,
     // 자동 확인 실행(스모크·측정)은 창을 화면에 띄우지 않는다: 사용자가 쓰는 모니터를 가리지 않게
-    show: remembers(),
+    show: remembers() && (!auto || forced !== null),
     backgroundColor: BACKGROUND,
     title: 'Rauha',
     icon: join(app.getAppPath(), 'build', 'icon.png'),
@@ -432,7 +435,7 @@ function open(runner: JobRunner): void {
     }
   });
   window.webContents.session.setPermissionRequestHandler((_wc, _permission, done) => done(false));
-  if (remembers()) {
+  if (remembers() && !auto) {
     let timer: NodeJS.Timeout | undefined;
     const save = () => {
       clearTimeout(timer);
