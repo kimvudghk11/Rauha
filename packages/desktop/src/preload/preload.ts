@@ -3,6 +3,7 @@ import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
 import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { API_IPC } from '../shared/api-ipc.js';
+import { DOCKER_IPC, type DockerLogEvent } from '../shared/docker-api.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
 import { BUG_IPC } from '../shared/bug-api.js';
@@ -104,6 +105,31 @@ const api: RauhaApi = {
     onEvent: (listener) => {
       ipcRenderer.on(TERM_IPC.event, (_e, event: TermEvent) => listener(event));
     },
+  },
+  docker: {
+    status: () => ipcRenderer.invoke(DOCKER_IPC.status),
+    containers: () => ipcRenderer.invoke(DOCKER_IPC.containers),
+    images: () => ipcRenderer.invoke(DOCKER_IPC.images),
+    volumes: () => ipcRenderer.invoke(DOCKER_IPC.volumes),
+    networks: () => ipcRenderer.invoke(DOCKER_IPC.networks),
+    start: (id) => ipcRenderer.invoke(DOCKER_IPC.start, id),
+    stop: (id) => ipcRenderer.invoke(DOCKER_IPC.stop, id),
+    restart: (id) => ipcRenderer.invoke(DOCKER_IPC.restart, id),
+    remove: (req) => ipcRenderer.invoke(DOCKER_IPC.remove, req),
+    inspect: (id) => ipcRenderer.invoke(DOCKER_IPC.inspect, id),
+    logs: (req) => ipcRenderer.invoke(DOCKER_IPC.logs, req),
+    logsStop: (streamId) => ipcRenderer.invoke(DOCKER_IPC.logsStop, streamId),
+    onLogEvent: (listener) => {
+      ipcRenderer.on(DOCKER_IPC.logEvent, (_e, event: DockerLogEvent) => listener(event));
+    },
+    composeFind: () => ipcRenderer.invoke(DOCKER_IPC.composeFind),
+    composeList: () => ipcRenderer.invoke(DOCKER_IPC.composeList),
+    compose: (req) => ipcRenderer.invoke(DOCKER_IPC.compose, req),
+    exec: (req) => ipcRenderer.invoke(DOCKER_IPC.exec, req),
+    imageRemove: (req) => ipcRenderer.invoke(DOCKER_IPC.imageRemove, req),
+    imagePull: (req) => ipcRenderer.invoke(DOCKER_IPC.imagePull, req),
+    volumeRemove: (req) => ipcRenderer.invoke(DOCKER_IPC.volumeRemove, req),
+    networkRemove: (req) => ipcRenderer.invoke(DOCKER_IPC.networkRemove, req),
   },
   api: {
     send: (req) => ipcRenderer.invoke(API_IPC.send, req),

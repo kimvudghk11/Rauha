@@ -226,6 +226,7 @@ export const DockerRequest = {
     if (op !== 'up' && op !== 'down' && op !== 'ps' && op !== 'logs') throw new DockerInputError('That compose action is not supported.');
     const removeVolumes = op === 'down' && flag(o['removeVolumes']);
     if (removeVolumes) needConfirm(o, 'Removing compose volumes (down -v)');
+    else if (op === 'down') needConfirm(o, 'Stopping and removing a compose project (down)');
     return { file: ComposeFile.parse(o['file']), op, removeVolumes, tail: TailLines.parse(o['tail']) };
   },
   imageRemove(raw: unknown): ImageRef {

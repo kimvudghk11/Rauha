@@ -57,6 +57,7 @@ import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
 import { registerApiIpc } from './api/api-ipc.js';
+import { registerDockerIpc } from './docker/docker-ipc.js';
 import { registerBlogIpc } from './blog/blog-ipc.js';
 import { registerBugIpc } from './bugs/bug-ipc.js';
 import { BugStore } from './bugs/bug-store.js';
@@ -771,6 +772,7 @@ void app.whenReady().then(async () => {
     },
   });
   registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
+  registerDockerIpc(ipcMain, { workDir: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
   registerApiIpc(ipcMain, {
     dataDir,
     saveFile: async (fileName, text) => {

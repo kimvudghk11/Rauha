@@ -72,10 +72,11 @@ describe('요청 검사(DTO)', () => {
     expect(() => DockerRequest.remove({ id: '-f', confirm: true })).toThrow(/cannot start with/);
     expect(() => DockerRequest.volumeRemove({ name: '--all', confirm: true })).toThrow(DockerInputError);
   });
-  it('compose down -v 는 확인이 있어야 하고 down 만은 확인이 필요 없다', () => {
+  it('compose down 은 -v 가 있든 없든 확인이 있어야 한다', () => {
     expect(() => DockerRequest.compose({ file: 'compose.yaml', op: 'down', removeVolumes: true })).toThrow(/confirmation/);
     expect(DockerRequest.compose({ file: 'compose.yaml', op: 'down', removeVolumes: true, confirm: true }).removeVolumes).toBe(true);
-    expect(DockerRequest.compose({ file: 'compose.yaml', op: 'down' }).removeVolumes).toBe(false);
+    expect(() => DockerRequest.compose({ file: 'compose.yaml', op: 'down' })).toThrow(/confirmation/);
+    expect(DockerRequest.compose({ file: 'compose.yaml', op: 'down', confirm: true }).removeVolumes).toBe(false);
   });
   it('compose 는 up·down·ps·logs 만 받고 removeVolumes 는 down 에서만 뜻이 있다', () => {
     expect(() => DockerRequest.compose({ file: 'compose.yaml', op: 'exec' })).toThrow(DockerInputError);
