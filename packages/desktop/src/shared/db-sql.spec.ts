@@ -102,6 +102,11 @@ describe('SQL 문장 가르기: 막는 것(공격)', () => {
   it('모르는 첫 낱말·빈 문장·글이 아닌 값·너무 긴 값은 거절한다', () => {
     for (const s of ['', '   ', '-- only a comment', ';', 'FOO BAR', '1', '(SELECT 1)', undefined, 5, 'SELECT ' + '1,'.repeat(60000) + '1']) expect(() => SqlStatement.parse(s), String(s)).toThrow(DbInputError);
   });
+  it('숫자로 적은 거대한 randomblob·zeroblob 크기는 막는다(64MB 까지는 된다)', () => {
+    for (const s of ['SELECT randomblob(1000000000)', 'SELECT zeroblob(1e10)', 'SELECT ZEROBLOB( 70000000 )']) expect(blocked(s), s).toBe(true);
+    expect(kind('SELECT randomblob(16)')).toBe('read');
+    expect(kind('SELECT zeroblob(67108864)')).toBe('read');
+  });
   it('NUL 이 든 SQL 은 거절한다', () => {
     expect(() => SqlStatement.parse('SELECT 1\0; ATTACH')).toThrow(DbInputError);
   });

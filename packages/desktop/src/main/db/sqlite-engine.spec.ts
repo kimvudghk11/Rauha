@@ -24,6 +24,7 @@ async function failed(req: EngineRequest): Promise<string> {
 }
 let activeHooks: EngineTestHooks | undefined;
 const query = (file: string, sql: string, writable = false, kind: 'read' | 'write' | 'schema' = 'read'): EngineRequest => ({ op: 'query', file, sql, writable, kind, verb: sql.split(/s/)[0]!.toUpperCase(), ...(activeHooks === undefined ? {} : { hooks: activeHooks }) });
+const hasLimits = (): boolean => hasAuthorizer();
 const hasAuthorizer = (): boolean => {
   const m = loadSqlite() as unknown as { DatabaseSync: { prototype: Record<string, unknown> } } | null;
   return typeof m?.DatabaseSync.prototype['setAuthorizer'] === 'function';
@@ -141,9 +142,22 @@ describe.skipIf(!hasSqlite())('SQLite 엔진(자식 프로세스, 진짜 node:sq
     expect(r.cellsTruncated).toBe(true);
   });
 
-  it('거대한 값을 만드는 쿼리(randomblob 1GB)는 길이 상한으로 실패한다', async () => {
-    expect(await failed(query(shop, 'SELECT length(randomblob(1000000000))'))).toMatch(/too big/i);
-    expect(await failed(query(shop, 'SELECT length(zeroblob(1000000000))'))).toMatch(/too big/i);
+  it('거대한 값을 만드는 쿼리(randomblob 1GB)는 막힌다 — 길이 한계가 있을 때와 없을 때(CI 의 Node 22) 모두', async () => {
+    for (const hooks of [undefined, { noLimits: true }] as const) {
+      activeHooks = hooks;
+      try {
+        for (const sql of ['SELECT length(randomblob(1000000000))', 'SELECT length(zeroblob(1000000000))', 'SELECT length(randomblob(1e9))', 'SELECT length(zeroblob( 999999999999 ))']) {
+          expect(await failed(query(shop, sql)), `${sql} ${JSON.stringify(hooks)}`).toMatch(/too big|too much memory/i);
+        }
+      } finally {
+        activeHooks = undefined;
+      }
+    }
+  });
+
+  it('길이 한계가 있으면 계산해서 만드는 큰 값도 막힌다(문장 검사로는 알 수 없는 경우)', async () => {
+    if (!hasLimits()) return;
+    expect(await failed(query(shop, 'SELECT length(zeroblob(100000 * 100000))'))).toMatch(/too big/i);
   });
 
   it('열이 너무 많은 결과는 거절한다', async () => {
@@ -177,6 +191,7 @@ describe.skipIf(!hasSqlite())('SQLite 엔진(자식 프로세스, 진짜 node:sq
 const MODES: readonly (readonly [string, EngineTestHooks | undefined])[] = [
   ['전부 켠 채(앱과 같다)', undefined],
   ['인가 함수 없이(CI 의 Node 22 처럼): 읽기 전용 열기 + 엔진 안 문장 검사', { noAuthorizer: true }],
+  ['CI 의 Node 22 조건 전부 흉내(인가 함수·길이 한계·메모리 상한 없음)', { noAuthorizer: true, noLimits: true }],
   ['문장 검사 없이: 읽기 전용 열기 + SQLite 인가 함수만', { noStatementCheck: true }],
 ];
 for (const [mode, hooks] of MODES) {

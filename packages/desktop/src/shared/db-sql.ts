@@ -20,6 +20,10 @@ export function pragmaTakesArgument(name: string): boolean {
   return PRAGMA_WITH_ARG.has(name.toLowerCase());
 }
 
+/** 숫자 글자로 크기를 적는 BLOB 만들기 함수와 그 상한(64MB) */
+const MAKES_BLOB: ReadonlySet<string> = new Set(['randomblob', 'zeroblob']);
+const MAX_BLOB_LITERAL = 64 * 1024 * 1024;
+
 /** 어디에 쓰였든 막는 함수 이름: 확장 불러오기·토크나이저 등록·파일 읽고 쓰기 */
 export const BLOCKED_FUNCTIONS: ReadonlySet<string> = new Set(['load_extension', 'fts3_tokenizer', 'readfile', 'writefile']);
 
@@ -178,6 +182,14 @@ export class SqlStatement {
     // 막는 함수는 문장 어디에 있든 거절한다(인용 식별자로 감싼 것도)
     for (const t of tokens) {
       if ((t.t === 'word' || t.t === 'id') && BLOCKED_FUNCTIONS.has(t.v.toLowerCase())) throw new DbInputError(`${t.v} is not allowed (it could touch files or load code).`, 'blocked');
+    }
+    // 거대한 값을 만드는 줄 알 수 있는 호출(randomblob(1000000000) 같은)은 막는다. 길이 한계 API(SQLITE_LIMIT_LENGTH)는 Node 24 에만 있어 문장 검사가 모든 Node 에서 통하는 방어선이다.
+    for (let i = 0; i + 2 < tokens.length; i += 1) {
+      const t = tokens[i]!;
+      if (t.t === 'word' && MAKES_BLOB.has(t.v.toLowerCase()) && tokens[i + 1]!.v === '(' && tokens[i + 2]!.t === 'num') {
+        const n = Number(tokens[i + 2]!.v);
+        if (Number.isNaN(n) || n > MAX_BLOB_LITERAL) throw new DbInputError(`${t.v}(${tokens[i + 2]!.v}) would allocate too much memory (limit ${MAX_BLOB_LITERAL.toLocaleString('en-US')} bytes).`, 'blocked');
+      }
     }
     // 한 문장만: 첫 `;` 뒤에 낱말이 더 있으면 거절한다(주석·공백은 이미 빠졌다)
     const semi = tokens.findIndex((t) => t.t === 'punct' && t.v === ';');

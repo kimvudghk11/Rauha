@@ -21,6 +21,8 @@ export interface EngineTestHooks {
   readonly noAuthorizer?: boolean;
   /** 엔진 안의 문장 검사를 건너뛴다(인가 함수만으로 막히는지 본다) */
   readonly noStatementCheck?: boolean;
+  /** SQLite 길이·ATTACH 한계(limits 옵션, Node 24+)와 메모리 상한 PRAGMA 가 없는 환경을 흉내 낸다 */
+  readonly noLimits?: boolean;
 }
 
 export type EngineResponse =
@@ -59,14 +61,14 @@ export function loadSqlite(): SqliteModule | null {
 
 const MB = 1024 * 1024;
 
-function openDatabase(sqlite: SqliteModule, file: string, writable: boolean): Database {
+function openDatabase(sqlite: SqliteModule, file: string, writable: boolean, noLimits = false): Database {
   const db = new sqlite.DatabaseSync(file, {
     readOnly: !writable,
     timeout: 2000,
     allowExtension: false,
     enableForeignKeyConstraints: true,
     // 모르는 파일을 열 때의 안전판: 값 하나 64MB, ATTACH 불가, 식·복합 SELECT 깊이 제한
-    limits: { length: 64 * MB, sqlLength: 200_000, attach: 0, exprDepth: 200, compoundSelect: 100, functionArg: 32 },
+    ...(noLimits ? {} : { limits: { length: 64 * MB, sqlLength: 200_000, attach: 0, exprDepth: 200, compoundSelect: 100, functionArg: 32 } }),
   });
   try {
     db.enableDefensive?.(true);
@@ -75,7 +77,7 @@ function openDatabase(sqlite: SqliteModule, file: string, writable: boolean): Da
   }
   // 스키마에 적힌 뷰·트리거가 안전하지 않은 함수를 못 부르게 하고, 메모리를 상한으로 묶는다
   db.exec('PRAGMA trusted_schema = OFF');
-  db.exec(`PRAGMA hard_heap_limit = ${512 * MB}`);
+  if (!noLimits) db.exec(`PRAGMA hard_heap_limit = ${512 * MB}`);
   return db;
 }
 
@@ -203,7 +205,7 @@ export function runEngine(req: EngineRequest): EngineResponse {
   if (sqlite === null) return { ok: false, code: 'no-engine', message: 'node:sqlite is not available' };
   let db: Database | null = null;
   try {
-    db = openDatabase(sqlite, req.file, req.op === 'query' && req.writable);
+    db = openDatabase(sqlite, req.file, req.op === 'query' && req.writable, req.op === 'query' && req.hooks?.noLimits === true);
     switch (req.op) {
       case 'tables': {
         installAuthorizer(db, sqlite, false);
