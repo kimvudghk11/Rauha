@@ -18,6 +18,7 @@ import { el, isEnterKey } from './dom.js';
 import { iconByName } from './file-icons.js';
 import { CodePreview } from './code-preview.js';
 import { previewKindOf } from '../shared/preview-kind.js';
+import { clearRecent, noteGone, noteOpened } from './recent-files.js';
 
 export interface CodeDeps {
   readonly api: CodeApi;
@@ -373,6 +374,7 @@ export function buildCode(deps: CodeDeps) {
     clearSay();
     preview.leaveImage();
     tabs = tabs.activated(path);
+    noteOpened(path);
     editor.show(path);
     paintAll();
     editor.focus();
@@ -403,6 +405,7 @@ export function buildCode(deps: CodeDeps) {
     const indent = chooseIndent(r.editorConfig, detectIndent(r.text), defaultIndentSize(language));
     register(path, r.text, { language, indent, readOnly: r.readOnly, mixedEol: r.mixedEol });
     tabs = tabs.opened(OpenFile.opened(path, r.text, r.version, r.eol, r.bom));
+    noteOpened(path);
     editor.show(path);
     paintAll();
     editor.focus();
@@ -786,6 +789,7 @@ export function buildCode(deps: CodeDeps) {
       info.delete(f.path);
     }
     tabs = OpenFiles.empty();
+    clearRecent();
     preview.closeAllImages();
     void term.reset();
     editor.hide();
@@ -842,6 +846,7 @@ export function buildCode(deps: CodeDeps) {
       }
       editor.remove(f.path);
       info.delete(f.path);
+      noteGone(f.path);
       tabs = tabs.closed(f.path);
     }
     if (tabs.active === null) editor.hide();

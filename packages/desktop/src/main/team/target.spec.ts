@@ -96,3 +96,16 @@ describe('parseTarget', () => {
     expect(parseTarget('e:\\work\\Front\\src 읽어줘', repos).folder?.name).toBe('Front');
   });
 });
+
+describe('parseTarget: 파일 경로 언급', () => {
+  it('@폴더/파일 처럼 폴더 안 파일을 가리키면 그 폴더가 대상이고 요청 글은 그대로 둔다', () => {
+    const p = parseTarget('@api-server/src/pay.ts 타임아웃 고쳐줘', folders);
+    expect(p.folder?.root).toBe('C:/work/api-server');
+    expect(p.text).toBe('@api-server/src/pay.ts 타임아웃 고쳐줘');
+  });
+
+  it('경로 가운데에 폴더 이름과 같은 조각이 있어도 그 폴더를 대상으로 잡지 않는다', () => {
+    const p = parseTarget('@src/docs/a.md 읽어줘', folders);
+    expect(p.folder).toBeNull();
+  });
+});

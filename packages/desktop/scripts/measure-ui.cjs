@@ -174,6 +174,9 @@ const TODO_SEED = "(() => { window.rauha.todo.apply({ kind: 'add', title: '시�
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
+  // @ 를 치면 폴더와 파일 후보가 입력칸 위에 뜬다(검색어 없음 / 경로 일부)
+  ['chat-mention', 'chat', [typeInto('.composer textarea', '@')]],
+  ['chat-mention-query', 'chat', [typeInto('.composer textarea', '결제 고쳐줘 @app-one/ma')]],
   ['chat-approval', 'chat', [byText('.room', '허락')]],
   ['code', 'code', []],
   ['code-file', 'code', ['.tree-row:not(.heavy)', '.tree-row:not(.heavy):nth-child(3)']],

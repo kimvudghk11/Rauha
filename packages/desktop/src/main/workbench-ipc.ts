@@ -1,6 +1,7 @@
 import type { IpcMain } from 'electron';
 import type { TermEvent } from '../shared/terminal-api.js';
 import { registerCodeIpc, type CodeShellDeps } from './code/code-ipc.js';
+import type { CodeFiles } from './code/code-files.js';
 import { createSecretSource } from './code/secret-cache.js';
 import { registerTerminalIpc } from './terminal/terminal-ipc.js';
 
@@ -14,9 +15,10 @@ export interface WorkbenchDeps extends CodeShellDeps {
 }
 
 /** 코드 탭의 main 쪽: 파일 탐색·편집·git 표시·찾기(code:*)와 터미널(term:*). 둘이 같은 비밀 파일 규칙을 쓴다. */
-export function registerWorkbench(ipc: Pick<IpcMain, 'handle'>, deps: WorkbenchDeps): void {
+export function registerWorkbench(ipc: Pick<IpcMain, 'handle'>, deps: WorkbenchDeps): CodeFiles {
   const secrets = createSecretSource(deps.workFolder);
-  registerCodeIpc(ipc, deps.workFolder, secrets, { trash: deps.trash, reveal: deps.reveal });
+  const files = registerCodeIpc(ipc, deps.workFolder, secrets, { trash: deps.trash, reveal: deps.reveal });
   const terminals = registerTerminalIpc(ipc, { workFolder: deps.workFolder, secrets, send: deps.send });
   deps.onQuit(() => terminals.disposeAll());
+  return files;
 }

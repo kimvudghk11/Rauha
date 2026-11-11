@@ -5,6 +5,8 @@ import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared
 import { CHARACTER_ROLES, leadName, spriteFor, type CharacterRole } from './characters.js';
 import type { Command } from '../shared/command-book.js';
 import { attachSuggest } from './command-suggest.js';
+import { attachMentionSuggest } from './mention-suggest.js';
+import { recentList } from './recent-files.js';
 import { askCard } from './ask-card.js';
 import { needLabel } from '../shared/ask-form.js';
 import { el, isEnterKey } from './dom.js';
@@ -113,10 +115,10 @@ export function buildChat(actions: ChatActions) {
   msgs.appendChild(empty);
   const composer = el('div', 'composer');
   const input = el('textarea');
-  input.placeholder = 'Type a new task…  (@folder to pick a target)';
+  input.placeholder = 'Type a new task…  (@folder to pick a target, @file to attach one)';
   input.rows = 1;
   const hint = el('div', 'hint');
-  hint.innerHTML = '<span><span class="kbd">Enter</span> Send</span><span class="more"><span class="kbd">Shift+Enter</span> New line</span><span class="more"><span class="kbd">@</span> Pick folder</span>';
+  hint.innerHTML = '<span><span class="kbd">Enter</span> Send</span><span class="more"><span class="kbd">Shift+Enter</span> New line</span><span class="more"><span class="kbd">@</span> Pick folder or file</span>';
   composer.append(input, hint);
   mainPane.append(head, msgs, composer);
 
@@ -142,6 +144,7 @@ export function buildChat(actions: ChatActions) {
     input.value = '';
     fit();
     suggest.close();
+    mention.close();
     const text = actions.intercept === undefined ? typed : await actions.intercept(typed);
     if (text === null) {
       input.focus();
@@ -173,12 +176,26 @@ export function buildChat(actions: ChatActions) {
     input.style.height = `${composerHeight(input.scrollHeight)}px`;
   };
   const suggest = attachSuggest(input, composer, (t) => actions.suggest?.(t) ?? []);
+  const mention = attachMentionSuggest(
+    input,
+    composer,
+    {
+      files: async () => {
+        const r = await window.rauha.code.files();
+        return r.ok ? r.paths : [];
+      },
+      folders: async () => (await window.rauha.listRepos()).map((r) => r.name),
+      recent: recentList,
+    },
+    fit,
+  );
   input.addEventListener('input', () => {
     suggest.update();
+    mention.update();
     fit();
   });
   input.addEventListener('keydown', (e) => {
-    if (suggest.key(e)) {
+    if (suggest.key(e) || mention.key(e)) {
       e.preventDefault();
       return;
     }

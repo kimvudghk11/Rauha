@@ -52,7 +52,7 @@ export class RequestTargetDto {
     if (folder === null) return new RequestTargetDto(null, [], trimmed, RequestTargetDto.firstUnknown(trimmed));
     // 맨 앞 @이름만 요청 글에서 뺀다. 문장 속 이름은 문장의 일부라 그대로 둔다.
     const first = hits[0]!;
-    const leading = first.start === 0 && trimmed.startsWith('@');
+    const leading = first.start === 0 && trimmed.startsWith('@') && !/^[\\/]/.test(trimmed.slice(first.end));
     const rest = leading ? trimmed.slice(first.end).trim() : trimmed;
     return new RequestTargetDto(folder, also, rest === '' ? trimmed : rest, null);
   }
@@ -71,15 +71,29 @@ export class RequestTargetDto {
   /** 긴 이름부터 찾아 이미 잡힌 자리와 겹치는 짧은 이름은 버리고, 글에 나온 순서로 돌려준다. */
   private static findHits(text: string, folders: readonly TargetFolder[]): Hit[] {
     const accepted: Hit[] = [];
+    const inner = RequestTargetDto.pathInteriors(text);
     const byLength = [...folders].sort((a, b) => b.name.length - a.name.length);
     for (const folder of byLength) {
       const pattern = new RegExp(`(?<!${WORD})@?${escapeRegExp(folder.name)}(?!${WORD})`, 'gi');
       for (const m of text.matchAll(pattern)) {
         const hit: Hit = { folder, start: m.index!, end: m.index! + m[0].length };
+        if (inner.some((r) => hit.start > r.start && hit.start < r.end)) continue;
         if (!accepted.some((a) => hit.start < a.end && a.start < hit.end)) accepted.push(hit);
       }
     }
     return accepted.sort((a, b) => a.start - b.start);
+  }
+
+  /** `@src/docs/a.md` 같은 파일 경로 언급의 안쪽(맨 앞 조각 뒤). 경로 가운데 조각은 폴더 언급이 아니다. */
+  private static pathInteriors(text: string): { start: number; end: number }[] {
+    const ranges: { start: number; end: number }[] = [];
+    for (const m of text.matchAll(MENTION)) {
+      const token = m[1]!;
+      if (!/[\/]/.test(token)) continue;
+      const start = m.index! + m[0].length - token.length;
+      ranges.push({ start: start + token.search(/[\/]/), end: start + token.length });
+    }
+    return ranges;
   }
 
   /** 아는 폴더가 하나도 안 잡혔을 때, 틀린 @이름 하나를 알려 준다. */

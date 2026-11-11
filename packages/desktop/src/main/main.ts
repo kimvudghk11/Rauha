@@ -29,6 +29,9 @@ import { answerFor, approvalView } from './team/approval-view.js';
 import { accountNames, composeSession, profileResolver } from './team/compose.js';
 import { fakeTeam } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
+import { resolveMentions } from './team/mention-context.js';
+import { withAttachments } from '../shared/file-mention.js';
+import type { CodeFiles } from './code/code-files.js';
 import { teamWork } from './team/team-work.js';
 import { appMenuTemplate, quitWhenAllClosed, windowChrome } from './platform/app-menu.js';
 import { claudeBinaryPath, fallbackWorkDir, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
@@ -232,6 +235,9 @@ async function carryPreviousFiles(root: string, worktree: string): Promise<void>
   if (paths.length > 0) await carryFiles(root, worktree, paths, loadSecretPolicy(root));
 }
 
+/** 코드 탭과 같은 파일 읽기 길(작업 폴더 밖·비밀 파일·링크 검사 포함). 채팅의 @파일 언급을 읽을 때 쓴다. */
+let codeFiles: CodeFiles | null = null;
+
 async function startRunner(): Promise<JobRunner> {
   let work;
   if (FAKE) {
@@ -267,7 +273,8 @@ async function startRunner(): Promise<JobRunner> {
               }
               before = await snapshotChanges(cwd);
               const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
-              return await session.handle(target.text, depth);
+              const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
+              return await session.handle(withAttachments(mentioned, [], target.text), depth);
             } finally {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
               const after = before === null ? null : await snapshotChanges(cwd);
@@ -771,7 +778,7 @@ void app.whenReady().then(async () => {
       return result.canceled || !result.filePath ? null : result.filePath;
     },
   });
-  registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
+  codeFiles = registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
   registerDockerIpc(ipcMain, { workDir: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
   registerApiIpc(ipcMain, {
     dataDir,
