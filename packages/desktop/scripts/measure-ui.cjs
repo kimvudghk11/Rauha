@@ -317,7 +317,7 @@ async function run(win) {
     if (process.env.MEASURE_PROBE) await ev(process.env.MEASURE_PROBE);
     const work = sandbox();
     await ev(`window.rauha.updateSettings({ workFolder: ${JSON.stringify(work)}, folderApproved: true, firstRunDone: true, awsProfile: 'test-profile', awsBucket: 'example-bucket', awsRegion: 'ap-northeast-2', awsAccount: '000000000000' })`);
-    for (const t of ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림']) await ev(`window.rauha.submit(${JSON.stringify(t)})`);
+    for (const t of ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림'].slice(0, Number(process.env.MEASURE_TASKS ?? 5))) await ev(`window.rauha.submit(${JSON.stringify(t)})`);
     await sleep(4800);
     for (const [name, tab, clicks] of SCENES) {
       if (!TABS.includes(tab) || (SCENE_FILTER && !SCENE_FILTER.includes(name))) continue;

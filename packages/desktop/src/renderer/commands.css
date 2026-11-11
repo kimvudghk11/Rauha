@@ -1,7 +1,7 @@
 /* 명령어 탭 · 입력창 자동완성 · 채팅 안내 말풍선 */
 .composer { position: relative; }
-.cmd-suggest { position: absolute; left: 10px; right: 10px; bottom: calc(100% - 4px); max-height: 232px; overflow: auto; background: var(--card); border: 1px solid var(--border2); border-radius: 6px; box-shadow: 0 4px 14px #0008; z-index: 5; padding: 3px; }
-.cmd-suggest .it { display: flex; gap: 10px; align-items: baseline; padding: 4px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; }
+.cmd-suggest { position: absolute; left: var(--s3); right: var(--s3); bottom: calc(100% - 4px); max-height: 232px; overflow: auto; background: var(--card); border: 1px solid var(--border2); border-radius: var(--r-md); box-shadow: 0 4px 14px #0008; z-index: 5; padding: 3px; }
+.cmd-suggest .it { display: flex; gap: 10px; align-items: baseline; padding: 4px 8px; border-radius: var(--r-sm); cursor: pointer; white-space: nowrap; overflow: hidden; }
 .cmd-suggest .it b { color: var(--bright); font-weight: 600; flex: 0 0 auto; }
 .cmd-suggest .it .ds { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .cmd-suggest .it.on, .cmd-suggest .it:hover { background: var(--sel); }
@@ -11,7 +11,7 @@
 .cmd-help .r { display: flex; gap: 10px; }
 .cmd-help .r b { flex: 0 0 150px; color: var(--accentfg); font-weight: 600; }
 .cmd-help .dim { color: var(--dim); }
-.cmd-line { display: block; max-width: 100%; background: var(--well); border: 1px solid var(--border2); border-radius: 4px; padding: 5px 8px; font-family: var(--mono); font-size: var(--fs-sm); user-select: all; word-break: break-all; }
+.cmd-line { display: block; max-width: 100%; background: var(--well); border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 5px 8px; font-family: var(--mono); font-size: var(--fs-sm); user-select: all; word-break: break-all; }
 
 .commands { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; overflow: auto; }
 .cmdform { flex: 0 0 auto; }
