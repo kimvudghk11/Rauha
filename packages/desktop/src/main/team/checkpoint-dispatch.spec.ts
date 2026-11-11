@@ -6,6 +6,8 @@ const calls: unknown[][] = [];
 const keeper = {
   changes: async (...a: unknown[]) => (calls.push(['changes', ...a]), null),
   revert: async (...a: unknown[]) => (calls.push(['revert', ...a]), { message: 'ok', reverted: 0, conflicts: [], backupId: null }),
+  previewHunk: async (...a: unknown[]) => (calls.push(['previewHunk', ...a]), {}),
+  revertHunk: async (...a: unknown[]) => (calls.push(['revertHunk', ...a]), { message: 'ok', reverted: 1, conflicts: [], backupId: null }),
   preview: async (...a: unknown[]) => (calls.push(['preview', ...a]), {}),
 } as unknown as CheckpointKeeper;
 
@@ -31,5 +33,33 @@ describe('dispatchCheckpoint 화면에서 온 값 검사', () => {
     expect(await dispatchCheckpoint(keeper, 'revert', { jobId: 'j1', paths: ['src' + String.fromCharCode(92) + 'a.ts'] })).toMatchObject({ ok: true });
     expect(calls).toEqual([['revert', 'j1', ['src/a.ts']]]);
     expect(await dispatchCheckpoint(keeper, 'changes', { jobId: 'j1' })).toEqual({ ok: true, data: null });
+  });
+});
+
+describe('dispatchCheckpoint hunk 되돌리기 입력 검사', () => {
+  const GOOD = '0123456789abcdef';
+  it('hunk 가 번호이거나 16자리 16진수가 아니면 서비스를 부르지 않고 거절한다', async () => {
+    calls.length = 0;
+    for (const hunk of [0, 1, '0', '', 'ZZZZZZZZZZZZZZZZ', '0123456789ABCDEF', GOOD + '0', undefined, null, ['x'], { a: 1 }]) {
+      expect(await dispatchCheckpoint(keeper, 'revertHunk', { jobId: 'j', path: 'a.ts', hunk })).toMatchObject({ ok: false });
+      expect(await dispatchCheckpoint(keeper, 'previewHunk', { jobId: 'j', path: 'a.ts', hunk })).toMatchObject({ ok: false });
+    }
+    expect(calls).toEqual([]);
+  });
+  it('경로 탈출·.git 안쪽·옵션처럼 읽히는 이름·문자열이 아닌 경로나 이상한 작업 id 는 거절한다', async () => {
+    calls.length = 0;
+    for (const path of ['../x', '.git/config', '--output=x', '/etc/passwd', 'C:/x', '', 5, null, undefined, ['a.ts']]) {
+      expect(await dispatchCheckpoint(keeper, 'revertHunk', { jobId: 'j', path, hunk: GOOD })).toMatchObject({ ok: false });
+    }
+    expect(await dispatchCheckpoint(keeper, 'revertHunk', { jobId: '', path: 'a.ts', hunk: GOOD })).toMatchObject({ ok: false });
+    expect(await dispatchCheckpoint(keeper, 'revertHunk', { jobId: 7, path: 'a.ts', hunk: GOOD })).toMatchObject({ ok: false });
+    expect(calls).toEqual([]);
+  });
+  it('올바른 값은 정리해서 서비스로 넘긴다', async () => {
+    calls.length = 0;
+    const back = String.fromCharCode(92);
+    expect(await dispatchCheckpoint(keeper, 'revertHunk', { jobId: 'j1', path: 'src' + back + 'a.ts', hunk: GOOD })).toMatchObject({ ok: true });
+    expect(await dispatchCheckpoint(keeper, 'previewHunk', { jobId: 'j1', path: 'src/a.ts', hunk: GOOD })).toMatchObject({ ok: true });
+    expect(calls).toEqual([['revertHunk', 'j1', 'src/a.ts', GOOD], ['previewHunk', 'j1', 'src/a.ts', GOOD]]);
   });
 });

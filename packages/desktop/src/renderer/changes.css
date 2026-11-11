@@ -17,3 +17,4 @@
 .chg-diff { max-height: 320px; overflow: auto; border-top: 1px solid var(--border); background: var(--bg); }
 .chg-more { align-self: flex-start; }
 .chg-foot { margin-top: var(--s1); }
+.chg-diff .gh .chip { margin-left: auto; }

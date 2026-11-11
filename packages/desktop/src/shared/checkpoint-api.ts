@@ -1,4 +1,5 @@
 import type { CheckpointPlace, FileChange, RevertAction, Totals } from './checkpoint.js';
+import type { HunkState } from './checkpoint-hunk.js';
 import type { DiffView } from './git-api.js';
 
 /** 끝난 작업의 변경 보기(화면용) */
@@ -22,6 +23,15 @@ export interface ChangesView {
   readonly states: Readonly<Record<string, RevertAction>>;
 }
 
+/** 파일 하나의 diff + hunk 별 내용 해시와 되돌리기 상태 */
+export interface CheckpointDiff extends DiffView {
+  readonly path: string;
+  /** hunks 와 같은 순서의 내용 해시(번호가 아니라 이것으로 hunk 를 가리킨다) */
+  readonly hunkIds: readonly string[];
+  /** hunks 와 같은 순서. 이 파일을 hunk 단위로 되돌릴 수 없으면 빈 배열(새 파일·지운 파일·바이너리·너무 많은 hunk·UTF-8 아님) */
+  readonly hunkStates: readonly HunkState[];
+}
+
 export interface RevertPreview {
   readonly title: string;
   readonly body: string;
@@ -41,7 +51,10 @@ export interface CheckpointDone {
 
 export interface CheckpointCalls {
   changes: [{ jobId: string }, ChangesView | null];
-  diff: [{ jobId: string; path: string }, DiffView & { readonly path: string }];
+  diff: [{ jobId: string; path: string }, CheckpointDiff];
+  /** hunk 는 번호가 아니라 diff 에서 받은 내용 해시(hunkIds)로 가리킨다 */
+  previewHunk: [{ jobId: string; path: string; hunk: string }, RevertPreview];
+  revertHunk: [{ jobId: string; path: string; hunk: string }, CheckpointDone];
   /** paths 가 없으면 전체 */
   preview: [{ jobId: string; paths?: readonly string[] }, RevertPreview];
   revert: [{ jobId: string; paths?: readonly string[] }, CheckpointDone];
@@ -50,7 +63,7 @@ export interface CheckpointCalls {
 }
 
 export type CheckpointFn = keyof CheckpointCalls;
-export const CHECKPOINT_FUNCTIONS = ['changes', 'diff', 'preview', 'revert', 'undoRevert', 'discardBranch'] as const satisfies readonly CheckpointFn[];
+export const CHECKPOINT_FUNCTIONS = ['changes', 'diff', 'previewHunk', 'revertHunk', 'preview', 'revert', 'undoRevert', 'discardBranch'] as const satisfies readonly CheckpointFn[];
 
 export type CheckpointApi = { readonly [K in CheckpointFn]: (arg: CheckpointCalls[K][0]) => Promise<CheckpointCalls[K][1]> };
 

@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process';
-import { lstat, mkdtemp, realpath, rm, rmdir, unlink } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, realpath, rm, rmdir, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import type { FileChange, FileState } from '../../shared/checkpoint.js';
+import type { HunkState } from '../../shared/checkpoint-hunk.js';
 import type { DiffView } from '../../shared/git-api.js';
 import { FileDiff } from '../../shared/git-diff.js';
 import { BranchName, GitInputError, RepoPath } from '../../shared/git-guard.js';
@@ -13,6 +14,8 @@ export type IsSecret = (relPath: string) => boolean;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
 const LITERAL = '--literal-pathspecs';
+/** apply.whitespace=error 같은 사용자 설정 때문에 줄 끝 공백이 든 내용이 거절되지 않게 한다 */
+const APPLY_FLAGS = ['--binary', '--whitespace=nowarn'] as const;
 
 /**
  * 경로 위쪽 폴더 중에 링크(심볼릭 링크·Windows 정션)가 하나도 없는가. 링크가 있으면 git 이 링크 너머(레포 밖)에 쓸 수 있어 건드리지 않는다.
@@ -180,10 +183,53 @@ export async function listChanges(root: string, from: string, to: string, isSecr
 
 /** 한 파일의 diff(읽기 전용). 큰 diff 를 나눠 그리는 일은 화면이 한다. */
 export async function fileDiff(root: string, from: string, to: string, path: string): Promise<DiffView> {
+  const d = await fileDiffParsed(root, from, to, path);
+  return { binary: d.isBinary(), hunks: d.hunks };
+}
+
+/** 한 파일의 diff 를 FileDiff 로(hunk 패치를 만들 때 쓴다). 글자 변환·외부 diff 도구는 쓰지 않는다. */
+export async function fileDiffParsed(root: string, from: string, to: string, path: string): Promise<FileDiff> {
   const safe = RepoPath.parse(path).value;
   const text = await mustGit(root, [LITERAL, 'diff', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', '-U3', from, to, '--', safe]);
-  const d = FileDiff.parse(text);
-  return { binary: d.isBinary(), hunks: d.hunks };
+  return FileDiff.parse(text);
+}
+
+/**
+ * hunk 하나의 패치(작업 전→후 방향)가 지금 작업 폴더에서 어떤 상태인지: pending(거꾸로 적용할 수 있음 = 작업이 바꾼 그대로),
+ * already(그대로 적용할 수 있음 = 이미 되돌려짐), conflict(둘 다 안 됨 = 작업 뒤 그 자리가 바뀜, 또는 링크 등 안전하지 않은 파일).
+ * 작업 폴더는 건드리지 않는다(--check).
+ */
+export async function hunkState(root: string, path: string, patch: Buffer): Promise<HunkState> {
+  if (!(await safeTarget(root, path))) return 'conflict';
+  const eol = await eolConfig(root, path);
+  if ((await rawGit(root, [...eol, 'apply', '-R', '--check', ...APPLY_FLAGS, '-'], patch)).code === 0) return 'pending';
+  if ((await rawGit(root, [...eol, 'apply', '--check', ...APPLY_FLAGS, '-'], patch)).code === 0) return 'already';
+  return 'conflict';
+}
+
+const EOL_PROBE_LIMIT = 8 * 1024 * 1024;
+
+/**
+ * 줄 끝 설정. core.autocrlf=true 이면 git apply 는 파일을 고칠 때 파일 전체를 CRLF 로 다시 쓴다.
+ * 줄 끝이 모두 LF 인 파일(CR 이 하나도 없음)은 그러면 안 된다(손대지 않은 줄까지 바뀐다). 그런 파일만 autocrlf 를 끄고 적용한다.
+ * CRLF 가 든 파일은 사용자 설정을 그대로 따른다(autocrlf=true 의 트리는 LF 로 정규화돼 있어 설정이 있어야 패치가 맞는다).
+ */
+async function eolConfig(root: string, path: string): Promise<string[]> {
+  try {
+    const abs = resolve(root, path);
+    if ((await lstat(abs)).size > EOL_PROBE_LIMIT) return [];
+    return (await readFile(abs)).includes(0x0d) ? [] : ['-c', 'core.autocrlf=false'];
+  } catch {
+    return [];
+  }
+}
+
+/** 작업 폴더의 그 경로가 일반 파일이고 위쪽에 링크가 없으며 레포 안인가 */
+async function safeTarget(root: string, path: string): Promise<boolean> {
+  if (!usablePath(path) || !(await noLinkAbove(root, path))) return false;
+  const abs = resolve(root, path);
+  const info = await lstat(abs).catch(() => null);
+  return info !== null && info.isFile() && (await insideRoot(root, abs));
 }
 
 /** 트리 안 파일들의 내용 지문(blob 해시). 없으면 null. */
@@ -298,7 +344,7 @@ const UNSAFE_PATCH = 'The backup file does not look safe to apply, so nothing wa
  * 백업 패치를 되돌린 작업 폴더에 다시 적용한다. 그 사이 파일이 바뀌었으면 아무것도 바꾸지 않고 이유를 돌려준다.
  * 패치 파일은 앱 데이터 폴더에 있어 바뀌었을 수 있으니, 적용 전에 건드리는 경로가 안전한지(레포 안·.git 아님·링크 너머 아님·비밀 파일 아님·링크 파일을 새로 만들지 않음) 직접 확인한다.
  */
-export async function applyPatch(root: string, patch: Buffer, isSecret: IsSecret = () => false): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: string }> {
+export async function applyPatch(root: string, patch: Buffer, isSecret: IsSecret = () => false, opts: { readonly reverse?: boolean } = {}): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: string }> {
   if (patch.length === 0) return { ok: true };
   if (/^(new file mode|new mode) (120000|160000)\b/m.test(patch.toString('latin1'))) return { ok: false, error: UNSAFE_PATCH };
   const paths = await patchPaths(root, patch);
@@ -308,11 +354,11 @@ export async function applyPatch(root: string, patch: Buffer, isSecret: IsSecret
     const info = await lstat(resolve(root, p)).catch(() => null);
     if (info !== null && info.isSymbolicLink()) return { ok: false, error: UNSAFE_PATCH };
   }
-  // apply.whitespace=error 같은 사용자 설정 때문에 줄 끝 공백이 든 내용이 거절되지 않게 한다
-  const flags = ['--binary', '--whitespace=nowarn'];
-  const check = await rawGit(root, ['apply', '--check', ...flags, '-'], patch);
-  if (check.code !== 0) return { ok: false, error: 'Some of these files changed after the undo, so the backup cannot be applied cleanly. Nothing was changed.' };
-  const done = await rawGit(root, ['apply', ...flags, '-'], patch);
+  const flags = [...(opts.reverse === true ? ['-R'] : []), ...APPLY_FLAGS];
+  const eol = paths.length === 1 ? await eolConfig(root, paths[0]!) : [];
+  const check = await rawGit(root, [...eol, 'apply', '--check', ...flags, '-'], patch);
+  if (check.code !== 0) return { ok: false, error: opts.reverse === true ? 'This part of the file changed after the job, so Rauha will not touch it. Nothing was changed.' : 'Some of these files changed after the undo, so the backup cannot be applied cleanly. Nothing was changed.' };
+  const done = await rawGit(root, [...eol, 'apply', ...flags, '-'], patch);
   return done.code === 0 ? { ok: true } : { ok: false, error: done.stderr.trim().split('\n').slice(0, 3).join('\n') || 'git apply failed' };
 }
 

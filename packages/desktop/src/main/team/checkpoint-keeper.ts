@@ -1,8 +1,9 @@
 import { BackupLedger, Checkpoint, CheckpointBook, RevertPlan, type RevertAction } from '../../shared/checkpoint.js';
-import type { ChangesView, CheckpointDone, RevertPreview } from '../../shared/checkpoint-api.js';
-import type { DiffView } from '../../shared/git-api.js';
+import type { ChangesView, CheckpointDiff, CheckpointDone, RevertPreview } from '../../shared/checkpoint-api.js';
+import { HUNK_STATE_LIMIT, HunkRef, findHunk, hunkHash, hunkRevertSummary, type HunkState } from '../../shared/checkpoint-hunk.js';
+import type { FileDiff } from '../../shared/git-diff.js';
 import { ProtectedBranches, RepoPath } from '../../shared/git-guard.js';
-import { applyPatch, backupPatch, branchTip, captureEnd, captureStart, deleteBranch, deleteCreated, fileDiff, fileStates, listChanges, restoreFile, type IsSecret } from '../git/checkpoint-git.js';
+import { applyPatch, backupPatch, branchTip, captureEnd, captureStart, deleteBranch, deleteCreated, fileDiffParsed, fileStates, hunkState, listChanges, restoreFile, type IsSecret } from '../git/checkpoint-git.js';
 import type { CheckpointStorePort } from '../data/checkpoint-store.js';
 
 export interface CheckpointDeps {
@@ -117,14 +118,81 @@ export class CheckpointKeeper {
     return { jobId, files: d.files, totals: cp.totals(), place: d.place, workBranch: d.workBranch, revertBlock: cp.revertBlock(), discardBlock: cp.discardBlock(), hiddenCount: d.hiddenCount, startDirty: d.startDirty, backup: latest === null ? null : { id: latest.id, files: latest.files, createdAt: latest.createdAt }, states };
   }
 
-  async diff(jobId: string, path: string): Promise<DiffView & { readonly path: string }> {
-    const cp = this.need(jobId);
+  /** 목록에 있는 비밀 아닌 파일의 diff 를 읽는다(읽기 전용) */
+  private async readDiff(cp: Checkpoint, path: string): Promise<{ readonly safe: string; readonly parsed: FileDiff }> {
     const safe = RepoPath.parse(path).value;
     const d = cp.data;
     if (!d.files.some((f) => f.path === safe)) throw new Error('That file is not part of this job’s changes.');
     if (this.deps.secretOf(d.repoRoot)(safe)) throw new Error('This file is hidden because it may hold secrets.');
     if (d.startTree === null || d.endTree === null) throw new Error('No checkpoint was saved for this job.');
-    return { ...(await fileDiff(d.repoRoot, d.startTree, d.endTree, safe)), path: safe };
+    return { safe, parsed: await fileDiffParsed(d.repoRoot, d.startTree, d.endTree, safe) };
+  }
+
+  /** hunk 단위로 되돌릴 수 있는 파일인가: 고쳐진 글 파일이고, 작업 뒤 커밋이 없고, 글자가 깨지지 않을 때만 */
+  private hunkable(cp: Checkpoint, safe: string, parsed: FileDiff): boolean {
+    const f = cp.data.files.find((x) => x.path === safe);
+    return cp.revertBlock() === null && f?.kind === 'modified' && !f.binary && !parsed.isBinary() && parsed.hunks.length > 0 && !parsed.hunks.some((h) => h.lines.some((l) => l.text.includes('�')));
+  }
+
+  async diff(jobId: string, path: string): Promise<CheckpointDiff> {
+    const cp = this.need(jobId);
+    const { safe, parsed } = await this.readDiff(cp, path);
+    const hunkIds = parsed.hunks.map((h) => hunkHash(safe, h));
+    const states: HunkState[] = [];
+    if (this.hunkable(cp, safe, parsed) && parsed.hunks.length <= HUNK_STATE_LIMIT) {
+      for (let i = 0; i < parsed.hunks.length; i++) states.push(await hunkState(cp.data.repoRoot, safe, Buffer.from(parsed.hunkPatch(i), 'utf8')));
+    }
+    return { binary: parsed.isBinary(), hunks: parsed.hunks, path: safe, hunkIds, hunkStates: states };
+  }
+
+  /** 화면이 가리킨 hunk 를 지금 diff 에서 내용 해시로 다시 찾아 패치와 함께 돌려준다. 어긋나면 거절한다. */
+  private async hunkTarget(jobId: string, path: string, hunk: string): Promise<{ readonly cp: Checkpoint; readonly safe: string; readonly parsed: FileDiff; readonly index: number; readonly patch: Buffer }> {
+    const ref = HunkRef.parse(hunk);
+    const cp = this.need(jobId);
+    const block = cp.revertBlock();
+    if (block !== null) throw new Error(block);
+    const { safe, parsed } = await this.readDiff(cp, path);
+    if (!this.hunkable(cp, safe, parsed)) throw new Error('Only edited text files can be reverted one change at a time. Use Revert file instead.');
+    const index = findHunk(safe, parsed.hunks, ref);
+    if (index === null) throw new Error('The change on your screen no longer matches this file’s changes. Reload and try again.');
+    return { cp, safe, parsed, index, patch: Buffer.from(parsed.hunkPatch(index), 'utf8') };
+  }
+
+  previewHunk(jobId: string, path: string, hunk: string): Promise<RevertPreview> {
+    return this.serial(async () => {
+      const t = await this.hunkTarget(jobId, path, hunk);
+      const state = await hunkState(t.cp.data.repoRoot, t.safe, t.patch);
+      if (state === 'already') return { title: 'Nothing to undo', body: 'This change is already reverted.', okLabel: 'OK', files: 0, conflicts: [] };
+      if (state === 'conflict') return { title: 'Nothing to undo', body: `Conflict, skipped: this part of ${t.safe} changed after the job, so Rauha will not touch it.`, okLabel: 'OK', files: 0, conflicts: [t.safe] };
+      return { ...hunkRevertSummary(t.safe, t.parsed.hunks[t.index]!), files: 1, conflicts: [] };
+    });
+  }
+
+  /** hunk 하나를 되돌린다: 다시 확인(git apply -R --check) → 백업 → 적용. 그 자리가 작업 뒤 바뀌었으면 건너뛴다. */
+  revertHunk(jobId: string, path: string, hunk: string): Promise<CheckpointDone> {
+    return this.serial(async () => {
+      const t = await this.hunkTarget(jobId, path, hunk);
+      const d = t.cp.data;
+      const state = await hunkState(d.repoRoot, t.safe, t.patch);
+      if (state === 'already') return { message: 'This change was already reverted.', reverted: 0, conflicts: [], backupId: null };
+      if (state === 'conflict') return { message: `Skipped: this part of ${t.safe} changed after the job.`, reverted: 0, conflicts: [t.safe], backupId: null };
+      // 되돌리기 전에 이 hunk 의 패치를 백업으로 남긴다(작업 전→후 방향이라 되돌린 파일에 그대로 적용하면 hunk 가 돌아온다). 못 남기면 아무것도 바꾸지 않는다.
+      const id = this.deps.newId();
+      await this.deps.store.writePatch(id, t.patch);
+      const added = this.ledger.add({ id, jobId, repoRoot: d.repoRoot, createdAt: this.deps.now(), files: 1 });
+      this.ledger = added.ledger;
+      for (const old of added.evicted) await this.deps.store.removePatch(old);
+      await this.deps.store.saveLedger(this.ledger);
+      const result = await applyPatch(d.repoRoot, t.patch, this.deps.secretOf(d.repoRoot), { reverse: true });
+      if (!result.ok) {
+        // 적용에 실패했으면 아무것도 안 바뀌었으니 쓸모없는 백업은 치운다
+        this.ledger = this.ledger.remove(id);
+        await this.deps.store.removePatch(id);
+        await this.deps.store.saveLedger(this.ledger);
+        return { message: result.error, reverted: 0, conflicts: [t.safe], backupId: null };
+      }
+      return { message: `Reverted 1 change in ${t.safe}.`, reverted: 1, conflicts: [], backupId: id };
+    });
   }
 
   private async planOf(cp: Checkpoint, paths: readonly string[] | undefined): Promise<RevertPlan> {

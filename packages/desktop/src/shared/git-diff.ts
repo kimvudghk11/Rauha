@@ -114,6 +114,18 @@ export class FileDiff {
   }
 
   /**
+   * hunk 하나를 그 diff 에 적힌 원래 줄 번호 그대로 담은 패치(작업 전→후 방향). `git apply --reverse` 에 넣으면 그 hunk 만 되돌린다.
+   * 머리말의 index·mode 줄은 뺀다(되돌려도 파일 권한은 건드리지 않는다). 번호가 없으면 빈 문자열.
+   */
+  hunkPatch(index: number): string {
+    const h = this.hunks[index];
+    if (h === undefined) return '';
+    const head = this.head.filter((l) => !/^(index |old mode |new mode )/.test(l));
+    const rows = h.lines.map((l) => `${l.kind === 'add' ? '+' : l.kind === 'del' ? '-' : ' '}${l.text}${l.cr ? '\r' : ''}${l.noEol ? '\n\\ No newline at end of file' : ''}`);
+    return [...head, h.header, ...rows].join('\n') + '\n';
+  }
+
+  /**
    * 고른 hunk·줄만 담은 패치. stage는 `git apply --cached`, unstage는 `git apply --cached --reverse`에 넣는다.
    * 고르지 않은 변경 줄은 stage에서는 (추가는 빼고, 삭제는 문맥으로), unstage에서는 (추가는 문맥으로, 삭제는 뺀다).
    * 고른 변경이 하나도 없으면 빈 문자열.

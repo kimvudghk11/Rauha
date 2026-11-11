@@ -1,4 +1,5 @@
 import { CHECKPOINT_FUNCTIONS, type CheckpointFn, type CheckpointReply } from '../../shared/checkpoint-api.js';
+import { HunkRef } from '../../shared/checkpoint-hunk.js';
 import { RepoPath } from '../../shared/git-guard.js';
 import type { CheckpointKeeper } from './checkpoint-keeper.js';
 
@@ -18,6 +19,11 @@ function pathsOf(arg: Record<string, unknown>): string[] | undefined {
   return (raw as string[]).map((p) => RepoPath.parse(p).value);
 }
 
+function hunkPathOf(arg: Record<string, unknown>): string {
+  if (typeof arg['path'] !== 'string') throw new Error('The file path is not valid.');
+  return RepoPath.parse(arg['path']).value;
+}
+
 /**
  * 화면 IPC → 체크포인트 서비스. 화면이 보낸 값은 여기서 모두 검사한다(작업 id·파일 경로). 레포 폴더는 화면이 정하지 않고 저장된 기록이 정한다.
  * 어떤 실패든 이유를 글로 돌려준다(던지지 않는다).
@@ -34,6 +40,10 @@ export async function dispatchCheckpoint(keeper: CheckpointKeeper, fn: unknown, 
         if (typeof arg['path'] !== 'string') throw new Error('The file path is not valid.');
         return { ok: true, data: await keeper.diff(jobId, arg['path']) };
       }
+      case 'previewHunk':
+        return { ok: true, data: await keeper.previewHunk(jobId, hunkPathOf(arg), HunkRef.parse(arg['hunk']).value) };
+      case 'revertHunk':
+        return { ok: true, data: await keeper.revertHunk(jobId, hunkPathOf(arg), HunkRef.parse(arg['hunk']).value) };
       case 'preview':
         return { ok: true, data: await keeper.preview(jobId, pathsOf(arg)) };
       case 'revert':

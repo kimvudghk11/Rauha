@@ -77,6 +77,8 @@ export interface DiffOptions {
   /** stage: 아직 스테이지 안 한 변경을 고른다 · unstage: 스테이지된 것을 푼다 · view: 읽기만 */
   readonly mode: 'stage' | 'unstage' | 'view';
   readonly apply?: (selection: Selection) => void;
+  /** view 모드에서 hunk 머리줄 오른쪽에 붙일 것(예: 변경 보기의 Revert hunk 단추). 없으면 null */
+  readonly hunkTag?: (index: number) => HTMLElement | null;
 }
 
 /** diff를 좌우 줄 번호와 추가·삭제 색으로 그린다. stage·unstage 모드는 줄과 hunk를 골라 적용한다. */
@@ -128,6 +130,8 @@ export function renderDiff(diff: DiffView, options: DiffOptions): HTMLElement {
           hb.addEventListener('click', () => finish({ hunks: [me] }));
           head.appendChild(hb);
         }
+        const tag = options.hunkTag?.(hi) ?? null;
+        if (tag !== null) head.appendChild(tag);
         hcheck.addEventListener('change', () => {
           for (const r of rows) {
             r.box.checked = hcheck.checked;

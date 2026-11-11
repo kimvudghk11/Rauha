@@ -155,6 +155,7 @@ function sandbox() {
   git(gr, 'init', '-b', 'main');
   const lines = (...t) => t.join(String.fromCharCode(10)) + String.fromCharCode(10);
   w(gr, 'src.ts', lines('line 1', 'line 2', 'line 3', 'line 4', 'line 5'));
+  w(gr, 'README.md', lines('# graph', 'a repo for the commit graph', 'and the hunk revert scene')); // 가짜 팀이 이 파일 끝에 줄을 더해 hunk 하나짜리 Modified 가 된다
   git(gr, 'add', '.');
   git(gr, 'commit', '-m', 'init');
   git(gr, 'checkout', '-b', 'feature/a');
@@ -233,8 +234,12 @@ const SCENES = [
   ['chat-changes-undo-ask', 'chat', [CHG_OPEN, byText('.chg .btn', 'Undo all changes'), DLG]],
   ['chat-changes-detail', 'chat', [CHG_DETAIL]],
   ['chat-changes-detail-diff', 'chat', [CHG_DETAIL, q('.dbody .chg-file')]],
+  // hunk 단위 되돌리기: hunk 머리줄의 Revert hunk 단추 · 확인 창
+  ['chat-changes-hunk', 'chat', [CHG_OPEN, q('.chg-file')]],
+  ['chat-changes-hunk-ask', 'chat', [CHG_OPEN, q('.chg-file'), byText('.chg-diff .btn', 'Revert hunk'), DLG]],
   ['chat-changes-reverted', 'chat', [CHG_OPEN, byText('.chg .btn', 'Undo all changes'), DLG_OK]],
   ['chat-changes-redo', 'chat', [CHG_OPEN, byText('.chg .btn', 'Undo the undo'), DLG_OK]],
+  ['chat-changes-hunk-reverted', 'chat', [CHG_OPEN, q('.chg-file'), byText('.chg-diff .btn', 'Revert hunk'), DLG_OK]],
   // 이미지 붙여넣기: 1장 / 3장(칩 3개) / 5장(3장까지만, 안내) / 이미지가 아닌 파일(거절 안내)
   // 그림을 붙인 채 보내면 팀에 넘어가고(가짜 팀) 입력칸의 칩이 비워진다. 앱 데이터 폴더의 attachments 에 일이 도는 동안만 그림이 있다.
   ['chat-image-send', 'chat', [pasteImages(2, false), typeInto('.composer textarea', '그림 보내기 시험'), "(async () => { const i = document.querySelector('.composer textarea'); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await new Promise((r) => setTimeout(r, 900)); })() /* querySelector */"]],
@@ -419,10 +424,10 @@ async function run(win) {
     await sleep(300);
   };
   const snap = async (name, width) => results.push({ name, width, ...(await ev(MEASURE)) });
+  const tabbarBad = [];
   try {
     await sleep(2500);
     await resize(1100);
-  const tabbarBad = [];
     // 대화상자(예전 rauha 지우기 → 첫 실행 마법사)를 한 걸음씩 재면서 넘긴다
     for (let i = 0; i < 6; i++) {
       const step = await ev(`document.querySelector('.dialog b')?.textContent ?? ''`);

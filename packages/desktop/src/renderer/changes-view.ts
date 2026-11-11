@@ -1,6 +1,5 @@
-import type { ChangesView } from '../shared/checkpoint-api.js';
+import type { ChangesView, CheckpointDiff } from '../shared/checkpoint-api.js';
 import type { FileChange } from '../shared/checkpoint.js';
-import type { DiffView } from '../shared/git-api.js';
 import { FILE_FIRST, FILE_MORE, moreLabel } from '../shared/git-window.js';
 import { el } from './dom.js';
 import { askDialog, renderDiff } from './git-common.js';
@@ -18,7 +17,7 @@ interface Shared {
   loading: boolean;
   /** 펼쳐 둔 파일 */
   open: Set<string>;
-  diffs: Map<string, DiffView | string>;
+  diffs: Map<string, CheckpointDiff | string>;
   message: { text: string; bad: boolean } | null;
   busy: boolean;
   shown: number;
@@ -92,8 +91,34 @@ function revert(jobId: string, paths?: readonly string[]): Promise<void> {
     if (!ok.ok) return;
     const done = await api.revert(paths === undefined ? { jobId } : { jobId, paths });
     s.message = { text: done.message, bad: done.reverted === 0 };
-    for (const p of paths ?? []) s.diffs.delete(p);
+    for (const p of paths ?? []) dropDiff(jobId, p);
   });
+}
+
+/** hunk 하나만 되돌린다: 미리보기(충돌·이미 되돌림이면 알리기만) → 확인창 → 되돌리기. hunk 는 내용 해시로 가리킨다. */
+function revertHunk(jobId: string, path: string, hunk: string): Promise<void> {
+  return guarded(jobId, async () => {
+    const s = stateOf(jobId);
+    const api = window.rauha.checkpoint;
+    const preview = await api.previewHunk({ jobId, path, hunk });
+    if (preview.files === 0) {
+      s.message = { text: preview.body, bad: preview.conflicts.length > 0 };
+      dropDiff(jobId, path);
+      return;
+    }
+    const ok = await askDialog({ title: preview.title, body: preview.body, okLabel: preview.okLabel, danger: true });
+    if (!ok.ok) return;
+    const done = await api.revertHunk({ jobId, path, hunk });
+    s.message = { text: done.message, bad: done.reverted === 0 };
+    dropDiff(jobId, path);
+  });
+}
+
+/** 읽어 둔 diff 를 버린다(되돌린 뒤 상태가 달라졌으므로). 펼쳐 둔 파일이면 바로 다시 읽는다. */
+function dropDiff(jobId: string, path: string): void {
+  const s = stateOf(jobId);
+  s.diffs.delete(path);
+  if (s.open.has(path)) void loadDiff(jobId, path);
 }
 
 function undoRevert(jobId: string): Promise<void> {
@@ -250,10 +275,29 @@ export function changesPanel(jobId: string, mode: 'card' | 'detail'): HTMLElemen
       const body = el('div', 'chg-diff');
       const d = s.diffs.get(f.path);
       if (d === undefined || typeof d === 'string') body.appendChild(el('div', 'dim pad', d ?? 'Loading…'));
-      else body.appendChild(renderDiff(d, { mode: 'view' }));
+      else body.appendChild(renderDiff(d, { mode: 'view', hunkTag: (i) => hunkTag(f.path, d, i) }));
       wrap.appendChild(body);
     }
     return wrap;
+  };
+
+  /** hunk 머리줄 오른쪽: 되돌릴 수 있으면 Revert hunk 단추, 이미 되돌렸거나 충돌이면 표시 */
+  const hunkTag = (path: string, d: CheckpointDiff, i: number): HTMLElement | null => {
+    const state = d.hunkStates[i];
+    const id = d.hunkIds[i];
+    if (state === undefined || id === undefined) return null;
+    if (state === 'already') return el('span', 'chip', 'Reverted');
+    if (state === 'conflict') {
+      const chip = el('span', 'chip yellow', 'Conflict');
+      chip.title = 'Conflict: this part of the file changed after the job, so Rauha will not overwrite it.';
+      return chip;
+    }
+    const b = el('button', 'btn sm', 'Revert hunk');
+    b.type = 'button';
+    b.disabled = s.busy;
+    b.title = 'Put only this part of the file back the way it was before the job. You will be asked first.';
+    b.addEventListener('click', () => void revertHunk(jobId, path, id));
+    return b;
   };
 
   s.hosts.add(paint);
