@@ -134,6 +134,7 @@
 .srow { display: flex; align-items: center; gap: 12px; padding: 5px 12px; }
 .srow .lbl { flex: 1; color: var(--text); }
 .srow select, .srow input[type=number], .srow input:not([type]) { min-width: 120px; }
+.srow input.model-id { width: 260px; max-width: 100%; }
 .limits { display: flex; flex-direction: column; gap: 6px; padding: 4px 12px; }
 .limit { display: flex; align-items: center; gap: 12px; }
 .limit .lbl { width: 108px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }

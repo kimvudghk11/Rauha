@@ -5,6 +5,9 @@ export { Job, JOB_NOTE_LIMIT, type JobNote, type JobResultMeta, type JobStatus }
 export { DEFAULT_JOB_LIMIT, JobBoard } from './orchestration/domain/job-board.js';
 export { JobRunner, type JobRunnerDeps, type JobReport, type JobWork } from './orchestration/application/job-runner.js';
 export type { InfraRisk } from './orchestration/application/dto/infra-risk.dto.js';
+export { ModelNames } from './orchestration/domain/model-names.js';
+export { ModelSettingsDto } from './orchestration/application/dto/model-settings.dto.js';
+export type { ModelTier } from './orchestration/domain/team.js';
 export { MEMBER_ROLES, ROLE_INFO, type MemberRole, type RoleInfo } from './orchestration/domain/member-role.js';
 export { type RuleBucket } from './orchestration/domain/rule-book.js';
 export type { DefaultRuleView } from './orchestration/application/dto/default-rules.dto.js';

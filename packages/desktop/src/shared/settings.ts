@@ -1,5 +1,6 @@
 import { DEFAULT_PROTECTED_BRANCHES } from './approval-summary.js';
 import { parseAutoSaveMode, type AutoSaveMode } from './auto-save.js';
+import { ModelNames, ModelSettingsDto, type ModelTier } from '@rauha/core/jobs';
 import { DEFAULT_CHARACTER_SET, toCharacterSetId, type CharacterSetId } from './character-set-ids.js';
 
 /** 알림을 켜고 끄는 항목. 단계 넘어감은 기본 꺼짐이다. */
@@ -45,6 +46,8 @@ export interface Settings {
   readonly autoSave: AutoSaveMode;
   /** 최근에 쓴 작업 폴더(맨 앞이 가장 최근, 최대 5개). 고르는 것만 돕고, 열기 전 허락은 따로 받는다. */
   readonly recentFolders: readonly string[];
+  /** 등급(haiku·sonnet·opus)마다 부를 모델 ID. 계정마다 쓸 수 있는 모델이 달라 바꿀 수 있다. 이상한 값은 기본값으로 돌아간다. */
+  readonly models: Readonly<Record<ModelTier, string>>;
 }
 
 export const RECENT_FOLDERS_MAX = 5;
@@ -72,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   characterSet: DEFAULT_CHARACTER_SET,
   autoSave: 'off',
   recentFolders: [],
+  models: ModelNames.defaults().toRecord(),
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -119,6 +123,7 @@ export function parseSettings(input: unknown): Settings {
     characterSet: toCharacterSetId(input['characterSet']),
     autoSave: parseAutoSaveMode(input['autoSave']),
     recentFolders: folders(input['recentFolders']),
+    models: ModelSettingsDto.from(input['models']).toRecord(),
   };
 }
 

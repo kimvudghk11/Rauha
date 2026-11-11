@@ -13,14 +13,14 @@ Never widen a rule: if the sentence says "only in qa", include "qa" in includes.
  * 사용자가 말로 적은 규칙을 가장 가벼운 모델(haiku) 한 번으로 정리한다. 도구도 파일도 쓰지 않고 한 턴만 돈다.
  * 결과는 초안일 뿐이라 화면이 사용자에게 보여 주고 확인받은 뒤에 규칙으로 넣는다.
  */
-export async function draftRule(sentence: string, env: Record<string, string>, claudeExecutable?: string, timeoutMs = 60_000): Promise<RuleDraft> {
+export async function draftRule(sentence: string, env: Record<string, string>, claudeExecutable?: string, timeoutMs = 60_000, model: string = MODEL_ID.haiku): Promise<RuleDraft> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const messages = query({
       prompt: sentence,
       options: {
-        model: MODEL_ID.haiku,
+        model,
         env,
         abortController: controller,
         systemPrompt: SYSTEM,

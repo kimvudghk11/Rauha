@@ -15,6 +15,7 @@ import { AUTO_SAVE_MODES, autoSaveLabel, parseAutoSaveMode } from '../shared/aut
 import { buildRecentFolders } from './recent-folders-view.js';
 import { ask } from './code-dialog.js';
 import { paintSpriteFace } from './pixel-art.js';
+import { buildModels } from './models-view.js';
 
 /** 테마 카드 미리보기에 보여 줄 역할(팀장 포함 앞 몇 명) */
 const PREVIEW_ROLES: readonly CharacterRole[] = ['intake', 'tester', 'implementer', 'reviewer', 'bm'];
@@ -219,6 +220,9 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     flow.checked = s.analysisFlow;
     flow.addEventListener('change', () => void api.update({ analysisFlow: flow.checked }));
     root.appendChild(section('Analysis', row('Use analysis steps (research → compare → design/plan)', flow), el('div', 'hint pad', 'Used only for requests that ask for causes, risks or approaches. When off, analysis is a single teammate call with no question cards. Applies from the next request.')));
+
+    // 모델 이름: 등급마다 부를 모델 ID(계정마다 쓸 수 있는 모델이 다르다)
+    root.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
 
     // 캐릭터 테마: 22역할의 그림이 한 번에 바뀐다
     const sets = el('div', 'cset-list');

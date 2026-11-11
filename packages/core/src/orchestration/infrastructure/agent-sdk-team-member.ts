@@ -99,7 +99,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
   }
 
   async run(call: MemberCall): Promise<MemberResult> {
-    const model = MODEL_ID[call.setting.tier];
+    const model = modelOf(call);
     const started = Date.now();
     if (this.cancelled || call.signal?.aborted === true) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, 0), fetched: [], blocked: CANCELLED };
     const spare = this.takeSpare(call);
@@ -187,7 +187,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
   private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session): Options {
     const kits = kitServers(call.kits ?? [], this.options.env);
     return {
-      model: MODEL_ID[call.setting.tier],
+      model: modelOf(call),
       abortController: session.controller,
       cwd: this.options.cwd,
       ...(readDirs(call.additionalDirectories, this.options.readRoots).length > 0 ? { additionalDirectories: readDirs(call.additionalDirectories, this.options.readRoots) } : {}),
@@ -221,6 +221,11 @@ export function readDirs(call: readonly string[] | undefined, always: readonly s
   return [...new Set([...(call ?? []), ...(always ?? [])])];
 }
 
+/** 부르는 쪽이 정한 모델이 있으면 그것, 없으면 등급의 기본 모델 */
+export function modelOf(call: Pick<PreparedCall, 'setting' | 'model'>): string {
+  return call.model ?? MODEL_ID[call.setting.tier];
+}
+
 const CANCELLED: AccountBlock = { reason: 'cancelled', message: '사용자가 작업을 멈췄습니다.' };
 
 function newSession(): Session {
@@ -229,7 +234,7 @@ function newSession(): Session {
 
 /** 미리 띄운 프로세스는 띄울 때의 설정이 고정되므로, 역할·설정·출력 형식이 모두 같을 때만 쓴다. */
 function spareKey(call: PreparedCall): string {
-  return JSON.stringify([call.role, call.setting, call.outputSchema]);
+  return JSON.stringify([call.role, call.setting, call.outputSchema, modelOf(call)]);
 }
 
 /** 도구를 쓸 때마다 이름만 센다(입력·경로는 보지 않는다). */

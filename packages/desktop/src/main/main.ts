@@ -300,7 +300,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, readRoots: staged === undefined ? [] : [staged.dir] }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, readRoots: staged === undefined ? [] : [staged.dir] }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               return await session.handle(withAttachments(mentioned, staged?.paths ?? [], target.text), depth);
             } finally {
@@ -827,7 +827,7 @@ void app.whenReady().then(async () => {
       // 확인용 실행(RAUHA_FAKE_TEAM)에서는 모델을 부르지 않는다
       if (process.env['RAUHA_FAKE_TEAM'] !== undefined) return FAKE_BLOG_DRAFT(tone);
       const profile = (await profileResolver(home, settings.account))(currentWorkDir());
-      return draftBlog(note, tone, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable());
+      return draftBlog(note, tone, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, undefined, settings.models.haiku);
     },
     pickPath: async (fileName) => {
       const result = await dialog.showSaveDialog(window ?? undefined!, { title: '블로그 글 저장', defaultPath: join(app.getPath('documents'), fileName), filters: [{ name: 'Markdown', extensions: ['md'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });
@@ -869,7 +869,7 @@ void app.whenReady().then(async () => {
     if (typeof sentence !== 'string' || sentence.trim() === '') return { ok: false, error: '규칙을 말로 적어 주세요.' };
     try {
       const profile = (await profileResolver(home, settings.account))(currentWorkDir());
-      const draft = await draftRule(sentence.trim().slice(0, 500), { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable());
+      const draft = await draftRule(sentence.trim().slice(0, 500), { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.haiku);
       // 폴더 이름만 말했으면 작업 폴더 안의 그 폴더 경로로 바꾼다(규칙은 경로로 범위를 가른다)
       const named = draft.scope === 'folder' && draft.path !== null ? folders().find((f) => f.name.toLowerCase() === draft.path!.toLowerCase()) : undefined;
       const scope = draft.scope === 'workspace' ? { kind: 'workspace' as const, path: currentWorkDir() } : draft.scope === 'folder' ? { kind: 'folder' as const, path: named?.root ?? draft.path ?? '' } : { kind: 'global' as const };

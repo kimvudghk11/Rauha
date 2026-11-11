@@ -3,6 +3,9 @@ export { DomainError } from './shared/domain-error.js';
 // orchestration
 export { Difficulty, type DifficultyGrade, type DifficultySignals } from './orchestration/domain/difficulty.js';
 export { MODEL_ID, type Assignment, type ModelTier, type TeamRole } from './orchestration/domain/team.js';
+export { ModelNames } from './orchestration/domain/model-names.js';
+export { ModelRoutingTeam } from './orchestration/application/model-routing-team.js';
+export { ModelSettingsDto } from './orchestration/application/dto/model-settings.dto.js';
 export { TestRun, type FailureKind } from './orchestration/domain/test-run.js';
 export { WritePolicy } from './orchestration/domain/write-policy.js';
 export { ToolRisk, type ToolDecision, type ToolVerdict } from './orchestration/domain/tool-risk.js';

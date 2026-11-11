@@ -155,3 +155,21 @@ describe('최근 작업 폴더', () => {
     expect(next.workFolder).toBe('/a');
   });
 });
+
+describe('모델 이름(models)', () => {
+  it('기본은 등급마다 지금 쓰는 모델 ID다', () => {
+    expect(DEFAULT_SETTINGS.models).toEqual({ haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5' });
+    expect(parseSettings({}).models).toEqual(DEFAULT_SETTINGS.models);
+  });
+
+  it('직접 넣은 ID는 받고, 이상한 값은 그 등급만 기본으로 돌린다', () => {
+    const s = parseSettings({ models: { opus: 'claude-fable-5-2', sonnet: 'sonnet', haiku: '' } });
+    expect(s.models).toEqual({ haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-fable-5-2' });
+  });
+
+  it('설정을 일부만 바꿀 때도 모델 이름이 바로잡힌다', () => {
+    const next = updateSettings(DEFAULT_SETTINGS, { models: { haiku: 'claude-haiku-5-5', sonnet: 'x'.repeat(100), opus: 'claude-opus-5' } });
+    expect(next.models.sonnet).toBe('claude-sonnet-5-5');
+    expect(next.models.opus).toBe('claude-opus-5');
+  });
+});

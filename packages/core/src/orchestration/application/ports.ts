@@ -15,6 +15,8 @@ export interface MemberCall {
   readonly role: MemberRole;
   readonly setting: RoleSetting;
   readonly userMessage: string;
+  /** 이 호출에 쓸 모델 ID. 없으면 등급의 기본 모델. 설정에서 바꾼 이름이나 오류 시 대체 모델이 여기로 온다. */
+  readonly model?: string;
   readonly outputSchema: Record<string, unknown>;
   /** 작업 폴더 기준 상대 경로를 이 역할이 쓸 수 있는지(WritePolicy). */
   readonly canWrite: (relPath: string) => boolean;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
-import { readDirs, toolCountHook, withTeamInstruction } from './agent-sdk-team-member.js';
+import { modelOf, readDirs, toolCountHook, withTeamInstruction } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -42,5 +42,15 @@ describe('readDirs', () => {
   });
   it('둘 다 없으면 빈 목록이다(읽을 폴더가 늘지 않는다)', () => {
     expect(readDirs(undefined, undefined)).toEqual([]);
+  });
+});
+
+describe('modelOf', () => {
+  const setting = (tier: 'haiku' | 'sonnet' | 'opus') => ({ tier }) as never;
+  it('부르는 쪽이 정한 모델이 있으면 그것을 쓴다', () => {
+    expect(modelOf({ setting: setting('opus'), model: 'claude-fable-5-2' })).toBe('claude-fable-5-2');
+  });
+  it('없으면 등급의 기본 모델이다', () => {
+    expect(modelOf({ setting: setting('sonnet') })).toBe('claude-sonnet-5-5');
   });
 });
