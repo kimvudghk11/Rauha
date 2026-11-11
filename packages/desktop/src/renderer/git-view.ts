@@ -3,7 +3,7 @@ import type { RepoRow } from '../shared/ipc.js';
 import { ProtectedBranches } from '../shared/git-guard.js';
 import { el } from './dom.js';
 import { buildChanges } from './git-changes-view.js';
-import { buildBranches, buildConflicts, buildHistory } from './git-lists-view.js';
+import { buildBranches, buildConflicts, buildHistory, requestHistoryCommit } from './git-lists-view.js';
 import { buildStash } from './git-stash-view.js';
 import { askDialog, type GitCtx } from './git-common.js';
 import { openBranchMenu, openNewBranchDialog } from './git-branch-ui.js';
@@ -22,6 +22,13 @@ interface SubView {
 
 const VIEW_LABEL: Readonly<Record<ViewId, string>> = { changes: 'Changes', branches: 'Branches', history: 'History', stash: 'Stash', conflicts: 'Conflicts' };
 export const REMEMBER = 'rauha.git.repo';
+
+/** 다른 화면(코드 탭 blame)이 "git 탭을 History 로 열어 줘"라고 남긴 쪽지. 다음에 레포를 고를 때 한 번 쓴다. */
+let pendingView: ViewId | null = null;
+export function requestGitHistory(hash: string): void {
+  pendingView = 'history';
+  requestHistoryCommit(hash);
+}
 
 const remembered = (): string | null => {
   try {
@@ -278,7 +285,9 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     conv = undefined;
     say('');
     // 변경 탭이 자기가 읽은 overview를 헤더에 넘기므로(adopt) 따로 한 번 더 읽지 않는다(큰 레포에서 탭 열기가 그만큼 빨라진다)
-    await open('changes');
+    const first = pendingView ?? 'changes';
+    pendingView = null;
+    await open(first);
   }
 
   async function load(): Promise<void> {

@@ -18,12 +18,15 @@ import { properties } from '@codemirror/legacy-modes/mode/properties';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { toml } from '@codemirror/legacy-modes/mode/toml';
 import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
-import { EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state';
+import { Compartment, EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state';
 import { drawSelection, dropCursor, EditorView, GutterMarker, gutter, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import type { LineMark } from '../shared/code-changes.js';
 import type { CodeLanguage } from '../shared/code-language.js';
 import type { Indent } from '../shared/indent.js';
+import { runStarts, type BlameView } from '../shared/git-blame.js';
+import { laneColor } from '../shared/git-graph.js';
+import { ago } from './git-format.js';
 
 /** index.html의 CSP(style-src)에 같은 값이 있어야 편집기 스타일이 적용된다 */
 export const STYLE_NONCE = 'rauha-cm';
@@ -64,6 +67,11 @@ const theme = EditorView.theme(
     '.cm-change-added': { backgroundColor: '#2ea043' },
     '.cm-change-modified': { backgroundColor: '#0078d4' },
     '.cm-change-deleted': { height: '0', borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: '5px solid #f85149', marginTop: '-4px', backgroundColor: 'transparent' },
+    '.cm-blame .cm-gutterElement': { width: '176px', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11.5px', color: 'var(--muted)', cursor: 'pointer', padding: '0' },
+    '.cm-blame-line': { height: '100%', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis', borderLeft: '3px solid var(--lane, var(--muted))', paddingLeft: '8px', paddingRight: '8px' },
+    '.cm-blame-line.cont': { color: 'transparent' },
+    '.cm-blame-line.fresh': { color: 'var(--yellow)' },
+    '.cm-blame .cm-gutterElement:hover .cm-blame-line': { backgroundColor: 'var(--row-hover)', color: 'var(--bright)' },
     '.cm-tooltip': { backgroundColor: C.panel, border: `1px solid ${C.border}`, color: C.fg },
   },
   { dark: true },
@@ -129,6 +137,64 @@ const marksField = StateField.define<RangeSet<GutterMarker>>({
   },
 });
 
+/** 편집기 왼쪽 blame 거터(git): 같은 커밋이 이어지면 첫 줄에만 "작성자 · 날짜"를 적고, 줄기 색 띠가 이어진다. 줄을 누르면 그 커밋으로. */
+class BlameMarker extends GutterMarker {
+  constructor(
+    readonly hash: string,
+    private readonly color: number,
+    private readonly label: string,
+    private readonly tip: string,
+    private readonly fresh: boolean,
+  ) {
+    super();
+  }
+  override eq(other: GutterMarker): boolean {
+    return other instanceof BlameMarker && other.hash === this.hash && other.color === this.color && other.label === this.label && other.fresh === this.fresh;
+  }
+  override toDOM(): Node {
+    const d = document.createElement('div');
+    d.className = `cm-blame-line glc${this.color}${this.label === '' ? ' cont' : ''}${this.fresh ? ' fresh' : ''}`;
+    d.textContent = this.label;
+    d.title = this.tip;
+    return d;
+  }
+}
+/** 화면에 보일 blame: git 이 돌려준 줄별 커밋과, "n일 전"을 셀 기준 시각(초) */
+export interface BlameDisplay {
+  readonly view: BlameView;
+  readonly now: number;
+}
+const setBlame = StateEffect.define<BlameDisplay | null>();
+
+function buildBlame(doc: Text, shown: BlameDisplay | null): RangeSet<GutterMarker> {
+  const builder = new RangeSetBuilder<GutterMarker>();
+  if (shown === null) return builder.finish();
+  const { view, now } = shown;
+  const starts = runStarts(view.lines);
+  const count = Math.min(doc.lines, view.lines.length);
+  for (let n = 1; n <= count; n++) {
+    const c = view.commits[view.lines[n - 1]!];
+    if (c === undefined) continue;
+    const label = starts[n - 1]! ? (c.uncommitted ? c.author : `${c.author} · ${ago(c.at, now)}`) : '';
+    const tip = c.uncommitted ? 'Not committed yet' : `${c.short} · ${c.author} · ${ago(c.at, now)}
+${c.summary}
+Click to open this commit in the Git tab`;
+    const from = doc.line(n).from;
+    builder.add(from, from, new BlameMarker(c.hash, laneColor(c.hash), label, tip, c.uncommitted));
+  }
+  return builder.finish();
+}
+
+const blameField = StateField.define<RangeSet<GutterMarker>>({
+  create: () => RangeSet.empty,
+  update(value, tr) {
+    let next = value.map(tr.changes);
+    for (const e of tr.effects) if (e.is(setBlame)) next = buildBlame(tr.state.doc, e.value);
+    return next;
+  },
+});
+const blameSlot = new Compartment();
+
 const PHRASES: Record<string, string> = {
   Find: 'Find',
   Replace: 'Replace with',
@@ -177,6 +243,8 @@ export interface EditorHooks {
   readonly onChange: () => void;
   /** 커서 위치(1부터) */
   readonly onCursor: (line: number, column: number) => void;
+  /** blame 거터의 줄을 눌렀다(커밋 전체 해시) */
+  readonly onBlameClick?: (hash: string) => void;
 }
 
 /** 편집기 한 개. 파일마다 상태(되돌리기 기록·커서)를 따로 갖고, 탭을 바꿀 때 상태만 바꿔 끼운다. */
@@ -185,9 +253,27 @@ export class CodeEditor {
   private readonly states = new Map<string, EditorState>();
   private readonly scrolls = new Map<string, number>();
   private current: string | null = null;
+  private blameOn = false;
 
   constructor(parent: HTMLElement, private readonly hooks: EditorHooks) {
     this.view = new EditorView({ parent, state: EditorState.create({ doc: '' }) });
+  }
+
+  private blameGutter(): Extension {
+    return gutter({
+      class: 'cm-blame',
+      markers: (v) => v.state.field(blameField),
+      initialSpacer: () => new BlameMarker('', 0, '', '', false),
+      domEventHandlers: {
+        click: (view, line) => {
+          const at = view.state.field(blameField).iter(line.from);
+          const hash = at.value instanceof BlameMarker && at.from === line.from ? at.value.hash : '';
+          if (hash === '') return false;
+          this.hooks.onBlameClick?.(hash);
+          return true;
+        },
+      },
+    });
   }
 
   private makeState(text: string, language: CodeLanguage, indent: Indent, readOnly: boolean): EditorState {
@@ -197,6 +283,8 @@ export class CodeEditor {
       extensions: [
         EditorView.cspNonce.of(STYLE_NONCE),
         EditorState.phrases.of(PHRASES),
+        blameSlot.of(this.blameOn ? this.blameGutter() : []),
+        blameField,
         lineNumbers(),
         highlightActiveLineGutter(),
         marksField,
@@ -315,6 +403,24 @@ export class CodeEditor {
     }
     const state = this.states.get(path);
     if (state !== undefined) this.states.set(path, state.update({ effects: setMarks.of(marks) }).state);
+  }
+
+  /** blame 거터를 모든 파일에서 켜고 끈다. 끄면 쌓아 둔 표시도 지운다. */
+  showBlame(on: boolean): void {
+    this.blameOn = on;
+    const slot = blameSlot.reconfigure(on ? this.blameGutter() : []);
+    for (const [path, state] of this.states) if (path !== this.current) this.states.set(path, state.update({ effects: on ? [slot] : [slot, setBlame.of(null)] }).state);
+    if (this.current !== null) this.view.dispatch({ effects: on ? [slot] : [slot, setBlame.of(null)] });
+  }
+
+  /** 파일의 blame 내용을 채운다(저장된 글 기준). null 이면 비운다. */
+  setBlame(path: string, shown: BlameDisplay | null): void {
+    if (this.current === path) {
+      this.view.dispatch({ effects: setBlame.of(shown) });
+      return;
+    }
+    const state = this.states.get(path);
+    if (state !== undefined) this.states.set(path, state.update({ effects: setBlame.of(shown) }).state);
   }
 
   /** 지금 보는 파일의 해당 줄·칸으로 가서 가운데에 보인다 */

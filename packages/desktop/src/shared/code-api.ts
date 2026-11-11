@@ -2,6 +2,7 @@ import type { ChangedFile, LineMark } from './code-changes.js';
 import type { LineHit, SearchOptions } from './text-search.js';
 import type { Eol } from './code-text.js';
 import type { EditorConfigProps } from './indent.js';
+import type { BlameView } from './git-blame.js';
 
 /** 코드 탭 IPC 채널. 파일을 읽고 쓰는 일은 전부 main이 한다. 화면은 작업 폴더 기준 상대 경로만 보낸다. */
 export const CODE_IPC = {
@@ -11,6 +12,7 @@ export const CODE_IPC = {
   stat: 'code:stat',
   changes: 'code:changes',
   diff: 'code:diff',
+  blame: 'code:blame',
   search: 'code:search',
   files: 'code:files',
   create: 'code:create',
@@ -135,6 +137,12 @@ export type ChangesResult = { readonly ok: true; readonly files: readonly Change
 
 export type DiffResult = { readonly ok: true; readonly marks: readonly LineMark[] } | { readonly ok: false; readonly reason: CodeFail };
 
+/** 한 파일의 줄별 작성자(git blame). view 가 null 이면 까닭(why)이 있다. root 는 그 파일이 든 레포 루트(git 탭으로 넘길 때 쓴다). */
+export type BlameResult =
+  | { readonly ok: true; readonly view: BlameView; readonly root: string }
+  | { readonly ok: true; readonly view: null; readonly why: 'not-repo' | 'not-tracked' | 'too-big' | 'failed' }
+  | { readonly ok: false; readonly reason: CodeFail };
+
 export interface SearchFileHits {
   readonly path: string;
   readonly hits: readonly LineHit[];
@@ -212,6 +220,8 @@ export interface CodeApi2 extends CodeApi3 {
   changes(): Promise<ChangesResult>;
   /** 한 파일의 저장된 내용이 HEAD와 다른 줄 */
   diff(path: string): Promise<DiffResult>;
+  /** 한 파일의 줄별 작성자·날짜·커밋(읽기 전용) */
+  blame(path: string): Promise<BlameResult>;
   search(options: SearchOptions): Promise<SearchResult>;
   files(): Promise<FilesResult>;
 }

@@ -30,6 +30,8 @@ export interface CodeDeps {
   readonly terminal: TerminalApi;
   /** 이 레포를 git 탭에서 열어 달라(레포 루트 절대 경로) */
   readonly openGit: (repoRoot: string) => void;
+  /** 이 레포의 이 커밋을 git 탭 History 에서 열어 달라(blame 거터를 눌렀을 때) */
+  readonly openCommit?: (repoRoot: string, hash: string) => void;
   /** 작업 폴더 안의 레포·문서 폴더와 상태(탐색기 레포 노드) */
   readonly repos: () => Promise<readonly RepoRow[]>;
   /** 설정의 자동 저장 방식(없으면 끔). 코드 탭을 열 때마다 다시 읽는다. */
@@ -132,7 +134,10 @@ export function buildCode(deps: CodeDeps) {
   const strip = el('div', 'code-tabs');
   const termBtn = el('button', 'btn sm code-termbtn', '>_ Terminal');
   termBtn.title = 'Terminal (Ctrl/Cmd+`)';
-  bar.append(toggle, strip, termBtn);
+  const blameBtn = el('button', 'btn sm code-blamebtn', 'Blame');
+  blameBtn.title = 'Show who last changed each line (git blame, saved version)';
+  blameBtn.setAttribute('aria-pressed', 'false');
+  bar.append(toggle, strip, blameBtn, termBtn);
   const notice = el('div', 'code-notice');
   notice.hidden = true;
   const host = el('div', 'code-host');
@@ -154,7 +159,7 @@ export function buildCode(deps: CodeDeps) {
     narrow: () => tierNarrow(),
     changed: () => paintAll(),
   });
-  bar.insertBefore(preview.modeBar, termBtn);
+  bar.insertBefore(preview.modeBar, blameBtn);
   // 창 크기 단계(data-tier)가 바뀐 뒤에 다시 계산한다
   window.addEventListener('resize', () => window.setTimeout(() => root.isConnected && preview.relayout(), 60));
   main.append(bar, notice, preview.body, empty, term.root, status);
@@ -173,6 +178,9 @@ export function buildCode(deps: CodeDeps) {
   let flash: { text: string; timer: number } | null = null;
   let changeMap = ChangeMap.empty();
   let repos: readonly RepoInfo[] = [];
+  let blameOn = false;
+  /** blame 을 읽은 파일이 든 레포 루트(거터를 눌러 git 탭으로 갈 때 쓴다) */
+  const blameRoot = new Map<string, string>();
 
   const editor = new CodeEditor(host, {
     onChange: () => {
@@ -183,6 +191,11 @@ export function buildCode(deps: CodeDeps) {
     onCursor: (line, column) => {
       cursor = { line, column };
       paintStatus();
+    },
+    onBlameClick: (hash) => {
+      const path = tabs.active;
+      const root = path === null ? undefined : (blameRoot.get(path) ?? repoOf(path)?.root);
+      if (root !== undefined) deps.openCommit?.(root, hash);
     },
   });
 
@@ -340,7 +353,37 @@ export function buildCode(deps: CodeDeps) {
     if (!tabs.has(path)) return;
     const r = await deps.api.diff(path);
     if (r.ok && tabs.has(path)) editor.setMarks(path, r.marks);
+    void refreshBlame(path);
   }
+
+  const BLAME_WHY = { 'not-repo': 'this file is not inside a git repo', 'not-tracked': 'this file is not committed yet', 'too-big': 'this file is too big', failed: 'git could not read it' } as const;
+
+  /** blame 거터를 채운다. 저장한 글 기준이라 고치는 중인 파일은 건드리지 않는다(줄 번호가 어긋난다). */
+  async function refreshBlame(path: string, announce = false): Promise<void> {
+    if (!blameOn || !tabs.has(path)) return;
+    if (isDirty(path)) {
+      if (announce) say('Blame shows the saved version. Save the file to refresh it.');
+      return;
+    }
+    const r = await deps.api.blame(path);
+    if (!blameOn || !tabs.has(path)) return;
+    if (!r.ok || r.view === null) {
+      editor.setBlame(path, null);
+      if (announce || tabs.active === path) say(`Blame is not available: ${r.ok ? BLAME_WHY[r.why] : codeFailText(r.reason)}`);
+      return;
+    }
+    blameRoot.set(path, r.root);
+    editor.setBlame(path, { view: r.view, now: Math.floor(Date.now() / 1000) });
+    if (r.view.truncated && tabs.active === path) say('Blame shows only the first 5000 lines of this file.');
+  }
+
+  blameBtn.addEventListener('click', () => {
+    blameOn = !blameOn;
+    blameBtn.classList.toggle('on', blameOn);
+    blameBtn.setAttribute('aria-pressed', String(blameOn));
+    editor.showBlame(blameOn);
+    if (blameOn && tabs.active !== null) void refreshBlame(tabs.active, true);
+  });
 
   function paintAll(): void {
     if (preview.activeImage() === null) preview.showText(tabs.active);

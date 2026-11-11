@@ -2,7 +2,7 @@ import type { ApprovalView, BoardView, RauhaApi, UsageView } from '../shared/ipc
 import { buildChat } from './chat-view.js';
 import { offerTerminalCleanup, runWizard } from './first-run.js';
 import { el, icon } from './dom.js';
-import { buildGit, REMEMBER as GIT_REPO_KEY } from './git-view.js';
+import { buildGit, REMEMBER as GIT_REPO_KEY, requestGitHistory } from './git-view.js';
 import { buildRules } from './rules-view.js';
 import { addTodo, buildTodo, localToday } from './todo-view.js';
 import { buildRecords, copyText } from './records-view.js';
@@ -48,7 +48,7 @@ window.rauha.onFullScreen((on) => chrome.setFullScreen(on));
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
-const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
+const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), openCommit: (repoRoot, hash) => (requestGitHistory(hash), openGit(repoRoot)), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
 

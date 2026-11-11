@@ -296,6 +296,9 @@ const SCENES = [
   // 편집기에서 코드를 고르고 우클릭 → "Send selection to chat" 메뉴 / Ctrl+Shift+E → 채팅 입력칸에 붙는다
   ['code-send-menu', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), WAIT, SELECT_ALL, "(() => { const h = document.querySelector('.code-host'); const b = h.getBoundingClientRect(); h.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.x + 60, clientY: b.y + 30 })); })() /* querySelector */"]],
   ['code-send-chat', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), WAIT, SELECT_ALL, "(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'E', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })); })() /* querySelector */", WAIT]],
+  // blame 거터: 켠 모습 / 거터 줄을 누르면 git 탭 History 가 그 커밋을 고른 채 열린다
+  ['code-blame', 'code', [CLEAN, WAIT, expandByName('app-graph'), WAIT, rowByName('src.ts'), WAIT, "(() => { const b = document.querySelector('.code-blamebtn'); if (b.getAttribute('aria-pressed') !== 'true') b.click(); })() /* querySelector */", WAIT]],
+  ['code-blame-open', 'code', [CLEAN, WAIT, expandByName('app-graph'), WAIT, rowByName('src.ts'), WAIT, "(() => { const b = document.querySelector('.code-blamebtn'); if (b.getAttribute('aria-pressed') !== 'true') b.click(); })() /* querySelector */", WAIT, "(() => { document.querySelectorAll('.cm-blame-line')[3]?.click(); })() /* querySelector */", WAIT]],
   ['code-ctx-menu', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rightClick('main.ts')]],
   ['code-ctx-menu-repo', 'code', [CLEAN, WAIT, rightClick('app-one')]],
   ['code-rename', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'F2'), WARNOK]],

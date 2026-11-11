@@ -1,8 +1,9 @@
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import type { ChangesResult, DiffResult, RepoInfo } from '../../shared/code-api.js';
+import type { BlameResult, ChangesResult, DiffResult, RepoInfo } from '../../shared/code-api.js';
 import { allAdded, parseHunks, parseStatusZ, type ChangedFile } from '../../shared/code-changes.js';
 import { decodeFile, MAX_OPEN_BYTES } from '../../shared/code-text.js';
+import { blameArgs, parseBlame } from '../../shared/git-blame.js';
 import { isInside } from './code-path.js';
 import type { CodeFiles } from './code-files.js';
 
@@ -60,6 +61,30 @@ export class CodeGit {
       }
     }
     return { ok: true, files, repos };
+  }
+
+  /**
+   * 한 파일의 줄별 작성자(읽기 전용). 파일 찾기는 diff 와 같은 길(작업 폴더 안·비밀 파일 거절·링크 너머 거절)을 쓰고,
+   * git 은 고정 인자(경로는 -- 뒤)로, textconv 없이 부른다. 저장된 파일 기준이라 안 저장한 글은 반영되지 않는다.
+   */
+  async blame(rawPath: unknown): Promise<BlameResult> {
+    const located = await this.deps.files.locate(rawPath);
+    if (!located.ok) return located;
+    const { real, clean } = located.value;
+    if (clean === '') return { ok: false, reason: 'not-file' };
+    const repo = (await this.repoList()).filter((r) => isInside(r.real, real, this.ci)).sort((a, b) => b.real.length - a.real.length)[0];
+    if (repo === undefined) return { ok: true, view: null, why: 'not-repo' };
+    try {
+      if ((await stat(real)).size > MAX_OPEN_BYTES) return { ok: true, view: null, why: 'too-big' };
+    } catch {
+      return { ok: false, reason: 'missing' };
+    }
+    const inRepo = toSlash(relative(repo.real, real));
+    const tracked = await this.deps.run(repo.real, ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', inRepo]).catch(() => null);
+    if (tracked === null || tracked.code !== 0) return { ok: true, view: null, why: 'not-tracked' };
+    const r = await this.deps.run(repo.real, blameArgs(inRepo)).catch(() => null);
+    if (r === null || r.code !== 0) return { ok: true, view: null, why: 'failed' };
+    return { ok: true, view: parseBlame(r.stdout), root: repo.root };
   }
 
   /** 저장된 파일 내용이 HEAD와 다른 줄. 새 파일은 전체가 added, git이 못 알려 주면 표시 없음. */

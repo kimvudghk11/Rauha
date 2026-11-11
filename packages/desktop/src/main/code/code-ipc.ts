@@ -55,6 +55,7 @@ export function registerCodeIpc(ipc: Pick<IpcMain, 'handle'>, workFolder: () => 
   ipc.handle(CODE_IPC.stat, (_e, paths: unknown) => files.stat(paths));
   ipc.handle(CODE_IPC.changes, () => git.changes());
   ipc.handle(CODE_IPC.diff, (_e, path: unknown) => git.diff(path));
+  ipc.handle(CODE_IPC.blame, (_e, path: unknown) => git.blame(path));
   ipc.handle(CODE_IPC.search, (_e, options: unknown) => files.searchAll(options));
   ipc.handle(CODE_IPC.files, () => files.listFiles());
   return files;
