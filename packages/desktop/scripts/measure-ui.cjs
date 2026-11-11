@@ -7,6 +7,9 @@ const os = require('node:os');
 const path = require('node:path');
 
 process.env.RAUHA_FAKE_TEAM = '1';
+// Docker 탭은 진짜 docker 대신 가짜 실행기를 쓴다(엔진이 꺼진 PC에서도 목록·꺼짐 안내를 잰다). 장면에서 FAKE_DOCKER_MODE 로 켜짐/꺼짐을 바꾼다.
+process.env.RAUHA_DOCKER_BIN = path.join(__dirname, '..', 'src', 'main', 'docker', 'fake-docker.cjs');
+process.env.FAKE_DOCKER_MODE = 'ok';
 // 실제 ~/.rauha 설정(작업 폴더·AWS 등)을 건드리지 않게 홈과 앱 데이터 폴더를 임시 폴더로 돌린다(os.homedir()은 USERPROFILE/HOME을 읽는다)
 const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-home-'));
 process.env.USERPROFILE = fakeHome;
@@ -76,6 +79,7 @@ app.on('browser-window-created', (_e, win) => {
 function sandbox() {
   const { execFileSync } = require('node:child_process');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-work-'));
+  fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}' + String.fromCharCode(10));
   const git = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { cwd, stdio: 'pipe' });
   const w = (cwd, f, t) => fs.writeFileSync(path.join(cwd, f), t);
   const bare = path.join(root, 'origin.git');
@@ -151,7 +155,7 @@ function sandbox() {
 
 const q = (sel) => `document.querySelector(${JSON.stringify(sel)})?.click()`;
 const byText = (sel, text) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find((n) => n.textContent.includes(${JSON.stringify(text)}))?.click()`;
-const TAB = { chat: 0, code: 1, todo: 2, records: 3, git: 4, commands: 5, rules: 6, settings: 7 };
+const TAB = { chat: 0, code: 1, todo: 2, api: 3, docker: 4, records: 5, git: 6, commands: 7, rules: 8, settings: 9 };
 // [이름, 탭, 그 탭에서 먼저 할 클릭들(CSS 선택자 또는 완성된 JS)]
 // 레포 이름으로 git 탭의 레포를 고른다(기억된 레포가 장면마다 달라지지 않게 장면마다 먼저 고른다)
 const pickRepo = (name) => `(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); let s = null; for (let i = 0; i < 80 && !(s = document.querySelector('.gselect')); i++) await sleep(100); if (!s) throw new Error('git 탭의 .gselect(레포 고르기)가 8초 안에 나타나지 않았어요'); const o = [...s.options].find((o) => o.text.startsWith(${JSON.stringify(name)})); s.value = o.value; s.dispatchEvent(new Event('change')); await sleep(300); for (let i = 0; i < 80 && !document.querySelector('.gcommit'); i++) await sleep(100); await sleep(400); })() /* querySelector */`;
@@ -187,6 +191,21 @@ const SCENES = [
   ['todo-card-menu', 'todo', [TODO_SEED, "(() => { const c = document.querySelector('.tcard'); const b = c.getBoundingClientRect(); c.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.x + 24, clientY: b.y + 10 })); })()"]],
   ['todo-col-menu', 'todo', [TODO_SEED, '.tch .btn.icon:last-child']],
   ['todo-col-delete', 'todo', [TODO_SEED, '.tch .btn.icon:last-child', byText('.menu button', 'Delete column')]],
+  // Docker 탭(가짜 docker): 목록 · 로그 · 다른 목록 탭 · 삭제 확인 창 · 엔진 꺼짐 안내
+  ['docker', 'docker', []],
+  ['docker-logs', 'docker', ['.dk-table tbody tr']],
+  ['docker-images', 'docker', [byText('.docker .tab', 'Images')]],
+  ['docker-volumes', 'docker', [byText('.docker .tab', 'Volumes')]],
+  ['docker-networks', 'docker', [byText('.docker .tab', 'Networks')]],
+  ['docker-compose', 'docker', [byText('.docker .tab', 'Compose'), byText('.dk-table .btn', 'Status')]],
+  ['docker-remove-ask', 'docker', [byText('.dk-table .btn', 'Remove')]],
+  ['docker-off', 'docker', [() => { process.env.FAKE_DOCKER_MODE = 'off'; }, byText('.dk-head .btn', 'Refresh')]],
+  // API 탭: 빈 화면 · 안 열리는 주소로 보낸 실패 응답 · 왼쪽 목록 열기 · 환경 관리 창 · 가져오기 창
+  ['api', 'api', []],
+  ['api-failed', 'api', [typeInto('.api-url-input', 'http://127.0.0.1:9/none'), '.api-send']],
+  ['api-list', 'api', ['.api-toggle']],
+  ['api-env', 'api', [byText('.btn', 'Manage')]],
+  ['api-import', 'api', [byText('.btn', 'Import')]],
   ['records', 'records', []],
   ['records-detail', 'records', ['.ri']],
   ['records-picked', 'records', [`(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`]],
@@ -201,7 +220,7 @@ const SCENES = [
   ['records-blog-draft', 'records', ['.ri', byText('.rdbar .btn', 'Blog post'), byText('.rdbar .btn', 'Write draft')]],
   ['git-changes', 'git', [pickRepo('app-one')]],
   // 큰 레포: 탭을 다시 열 때(.gf 줄이 나타날 때까지)와 큰 diff를 열 때(.gl 줄이 나타날 때까지)의 밀리초와 화면 요소 수를 잰다
-  ['git-big', 'git', [pickRepo('app-big'), "(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const tabs = document.querySelectorAll('#tabs button'); tabs[7].click(); await sleep(400); const t0 = performance.now(); tabs[4].click(); while (!document.querySelector('.gf') && performance.now() - t0 < 30000) await sleep(10); const open = Math.round(performance.now() - t0); await sleep(300); const t1 = performance.now(); const row = [...document.querySelectorAll('.gf')].find((n) => n.textContent.includes('aaa-big')); row?.click(); while (!document.querySelector('.gl') && performance.now() - t1 < 30000) await sleep(10); const diff = Math.round(performance.now() - t1); await sleep(500); const root = document.querySelector('.gselect').value; const ta = performance.now(); await window.rauha.listRepos(); const listMs = Math.round(performance.now() - ta); const tb = performance.now(); await window.rauha.git.overview(root, undefined); const overviewMs = Math.round(performance.now() - tb); window.__bigT = { listReposMs: listMs, overviewMs, tabOpenMs: open, diffOpenMs: diff, nodes: document.querySelectorAll('*').length, files: document.querySelectorAll('.gf').length, lines: document.querySelectorAll('.gl').length }; })() /* querySelector */"]],
+  ['git-big', 'git', [pickRepo('app-big'), "(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const tabs = document.querySelectorAll('#tabs button'); tabs[9].click(); await sleep(400); const t0 = performance.now(); tabs[6].click(); while (!document.querySelector('.gf') && performance.now() - t0 < 30000) await sleep(10); const open = Math.round(performance.now() - t0); await sleep(300); const t1 = performance.now(); const row = [...document.querySelectorAll('.gf')].find((n) => n.textContent.includes('aaa-big')); row?.click(); while (!document.querySelector('.gl') && performance.now() - t1 < 30000) await sleep(10); const diff = Math.round(performance.now() - t1); await sleep(500); const root = document.querySelector('.gselect').value; const ta = performance.now(); await window.rauha.listRepos(); const listMs = Math.round(performance.now() - ta); const tb = performance.now(); await window.rauha.git.overview(root, undefined); const overviewMs = Math.round(performance.now() - tb); window.__bigT = { listReposMs: listMs, overviewMs, tabOpenMs: open, diffOpenMs: diff, nodes: document.querySelectorAll('*').length, files: document.querySelectorAll('.gf').length, lines: document.querySelectorAll('.gl').length }; })() /* querySelector */"]],
   ['git-branches', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'Branches')]],
   ['git-history', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'History')]],
   ['git-conflicts', 'git', [pickRepo('app-two'), byText('.tabs .tab', 'Conflicts')]],
@@ -234,8 +253,8 @@ const SCENES = [
   ['rules', 'rules', []],
   // 내 규칙을 하나 넣고 제자리 고치기 칸을 연다(그 규칙 카드에서 Edit)
   // 고친 글을 넣고 Save를 연달아 두 번 눌러도 한 번만 저장되고 카드에 새 글이 보인다
-  ['rules-edit-save', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[6].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); const i = document.querySelector('.rule.editing input'); i.value = '고친 규칙 글'; i.dispatchEvent(new Event('input', { bubbles: true })); const s = [...document.querySelectorAll('.rule.editing .btn')].find((n) => n.textContent === 'Save'); s.click(); s.click(); await new Promise((r) => setTimeout(r, 600)); document.body.dataset.ruleCards = String([...document.querySelectorAll('.rule:not(.default)')].map((n) => n.firstChild.textContent)); })() /* querySelector */"]],
-  ['rules-edit', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[6].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); })() /* querySelector */"]],
+  ['rules-edit-save', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[7].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[8].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); const i = document.querySelector('.rule.editing input'); i.value = '고친 규칙 글'; i.dispatchEvent(new Event('input', { bubbles: true })); const s = [...document.querySelectorAll('.rule.editing .btn')].find((n) => n.textContent === 'Save'); s.click(); s.click(); await new Promise((r) => setTimeout(r, 600)); document.body.dataset.ruleCards = String([...document.querySelectorAll('.rule:not(.default)')].map((n) => n.firstChild.textContent)); })() /* querySelector */"]],
+  ['rules-edit', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[7].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[8].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); })() /* querySelector */"]],
   // stash: 메시지를 적고 치우면 목록에 나타난다(앞 장면의 레포 상태를 건드리지 않게 마지막 레포 장면들 뒤에 둔다). 같은 레포에서 이어지는 장면들이라 순서를 지킨다.
   ['git-stash', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'Stash'), typeInto('.gstash-tools input.ginput', 'wip: 결제 작업 중'), byText('.gstash-tools .btn', 'Stash changes')]],
   ['git-stash-drop-ask', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'Stash'), byText('.gf .btn', 'Drop')]],
@@ -337,9 +356,14 @@ async function run(win) {
       for (const width of WIDTHS) {
         await resize(width);
         await ev("document.querySelectorAll('.veil, .menu').forEach((n) => n.remove())"); // 앞 장면의 확인 창·메뉴가 남지 않게
+        process.env.FAKE_DOCKER_MODE = 'ok';
         await ev(`document.querySelectorAll('#tabs button')[${TAB[tab]}].click()`);
         await sleep(1200);
         for (const c of clicks) {
+          if (typeof c === 'function') {
+            c();
+            continue;
+          }
           await ev(c.includes('querySelector') ? c : q(c));
           await sleep(700);
         }
