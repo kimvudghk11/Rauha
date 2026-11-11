@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DB_LIMITS, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
-import type { EngineRequest, EngineResponse } from './sqlite-engine.js';
+import { loadSqlite, type EngineRequest, type EngineResponse, type EngineTestHooks } from './sqlite-engine.js';
 import { ProcessRunner, type RunOutcome } from './sqlite-runner.js';
 import { childSource, hasSqlite, makeDb, SHOP_SEED, tempDir } from './sqlite-test-kit.js';
 
@@ -98,54 +98,6 @@ describe.skipIf(!hasSqlite())('SQLite 엔진(자식 프로세스, 진짜 node:sq
     expect(r.rows).toEqual([[1, 2]]);
   });
 
-  it('읽기 전용으로 열려 있어 INSERT·UPDATE·DELETE·DDL 이 막힌다(문장 검사를 건너뛰어도)', async () => {
-    const before = readFileSync(shop);
-    for (const sql of ["INSERT INTO users (id, name) VALUES (9, 'x')", "UPDATE users SET name = 'x'", 'DELETE FROM users', 'DROP TABLE users', 'CREATE TABLE t2 (a)', 'ALTER TABLE users ADD z', 'CREATE TEMP TABLE tt (a)', 'ANALYZE']) {
-      expect(await failed(query(shop, sql, false, 'write')), sql).toMatch(/not authorized|readonly/i);
-    }
-    expect(readFileSync(shop).equals(before)).toBe(true);
-  });
-
-  it('ATTACH·DETACH·트랜잭션은 쓰기 모드에서도 인가 함수가 거절한다(다른 파일을 열 수 없다)', async () => {
-    const other = makeDb(join(kit.dir, 'secret.db'), "CREATE TABLE s (v); INSERT INTO s VALUES ('top secret');");
-    for (const writable of [false, true]) {
-      for (const sql of [`ATTACH DATABASE '${other.replace(/\\/g, '/')}' AS o`, "ATTACH ':memory:' AS m", 'DETACH DATABASE main', 'BEGIN', 'SAVEPOINT a']) {
-        expect(await failed(query(shop, sql, writable, 'write')), `${sql} writable=${writable}`).toMatch(/not authorized|authoriz/i);
-      }
-    }
-  });
-
-  it('load_extension 과 파일 함수는 어떻게 불러도 거절된다', async () => {
-    for (const sql of ["SELECT load_extension('x')", "SELECT LOAD_EXTENSION('x','y')", "SELECT readfile('/etc/passwd')", "SELECT writefile('/tmp/x','y')", "SELECT fts3_tokenizer('simple')"]) {
-      expect(await failed(query(shop, sql, true)), sql).toMatch(/not authorized|no such function|authoriz/i);
-    }
-  });
-
-  it('PRAGMA 로 값을 바꾸는 시도는 쓰기 모드에서도 거절하고 파일이 그대로다', async () => {
-    const f = makeDb(join(kit.dir, 'pragma.db'), 'CREATE TABLE t (a); PRAGMA user_version = 7;');
-    const before = readFileSync(f);
-    for (const sql of ['PRAGMA user_version = 99', 'PRAGMA writable_schema = 1', 'PRAGMA journal_mode = WAL', 'PRAGMA foreign_keys = OFF', 'PRAGMA user_version(99)', 'PRAGMA wal_checkpoint', 'PRAGMA temp_store_directory = "/tmp"', 'PRAGMA schema_version = 1', 'PRAGMA secure_delete = 0']) {
-      expect(await failed(query(f, sql, true, 'write')), sql).toMatch(/not authorized|authoriz/i);
-    }
-    expect(readFileSync(f).equals(before)).toBe(true);
-    const v = await ok<DbResultSet>(query(f, 'PRAGMA user_version'));
-    expect(v.rows).toEqual([[7]]);
-  });
-
-  it('안전한 읽기 PRAGMA 와 pragma_ 표 함수는 읽기 전용에서 된다', async () => {
-    expect((await ok<DbResultSet>(query(shop, 'PRAGMA table_info(users)'))).rows).toHaveLength(4);
-    expect((await ok<DbResultSet>(query(shop, "SELECT name FROM pragma_table_info('users') ORDER BY cid"))).rows[0]).toEqual(['id']);
-    expect((await ok<DbResultSet>(query(shop, 'PRAGMA database_list'))).rows[0]![1]).toBe('main');
-  });
-
-  it('sqlite_master 를 직접 고치려는 시도(writable_schema 우회)는 쓰기 모드에서도 실패한다', async () => {
-    const f = makeDb(join(kit.dir, 'schema.db'), 'CREATE TABLE t (a);');
-    const before = readFileSync(f);
-    expect(await failed(query(f, "UPDATE sqlite_master SET sql = 'CREATE TABLE evil (x)' WHERE name = 't'", true, 'write'))).toMatch(/may not be modified|not authorized|readonly|corrupt/i);
-    expect(await failed(query(f, "INSERT INTO sqlite_master (type, name, tbl_name, rootpage, sql) VALUES ('table','e','e',2,'CREATE TABLE e (x)')", true, 'write'))).toMatch(/may not be modified|not authorized|readonly/i);
-    expect(readFileSync(f).equals(before)).toBe(true);
-  });
-
   it('쓰기 모드: INSERT·UPDATE·DELETE·DDL 이 실제로 되고 바뀐 행 수를 준다', async () => {
     const f = makeDb(join(kit.dir, 'rw.db'), 'CREATE TABLE t (a INTEGER);');
     const ins = await ok<DbResultSet>(query(f, 'INSERT INTO t VALUES (1),(2),(3)', true, 'write'));
@@ -216,6 +168,72 @@ describe.skipIf(!hasSqlite())('SQLite 엔진(자식 프로세스, 진짜 node:sq
     expect(o.kind).toBe('done');
   });
 });
+
+const MODES: readonly (readonly [string, EngineTestHooks | undefined])[] = [
+  ['전부 켠 채(앱과 같다)', undefined],
+  ['인가 함수 없이(CI 의 Node 22 처럼): 읽기 전용 열기 + 엔진 안 문장 검사', { noAuthorizer: true }],
+  ['문장 검사 없이: 읽기 전용 열기 + SQLite 인가 함수만', { noStatementCheck: true }],
+];
+for (const [mode, hooks] of MODES) {
+  describe.skipIf(!hasSqlite() || (hooks?.noStatementCheck === true && !hasAuthorizer()))(`방어 층 — ${mode}`, () => {
+    let shop = '';
+    afterAll(() => {
+      activeHooks = undefined;
+    });
+    beforeAll(() => {
+      activeHooks = hooks;
+      shop = makeDb(join(kit.dir, `shop-${MODES.findIndex((m) => m[0] === mode)}.db`), SHOP_SEED);
+    });
+    it('읽기 전용으로 열려 있어 INSERT·UPDATE·DELETE·DDL 이 막힌다(문장 검사를 건너뛰어도)', async () => {
+      const before = readFileSync(shop);
+      for (const sql of ["INSERT INTO users (id, name) VALUES (9, 'x')", "UPDATE users SET name = 'x'", 'DELETE FROM users', 'DROP TABLE users', 'CREATE TABLE t2 (a)', 'ALTER TABLE users ADD z', 'CREATE TEMP TABLE tt (a)', 'ANALYZE']) {
+        expect(await failed(query(shop, sql, false, 'write')), sql).toMatch(/not authorized|readonly|not allowed|Write mode|changes the database/i);
+      }
+      expect(readFileSync(shop).equals(before)).toBe(true);
+    });
+
+    it('ATTACH·DETACH·트랜잭션은 쓰기 모드에서도 인가 함수가 거절한다(다른 파일을 열 수 없다)', async () => {
+      const other = makeDb(join(kit.dir, 'secret.db'), "CREATE TABLE s (v); INSERT INTO s VALUES ('top secret');");
+      for (const writable of [false, true]) {
+        for (const sql of [`ATTACH DATABASE '${other.replace(/\\/g, '/')}' AS o`, "ATTACH ':memory:' AS m", 'DETACH DATABASE main', 'BEGIN', 'SAVEPOINT a']) {
+          expect(await failed(query(shop, sql, writable, 'write')), `${sql} writable=${writable}`).toMatch(/not authorized|authoriz|not allowed|Write mode|changes the database|not supported/i);
+        }
+      }
+    });
+
+    it('load_extension 과 파일 함수는 어떻게 불러도 거절된다', async () => {
+      for (const sql of ["SELECT load_extension('x')", "SELECT LOAD_EXTENSION('x','y')", "SELECT readfile('/etc/passwd')", "SELECT writefile('/tmp/x','y')", "SELECT fts3_tokenizer('simple')"]) {
+        expect(await failed(query(shop, sql, true)), sql).toMatch(/not authorized|no such function|authoriz|not allowed/i);
+      }
+    });
+
+    it('PRAGMA 로 값을 바꾸는 시도는 쓰기 모드에서도 거절하고 파일이 그대로다', async () => {
+      const f = makeDb(join(kit.dir, 'pragma.db'), 'CREATE TABLE t (a); PRAGMA user_version = 7;');
+      const before = readFileSync(f);
+      for (const sql of ['PRAGMA user_version = 99', 'PRAGMA writable_schema = 1', 'PRAGMA journal_mode = WAL', 'PRAGMA foreign_keys = OFF', 'PRAGMA user_version(99)', 'PRAGMA wal_checkpoint', 'PRAGMA temp_store_directory = "/tmp"', 'PRAGMA schema_version = 1', 'PRAGMA secure_delete = 0']) {
+        expect(await failed(query(f, sql, true, 'write')), sql).toMatch(/not authorized|authoriz|not allowed|Write mode|changes the database|not supported/i);
+      }
+      expect(readFileSync(f).equals(before)).toBe(true);
+      const v = await ok<DbResultSet>(query(f, 'PRAGMA user_version'));
+      expect(v.rows).toEqual([[7]]);
+    });
+
+    it('안전한 읽기 PRAGMA 와 pragma_ 표 함수는 읽기 전용에서 된다', async () => {
+      expect((await ok<DbResultSet>(query(shop, 'PRAGMA table_info(users)'))).rows).toHaveLength(4);
+      expect((await ok<DbResultSet>(query(shop, "SELECT name FROM pragma_table_info('users') ORDER BY cid"))).rows[0]).toEqual(['id']);
+      expect((await ok<DbResultSet>(query(shop, 'PRAGMA database_list'))).rows[0]![1]).toBe('main');
+    });
+
+    it('sqlite_master 를 직접 고치려는 시도(writable_schema 우회)는 쓰기 모드에서도 실패한다', async () => {
+      const f = makeDb(join(kit.dir, 'schema.db'), 'CREATE TABLE t (a);');
+      const before = readFileSync(f);
+      expect(await failed(query(f, "UPDATE sqlite_master SET sql = 'CREATE TABLE evil (x)' WHERE name = 't'", true, 'write'))).toMatch(/may not be modified|not authorized|readonly|corrupt|Turn on Write mode/i);
+      expect(await failed(query(f, "INSERT INTO sqlite_master (type, name, tbl_name, rootpage, sql) VALUES ('table','e','e',2,'CREATE TABLE e (x)')", true, 'write'))).toMatch(/may not be modified|not authorized|readonly|Turn on Write mode/i);
+      expect(readFileSync(f).equals(before)).toBe(true);
+    });
+
+  });
+}
 
 describe.skipIf(!hasSqlite())('쿼리 시간 제한과 취소(프로세스를 죽인다)', () => {
   let shop = '';

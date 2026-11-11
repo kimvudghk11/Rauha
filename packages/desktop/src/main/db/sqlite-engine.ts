@@ -1,7 +1,7 @@
 import { DB_LIMITS, type DbColumnInfo, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
 import type { DbCell } from '../../shared/db-csv.js';
 import { quoteIdent } from '../../shared/db-names.js';
-import { BLOCKED_FUNCTIONS, isSafePragma, pragmaTakesArgument, type SqlKind } from '../../shared/db-sql.js';
+import { BLOCKED_FUNCTIONS, isSafePragma, pragmaTakesArgument, SqlStatement, type SqlKind } from '../../shared/db-sql.js';
 
 /**
  * SQLite 엔진: Node 에 들어 있는 node:sqlite 를 쓴다(네이티브 모듈을 따로 싣지 않는다).
@@ -13,7 +13,15 @@ export type EngineRequest =
   | { readonly op: 'tables'; readonly file: string }
   | { readonly op: 'detail'; readonly file: string; readonly table: string }
   | { readonly op: 'rows'; readonly file: string; readonly table: string; readonly page: number; readonly sort: { readonly column: string; readonly dir: 'asc' | 'desc' } | null }
-  | { readonly op: 'query'; readonly file: string; readonly sql: string; readonly writable: boolean; readonly kind: SqlKind; readonly verb: string };
+  | { readonly op: 'query'; readonly file: string; readonly sql: string; readonly writable: boolean; readonly kind: SqlKind; readonly verb: string; readonly hooks?: EngineTestHooks };
+
+/** 시험 전용: 방어 층을 하나씩 꺼서 나머지 층만으로도 막히는지 본다(앱은 쓰지 않는다) */
+export interface EngineTestHooks {
+  /** SQLite 인가 함수가 없는 Node(예: CI 의 Node 22)를 흉내 낸다 */
+  readonly noAuthorizer?: boolean;
+  /** 엔진 안의 문장 검사를 건너뛴다(인가 함수만으로 막히는지 본다) */
+  readonly noStatementCheck?: boolean;
+}
 
 export type EngineResponse =
   | { readonly ok: true; readonly data: readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet }
@@ -33,8 +41,8 @@ interface Database {
   prepare(sql: string): Statement;
   exec(sql: string): void;
   close(): void;
-  setAuthorizer(callback: ((action: number, a1: string | null, a2: string | null, dbName: string | null, trigger: string | null) => number) | null): void;
-  enableDefensive(on: boolean): void;
+  setAuthorizer?(callback: ((action: number, a1: string | null, a2: string | null, dbName: string | null, trigger: string | null) => number) | null): void;
+  enableDefensive?(on: boolean): void;
 }
 interface SqliteModule {
   readonly DatabaseSync: new (path: string, options?: Record<string, unknown>) => Database;
@@ -61,7 +69,7 @@ function openDatabase(sqlite: SqliteModule, file: string, writable: boolean): Da
     limits: { length: 64 * MB, sqlLength: 200_000, attach: 0, exprDepth: 200, compoundSelect: 100, functionArg: 32 },
   });
   try {
-    db.enableDefensive(true);
+    db.enableDefensive?.(true);
   } catch {
     /* 오래된 Node 에는 없다: 읽기 전용 열기와 인가 함수가 막는다 */
   }
@@ -98,8 +106,14 @@ function authorizer(c: Readonly<Record<string, number>>, writable: boolean): (ac
   };
 }
 
-/** 읽기 전용 인가(행 보기·스키마 읽기 같은 안쪽 질의용) */
-const readAuthorizer = (sqlite: SqliteModule) => authorizer(sqlite.constants, false);
+/**
+ * 인가 함수를 건다. node:sqlite 의 setAuthorizer 는 Node 24.10+ 에만 있다(Electron 45 의 Node 24 에는 있고, CI 의 Node 22 에는 없다).
+ * 없으면 걸지 않는다 — 그때는 읽기 전용 열기 + 엔진 안의 문장 검사(SqlStatement)가 막는다.
+ */
+function installAuthorizer(db: Database, sqlite: SqliteModule, writable: boolean, off = false): void {
+  if (off || typeof db.setAuthorizer !== 'function') return;
+  db.setAuthorizer(authorizer(sqlite.constants, writable));
+}
 
 function toCell(v: unknown, state: { cellsTruncated: boolean }): { readonly cell: DbCell; readonly size: number } {
   if (v === null || v === undefined) return { cell: null, size: 1 };
@@ -192,19 +206,19 @@ export function runEngine(req: EngineRequest): EngineResponse {
     db = openDatabase(sqlite, req.file, req.op === 'query' && req.writable);
     switch (req.op) {
       case 'tables': {
-        db.setAuthorizer(readAuthorizer(sqlite));
+        installAuthorizer(db, sqlite, false);
         const rows = db.prepare("SELECT name, type FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY type, name").all() as { name: string; type: 'table' | 'view' }[];
         return { ok: true, data: rows.map((r) => ({ name: r.name, kind: r.type })) };
       }
       case 'detail': {
         const entry = schemaEntry(db, req.table);
-        db.setAuthorizer(readAuthorizer(sqlite));
+        installAuthorizer(db, sqlite, false);
         return { ok: true, data: { name: req.table, kind: entry.kind, columns: columnsOf(db, req.table), createSql: entry.sql } };
       }
       case 'rows': {
         const started = performance.now();
         schemaEntry(db, req.table);
-        db.setAuthorizer(readAuthorizer(sqlite));
+        installAuthorizer(db, sqlite, false);
         const names = columnsOf(db, req.table).map((c) => c.name);
         let order = '';
         if (req.sort !== null) {
@@ -219,7 +233,9 @@ export function runEngine(req: EngineRequest): EngineResponse {
       }
       case 'query': {
         const started = performance.now();
-        db.setAuthorizer(authorizer(sqlite.constants, req.writable));
+        // 부모가 이미 검사했지만, 이 프로세스에서도 같은 검사를 한 번 더 한다(인가 함수가 없는 Node 에서는 이것이 읽기/쓰기 구분의 방어선이다)
+        if (req.hooks?.noStatementCheck !== true) SqlStatement.parse(req.sql).assertAllowed({ writeMode: req.writable, confirm: true });
+        installAuthorizer(db, sqlite, req.writable, req.hooks?.noAuthorizer === true);
         const stmt = db.prepare(req.sql);
         if (stmt.columns().length === 0) {
           const info = stmt.run();
