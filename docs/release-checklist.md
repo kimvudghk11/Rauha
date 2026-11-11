@@ -1,8 +1,17 @@
 # 릴리스 점검표 (2026-11-09 월요일용)
 
+## 인수인계 (2026-11-11 오후, 주간 89%에서 새 에이전트를 멈춤; 주간 초기화 11-14 18:00 UTC)
+
+- **릴리스:** v0.1.15 나감(API·Docker 탭, 탭 끌어서 순서 바꾸기, 채팅 @파일·선택 코드 보내기·이미지 붙이기, 작업 Changes 칸·되돌리기, Models 설정·오류 시 대체 실행). README 링크 갱신함.
+- **v0.1.15 이후 main:** 보안 점검 수정 3커밋(59b9d6a API·Docker·IPC, ca0593f 체크포인트, 2b5605b 이미지·멘션·모델 설정). CI 확인 필요 → 초록이면 v0.1.16(패치) 후보.
+- **못 고친 것:** 위험 동작 confirm 은 렌더러 값(네이티브 확인창 필요), docker exec 확인 없음, DNS 리바인딩 틈, git/터미널의 PATH 실행 파일 선택 미점검, clean filter 미차단, repoRoot 가 하위 폴더일 때 경로 기준.
+- **확인 못 한 것:** 맥 실행 전부, Docker 실제 엔진, 실제 모델의 @파일·이미지 사용, 모델 대체 실행의 실제 오류 메시지 매칭(model-fallback.ts 정규식), 확인창 화면 스크린샷.
+- **다음 로드맵:** DB 탭(0.1.18), 진짜 PTY 터미널, Git blame/그래프/3-way 충돌, Problems 패널·정의 이동, 줄 단위 Accept/Reject.
+- **사용자 요청 대기:** 주간 업무 일지(내 git worktree 전부 읽기: E:/rauha, E:/bridge-backend, E:/zzenddo-plugin + E:/rauha-bench 2개), GitHub 로그인 방식 답(자동 커밋→PR→머지, qa 브랜치만).
+
 사실만 적어요. 확인하지 못한 것은 "확인 못 함"이에요. 사용법은 `docs/desktop-guide.md`.
 
-## 인수인계 (2026-11-11 낮, 세션 89%·주간 80%에서 에이전트를 멈춤; 세션 초기화 11-11 04:40 UTC = 13:40 KST)
+## (이전) 인수인계 (2026-11-11 낮, 세션 89%·주간 80%에서 에이전트를 멈춤; 세션 초기화 11-11 04:40 UTC = 13:40 KST)
 
 - **배포 상태**: 마지막 태그 `v0.1.13`(설치 파일 3개). main 에는 0.1.14 후보가 쌓여 있다: 작업 실패 개선(커밋 안 한 변경 위에서 일함·다른 레포 이름은 읽기 전용·테스트 없는 프로젝트 처리·멈춤 이유 구분·git mv 무허락·"Needs your answer" 카드·Retry 가 이유 반영), Repo 편집기 자동 저장(Settings > Editor), 최근 작업 폴더 5개, Git Stash 탭, Ctrl/Cmd+1~8 탭 전환·Ctrl/Cmd+Shift+/ 단축키 안내, Settings 한도 줄 간격·탭 이름 Slash. **CI 결과를 보고(마지막 확인 때 16fc746 까지 success, 그 뒤 실행은 대기열) 초록이면 `v0.1.14` 태그(버전 올리는 커밋 → push → 태그 push), README 링크·크기 갱신.** 새 탭(API·Docker)은 아직 탭 등록 전이라 화면에 안 보인다.
 - **진행 중이던 올인원 로드맵(docs/roadmap-all-in-one.md, 사용자 요청: VS Code·Apidog·Docker Desktop·확장·GitHub Desktop 을 Rauha 하나로)**:
