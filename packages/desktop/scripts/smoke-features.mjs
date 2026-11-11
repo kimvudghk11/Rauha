@@ -197,6 +197,11 @@ let failed = 0;
 for (const r of results) {
   if (!r.ok) failed++;
   console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.label}${r.ok ? '' : `\n      ${r.detail}`}`);
+  // CI 로그는 로그인 없이 못 보므로, 실패는 GitHub 주석(annotation)으로도 남긴다(공개 API 로 읽힌다).
+  if (!r.ok && process.env.GITHUB_ACTIONS === 'true') {
+    const esc = (s) => String(s).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    console.log(`::error title=${esc(`smoke:features ${process.platform}: ${r.label}`).replace(/[:,]/g, ' ')}::${esc(String(r.detail ?? '').slice(0, 1500))}`);
+  }
 }
 rmSync(tmp, { recursive: true, force: true });
 if (failed > 0) {
