@@ -3,12 +3,14 @@ import type { Hunk, PatchMode, Selection } from './git-diff.js';
 import type { ConventionsView } from './git-conventions-view.js';
 import type { BranchView, LogRow } from './git-lists.js';
 import type { WorktreeView } from './git-worktrees.js';
+import type { StashView } from './git-stash.js';
 
 /** git 탭이 main에 부를 수 있는 함수 이름. 이 목록에 없는 이름은 main이 받지 않는다. */
 export const GIT_FUNCTIONS = [
   'overview', 'diff', 'stage', 'unstage', 'stageSelection', 'discard', 'commit',
   'branches', 'createBranch', 'switchBranch', 'merge', 'deleteBranch', 'fetch', 'pull', 'push',
   'conventions', 'undoCommit', 'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr', 'worktrees',
+  'stashList', 'stash', 'stashApply', 'stashPop', 'stashDrop',
 ] as const;
 export type GitFn = (typeof GIT_FUNCTIONS)[number];
 
@@ -82,6 +84,19 @@ export interface GitCalls {
   finishMerge: [void, Done];
   abortMerge: [void, Done];
   openPr: [{ base: string }, { url: string }];
+  stashList: [void, readonly StashView[]];
+  /** 바뀐 파일을 stash 로 치운다(메시지는 선택, 새 파일 포함 여부) */
+  stash: [{ message?: string; includeUntracked?: boolean }, Done];
+  stashApply: [StashTarget, Done];
+  stashPop: [StashTarget, Done];
+  /** 되돌릴 수 없는 동작: 화면은 확인 창을 거친다 */
+  stashDrop: [StashTarget, Done];
+}
+
+/** 어느 stash 인가: 번호와 그 stash 의 커밋 해시(번호가 밀렸는지 main 이 맞춰 본다) */
+export interface StashTarget {
+  readonly index: number;
+  readonly hash: string;
 }
 
 export type GitArg<K extends GitFn> = GitCalls[K][0];

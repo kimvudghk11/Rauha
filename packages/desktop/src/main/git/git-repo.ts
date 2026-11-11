@@ -3,7 +3,8 @@ import { join, resolve } from 'node:path';
 import { type ConfirmArg, type Done, type DiffView, type FileDiffView, type Overview, protectedMessage } from '../../shared/git-api.js';
 import { ChangeSet } from '../../shared/git-changes.js';
 import { FileDiff, type PatchMode, type Selection } from '../../shared/git-diff.js';
-import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath } from '../../shared/git-guard.js';
+import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath, StashMessage, type StashRef } from '../../shared/git-guard.js';
+import { classifyStashApply, parseStashes, STASH_FORMAT, stashDropMessage, type StashView } from '../../shared/git-stash.js';
 import { BRANCH_FORMAT, branchView, LOG_FORMAT, LOG_LIMIT, parseBranches, parseLog } from '../../shared/git-lists.js';
 import { parseWorktrees, type WorktreeView } from '../../shared/git-worktrees.js';
 import { knownGitError, knownLocalGitError, pullDoneMessage } from '../../shared/git-toolbar.js';
@@ -334,6 +335,50 @@ export class GitRepo {
   async abortMerge(): Promise<Done> {
     await this.git(['merge', '--abort']);
     return ok('Merge aborted and everything restored.');
+  }
+
+  async stashList(): Promise<StashView[]> {
+    return parseStashes(await this.git(['stash', 'list', `--format=${STASH_FORMAT}`]));
+  }
+
+  /**
+   * 바뀐 파일을 stash 로 치운다. 첫 커밋이 없거나, 충돌이 남았거나, 치울 변경이 없으면 막는다(빈 stash 를 만들지 않는다).
+   * 메시지는 값 객체로 검증하고, 새 파일 포함(--include-untracked)도 무시한 파일(.gitignore)은 건드리지 않는다.
+   */
+  async stash(message: unknown, includeUntracked: boolean): Promise<Done> {
+    const msg = StashMessage.parse(message).value;
+    if (!(await this.hasHead())) throw new GitFailure('BLOCKED', 'Make the first commit before stashing.');
+    const s = await this.status();
+    if (s.hasConflicts() || (await this.isMerging())) throw new GitFailure('BLOCKED', 'Resolve the conflicts or finish the merge before stashing.');
+    if (!s.files.some((f) => includeUntracked || !f.isUntracked())) throw new GitFailure('BLOCKED', includeUntracked ? 'Nothing to stash.' : 'Nothing to stash (new files are not included).');
+    await this.local(() => mustGit(this.root, ['stash', 'push', ...(includeUntracked ? ['--include-untracked'] : []), ...(msg === '' ? [] : ['-m', msg])], undefined, 'BLOCKED'));
+    return ok(msg === '' ? 'Stashed your changes.' : `Stashed your changes: ${msg}`);
+  }
+
+  /** 목록을 본 뒤 번호가 밀렸으면(그 번호의 해시가 다르면) 아무것도 하지 않는다 */
+  private async assertStash(ref: StashRef): Promise<void> {
+    const r = await runGit(this.root, ['rev-parse', '-q', '--verify', ref.name]);
+    if (r.code !== 0 || r.stdout.trim() !== ref.hash) throw new GitFailure('BLOCKED', 'The stash list changed. Reload the list and try again.');
+  }
+
+  private async applyStash(mode: 'apply' | 'pop', ref: StashRef): Promise<Done> {
+    await this.assertStash(ref);
+    const out = classifyStashApply(mode, await runGit(this.root, ['stash', mode, ref.name]), ref.name);
+    if (out.kind === 'blocked') throw new GitFailure('BLOCKED', out.message);
+    return ok(out.message, out.kind === 'conflict' ? { conflicts: true } : {});
+  }
+
+  stashApply(ref: StashRef): Promise<Done> {
+    return this.applyStash('apply', ref);
+  }
+
+  stashPop(ref: StashRef): Promise<Done> {
+    return this.applyStash('pop', ref);
+  }
+
+  async stashDrop(ref: StashRef): Promise<Done> {
+    await this.assertStash(ref);
+    return ok(stashDropMessage(ref.name, await this.git(['stash', 'drop', ref.name])));
   }
 
   /** GitHub 비교 주소(PR 만들기 화면). GitHub 원격이 아니면 실패한다. */

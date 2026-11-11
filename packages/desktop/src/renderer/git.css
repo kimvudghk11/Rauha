@@ -115,3 +115,8 @@ textarea.ginput, input.ginput { width: 100%; }
 /* 좁은 창(s·xs): 왼쪽 칸이 목록과 커밋 입력을 함께 담아 목록이 한 줄만 보이던 것 — 칸 전체가 스크롤되고 목록은 적당한 높이를 가진다 */
 .app[data-tier=s] .gside, .app[data-tier=xs] .gside { overflow-y: auto; }
 .app[data-tier=s] .gfiles, .app[data-tier=xs] .gfiles { flex: none; max-height: 220px; min-height: 0; }
+
+/* Stash 탭: 위쪽 도구줄이 좁은 폭에서 줄바꿈된다. 겉모양은 .btn .ginput .hint */
+.gstash-tools { flex-wrap: wrap; align-items: center; }
+.gstash-tools .ginput { min-width: 160px; }
+.gstash-check { display: inline-flex; align-items: center; gap: var(--s1); white-space: nowrap; }

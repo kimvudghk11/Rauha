@@ -414,3 +414,134 @@ describe('git 탭 main (임시 저장소)', () => {
     expect(await call(r, 'undoCommit')).toMatchObject({ ok: false, code: 'BLOCKED' });
   });
 });
+
+describe('git 탭 stash (임시 저장소)', () => {
+  type Row = { index: number; hash: string; message: string; branch: string };
+  const listOf = (r: string) => data<Row[]>(r, 'stashList');
+  const dirty = (r: string) => {
+    write(r, 'a.txt', 'changed\n');
+    write(r, 'new.txt', 'brand new\n');
+  };
+  const base = () => {
+    const r = newRepo();
+    write(r, 'a.txt', 'base\n');
+    commitAll(r);
+    return r;
+  };
+
+  it('바뀐 파일과 새 파일을 메시지와 함께 stash 하면 작업 폴더가 깨끗해지고 목록에 나타난다', async () => {
+    const r = base();
+    dirty(r);
+    const done = await data<{ message: string }>(r, 'stash', { message: '결제 작업 중', includeUntracked: true });
+    expect(done.message).toContain('결제 작업 중');
+    expect(sh(r, 'status', '--porcelain').trim()).toBe('');
+    const list = await listOf(r);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ index: 0, message: '결제 작업 중', branch: 'main' });
+  });
+
+  it('새 파일 포함을 끄면 추적 중인 파일만 stash 하고 새 파일은 그대로 둔다', async () => {
+    const r = base();
+    dirty(r);
+    await data(r, 'stash', { includeUntracked: false });
+    expect(sh(r, 'status', '--porcelain').trim()).toBe('?? new.txt');
+  });
+
+  it('stash 할 변경이 없으면 막는다(빈 stash 를 만들지 않는다)', async () => {
+    const r = base();
+    expect(await call(r, 'stash', { includeUntracked: true })).toMatchObject({ ok: false, code: 'BLOCKED' });
+    write(r, 'only-new.txt', 'x\n');
+    expect(await call(r, 'stash', { includeUntracked: false })).toMatchObject({ ok: false, code: 'BLOCKED' });
+    expect(await listOf(r)).toHaveLength(0);
+  });
+
+  it('첫 커밋이 없는 저장소에서는 stash 하지 않는다', async () => {
+    const empty = newRepo();
+    write(empty, 'x', '1');
+    expect(await call(empty, 'stash', { includeUntracked: true })).toMatchObject({ ok: false, code: 'BLOCKED' });
+  });
+
+  it('Apply 는 stash 를 남기고, Pop 은 적용한 뒤 목록에서 지운다', async () => {
+    const r = base();
+    dirty(r);
+    await data(r, 'stash', { includeUntracked: true });
+    const [s] = await listOf(r);
+    await data(r, 'stashApply', { index: 0, hash: s?.hash });
+    expect(readFileSync(join(r, 'a.txt'), 'utf8')).toBe('changed\n');
+    expect(await listOf(r)).toHaveLength(1);
+    sh(r, 'checkout', '--', 'a.txt');
+    sh(r, 'clean', '-fq');
+    await data(r, 'stashPop', { index: 0, hash: s?.hash });
+    expect(readFileSync(join(r, 'new.txt'), 'utf8')).toBe('brand new\n');
+    expect(await listOf(r)).toHaveLength(0);
+  });
+
+  it('지금 변경과 겹쳐 덮어써질 것 같으면 적용하지 않고 stash 도 지우지 않는다', async () => {
+    const r = base();
+    dirty(r);
+    await data(r, 'stash', { includeUntracked: false });
+    write(r, 'a.txt', 'other edit\n');
+    const [s] = await listOf(r);
+    const res = await call(r, 'stashPop', { index: 0, hash: s?.hash });
+    expect(res).toMatchObject({ ok: false, code: 'BLOCKED' });
+    expect(readFileSync(join(r, 'a.txt'), 'utf8')).toBe('other edit\n');
+    expect(await listOf(r)).toHaveLength(1);
+  });
+
+  it('적용하다 충돌이 나면 충돌로 알리고 Pop 이어도 stash 를 남긴다', async () => {
+    const r = base();
+    write(r, 'a.txt', 'mine\n');
+    await data(r, 'stash', { includeUntracked: true });
+    write(r, 'a.txt', 'theirs\n');
+    commitAll(r, 'other');
+    const [s] = await listOf(r);
+    const done = await data<{ conflicts?: boolean; message: string }>(r, 'stashPop', { index: 0, hash: s?.hash });
+    expect(done.conflicts).toBe(true);
+    expect(await listOf(r)).toHaveLength(1);
+    expect((await data<{ conflicts: string[] }>(r, 'mergeState')).conflicts).toEqual(['a.txt']);
+  });
+
+  it('Drop 은 그 stash 하나만 지우고 되살릴 해시를 알린다', async () => {
+    const r = base();
+    dirty(r);
+    await data(r, 'stash', { message: 'first', includeUntracked: true });
+    write(r, 'a.txt', 'second\n');
+    await data(r, 'stash', { message: 'second', includeUntracked: true });
+    const list = await listOf(r);
+    expect(list.map((x) => x.message)).toEqual(['second', 'first']);
+    const done = await data<{ message: string }>(r, 'stashDrop', { index: 1, hash: list[1]?.hash });
+    expect(done.message).toContain('git stash apply');
+    expect((await listOf(r)).map((x) => x.message)).toEqual(['second']);
+  });
+
+  it('목록을 본 뒤 번호가 밀렸으면(해시가 다르면) 아무것도 하지 않는다', async () => {
+    const r = base();
+    dirty(r);
+    await data(r, 'stash', { message: 'old', includeUntracked: true });
+    const [old] = await listOf(r);
+    write(r, 'a.txt', 'newer\n');
+    await data(r, 'stash', { message: 'newer', includeUntracked: true });
+    const res = await call(r, 'stashDrop', { index: 0, hash: old?.hash });
+    expect(res).toMatchObject({ ok: false, code: 'BLOCKED' });
+    expect(await listOf(r)).toHaveLength(2);
+  });
+
+  it('옵션처럼 읽히는 번호·해시·메시지, 없는 번호는 받지 않는다', async () => {
+    const r = base();
+    dirty(r);
+    await data(r, 'stash', { includeUntracked: true });
+    const [s] = await listOf(r);
+    for (const arg of [{ index: '--all', hash: s?.hash }, { index: -1, hash: s?.hash }, { index: 0, hash: '--all' }, { index: 0 }, { index: 7, hash: s?.hash }]) {
+      for (const fn of ['stashApply', 'stashPop', 'stashDrop'] as const) expect(await call(r, fn, arg)).toMatchObject({ ok: false });
+    }
+    expect(await call(r, 'stash', { message: 'a\nb' })).toMatchObject({ ok: false, code: 'INVALID' });
+    expect(await call(r, 'stash', { message: 5 })).toMatchObject({ ok: false, code: 'INVALID' });
+    expect(await listOf(r)).toHaveLength(1);
+  });
+
+  it('stash 함수는 허용 목록에 있는 이름만 받는다', async () => {
+    const r = base();
+    expect(await call(r, 'stashClear' as GitFn)).toMatchObject({ ok: false, code: 'INVALID' });
+    expect(await call(r, 'stash --all' as GitFn)).toMatchObject({ ok: false, code: 'INVALID' });
+  });
+});

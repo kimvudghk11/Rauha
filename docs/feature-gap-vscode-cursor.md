@@ -70,7 +70,7 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 | 브랜치 만들기·전환·삭제·머지 | 있음 | 같음 | 있음 (`createBranch/switchBranch/merge/deleteBranch`) | ★★★ | - | 이미 있음 |
 | Fetch/Pull/Push | 있음 | 같음 | 있음, 보호 브랜치 확인 창 포함 | ★★★ | - | 이미 있음 |
 | 히스토리·커밋 diff | Graph [V5] | 같음 | 일부: 목록+diff(`log`, `commitDiff`), 그래프 선 없음 | ★★ | M | P2 |
-| stash | 있음 [V5] | 같음 | 없음 (`GIT_FUNCTIONS` 에 없음) | ★★★ | S | **P1** |
+| stash | 있음 [V5] | 같음 | **구현함(6절)** (git 탭 Stash 탭, `shared/git-stash.ts`) | ★★★ | S | **P1** |
 | blame | 있음 [V5] | 같음 | 없음 | ★★ | M | P2 |
 | 충돌 해결 | 인라인 + 3-way 편집기 [V5] | 같음 | 일부: 내 것/상대 것/텍스트 직접 편집 (`resolveSide`, `readConflict`, `writeConflict`), 3-way 화면 없음 | ★★ | L | P2 |
 | 커밋 취소 | 있음 | 같음 | 있음 (`undoCommit` soft reset) | ★★ | - | 이미 있음 |
@@ -153,7 +153,7 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 - **최근 폴더(P1) [구현함]**: `Settings.recentFolders`(최대 5, 겹침 없음)를 설정 화면의 작업 폴더 칸과 첫 실행 마법사에 목록으로 보인다. 영향: `shared/settings.ts`, `shared/recent-folders.ts`(+spec), `renderer/recent-folders-view.ts`, `renderer/settings-view.ts`, `renderer/first-run.ts`.
 
 ### 그다음 (v0.1.15): 맡긴 일을 확인하는 흐름
-- **git stash(P1)**: `GIT_FUNCTIONS` 에 `stash/stashPop/stashList` 추가, 변경 탭에 "Stash" 단추. 영향: `shared/git-api.ts`, `main/git/git-dispatch.ts`, `main/git/git-repo.ts`, `renderer/git-changes-view.ts`.
+- **git stash(P1) [구현함]**: `GIT_FUNCTIONS` 에 `stashList/stash/stashApply/stashPop/stashDrop` 추가, git 탭에 "Stash" 탭(메시지·새 파일 포함·목록·Apply/Pop/Drop). 영향: `shared/git-api.ts`, `shared/git-guard.ts`(StashRef·StashMessage), `shared/git-stash.ts`(+spec), `main/git/git-dispatch.ts`, `main/git/git-repo.ts`, `renderer/git-stash-view.ts`, `renderer/git-view.ts`.
 - **작업 되돌리기(체크포인트 역할)(P1)**: 끝난 일 카드에 "이 작업 이전으로" — worktree 브랜치를 버리거나 되돌린다. 허락 카드 거쳐 실행. 영향: `main/workspace/git-worktree.ts`, `renderer/chat-view.ts`.
 - **채팅 @파일(P1)**: `@` 입력 시 파일·폴더 자동완성(코드 탭 `fileCache` 재사용), 고른 파일 경로를 요청 앞에 붙인다. 영향: `renderer/command-suggest.ts`(또는 새 `mention-suggest.ts`), `renderer/chat-view.ts`.
 
@@ -173,6 +173,7 @@ VS Code 와 Cursor 가 가진 편집기 기능은 Rauha 에 없는 것이 많지
 |---|---|
 | 편집기 자동 저장 | 구현함 (Off 기본 / After delay (1s) / On focus change). 읽기 전용·디스크에서 바뀐 파일·같은 글로 한 번 실패한 파일은 저장하지 않고, 충돌 질문 창을 띄우지 않으며, 질문 창이 떠 있을 때도 저장하지 않는다. 비밀 파일은 main 이 쓰기를 거절한다. 성공은 상태줄 "Auto-saved", 실패는 편집기 위 안내. 테스트 `shared/auto-save.spec.ts`, 숨김 창 확인 |
 | 최근 작업 폴더 | 구현함 (최대 5개, 설정 Work folder 와 첫 실행 마법사). 고르면 설정은 "Allow work in this folder?" 확인 창, 마법사는 2/3 허락 단계를 그대로 거친다. 사라진 폴더는 흐리게 "Not found" + Remove. 테스트 `shared/settings.spec.ts`, `shared/recent-folders.spec.ts` |
+| git stash | 구현함 (git 탭의 Stash 탭: 메시지 + "Include new files", 목록, Apply(남김) / Pop(지움) / Drop(확인 창). 번호와 stash 커밋 해시를 함께 보내 목록이 바뀐 사이 엉뚱한 stash 를 건드리지 않고, 덮어써질 변경이면 막고, 충돌이면 Conflicts 탭으로 보내며 stash 는 남긴다. 첫 커밋 없음·충돌 중·치울 변경 없음도 막는다. 옵션처럼 읽히는 번호·해시·메시지는 `StashRef`/`StashMessage` 가 거절). 테스트 `shared/git-guard.spec.ts`, `shared/git-stash.spec.ts`, `main/git/git-dispatch.spec.ts` |
 | 앱 탭 전환 Ctrl/Cmd+1~8 | 구현함 (왼쪽 막대 순서, 탭 단추 툴팁에 키 표시, 창이 떠 있으면 무시). 테스트 `shared/tab-shortcut.spec.ts` |
 | 단축키 안내창 Ctrl/Cmd+Shift+/ | 구현함 (Shift 없는 Ctrl+/ 는 편집기 주석 전환이라 쓰지 않음). 테스트 `shared/shortcut-sheet.spec.ts` |
 

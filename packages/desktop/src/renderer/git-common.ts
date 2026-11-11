@@ -17,7 +17,7 @@ export interface GitCtx {
   changed(): Promise<void>;
   /** 방금 읽은 overview를 헤더에 그대로 쓴다(같은 걸 한 번 더 읽지 않는다) */
   adopt(overview: Overview): void;
-  goto(view: 'changes' | 'branches' | 'history' | 'conflicts'): void;
+  goto(view: 'changes' | 'branches' | 'history' | 'stash' | 'conflicts'): void;
   /** 보호 브랜치 이름인지(칩 표시용) */
   isProtected(name: string): boolean;
   /** 지금 브랜치 이름(분리된 HEAD면 null) */

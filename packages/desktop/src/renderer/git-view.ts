@@ -4,6 +4,7 @@ import { ProtectedBranches } from '../shared/git-guard.js';
 import { el } from './dom.js';
 import { buildChanges } from './git-changes-view.js';
 import { buildBranches, buildConflicts, buildHistory } from './git-lists-view.js';
+import { buildStash } from './git-stash-view.js';
 import { askDialog, type GitCtx } from './git-common.js';
 import { openBranchMenu, openNewBranchDialog } from './git-branch-ui.js';
 import { gitIcon } from './git-icons.js';
@@ -19,7 +20,7 @@ interface SubView {
   refresh(): Promise<void>;
 }
 
-const VIEW_LABEL: Readonly<Record<ViewId, string>> = { changes: 'Changes', branches: 'Branches', history: 'History', conflicts: 'Conflicts' };
+const VIEW_LABEL: Readonly<Record<ViewId, string>> = { changes: 'Changes', branches: 'Branches', history: 'History', stash: 'Stash', conflicts: 'Conflicts' };
 export const REMEMBER = 'rauha.git.repo';
 
 const remembered = (): string | null => {
@@ -109,7 +110,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   };
 
   const sub = (id: ViewId): SubView => {
-    const found = views[id] ?? (id === 'changes' ? buildChanges(ctx) : id === 'branches' ? buildBranches(ctx) : id === 'history' ? buildHistory(ctx) : buildConflicts(ctx));
+    const found = views[id] ?? (id === 'changes' ? buildChanges(ctx) : id === 'branches' ? buildBranches(ctx) : id === 'history' ? buildHistory(ctx) : id === 'stash' ? buildStash(ctx) : buildConflicts(ctx));
     if (found === undefined) {
       const stub = { root: el('div', 'dim pad', 'Coming soon.'), refresh: async () => {} };
       return (views[id] = stub);

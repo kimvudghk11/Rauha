@@ -1,5 +1,5 @@
-/** git 탭 안의 화면 넷 */
-export type GitViewId = 'changes' | 'branches' | 'history' | 'conflicts';
+/** git 탭 안의 화면 다섯 */
+export type GitViewId = 'changes' | 'branches' | 'history' | 'stash' | 'conflicts';
 
 export interface TabState {
   readonly merging: boolean;
@@ -11,7 +11,7 @@ export interface TabState {
  * 상태를 아직 모르면(null) 충돌 탭 없이 기본 셋만 보인다.
  */
 export function visibleGitViews(state: TabState | null): GitViewId[] {
-  const show: GitViewId[] = ['changes', 'branches', 'history'];
+  const show: GitViewId[] = ['changes', 'branches', 'history', 'stash'];
   if (state !== null && (state.merging || state.files.some((f) => f.conflict))) show.push('conflicts');
   return show;
 }
