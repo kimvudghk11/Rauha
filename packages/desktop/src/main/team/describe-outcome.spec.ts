@@ -39,6 +39,12 @@ describe('describeOutcome', () => {
     expect(text).not.toContain('섞여');
   });
 
+  it('테스트를 실행할 수 없어 테스트 없이 구현했으면 그 사실과 직접 실행해 보라는 말을 남긴다', () => {
+    const text = describeOutcome(work({ testless: true }));
+    expect(text).toContain('테스트를 실행할 수 없어서');
+    expect(text).toContain('직접 한 번 실행');
+  });
+
   it('돈(달러)은 보이지 않는다', () => {
     expect(describeOutcome(work())).not.toMatch(/\$|1\.23/);
   });

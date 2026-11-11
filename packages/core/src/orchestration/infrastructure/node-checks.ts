@@ -99,13 +99,18 @@ function shellQuote(arg: string): string {
   return /^[\w./:@=+,-]+$/.test(arg) ? arg : `"${arg.replace(/"/g, '\\"')}"`;
 }
 
+/** 테스트 스크립트가 없거나(npm init 기본값 포함) 테스트 도구 실행 파일이 없을 때의 출력 */
+const NO_RUNNER = /Missing script:\s*"?test|no test specified|^\s*(?:\/bin\/)?(?:sh|bash|zsh)\b[^\n]*: (?:command )?not found|is not recognized as an internal or external command|spawn \S+ ENOENT/im;
+
 /**
  * vitest 보고서 + 종료 코드 → TestRun. 보고서가 통과여도 종료 코드가 0이 아니면
  * (처리되지 않은 오류 등) 실패로 본다. 보고서가 없으면 종료 코드만으로 판정한다.
  */
-export function testsOutcome(report: VitestReportDto | null, exitCode: number): TestRun {
+export function testsOutcome(report: VitestReportDto | null, exitCode: number, output = ''): TestRun {
   if (report === null) {
-    return exitCode === 0 ? TestRun.of({ passed: 1, failed: 0 }) : TestRun.of({ passed: 0, failed: 1, failedNames: ['(세부 정보 없음)'] });
+    if (exitCode === 0) return TestRun.of({ passed: 1, failed: 0 });
+    if (NO_RUNNER.test(output)) return TestRun.of({ passed: 0, failed: 1, failureKind: 'no-runner', failedNames: ['(테스트를 실행할 방법이 없음)'] });
+    return TestRun.of({ passed: 0, failed: 1, failedNames: ['(세부 정보 없음)'] });
   }
   const run = report.toTestRun();
   if (run.failed > 0 || exitCode === 0) return run;
@@ -157,7 +162,7 @@ export class NodeChecks implements ChecksPort {
     const command = project.testFilesCommand(files, outFile);
     const result = await this.exec(command, dir);
     const report = await this.readVitest(outFile);
-    const run = testsOutcome(report, result.code);
+    const run = testsOutcome(report, result.code, result.output);
     const reportDigest = report?.failureDigest() ?? '';
     const digest = run.failed === 0 ? '' : reportDigest !== '' ? reportDigest : tail(result.output, 12);
     const shown = this.display(command, outFile);

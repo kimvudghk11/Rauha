@@ -73,6 +73,8 @@ export interface RunOutcome {
   readonly userFiles?: readonly string[];
   /** 그중 rauha가 또 고친 파일(git 차이에서 두 사람의 변경이 섞여 보인다) */
   readonly mixedFiles?: readonly string[];
+  /** 이 프로젝트에서 테스트를 실행할 수 없어 테스트 없이 구현하고 타입 검사·리뷰로만 확인했는지 */
+  readonly testless?: boolean;
 }
 
 /** 대화 세션이 접수 팀장에게 함께 넘기는 맥락 */
@@ -159,6 +161,9 @@ export interface MinimalLoopDeps {
   readonly knowledge?: KnowledgePort;
 }
 
+/** 테스트 없이 진행할 때 잠긴 테스트 자리를 채우는 통과 결과(실제로 돌린 것이 아니다) */
+const NO_TESTS = { run: TestRun.of({ passed: 1, failed: 0 }), ids: [] as string[], passed: [] as string[], digest: '', command: '' };
+
 const NO_LOCK: HeldLock = { release: async () => undefined };
 
 /** 한 번 실행하는 동안의 기록. 판정에는 쓰지 않는다. */
@@ -205,6 +210,8 @@ export class MinimalLoopService {
   private basis: string | null = null;
   /** 이번 실행을 시작할 때의 작업 트리 상태 */
   private startState: WorkspaceState = WorkspaceState.of([]);
+  /** 테스트를 실행할 방법이 없어 Red 없이 진행한 실행인지 */
+  private testless = false;
 
   constructor(private readonly deps: MinimalLoopDeps) {}
 
@@ -304,6 +311,10 @@ export class MinimalLoopService {
         await this.call('tester', message, TESTER_REPORT_SCHEMA, order, tally, decision.assignment.tier);
         const result = await this.judgeRed(order, current.start);
         await log.recordChecks(`red-${attempt}`, result.checks);
+        if (result.noRunner) {
+          this.testless = true;
+          progress.step('이 프로젝트에서는 테스트를 실행할 수 없어요(test 스크립트나 테스트 도구가 없음). 테스트 없이 구현하고 타입 검사·리뷰로 확인합니다');
+        }
         lockedTests = result.testFiles;
         current.lockedTests = lockedTests;
         redFeedback = result.feedback;
@@ -317,7 +328,9 @@ export class MinimalLoopService {
         brief,
         `<locked_tests>\n${lockedTests.join('\n')}\n</locked_tests>`,
         await this.filesBlock([...lockedTests, ...dto.readFirst]),
-        '<task>잠긴 테스트를 통과시키는 최소 구현을 하세요. 테스트 파일은 고칠 수 없습니다.</task>',
+        this.testless
+          ? '<task>수용 기준을 만족하는 최소 구현을 하세요. 이 프로젝트에서는 테스트를 실행할 수 없으니 테스트를 새로 만들거나 고치지 마세요. 대신 타입 검사와 직접 실행해 본 결과로 확인하세요.</task>'
+          : '<task>잠긴 테스트를 통과시키는 최소 구현을 하세요. 테스트 파일은 고칠 수 없습니다.</task>',
         handoff !== '' ? `<handoff>\n이전 시도의 실패 요약입니다.\n${handoff}\n</handoff>` : '',
         lastFailure !== null ? `<last_failure>\n지난 시도에서 rauha가 직접 본 실패 메시지입니다.\n${lastFailure}\n</last_failure>` : '',
         order.isEscalated() ? ESCALATION_NOTE : '',
@@ -344,18 +357,19 @@ export class MinimalLoopService {
       }
 
       progress.step('검증 묶음을 실행합니다');
-      const locked = await checks.runTests(lockedTests);
+      const locked = this.testless ? NO_TESTS : await checks.runTests(lockedTests);
       review.passed = locked.passed;
       const lockedCheck = Verification.lockedTests(locked.run, locked.command, locked.digest);
+      const lockedChecks = this.testless ? [] : [lockedCheck];
       // 시도마다는 바뀐 곳 관련 검사만, 전체 검사는 통과한 뒤 리뷰로 넘어가기 직전에 한 번만.
       const quick = await checks.runQuick(changed);
-      let results = [lockedCheck, ...quick.results];
+      let results = [...lockedChecks, ...quick.results];
       verdict = Verification.of(results).judge(baseline);
       if (quick.narrowed) await log.recordChecks(`quick-${attempt}`, results);
       let confirmed = !quick.narrowed;
       if (verdict.needsFullConfirmation(quick.narrowed)) {
         progress.step('리뷰 직전 전체 검사를 실행합니다');
-        results = [lockedCheck, ...(await checks.runSuite())];
+        results = [...lockedChecks, ...(await checks.runSuite())];
         verdict = Verification.of(results).judge(baseline);
         confirmed = true;
       }
@@ -525,7 +539,7 @@ export class MinimalLoopService {
 
   // ── Red 판정 ──────────────────────────────────────────────
 
-  private async judgeRed(order: WorkOrder, start: WorkspaceSnapshot): Promise<{ testFiles: string[]; feedback: string | null; checks: ReturnType<typeof Verification.lockedTests>[] }> {
+  private async judgeRed(order: WorkOrder, start: WorkspaceSnapshot): Promise<{ testFiles: string[]; feedback: string | null; checks: ReturnType<typeof Verification.lockedTests>[]; noRunner?: boolean }> {
     const { workspace } = this.deps;
     const changes = workspace.changesBetween(start, await workspace.snapshot());
     const paths = changes.map((c) => c.path);
@@ -543,6 +557,11 @@ export class MinimalLoopService {
       return { testFiles, feedback: '테스트 파일을 만들거나 고치지 않았습니다.', checks: [] };
     }
     const result = await this.deps.checks.runTests(testFiles);
+    // 테스트를 돌릴 방법 자체가 없으면 테스트를 아무리 고쳐도 소용없다: Red를 건너뛰고 구현으로 간다.
+    if (result.run.cannotRun()) {
+      order.proceedWithoutTests();
+      return { testFiles: [], feedback: null, checks: [], noRunner: true };
+    }
     order.recordRed(result.run);
     const problem = result.run.redProblem();
     return {
@@ -675,6 +694,7 @@ export class MinimalLoopService {
       logDir,
       basis: this.basis,
       memberStop: guideProps.memberStop,
+      testless: this.testless,
       userFiles: this.startState.userFiles(),
       mixedFiles: this.startState.mixedWith(changedInRun.map((c) => c.path)),
     };

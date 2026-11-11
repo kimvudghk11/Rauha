@@ -438,6 +438,24 @@ describe('MinimalLoopService', () => {
     expect(steps.some((m) => m.includes('원인부터'))).toBe(true);
   });
 
+  it('테스트를 실행할 방법이 없는 프로젝트는 Red를 헛돌지 않고 테스트 없이 구현한 뒤 그 사실을 결과에 남긴다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const noRunner: ChecksPort = {
+      ...new FakeChecks(ws),
+      runTests: async () => ({ run: TestRun.of({ passed: 0, failed: 1, failureKind: 'no-runner', failedNames: ['(테스트를 실행할 방법이 없음)'] }), ids: [], passed: [], digest: 'Missing script: "test"', command: 'npm run test -- src/money.spec.ts' }),
+      runQuick: async () => ({ results: [{ name: 'tests', status: 'skip', failures: [], command: null, summary: '스크립트 없음' }], narrowed: false }),
+      runSuite: async () => [{ name: 'tests', status: 'skip', failures: [], command: null, summary: '스크립트 없음' }],
+    };
+    const steps: string[] = [];
+    const outcome = await service(ws, team, noRunner, new FakeLog(), new FakeUser(false), { step: (m: string) => steps.push(m) }).run('Money에 할인 추가');
+    expect(team.calls).toEqual(['intake', 'tester', 'implementer']);
+    expect(outcome.status).toBe('complete');
+    expect(outcome.testless).toBe(true);
+    expect(outcome.lockedTests).toEqual([]);
+    expect(steps.some((m) => m.includes('테스트를 실행할 수 없어요'))).toBe(true);
+  });
+
   it('시니어 시도에서 잠긴 테스트를 고치면 쓰기 거부로 실패 처리한다', async () => {
     const ws = new FakeWorkspace();
     const touchLocked: Script = (_c, w) => {

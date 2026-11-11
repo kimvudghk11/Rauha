@@ -136,6 +136,22 @@ describe('WorkOrder 승격 여부', () => {
   });
 });
 
+describe('WorkOrder 테스트 없이 진행', () => {
+  it('테스트를 실행할 수 없는 프로젝트면 Red를 건너뛰고 구현으로 가며 테스트는 잠기지 않는다', () => {
+    const order = WorkOrder.open({ id: 'w', title: 't', difficulty: Difficulty.of('S'), sensitive: false, scope: ['src/**'] });
+    order.approveScenario({ happyPaths: 1, errorPaths: 1 });
+    order.proceedWithoutTests();
+    expect(order.stage).toBe('green');
+    expect(order.testsLocked).toBe(false);
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'haiku' });
+  });
+
+  it('Red 단계가 아니면 테스트 없이 진행할 수 없다', () => {
+    const order = openAtGreen();
+    expect(() => order.proceedWithoutTests()).toThrow(DomainError);
+  });
+});
+
 describe('WorkOrder 승격 사다리', () => {
   it('주니어 2회 실패 → 시니어 → 디버깅 → 설계 자문 → 중단', () => {
     const order = openAtGreen();

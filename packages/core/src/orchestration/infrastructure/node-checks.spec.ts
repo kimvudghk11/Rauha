@@ -76,6 +76,27 @@ describe('testsOutcome', () => {
   it('보고서가 통과이고 종료 코드가 0이면 통과', () => {
     expect(testsOutcome(green, 0).isGreen()).toBe(true);
   });
+
+  it('test 스크립트가 없다는 출력은 assertion 실패가 아니라 실행할 방법이 없는 것이다', () => {
+    const run = testsOutcome(null, 1, 'npm error Missing script: "test"\nnpm error To see a list of scripts, run:');
+    expect(run.cannotRun()).toBe(true);
+    expect(run.isValidRed()).toBe(false);
+  });
+
+  it('npm init 기본 test 스크립트(no test specified)도 실행할 방법이 없는 것이다', () => {
+    expect(testsOutcome(null, 1, 'Error: no test specified').cannotRun()).toBe(true);
+  });
+
+  it('실행 파일을 못 찾는 오류도 실행할 방법이 없는 것이다', () => {
+    expect(testsOutcome(null, 127, "sh: 1: jest: not found").cannotRun()).toBe(true);
+    expect(testsOutcome(null, 1, "'jest' is not recognized as an internal or external command").cannotRun()).toBe(true);
+  });
+
+  it('테스트가 실제로 실패한 출력은 그대로 assertion 실패다', () => {
+    const run = testsOutcome(null, 1, 'AssertionError: expected 1 to equal 2');
+    expect(run.cannotRun()).toBe(false);
+    expect(run.isValidRed()).toBe(true);
+  });
 });
 
 function countProcesses(marker: string): number {

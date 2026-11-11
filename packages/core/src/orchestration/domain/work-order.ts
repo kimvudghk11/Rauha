@@ -162,6 +162,15 @@ export class WorkOrder {
     this.state.stage = 'green';
   }
 
+  /**
+   * 이 프로젝트에서 테스트를 실행할 방법이 없으면 Red를 건너뛰고 구현으로 간다(테스트가 없다고 코드 수정을 못 해 주면 안 되므로).
+   * 테스트는 잠기지 않는다. 검증은 타입·린트 검사와 리뷰가 맡는다.
+   */
+  proceedWithoutTests(): void {
+    this.assertStage('red');
+    this.state.stage = 'green';
+  }
+
   // ── 구현 (Green) ──────────────────────────────────────────
 
   recordGreen(run: TestRun, failureNote?: string): void {
