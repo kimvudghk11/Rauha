@@ -1,0 +1,57 @@
+/* DB 탭 (배치와 이 탭만의 모양. 버튼·칩·입력칸·탭·표 모양은 ui.css) */
+.db { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; }
+.db .rhead { flex-wrap: wrap; }
+.db-head .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-write { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--fs-sm); color: var(--text); cursor: pointer; }
+.app[data-tier=xs] .db-file-hint { display: none; }
+
+/* 몸: 왼쪽 파일·테이블 + 가운데 */
+.db-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--s3); }
+.app[data-tier=xl] .db-body { grid-template-columns: 280px minmax(0, 1fr); }
+.app[data-tier=s] .db-body { grid-template-columns: 200px minmax(0, 1fr); }
+.app[data-tier=xs] .db-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 40%) minmax(0, 1fr); }
+.db-side { flex: none; min-height: 0; overflow: hidden; }
+.db-main { flex: none; min-height: 0; overflow: hidden; }
+.db-add { padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s1); }
+.db-addbar { flex-wrap: wrap; }
+.db-path { flex: 1 1 100%; min-width: 0; font-family: var(--mono); }
+.db-addnote { overflow-wrap: anywhere; }
+.db-files { flex: 0 1 auto; max-height: 132px; overflow-y: auto; }
+.db-tables { flex: 1; min-height: 0; overflow-y: auto; }
+.db-row { cursor: pointer; min-width: 0; }
+.db-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.db-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-pad { padding: var(--s2) var(--s3); }
+.db-table-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; align-self: center; padding: 0 var(--s3); }
+.app[data-tier=xs] .db-table-title { display: none; }
+
+/* 가운데 칸 */
+.db-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s3); overflow: hidden; }
+.db-panel[hidden] { display: none; }
+.db-result { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--s2); }
+.db-scroll { overflow: auto; min-width: 0; min-height: 0; flex: 0 1 auto; max-width: 100%; }
+.db-table { width: auto; min-width: 100%; }
+.db-th { white-space: nowrap; }
+.db-th.sortable { cursor: pointer; user-select: none; }
+.db-th.sortable:hover { color: var(--text); }
+.db-cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--fs-xs); }
+.db-cell.num { text-align: right; color: var(--accentfg); }
+.db-cell.null { color: var(--dim); font-style: italic; }
+.db-cell.blob { color: var(--purple); }
+.db-more { margin: var(--s2) 0; align-self: flex-start; }
+.db-none { padding: var(--s3) 0; }
+.db-pagetext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-rowsbar, .db-sqlbar, .db-status { flex: none; }
+.db-trunc { flex: none; }
+.db-create { margin: 0; padding: var(--s2) var(--s3); background: var(--input); border-radius: var(--r-sm); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-xs); color: var(--text); flex: none; max-height: 40%; }
+
+/* SQL 편집기 */
+.db-editor { flex: none; height: 160px; border: 1px solid var(--border2); border-radius: var(--r-sm); overflow: hidden; min-width: 0; }
+.app[data-tier=xs] .db-editor { height: 110px; }
+.db-editor:focus-within { border-color: var(--accent); }
+
+/* 안내·문제 */
+.db-problem { display: flex; flex-direction: column; gap: var(--s1); align-items: flex-start; min-width: 0; }
+.db-msg { overflow-wrap: anywhere; white-space: pre-wrap; }
+.db-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s5) var(--s3); text-align: center; }
+.db-empty b { color: var(--bright); font-size: var(--fs-lg); }

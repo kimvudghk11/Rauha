@@ -149,6 +149,16 @@ VS Code를 열지 않고 파일을 보고 고치는 곳이에요. 왼쪽 탐색�
 
 왼쪽 막대의 Docker 탭은 `docker` 명령이 알려 주는 것을 보여 주고 다룹니다. 엔진(Docker Desktop·Colima·OrbStack·Podman)은 Rauha 밖이라 따로 설치해 켜 두어야 하고, 꺼져 있으면 이유와 설치 링크를 보여 줍니다. Containers·Images·Volumes·Networks·Compose 탭이 있고, 컨테이너는 시작·정지·재시작·삭제(확인 창)와 선택한 컨테이너의 최근 로그, 컨테이너 안 한 줄 명령(대화형 셸은 아님)을 지원합니다. 화면이 보일 때만 5초마다 새로 읽습니다. 지금은 가짜 docker 로만 확인했고 실제 엔진으로는 확인하지 못했습니다.
 
+## 7-4. DB 탭
+
+왼쪽 막대의 DB 탭(Docker 다음, Ctrl/Cmd+6)은 SQLite 파일을 열어 봅니다. 왼쪽에서 파일을 더하고(전체 경로를 적거나 Browse…), 테이블을 고르면 Schema(열·타입·기본 키·CREATE 문), Rows(100행씩, 열 머리를 눌러 정렬, 다음 쪽), SQL(편집기 + Run, Ctrl/Cmd+Enter) 탭에서 볼 수 있고, 결과와 행은 CSV로 내보낼 수 있습니다.
+
+- **기본은 읽기 전용**입니다. INSERT·UPDATE·DELETE·CREATE·DROP·ALTER 는 오른쪽 위 Write mode 를 켜고, 실행 직전 확인 창에서 한 번 더 허락해야 돕니다(되돌릴 수 없음). ATTACH·VACUUM·트랜잭션·load_extension·값을 바꾸는 PRAGMA 는 Write mode 에서도 막습니다. 한 번에 한 문장만 돕니다.
+- **상한**: 결과 5,000행 또는 5 MB, 칸 하나 4,000자, 쿼리 10초(10·30·60초 선택). 넘으면 잘렸다고 알려 주고, 시간이 지나면 SQLite 를 돌리던 프로세스를 통째로 멈춥니다. 쓰는 도중 멈췄으면 SQLite 저널로 되돌립니다. Cancel 로 직접 멈출 수도 있습니다.
+- **엔진**: Electron 에 든 Node 의 내장 SQLite(`node:sqlite`)를 요청마다 따로 띄운 자식 프로세스에서 씁니다. 네이티브 모듈을 따로 싣지 않아 맥·윈도우 패키징에 영향이 없습니다. 자식에게는 API 키 같은 환경 변수를 넘기지 않습니다.
+- **경로**: 화면은 연결 id 로만 파일을 고릅니다. 경로를 더할 때 main 이 절대 경로·`..` 없음·UNC/장치 경로 거절·실제 파일 여부·SQLite 머리 16바이트를 직접 확인합니다. 저장되는 것은 파일 경로 목록(`db-connections.json`)뿐이고 비밀은 없습니다.
+- PostgreSQL/MySQL 은 아직 없습니다(설계 메모: `docs/design/db-tab.md`).
+
 ## 7-2. git 탭
 
 맨 위 **동기화 툴바**가 GitHub Desktop처럼 늘 보여요. 모델을 부르지 않고 순수 git만 써요.

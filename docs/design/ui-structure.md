@@ -304,6 +304,10 @@ nav.act            button 52×52 (s·xs 44×42): svg 22 + span 9.5px, .on = 왼�
 
 왼쪽 목록(Requests: 컬렉션·기록, Import) | 가운데 이름 줄(Save)·주소 줄(메서드·주소·Send↔Cancel)·편집기(Params·Headers·Auth·Body) | 응답 칸(상태 칩·시간·크기·Body/Headers·복사). 환경 선택 옆 Manage 가 환경 창을 연다. Send 단추는 누른 뒤 같은 자리에서 Cancel 이 되므로 `data-repeat-ok` 로 연타 막기에서 뺀다(그렇지 않으면 450ms 안의 Cancel 이 삼켜진다). 폭 440~1700 에서 측정 장면 5개(api·api-failed·api-list·api-env·api-import) 위반 0건.
 
+## 6-2. DB 탭 (2026-11-11, `db-view.ts`, `db-table.ts`, `db.css`)
+
+머리줄(이름 · Read-only/Write mode 칩 · 열린 파일 경로 · Write mode 체크) → 한계 안내 한 줄 → 경고 줄(Write mode 일 때) → 몸: 왼쪽 `.pane`(Files: 경로 입력·Add·Browse…, 파일 목록 / Tables 목록) | 가운데 `.pane`(`.tabs` Schema·Rows·SQL → 칸). Rows 는 도구줄(Prev·Next·쪽 표시·Export CSV·Refresh) + 표(`.tbl`, 300행씩 그리고 Show more), SQL 은 CodeMirror 편집기 + 도구줄(Run 만 강조 · Cancel · 시간 제한 · Ctrl+Enter) + 결과 줄 + 표. 좁은 폭(xs)에서는 몸이 세로로 쌓이고, 표는 칸 안에서만 가로로 밀린다. 부품은 모두 ui.css 것이고 db.css 는 배치만 정한다.
+
 ## 6. Docker 탭 (2026-11-11)
 
 머리줄(이름 · Connected/Not running 칩 · 엔진·CLI 버전 · Refresh) → 한계 안내 한 줄 → 엔진 문제 카드(꺼짐·CLI 없음일 때만, 이유·해결·설치 링크) → `.tabs`(Containers·Images·Volumes·Networks·Compose) → 도구줄(컨테이너만: 검색·상태 칩) → 목록 `.pane`(표 `.tbl`, 좁으면 Image·Ports·Created 열을 접는다) → 로그 `.pane`(최근 N줄·Refresh·Copy·한 줄 명령). 부품은 모두 ui.css 것이고 docker.css 는 배치만 정한다. 폭 440·600·720·1100·1700 에서 가짜 docker(목록·꺼짐·삭제 확인 창 장면) 측정 위반 0건. 왼쪽 막대에서 'Docker' 6자는 잘리지 않는다. 실제 Docker 엔진으로는 확인하지 못했다.

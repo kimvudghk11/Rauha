@@ -17,6 +17,13 @@ describe('단축키 안내', () => {
     expect(tabs.rows.map((r) => r.label)).toEqual(order.map((t) => t.label));
     expect(tabs.rows[0]?.keys).toBe('Ctrl+1');
   });
+  it('숫자 키는 열 개까지라 열한째 탭(Settings)은 Click 으로 적고, DB 는 여섯째(Ctrl+6)다', () => {
+    const rows = shortcutSheet('win32').find((g) => g.title === 'Switch tab')!.rows;
+    expect(rows.find((r) => r.label === 'DB')?.keys).toBe('Ctrl+6');
+    expect(rows.find((r) => r.label === 'Rules')?.keys).toBe('Ctrl+0');
+    expect(rows.find((r) => r.label === 'Settings')?.keys).toBe('Click');
+    expect(shortcutSheet('darwin').find((g) => g.title === 'Switch tab')!.rows.find((r) => r.label === 'DB')?.keys).toBe('⌘6');
+  });
   it('모든 줄에 키와 설명이 있다', () => {
     for (const g of shortcutSheet('win32')) for (const r of g.rows) expect(r.keys !== '' && r.label !== '').toBe(true);
   });
