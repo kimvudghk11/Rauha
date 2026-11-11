@@ -11,6 +11,9 @@ import { diagnosticsText } from './diagnostics-text.js';
 import { syncBlockReason } from '../shared/bug-sync.js';
 import { CHARACTER_SETS } from './character-sets/index.js';
 import { setSprite, type CharacterRole } from './characters.js';
+import { AUTO_SAVE_MODES, autoSaveLabel, parseAutoSaveMode } from '../shared/auto-save.js';
+import { buildRecentFolders } from './recent-folders-view.js';
+import { ask } from './code-dialog.js';
 import { paintSpriteFace } from './pixel-art.js';
 
 /** 테마 카드 미리보기에 보여 줄 역할(팀장 포함 앞 몇 명) */
@@ -24,6 +27,8 @@ export interface SettingsApi {
   usageFeed?: UsageFeed;
   accounts(): Promise<AccountsView>;
   pickFolder(): Promise<string | null>;
+  /** 최근 작업 폴더 확인·빼기(없으면 최근 목록을 그리지 않는다) */
+  recent?: { status(): Promise<Readonly<Record<string, boolean>>>; forget(path: string): Promise<unknown> };
   /** 앱 안 Claude 로그인(없으면 로그인 칸을 그리지 않는다) */
   auth?: AuthApi;
   /** 새 버전 알림(없으면 그 구역을 그리지 않는다) */
@@ -117,7 +122,31 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     // 작업 폴더
     const change = el('button', 'btn', 'Change');
     change.addEventListener('click', () => void api.pickFolder().then((p) => (p === null ? undefined : api.update({ workFolder: p, folderApproved: true }).then(render))));
-    root.appendChild(section('Work folder', row(s.workFolder ?? 'Not chosen yet', change)));
+    const recent = api.recent;
+    const recentList =
+      recent === undefined
+        ? []
+        : [
+            buildRecentFolders({
+              folders: s.recentFolders,
+              current: s.workFolder,
+              status: () => recent.status(),
+              forget: (p) => recent.forget(p),
+              // 고르면 폴더 고르기 창 뒤와 같은 허락을 묻는다(허락 없이 작업 폴더를 바꾸지 않는다)
+              choose: (path) =>
+                void ask('Allow work in this folder?', path, [{ id: 'allow', label: 'Allow', kind: 'primary' }, { id: 'cancel', label: 'Cancel' }], ['Teammates can read and edit files inside. Risky actions still ask each time.']).then((answer) =>
+                  answer === 'allow' ? api.update({ workFolder: path, folderApproved: true }).then(render) : undefined,
+                ),
+            }),
+          ];
+    root.appendChild(section('Work folder', row(s.workFolder ?? 'Not chosen yet', change), ...recentList));
+
+    // 편집기: 자동 저장
+    const autoSave = el('select');
+    for (const mode of AUTO_SAVE_MODES) autoSave.appendChild(new Option(autoSaveLabel(mode), mode));
+    autoSave.value = s.autoSave;
+    autoSave.addEventListener('change', () => void api.update({ autoSave: parseAutoSaveMode(autoSave.value) }));
+    root.appendChild(section('Editor', row('Auto save', autoSave), el('div', 'hint pad', 'Saves open files in the Repo tab for you. Read-only files and secret files are never saved, and a file that changed on disk is left for you to decide.')));
 
     // 알림
     const toggles = [['choice', 'When I need to allow or choose'], ['done', 'When a job finishes'], ['limit', 'When a limit reaches 90%'], ['step', 'When a job moves to the next step (off by default)']] as const;

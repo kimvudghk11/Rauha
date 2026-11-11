@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canWork, DEFAULT_SETTINGS, limitTone, parseSettings, updateSettings } from './settings.js';
+import { canWork, DEFAULT_SETTINGS, forgetRecentFolder, limitTone, parseSettings, updateSettings } from './settings.js';
 
 describe('parseSettings', () => {
   it('새 버전 자동 확인은 기본으로 켜져 있고 글자 같은 값은 기본으로 돌린다', () => {
@@ -89,5 +89,69 @@ describe('캐릭터 테마(characterSet)', () => {
   it('일부만 바꿀 때도 모르는 id는 기본으로 돌아간다', () => {
     expect(updateSettings(DEFAULT_SETTINGS, { characterSet: 'forest' }).characterSet).toBe('forest');
     expect(updateSettings(DEFAULT_SETTINGS, { characterSet: 'zzz' as never }).characterSet).toBe('ocean');
+  });
+});
+
+describe('자동 저장 설정', () => {
+  it('기본은 끔이고 모르는 값은 끔으로 돌린다', () => {
+    expect(DEFAULT_SETTINGS.autoSave).toBe('off');
+    expect(parseSettings({ autoSave: 'delay' }).autoSave).toBe('delay');
+    expect(parseSettings({ autoSave: 'focus' }).autoSave).toBe('focus');
+    expect(parseSettings({ autoSave: 'sometimes' }).autoSave).toBe('off');
+    expect(parseSettings({ autoSave: 1 }).autoSave).toBe('off');
+  });
+
+  it('일부만 바꿔도 나머지 설정은 그대로다', () => {
+    const next = updateSettings(DEFAULT_SETTINGS, { autoSave: 'focus' });
+    expect(next.autoSave).toBe('focus');
+    expect(next.concurrency).toBe(DEFAULT_SETTINGS.concurrency);
+  });
+});
+
+describe('최근 작업 폴더', () => {
+  it('처음에는 비어 있고 글자가 아닌 값·빈 글·겹침은 걸러 낸다', () => {
+    expect(DEFAULT_SETTINGS.recentFolders).toEqual([]);
+    expect(parseSettings({ recentFolders: ['/a', ' /b ', '', 3, '/a'] }).recentFolders).toEqual(['/a', '/b']);
+    expect(parseSettings({ recentFolders: '/a' }).recentFolders).toEqual([]);
+  });
+
+  it('최대 5개까지만 남긴다', () => {
+    const many = Array.from({ length: 9 }, (_, i) => `/p${i}`);
+    expect(parseSettings({ recentFolders: many }).recentFolders).toEqual(many.slice(0, 5));
+  });
+
+  it('작업 폴더를 바꾸면 새 폴더가 맨 앞에 오고 예전 것은 겹치지 않게 뒤로 밀린다', () => {
+    const a = updateSettings(DEFAULT_SETTINGS, { workFolder: '/a' });
+    expect(a.recentFolders).toEqual(['/a']);
+    const b = updateSettings(a, { workFolder: '/b' });
+    expect(b.recentFolders).toEqual(['/b', '/a']);
+    const again = updateSettings(b, { workFolder: '/a' });
+    expect(again.recentFolders).toEqual(['/a', '/b']);
+  });
+
+  it('여섯 번째 폴더를 열면 가장 오래된 폴더가 빠진다', () => {
+    let s = DEFAULT_SETTINGS;
+    for (const p of ['/1', '/2', '/3', '/4', '/5', '/6']) s = updateSettings(s, { workFolder: p });
+    expect(s.recentFolders).toEqual(['/6', '/5', '/4', '/3', '/2']);
+  });
+
+  it('같은 폴더를 다시 적거나 폴더를 비우는 설정은 목록을 바꾸지 않는다', () => {
+    const a = updateSettings(DEFAULT_SETTINGS, { workFolder: '/a' });
+    expect(updateSettings(a, { workFolder: '/a' }).recentFolders).toEqual(['/a']);
+    expect(updateSettings(a, { workFolder: null }).recentFolders).toEqual(['/a']);
+    expect(updateSettings(a, { concurrency: 2 }).recentFolders).toEqual(['/a']);
+  });
+
+  it('목록을 직접 바꾸려 하면 정리된 목록이 그대로 쓰인다(꼭 지우는 길은 forgetRecentFolder 하나)', () => {
+    const a = updateSettings(updateSettings(DEFAULT_SETTINGS, { workFolder: '/a' }), { workFolder: '/b' });
+    expect(forgetRecentFolder(a, '/a').recentFolders).toEqual(['/b']);
+    expect(forgetRecentFolder(a, '/nope').recentFolders).toEqual(['/b', '/a']);
+  });
+
+  it('지금 작업 폴더는 목록에서 지워도 작업 폴더 자체는 그대로다', () => {
+    const a = updateSettings(DEFAULT_SETTINGS, { workFolder: '/a' });
+    const next = forgetRecentFolder(a, '/a');
+    expect(next.recentFolders).toEqual([]);
+    expect(next.workFolder).toBe('/a');
   });
 });

@@ -49,6 +49,9 @@ export const IPC = {
   chatHistoryClear: 'chat:history-clear',
   accountsList: 'accounts:list',
   folderPick: 'folder:pick',
+  /** 설정·첫 실행: 최근 작업 폴더가 디스크에 아직 있는지 / 목록에서 하나 빼기 */
+  recentFoldersCheck: 'folder:recent-check',
+  recentFoldersForget: 'folder:recent-forget',
   reposList: 'repos:list',
   /** git 탭: 함수 이름(고정 목록) + 레포 루트 + 인자를 한 채널로 보낸다 */
   gitCall: 'git:call',
@@ -195,6 +198,10 @@ export interface RauhaApi {
   listAccounts(): Promise<AccountsView>;
   /** 폴더 고르기 창을 연다. 취소하면 null */
   pickFolder(): Promise<string | null>;
+  /** 최근 작업 폴더(설정에 저장된 것만)가 디스크에 아직 있는지. 경로 → 있음 */
+  recentFolderStatus(): Promise<Readonly<Record<string, boolean>>>;
+  /** 최근 폴더 목록에서 하나를 뺀다(작업 폴더는 그대로) */
+  forgetRecentFolder(path: string): Promise<Settings>;
   listRepos(): Promise<readonly RepoRow[]>;
   /** git 탭: 앱이 아는 레포에서만 순수 git 명령을 돌린다(모델 호출 없음) */
   readonly git: GitApi;

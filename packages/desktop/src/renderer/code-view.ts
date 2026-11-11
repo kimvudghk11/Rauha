@@ -1,4 +1,5 @@
 import { codeFailText, type CodeApi, type RepoInfo, type SearchFileHits } from '../shared/code-api.js';
+import { AUTO_SAVE_DELAY_MS, autoSaveSkip, wantsAutoSave, type AutoSaveMode, type AutoSaveTrigger } from '../shared/auto-save.js';
 import { ChangeMap } from '../shared/code-changes.js';
 import { rankFiles } from '../shared/quick-open.js';
 import { defaultIndentSize, languageOf, type CodeLanguage } from '../shared/code-language.js';
@@ -28,6 +29,8 @@ export interface CodeDeps {
   readonly openGit: (repoRoot: string) => void;
   /** 작업 폴더 안의 레포·문서 폴더와 상태(탐색기 레포 노드) */
   readonly repos: () => Promise<readonly RepoRow[]>;
+  /** 설정의 자동 저장 방식(없으면 끔). 코드 탭을 열 때마다 다시 읽는다. */
+  readonly autoSaveMode?: () => Promise<AutoSaveMode>;
 }
 
 interface FileInfo {
@@ -154,6 +157,12 @@ export function buildCode(deps: CodeDeps) {
   let tabs = OpenFiles.empty();
   const info = new Map<string, FileInfo>();
   const saving = new Set<string>();
+  let autoMode: AutoSaveMode = 'off';
+  const autoTimers = new Map<string, number>();
+  /** 자동 저장이 실패한 글(같은 글로는 다시 시도하지 않는다) */
+  const autoFailed = new Map<string, string>();
+  /** 마지막 저장이 자동 저장이었던 파일(상태줄에 Auto-saved) */
+  const autoSaved = new Set<string>();
   let cursor = { line: 1, column: 1 };
   let folder: string | null | undefined;
   let flash: { text: string; timer: number } | null = null;
@@ -163,6 +172,7 @@ export function buildCode(deps: CodeDeps) {
   const editor = new CodeEditor(host, {
     onChange: () => {
       paintDirty();
+      scheduleAutoSave();
       preview.textChanged();
     },
     onCursor: (line, column) => {
@@ -290,7 +300,7 @@ export function buildCode(deps: CodeDeps) {
     const fi = info.get(path);
     sPath.textContent = path;
     const ind = fi === undefined ? '' : `${fi.indent.unit === 'tab' ? 'Tab' : 'Spaces'} ${fi.indent.size} (${INDENT_SOURCE[fi.indent.source]})`;
-    const parts = [`Ln ${cursor.line}, Col ${cursor.column}`, ind, f.eol === 'crlf' ? 'CRLF' : 'LF', f.bom ? 'UTF-8 BOM' : 'UTF-8', LANGUAGE_NAMES[fi?.language ?? 'plain'], isDirty(path) ? 'Modified' : 'Saved'];
+    const parts = [`Ln ${cursor.line}, Col ${cursor.column}`, ind, f.eol === 'crlf' ? 'CRLF' : 'LF', f.bom ? 'UTF-8 BOM' : 'UTF-8', LANGUAGE_NAMES[fi?.language ?? 'plain'], isDirty(path) ? 'Modified' : autoSaved.has(path) ? 'Auto-saved' : 'Saved'];
     sRight.textContent = parts.filter((p) => p !== '').join('   ');
     const repo = repoOf(path);
     if (repo !== null) {
@@ -359,6 +369,7 @@ export function buildCode(deps: CodeDeps) {
 
   // ── 열기·전환·닫기 ──
   function activate(path: string): void {
+    if (tabs.active !== null && tabs.active !== path) autoSaveAllOnLeave();
     clearSay();
     preview.leaveImage();
     tabs = tabs.activated(path);
@@ -421,7 +432,7 @@ export function buildCode(deps: CodeDeps) {
 
   // ── 저장·되돌리기 ──
   /** 저장한다. 저장됐으면 true. 충돌·지워짐은 사용자에게 물어 덮어쓰기를 고르면 다시 쓴다. */
-  async function save(path: string): Promise<boolean> {
+  async function save(path: string, auto = false): Promise<boolean> {
     const f = tabs.get(path);
     if (f === undefined || saving.has(path)) return false;
     const text = editor.textOf(path);
@@ -430,14 +441,26 @@ export function buildCode(deps: CodeDeps) {
     saving.add(path);
     try {
       let overwrite = false;
+      if (!auto) autoFailed.delete(path);
       for (;;) {
         const r = await deps.api.write({ path, text, eol: f.eol, bom: f.bom, baseVersion: tabs.get(path)?.version ?? f.version, overwrite });
         if (r.ok) {
           tabs = tabs.updated(path, (x) => x.saved(text, r.version));
+          autoFailed.delete(path);
+          if (auto) autoSaved.add(path);
+          else autoSaved.delete(path);
           paintAll();
           void refreshMarks(path);
           void refreshChanges();
           return true;
+        }
+        // 자동 저장은 충돌·삭제를 묻지 않고 멈춘다(덮어쓰기는 사람이 손으로 저장할 때만 고른다)
+        if (auto && (r.reason === 'conflict' || r.reason === 'deleted')) {
+          tabs = tabs.updated(path, (x) => x.markedStale());
+          autoFailed.set(path, text);
+          paintAll();
+          say(`Auto save stopped for ${baseName(path)}: ${codeFailText(r.reason)} Press Ctrl/Cmd+S to choose what to do.`);
+          return false;
         }
         if ((r.reason === 'conflict' || r.reason === 'deleted') && !overwrite) {
           const gone = r.reason === 'deleted';
@@ -454,12 +477,38 @@ export function buildCode(deps: CodeDeps) {
           return false;
         }
         const detail = r.detail === undefined ? '' : ` (${r.detail})`;
-        say(`Could not save ${baseName(path)}. ${codeFailText(r.reason)}${detail} Your changes are still in the editor.`);
+        if (auto) autoFailed.set(path, text);
+        say(`${auto ? 'Auto save failed' : 'Could not save'} ${baseName(path)}. ${codeFailText(r.reason)}${detail} Your changes are still in the editor.`);
         return false;
       }
     } finally {
       saving.delete(path);
     }
+  }
+
+  // ── 자동 저장 ──
+  /** 한 파일을 자동 저장한다(막는 사정은 shared/auto-save.ts 규칙). 질문 창 위에서는 저장하지 않는다. */
+  function autoSave(path: string, trigger: AutoSaveTrigger): void {
+    if (!wantsAutoSave(autoMode, trigger) || document.querySelector('.veil') !== null) return;
+    const f = tabs.get(path);
+    const text = editor.textOf(path);
+    if (f === undefined || text === null) return;
+    const skip = autoSaveSkip({ dirty: isDirty(path), readOnly: info.get(path)?.readOnly === true, stale: f.stale, saving: saving.has(path), failedText: autoFailed.get(path) === text });
+    if (skip === null) void save(path, true);
+  }
+
+  function scheduleAutoSave(): void {
+    const path = tabs.active;
+    if (path === null) return;
+    autoSaved.delete(path);
+    window.clearTimeout(autoTimers.get(path));
+    if (!wantsAutoSave(autoMode, 'edit')) return;
+    autoTimers.set(path, window.setTimeout(() => (autoTimers.delete(path), autoSave(path, 'edit')), AUTO_SAVE_DELAY_MS));
+  }
+
+  /** 편집기·창·탭을 떠났다: 열어 둔 수정 파일을 모두 살핀다 */
+  function autoSaveAllOnLeave(): void {
+    for (const f of tabs.files) autoSave(f.path, 'leave');
   }
 
   /** 마지막 저장 상태(디스크 내용)로 되돌린다. 수정 중이면 먼저 확인한다. */
@@ -706,6 +755,10 @@ export function buildCode(deps: CodeDeps) {
       setMode('search');
     }
   });
+  host.addEventListener('focusout', (e) => {
+    if (!(e.relatedTarget instanceof Node) || !host.contains(e.relatedTarget)) autoSaveAllOnLeave();
+  });
+  window.addEventListener('blur', autoSaveAllOnLeave);
   window.addEventListener('focus', () => {
     if (root.isConnected && root.offsetParent !== null) void checkDisk();
   });
@@ -823,6 +876,7 @@ export function buildCode(deps: CodeDeps) {
     root,
     /** 코드 탭을 열 때마다: 작업 폴더가 바뀌었으면 다시 읽고, 디스크에서 바뀐 파일을 살핀다 */
     async onShow(): Promise<void> {
+      autoMode = (await deps.autoSaveMode?.().catch(() => 'off' as const)) ?? 'off';
       const next = await deps.workFolder();
       if (folder !== undefined && next !== folder) dropAll();
       if (next !== folder) await loadTree();

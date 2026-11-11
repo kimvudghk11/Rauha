@@ -1,6 +1,7 @@
 import type { AuthApi } from '../shared/ipc.js';
 import { el } from './dom.js';
 import { createLoginControl } from './login-view.js';
+import { buildRecentFolders, type RecentFoldersDeps } from './recent-folders-view.js';
 
 const FLAG = 'rauha.terminalChecked';
 
@@ -63,6 +64,8 @@ export async function offerTerminalCleanup(): Promise<void> {
 
 interface WizardApi {
   pickFolder(): Promise<string | null>;
+  /** 최근 폴더(없으면 목록을 그리지 않는다) */
+  recent?: Pick<RecentFoldersDeps, 'folders' | 'current' | 'status' | 'forget'>;
   accounts(): Promise<{ names: readonly string[] }>;
   auth?: AuthApi;
   /** 폴더 안에서 찾은 레포 목록(작업 폴더로 저장된 뒤에 읽는다). 없으면 레포 경고를 건너뛴다. */
@@ -112,7 +115,9 @@ export function runWizard(api: WizardApi): Promise<void> {
         next.focus();
       });
       next.addEventListener('click', () => void approveStep());
-      box.replaceChildren(el('b', undefined, '1/3 · Choose a work folder'), el('p', undefined, 'Choose one folder that contains your repos and doc folders. rauha scans it and tells them apart. File contents are read only as needed when a job is given.'), shown, row(pick, next));
+      // 최근 폴더를 고르면 다음 단계의 "Allow work in this folder?"를 그대로 거친다
+      const recent = api.recent === undefined ? [] : [buildRecentFolders({ ...api.recent, current: null, choose: (path) => ((folder = path), void approveStep()) })];
+      box.replaceChildren(el('b', undefined, '1/3 · Choose a work folder'), el('p', undefined, 'Choose one folder that contains your repos and doc folders. rauha scans it and tells them apart. File contents are read only as needed when a job is given.'), shown, row(pick, next), ...recent);
       focusFirst(pick);
     };
     const approveStep = async () => {

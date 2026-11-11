@@ -9,7 +9,7 @@ import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog,
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
 import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
-import { canWork, DEFAULT_SETTINGS, updateSettings, type Settings } from '../shared/settings.js';
+import { canWork, DEFAULT_SETTINGS, forgetRecentFolder, updateSettings, type Settings } from '../shared/settings.js';
 import { SettingsStore } from './settings-store.js';
 import { CommandStore } from './command-store.js';
 import { applyTeamOp, TeamSettingsStore, teamView } from './team-settings-store.js';
@@ -719,6 +719,14 @@ void app.whenReady().then(async () => {
   ipcMain.handle(IPC.folderPick, async () => {
     const result = await dialog.showOpenDialog(window ?? undefined!, { properties: ['openDirectory', 'createDirectory'], title: '작업 폴더 고르기' });
     return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+  // 최근 폴더: 설정에 저장된 경로만 확인하고(화면이 준 경로는 보지 않는다), 목록에서 빼는 일만 한다
+  ipcMain.handle(IPC.recentFoldersCheck, () => Object.fromEntries(settings.recentFolders.map((p) => { const f = folderFacts(p); return [p, f.exists && f.isDirectory]; })));
+  ipcMain.handle(IPC.recentFoldersForget, async (_e, path: unknown) => {
+    if (typeof path !== 'string') return settings;
+    settings = forgetRecentFolder(settings, path);
+    await settingsStore.save(settings);
+    return settings;
   });
   ipcMain.handle(IPC.reposList, async (): Promise<RepoRow[]> => {
     const entries = await scanWorkFolder(currentWorkDir());

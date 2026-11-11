@@ -194,3 +194,11 @@
 .app:is([data-mode=side], [data-mode=xl]):not([data-detail="1"]) .chat[data-split="b"] { grid-template-columns: minmax(0, 6fr) minmax(280px, 4fr); }
 .app:is([data-mode=side], [data-mode=xl]):not([data-detail="1"]) .chat[data-split="c"] { grid-template-columns: minmax(0, 5fr) minmax(280px, 5fr); }
 .app[data-mode=xl]:not([data-detail="1"]) .chat:is([data-split="0"], [data-split="a"]) .rooms { grid-template-columns: minmax(0, 1fr); }
+
+/* 최근 작업 폴더 목록(설정·첫 실행 마법사): 배치만, 겉모양은 .item .btn .hint */
+.recent { display: flex; flex-direction: column; gap: var(--s1); padding: 0 var(--s3); min-width: 0; }
+.recent .pad { padding-left: 0; }
+.dialog .recent { padding: 0; }
+.recent-row { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.recent-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.recent-text b, .recent-text .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

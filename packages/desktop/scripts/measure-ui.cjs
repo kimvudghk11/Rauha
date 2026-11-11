@@ -16,6 +16,13 @@ process.env.LOCALAPPDATA = path.join(fakeHome, 'AppData', 'Local');
 app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-')));
 // 기록·할 일 파일도 임시 폴더에 둔다(내 실제 기록에 시험 기록이 쌓이지 않게)
 process.env.RAUHA_DATA_DIR = process.env.RAUHA_DATA_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-data-'));
+// 최근 작업 폴더 시험: 있는 폴더 둘과 없는 폴더 하나를 설정에 미리 적어 둔다(첫 실행 마법사·설정 화면의 최근 목록을 잰다)
+{
+  const seedDir = (n) => fs.mkdirSync(path.join(fakeHome, n), { recursive: true }) ?? path.join(fakeHome, n);
+  const recent = [seedDir('proj-alpha'), path.join(fakeHome, 'proj-gone'), seedDir('proj-beta-with-a-quite-long-folder-name-to-check-ellipsis')];
+  fs.mkdirSync(path.join(fakeHome, '.rauha', 'desktop'), { recursive: true });
+  fs.writeFileSync(path.join(fakeHome, '.rauha', 'desktop', 'settings.json'), JSON.stringify({ recentFolders: recent }));
+}
 BrowserWindow.prototype.show = function () {};
 BrowserWindow.prototype.showInactive = function () {};
 
@@ -230,6 +237,9 @@ const SCENES = [
   ['rules-edit-save', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[6].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); const i = document.querySelector('.rule.editing input'); i.value = '고친 규칙 글'; i.dispatchEvent(new Event('input', { bubbles: true })); const s = [...document.querySelectorAll('.rule.editing .btn')].find((n) => n.textContent === 'Save'); s.click(); s.click(); await new Promise((r) => setTimeout(r, 600)); document.body.dataset.ruleCards = String([...document.querySelectorAll('.rule:not(.default)')].map((n) => n.firstChild.textContent)); })() /* querySelector */"]],
   ['rules-edit', 'rules', ["(async () => { await window.rauha.addRule({ id: 'm1', text: 'git push는 묻지 마', bucket: 'allow', scope: { kind: 'global' }, tools: ['Bash'], includes: ['git push'] }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 300)); document.querySelectorAll('#tabs button')[6].click(); await new Promise((r) => setTimeout(r, 500)); [...document.querySelectorAll('.rule:not(.default) .btn')].find((n) => n.textContent === 'Edit')?.click(); })() /* querySelector */"]],
   ['settings', 'settings', [byText('button', '자세히')]],
+  // 최근 폴더를 고르면 허락 창이 뜬다(허락 없이 작업 폴더가 바뀌지 않는다)
+  ['settings-recent-allow', 'settings', ["(() => { document.querySelector('.recent .item:not(.off) .btn')?.click(); })() /* querySelector */"]],
+  ['settings-autosave', 'settings', ["(() => { const s = [...document.querySelectorAll('.srow')].find((r) => r.textContent.includes('Auto save'))?.querySelector('select'); s.value = 'delay'; s.dispatchEvent(new Event('change')); })() /* querySelector */"]],
 ];
 const SCENE_FILTER = process.env.MEASURE_SCENES ? process.env.MEASURE_SCENES.split(',') : null;
 

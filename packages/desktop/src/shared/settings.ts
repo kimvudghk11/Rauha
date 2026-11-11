@@ -1,4 +1,5 @@
 import { DEFAULT_PROTECTED_BRANCHES } from './approval-summary.js';
+import { parseAutoSaveMode, type AutoSaveMode } from './auto-save.js';
 import { DEFAULT_CHARACTER_SET, toCharacterSetId, type CharacterSetId } from './character-set-ids.js';
 
 /** 알림을 켜고 끄는 항목. 단계 넘어감은 기본 꺼짐이다. */
@@ -40,7 +41,13 @@ export interface Settings {
   readonly awsAccount: string | null;
   /** 캐릭터 테마(세트) id. 모르는 값은 기본(바다 친구들)이다. */
   readonly characterSet: CharacterSetId;
+  /** 편집기 자동 저장(기본 끔) */
+  readonly autoSave: AutoSaveMode;
+  /** 최근에 쓴 작업 폴더(맨 앞이 가장 최근, 최대 5개). 고르는 것만 돕고, 열기 전 허락은 따로 받는다. */
+  readonly recentFolders: readonly string[];
 }
+
+export const RECENT_FOLDERS_MAX = 5;
 
 export const CONCURRENCY_MIN = 1;
 export const CONCURRENCY_MAX = 6;
@@ -63,6 +70,8 @@ export const DEFAULT_SETTINGS: Settings = {
   awsRegion: null,
   awsAccount: null,
   characterSet: DEFAULT_CHARACTER_SET,
+  autoSave: 'off',
+  recentFolders: [],
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -72,6 +81,9 @@ const BLOG_NAME_LIMIT = 60;
 /** 회사·서비스 이름 목록: 글자만, 공백 지우기, 겹침 없애기, 50개·이름당 60자까지 */
 const names = (v: unknown): string[] =>
   Array.isArray(v) ? [...new Set(v.filter((n): n is string => typeof n === 'string').map((n) => n.trim().slice(0, BLOG_NAME_LIMIT)).filter((n) => n !== ''))].slice(0, BLOG_NAMES_MAX) : [];
+/** 최근 폴더 목록: 글자만, 공백 지우기, 겹침 없애기, 앞에서 5개까지 */
+const folders = (v: unknown): string[] =>
+  Array.isArray(v) ? [...new Set(v.filter((n): n is string => typeof n === 'string').map((n) => n.trim()).filter((n) => n !== ''))].slice(0, RECENT_FOLDERS_MAX) : [];
 const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
 
 /**
@@ -105,12 +117,25 @@ export function parseSettings(input: unknown): Settings {
     awsRegion: text(input['awsRegion']),
     awsAccount: text(input['awsAccount']),
     characterSet: toCharacterSetId(input['characterSet']),
+    autoSave: parseAutoSaveMode(input['autoSave']),
+    recentFolders: folders(input['recentFolders']),
   };
 }
 
-/** 일부만 바꾼다. 합친 뒤 다시 parseSettings를 거쳐 값을 바로잡는다. */
+/**
+ * 일부만 바꾼다. 합친 뒤 다시 parseSettings를 거쳐 값을 바로잡는다.
+ * 작업 폴더를 새 값으로 바꾸면 최근 폴더 맨 앞에 올린다. 최근 목록은 patch로 직접 바꾸지 못한다(forgetRecentFolder만 지운다).
+ */
 export function updateSettings(current: Settings, patch: Partial<Omit<Settings, 'notify'>> & { notify?: Partial<NotifySettings> }): Settings {
-  return parseSettings({ ...current, ...patch, notify: { ...current.notify, ...patch.notify } });
+  const merged = parseSettings({ ...current, ...patch, notify: { ...current.notify, ...patch.notify }, recentFolders: current.recentFolders });
+  const picked = merged.workFolder;
+  if (picked === null || picked === current.workFolder) return merged;
+  return { ...merged, recentFolders: [picked, ...merged.recentFolders.filter((p) => p !== picked)].slice(0, RECENT_FOLDERS_MAX) };
+}
+
+/** 최근 폴더 목록에서 하나를 뺀다(사라진 폴더 정리). 지금 작업 폴더는 건드리지 않는다. */
+export function forgetRecentFolder(current: Settings, path: string): Settings {
+  return { ...current, recentFolders: current.recentFolders.filter((p) => p !== path) };
 }
 
 /** 한도 막대 색: 70% 노랑, 90% 빨강, 그 아래 초록 */

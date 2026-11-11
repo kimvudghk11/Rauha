@@ -43,7 +43,7 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 | 포맷터 | 확장 | 같음 | 없음. 들여쓰기는 `.editorconfig` 를 따름 (`shared/editor-config.ts`) | ★★ | M | P3 |
 | 되돌리기 기록 Timeline | 파일별 Git·로컬 저장 이력 [V2][V5] | 같음 | 일부: 편집기 undo 와 git 탭 히스토리는 있고 파일별 이력 화면은 없음 | ★★ | M | P2 |
 | 파일 비교 diff | 두 파일·저장본 비교 [V3] | 같음 | 일부: 편집기 왼쪽 바뀐 줄 표시(`shared/code-changes.ts`)와 git 탭 diff만, 임의 두 파일 비교 없음 | ★★ | M | P2 |
-| 자동 저장 | `files.autoSave` [V3] | 같음 | 없음 (Ctrl/Cmd+S) | ★★★ | S | **P1** |
+| 자동 저장 | `files.autoSave` [V3] | 같음 | **구현함(6절)** (Off 기본, `shared/auto-save.ts`) | ★★★ | S | **P1** |
 | 파일 빠른 열기 Ctrl/Cmd+P | 있음 [V2] | 같음 | **있음**: `code-view.ts` `openQuick`, `shared/quick-open.ts` (코드 탭을 보고 있을 때만 동작) | ★★★ | - | 이미 있음 |
 | md 미리보기 | 있음 | 같음 | 있음: 편집·나란히·미리보기 (`markdown-view.ts`, `code-preview.ts`) | ★★★ | - | 이미 있음 |
 | 이미지 뷰어 | 있음 | 같음 | 있음 (`code-preview.ts`) | ★★ | - | 이미 있음 |
@@ -102,7 +102,7 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 | 글꼴 크기·확대 | 있음 | 같음 | 일부: 메뉴 View 의 확대/축소만 (`main/platform/app-menu.ts`) | ★★ | S | P2 |
 | 테마 | 색 테마 | 같음 | 일부: 어두운 테마 하나 + 캐릭터 테마(`characters.ts`). 밝은 테마 없음 | ★★ | M | P3 |
 | 멀티 루트 작업 공간 | 있음 [V7] | 같음 | 일부: 작업 폴더 하나 아래 레포 여러 개를 최상위로 보임 (`docs/desktop-guide.md` 7절) | ★★★ | - | 이미 있음(형태 다름) |
-| 최근 폴더 | File > Open Recent [V7] | 같음 | 없음: 폴더 고르기 대화상자만 (`settings-view.ts` `pickFolder`, `main/main.ts`) | ★★ | S | **P1** |
+| 최근 폴더 | File > Open Recent [V7] | 같음 | **구현함(6절)** (`shared/recent-folders.ts`, `renderer/recent-folders-view.ts`) | ★★ | S | **P1** |
 
 ### 2-6. 디버깅·테스트·확장
 
@@ -149,8 +149,8 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 ### 다음 버전 (v0.1.14): 바로 쓰는 작은 것
 - **앱 탭 전환 단축키 Ctrl/Cmd+1~8 [구현함]**: 왼쪽 막대의 위쪽부터 순서대로 Chat, Repo, Todo, Records, Git, Slash, Rules, Settings. 영향 파일: `shared/tab-shortcut.ts`(+spec), `renderer/app.ts`.
 - **단축키 안내창 Ctrl/Cmd+Shift+/ [구현함]**: 앱 전체·Repo·채팅 단축키를 한 장으로. 영향 파일: `shared/shortcut-sheet.ts`(+spec), `renderer/shortcut-view.ts`, `renderer/app.ts`, `renderer/ui.css`(또는 `code.css`).
-- **자동 저장(P1)**: 설정에 "Auto save" 켜기/끄기(기본 끔), 입력 멈춘 뒤 1초 저장. 영향: `shared/settings.ts`, `renderer/code-view.ts`, `settings-view.ts`.
-- **최근 폴더(P1)**: `Settings` 에 `recentFolders`(최대 8, 중복 제거 DTO 메서드)를 두고 설정 화면에 목록 칩. 영향: `shared/settings.ts`, `main/settings-store.ts`, `renderer/settings-view.ts`.
+- **자동 저장(P1) [구현함]**: 설정 > Editor 의 "Auto save" 를 Off(기본) / After delay (1s) / On focus change 에서 고른다. 영향: `shared/auto-save.ts`(+spec), `shared/settings.ts`, `renderer/code-view.ts`, `renderer/settings-view.ts`.
+- **최근 폴더(P1) [구현함]**: `Settings.recentFolders`(최대 5, 겹침 없음)를 설정 화면의 작업 폴더 칸과 첫 실행 마법사에 목록으로 보인다. 영향: `shared/settings.ts`, `shared/recent-folders.ts`(+spec), `renderer/recent-folders-view.ts`, `renderer/settings-view.ts`, `renderer/first-run.ts`.
 
 ### 그다음 (v0.1.15): 맡긴 일을 확인하는 흐름
 - **git stash(P1)**: `GIT_FUNCTIONS` 에 `stash/stashPop/stashList` 추가, 변경 탭에 "Stash" 단추. 영향: `shared/git-api.ts`, `main/git/git-dispatch.ts`, `main/git/git-repo.ts`, `renderer/git-changes-view.ts`.
@@ -171,6 +171,8 @@ VS Code 와 Cursor 가 가진 편집기 기능은 Rauha 에 없는 것이 많지
 
 | 항목 | 상태 |
 |---|---|
+| 편집기 자동 저장 | 구현함 (Off 기본 / After delay (1s) / On focus change). 읽기 전용·디스크에서 바뀐 파일·같은 글로 한 번 실패한 파일은 저장하지 않고, 충돌 질문 창을 띄우지 않으며, 질문 창이 떠 있을 때도 저장하지 않는다. 비밀 파일은 main 이 쓰기를 거절한다. 성공은 상태줄 "Auto-saved", 실패는 편집기 위 안내. 테스트 `shared/auto-save.spec.ts`, 숨김 창 확인 |
+| 최근 작업 폴더 | 구현함 (최대 5개, 설정 Work folder 와 첫 실행 마법사). 고르면 설정은 "Allow work in this folder?" 확인 창, 마법사는 2/3 허락 단계를 그대로 거친다. 사라진 폴더는 흐리게 "Not found" + Remove. 테스트 `shared/settings.spec.ts`, `shared/recent-folders.spec.ts` |
 | 앱 탭 전환 Ctrl/Cmd+1~8 | 구현함 (왼쪽 막대 순서, 탭 단추 툴팁에 키 표시, 창이 떠 있으면 무시). 테스트 `shared/tab-shortcut.spec.ts` |
 | 단축키 안내창 Ctrl/Cmd+Shift+/ | 구현함 (Shift 없는 Ctrl+/ 는 편집기 주석 전환이라 쓰지 않음). 테스트 `shared/shortcut-sheet.spec.ts` |
 
