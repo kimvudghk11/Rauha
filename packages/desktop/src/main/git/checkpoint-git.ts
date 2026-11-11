@@ -14,6 +14,26 @@ export type IsSecret = (relPath: string) => boolean;
 const CONTROL = /[\u0000-\u001f\u007f]/;
 const LITERAL = '--literal-pathspecs';
 
+/**
+ * 경로 위쪽 폴더 중에 링크(심볼릭 링크·Windows 정션)가 하나도 없는가. 링크가 있으면 git 이 링크 너머(레포 밖)에 쓸 수 있어 건드리지 않는다.
+ * 아직 없는 폴더에서 멈춘다(그 아래는 새로 만들어질 폴더). 맨 끝 이름은 보지 않는다(부르는 쪽이 따로 본다).
+ */
+export async function noLinkAbove(root: string, rel: string): Promise<boolean> {
+  let current = resolve(root);
+  for (const part of rel.split('/').slice(0, -1)) {
+    current = join(current, part);
+    let info;
+    try {
+      info = await lstat(current);
+    } catch {
+      return true;
+    }
+    if (info.isSymbolicLink()) return false;
+    if (!info.isDirectory()) return true;
+  }
+  return true;
+}
+
 /** git 이 돌려주는 경로 중 안전한 것만(레포 안 상대 경로·제어문자 없음·.git 안쪽 아님) */
 export function usablePath(path: string): boolean {
   if (path.endsWith('/') || CONTROL.test(path)) return false;
@@ -161,7 +181,7 @@ export async function listChanges(root: string, from: string, to: string, isSecr
 /** 한 파일의 diff(읽기 전용). 큰 diff 를 나눠 그리는 일은 화면이 한다. */
 export async function fileDiff(root: string, from: string, to: string, path: string): Promise<DiffView> {
   const safe = RepoPath.parse(path).value;
-  const text = await mustGit(root, [LITERAL, 'diff', '--no-renames', '--no-color', '--no-ext-diff', '-U3', from, to, '--', safe]);
+  const text = await mustGit(root, [LITERAL, 'diff', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', '-U3', from, to, '--', safe]);
   const d = FileDiff.parse(text);
   return { binary: d.isBinary(), hunks: d.hunks };
 }
@@ -186,9 +206,10 @@ async function currentId(root: string, rootReal: string, path: string): Promise<
   try {
     info = await lstat(abs);
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR' ? null : 'unreadable';
+    const gone = (error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR';
+    return gone && (await noLinkAbove(root, path)) ? null : 'unreadable';
   }
-  if (!info.isFile()) return 'unreadable';
+  if (!info.isFile() || !(await noLinkAbove(root, path))) return 'unreadable';
   const parent = await realpath(dirname(abs)).catch(() => null);
   if (parent === null || !(parent === rootReal || parent.startsWith(rootReal + sep))) return 'unreadable';
   const r = await runGit(root, [LITERAL, 'hash-object', '--', path]);
@@ -218,7 +239,7 @@ export async function fileStates(root: string, startTree: string, endTree: strin
  */
 export async function backupPatch(root: string, startTree: string, paths: readonly string[]): Promise<Buffer> {
   const before = await treeWith(root, startTree, paths);
-  const r = await rawGit(root, ['diff', '--binary', '--full-index', '--no-renames', '--no-color', '--no-ext-diff', startTree, before]);
+  const r = await rawGit(root, ['diff', '--binary', '--full-index', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', startTree, before]);
   if (r.code !== 0) throw new Error(r.stderr.trim().split('\n').slice(0, 4).join('\n') || 'Could not make the backup.');
   return r.stdout;
 }
@@ -235,7 +256,7 @@ export async function deleteCreated(root: string, path: string): Promise<void> {
   const abs = resolve(root, rel);
   const info = await lstat(abs).catch(() => null);
   if (info === null) return;
-  if (!info.isFile() || !(await insideRoot(root, abs))) throw new GitInputError(`This path cannot be removed: ${path}`);
+  if (!info.isFile() || !(await noLinkAbove(root, rel)) || !(await insideRoot(root, abs))) throw new GitInputError(`This path cannot be removed: ${path}`);
   await unlink(abs);
   const rootReal = await realpath(root);
   let dir = (await realpath(dirname(abs)).catch(() => null)) ?? rootReal;
@@ -254,16 +275,44 @@ export async function restoreFile(root: string, startTree: string, path: string)
   const rel = RepoPath.parse(path).value;
   const abs = resolve(root, rel);
   const info = await lstat(abs).catch(() => null);
-  if (info !== null && (!info.isFile() || !(await insideRoot(root, abs)))) throw new GitInputError(`This path cannot be changed: ${path}`);
+  if (!(await noLinkAbove(root, rel)) || (info !== null && (!info.isFile() || !(await insideRoot(root, abs))))) throw new GitInputError(`This path cannot be changed: ${path}`);
   await mustGit(root, [LITERAL, 'restore', `--source=${startTree}`, '--worktree', '--', rel]);
 }
 
-/** 백업 패치를 되돌린 작업 폴더에 다시 적용한다. 그 사이 파일이 바뀌었으면 아무것도 바꾸지 않고 이유를 돌려준다. */
-export async function applyPatch(root: string, patch: Buffer): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: string }> {
+/** 패치가 건드리는 경로. rename·copy 가 있거나 읽을 수 없으면 null(우리가 만든 패치에는 없다). */
+async function patchPaths(root: string, patch: Buffer): Promise<string[] | null> {
+  if (/^(rename|copy) (from|to) /m.test(patch.toString('latin1'))) return null;
+  const r = await rawGit(root, ['apply', '--numstat', '-z', '--binary', '--whitespace=nowarn', '-'], patch);
+  if (r.code !== 0) return null;
+  const paths: string[] = [];
+  for (const entry of r.stdout.toString('utf8').split('\0')) {
+    const m = /^(?:\d+|-)\t(?:\d+|-)\t([\s\S]+)$/.exec(entry);
+    if (m !== null) paths.push(m[1]!);
+  }
+  return paths;
+}
+
+const UNSAFE_PATCH = 'The backup file does not look safe to apply, so nothing was changed.';
+
+/**
+ * 백업 패치를 되돌린 작업 폴더에 다시 적용한다. 그 사이 파일이 바뀌었으면 아무것도 바꾸지 않고 이유를 돌려준다.
+ * 패치 파일은 앱 데이터 폴더에 있어 바뀌었을 수 있으니, 적용 전에 건드리는 경로가 안전한지(레포 안·.git 아님·링크 너머 아님·비밀 파일 아님·링크 파일을 새로 만들지 않음) 직접 확인한다.
+ */
+export async function applyPatch(root: string, patch: Buffer, isSecret: IsSecret = () => false): Promise<{ readonly ok: true } | { readonly ok: false; readonly error: string }> {
   if (patch.length === 0) return { ok: true };
-  const check = await rawGit(root, ['apply', '--check', '--binary', '-'], patch);
+  if (/^(new file mode|new mode) (120000|160000)\b/m.test(patch.toString('latin1'))) return { ok: false, error: UNSAFE_PATCH };
+  const paths = await patchPaths(root, patch);
+  if (paths === null) return { ok: false, error: UNSAFE_PATCH };
+  for (const p of paths) {
+    if (!usablePath(p) || isSecret(p) || !(await noLinkAbove(root, p))) return { ok: false, error: UNSAFE_PATCH };
+    const info = await lstat(resolve(root, p)).catch(() => null);
+    if (info !== null && info.isSymbolicLink()) return { ok: false, error: UNSAFE_PATCH };
+  }
+  // apply.whitespace=error 같은 사용자 설정 때문에 줄 끝 공백이 든 내용이 거절되지 않게 한다
+  const flags = ['--binary', '--whitespace=nowarn'];
+  const check = await rawGit(root, ['apply', '--check', ...flags, '-'], patch);
   if (check.code !== 0) return { ok: false, error: 'Some of these files changed after the undo, so the backup cannot be applied cleanly. Nothing was changed.' };
-  const done = await rawGit(root, ['apply', '--binary', '-'], patch);
+  const done = await rawGit(root, ['apply', ...flags, '-'], patch);
   return done.code === 0 ? { ok: true } : { ok: false, error: done.stderr.trim().split('\n').slice(0, 3).join('\n') || 'git apply failed' };
 }
 

@@ -101,3 +101,41 @@ describe('StashMessage.parse', () => {
     expect(() => StashMessage.parse(5)).toThrow(GitInputError);
   });
 });
+
+describe('RepoPath.parse 공격 이름', () => {
+  it.each([
+    '.git.',
+    '.git ',
+    'a/.git. /x',
+    'a/.GIT/config',
+    'GIT~1/config',
+    'sub/git~2/hooks',
+    '.g‌it/config',
+    '.​git/config',
+    '.git﻿/config',
+    'a//b',
+    './a',
+    'a/./b',
+    'a\nb.txt',
+    'a\u0007b',
+  ])('%j 는 .git 이나 이상한 경로로 읽힐 수 있어 거절한다', (p) => {
+    expect(() => RepoPath.parse(p)).toThrow();
+  });
+
+  it('Windows 에서는 대체 데이터 스트림과 예약 장치 이름도 거절한다', () => {
+    for (const p of ['a.txt:stream', '.git::$INDEX_ALLOCATION/config', 'src/CON', 'aux.txt', 'LPT1', 'nul.', 'src/com3.log']) {
+      expect(() => RepoPath.parse(p, true), p).toThrow();
+    }
+  });
+
+  it('Windows 가 아니면 콜론·장치 이름은 평범한 이름이다', () => {
+    expect(RepoPath.parse('docs/aux.txt', false).value).toBe('docs/aux.txt');
+    expect(RepoPath.parse('docs/a:b.txt', false).value).toBe('docs/a:b.txt');
+  });
+
+  it('보통 이름은 계속 받는다', () => {
+    for (const p of ['src/a.ts', 'git.md', 'my.git/readme', '.github/workflows/ci.yml', '.gitignore', '한글/파일 이름.txt']) {
+      expect(RepoPath.parse(p, true).value).toBe(p);
+    }
+  });
+});

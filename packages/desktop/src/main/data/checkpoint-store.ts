@@ -69,8 +69,8 @@ export class CheckpointStore implements CheckpointStorePort {
   }
 
   async writePatch(id: string, patch: Buffer): Promise<void> {
-    await mkdir(this.dir, { recursive: true });
-    await writeFile(this.patchFile(id), patch);
+    await mkdir(this.dir, { recursive: true, mode: 0o700 });
+    await writeFile(this.patchFile(id), patch, { mode: 0o600 });
   }
 
   async readPatch(id: string): Promise<Buffer | null> {

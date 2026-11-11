@@ -163,19 +163,35 @@ export class CheckpointKeeper {
       await this.deps.store.saveLedger(this.ledger);
       const failed: string[] = [];
       let reverted = 0;
-      for (const t of targets) {
-        try {
-          if (t.action === 'delete') await deleteCreated(d.repoRoot, t.path);
-          else await restoreFile(d.repoRoot, d.startTree!, t.path);
-          reverted += 1;
-        } catch {
-          failed.push(t.path);
+      const apply = async (list: readonly { readonly path: string; readonly action: RevertAction }[]): Promise<void> => {
+        for (const t of list) {
+          try {
+            if (t.action === 'delete') await deleteCreated(d.repoRoot, t.path);
+            else await restoreFile(d.repoRoot, d.startTree!, t.path);
+            reverted += 1;
+          } catch {
+            failed.push(t.path);
+          }
+        }
+      };
+      // 새로 만든 파일을 먼저 지운다: 파일과 폴더가 서로 바뀐 이름은 지우고 나서야 원래 것을 되살릴 수 있다
+      const deletes = targets.filter((t) => t.action === 'delete');
+      await apply(deletes);
+      let skipped = conflicts;
+      let restores = targets.filter((t) => t.action !== 'delete');
+      if (deletes.length > 0 && conflicts.length > 0) {
+        // 지우고 나니 폴더가 비어 길이 열린 파일이 있을 수 있다(폴더였던 자리에 원래 파일이 있던 경우). 상태를 다시 보고, 그래도 막힌 것만 건너뛴다.
+        const again = await this.planOf(cp, paths).catch(() => null);
+        if (again !== null) {
+          restores = again.actionable.filter((i) => i.action === 'restore');
+          skipped = again.conflicts.map((c) => c.path);
         }
       }
+      await apply(restores);
       const parts = [`Reverted ${reverted} file(s).`];
-      if (conflicts.length > 0) parts.push(`Skipped ${conflicts.length} that changed after the job.`);
+      if (skipped.length > 0) parts.push(`Skipped ${skipped.length} that changed after the job.`);
       if (failed.length > 0) parts.push(`Could not change: ${failed.join(', ')}.`);
-      return { message: parts.join(' '), reverted, conflicts: [...conflicts, ...failed], backupId: id };
+      return { message: parts.join(' '), reverted, conflicts: [...skipped, ...failed], backupId: id };
     });
   }
 
@@ -186,7 +202,7 @@ export class CheckpointKeeper {
       if (entry === null) throw new Error('There is no backup to restore for this job.');
       const patch = await this.deps.store.readPatch(entry.id);
       if (patch === null) throw new Error('The backup file is gone.');
-      const result = await applyPatch(entry.repoRoot, patch);
+      const result = await applyPatch(entry.repoRoot, patch, this.deps.secretOf(entry.repoRoot));
       if (!result.ok) throw new Error(result.error);
       this.ledger = this.ledger.remove(entry.id);
       await this.deps.store.removePatch(entry.id);

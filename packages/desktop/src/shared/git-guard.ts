@@ -42,15 +42,35 @@ export class ProtectedBranches {
   }
 }
 
-/** 레포 안의 상대 경로 값 객체. 밖으로 나가는 경로·옵션처럼 읽히는 경로·.git 안쪽은 만들 수 없다. */
+/** 글자 모양만 다른 .git 을 만드는 보이지 않는 글자(맥 HFS+ 가 무시한다) */
+const INVISIBLE = /[​-‏‪-‮⁠-⁯﻿]/g;
+/** Windows 짧은 이름(GIT~1 은 .git 폴더를 연다) */
+const SHORT_GIT = /^git~\d+$/i;
+/** Windows 예약 장치 이름(확장자가 붙어도 장치다) */
+const DEVICE = /^(con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])(\..*)?$/i;
+
+/** 이 이름이 .git 폴더를 가리킬 수 있는가(끝의 점·공백, 대체 데이터 스트림, 짧은 이름, 보이지 않는 글자, 대소문자) */
+function pointsAtGit(part: string): boolean {
+  const name = part.replace(INVISIBLE, '').replace(/:.*$/s, '').replace(/[. ]+$/, '');
+  return name.toLowerCase() === '.git' || SHORT_GIT.test(name);
+}
+
+/**
+ * 레포 안의 상대 경로 값 객체. 밖으로 나가는 경로·옵션처럼 읽히는 경로·.git 안쪽(Windows 가 같은 폴더로 여기는 이름 포함)·제어 문자는 만들 수 없다.
+ * windows 가 true 면 콜론(대체 데이터 스트림·드라이브)과 예약 장치 이름(CON·NUL …)도 거절한다.
+ */
 export class RepoPath {
   private constructor(readonly value: string) {}
 
-  static parse(input: string): RepoPath {
+  static parse(input: string, windows: boolean = process.platform === 'win32'): RepoPath {
     const v = input.replace(/\\/g, '/');
-    const parts = v.split('/');
-    if (v === '' || v.startsWith('/') || /^[A-Za-z]:/.test(v) || v.startsWith('-') || v.includes('\0') || parts.some((p) => p === '..' || p.toLowerCase() === '.git')) {
-      throw new GitInputError(`This path cannot be used: ${input}`);
+    const reject = (): never => {
+      throw new GitInputError(`This path cannot be used: ${CONTROL.test(input) ? '(control character)' : input}`);
+    };
+    if (v === '' || v.startsWith('/') || /^[A-Za-z]:/.test(v) || v.startsWith('-') || CONTROL.test(v)) return reject();
+    for (const p of v.split('/')) {
+      if (p === '' || p === '.' || p === '..' || pointsAtGit(p)) return reject();
+      if (windows && (p.includes(':') || DEVICE.test(p.replace(/[. ]+$/, '')))) return reject();
     }
     return new RepoPath(v);
   }
