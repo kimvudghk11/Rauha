@@ -51,7 +51,7 @@
 
 ## CI
 
-`.github/workflows/desktop.yml` — main push와 수동 실행(`workflow_dispatch`), matrix `macos-latest`·`windows-latest`. install(--immutable) → typecheck → test → build → `yarn dist` → `smoke:dist`(파일 배치 확인 + `RAUHA_FAKE_TEAM=1`, `RAUHA_SMOKE_SHOT`로 Electron을 띄워 스크린샷 생성 확인) → artifact 업로드(14일).
+`.github/workflows/desktop.yml` — main push와 수동 실행(`workflow_dispatch`), matrix `macos-latest`·`windows-latest`. install(--immutable) → typecheck → test → build → `yarn dist` → `smoke:dist`(파일 배치 확인 + `RAUHA_FAKE_TEAM=1`, `RAUHA_SMOKE_SHOT`로 Electron을 띄워 스크린샷 생성 확인) → `smoke:features`(설치본에서 TS 언어 도구·전체 찾기·SQLite·이미지 첨부·docker 안내를 임시 홈으로 실제 호출) → artifact 업로드(14일).
 
 artifact 이름: `rauha-desktop-macOS`(dmg 2개 + zip 2개), `rauha-desktop-Windows`(`rauha-Setup-<버전>-x64.exe`), `smoke-shot-<OS>`(스모크 스크린샷). 실행 목록: https://github.com/kimvudghk11/rauha/actions/workflows/desktop.yml
 

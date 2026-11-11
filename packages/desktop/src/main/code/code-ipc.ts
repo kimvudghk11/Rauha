@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { unpackedAsset } from '../platform/resources.js';
 import type { IpcMain } from 'electron';
 import { discoverRepos } from '@rauha/core';
 import { scanWorkFolder } from '../workspace/scan.js';
@@ -19,14 +19,8 @@ declare const __SEARCH_WORKER_SOURCE__: string | undefined;
 
 const searchRunner = (): InlineSearchRunner | WorkerSearchRunner => (typeof __SEARCH_WORKER_SOURCE__ === 'string' ? new WorkerSearchRunner(() => __SEARCH_WORKER_SOURCE__ as string) : new InlineSearchRunner());
 
-/** asar 안에서는 worker 파일을 못 읽으니 풀어 둔 곳(app.asar.unpacked)에서 읽는다 */
-const unpacked = (p: string): string => p.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
-/** 빌드가 dist/ 에 두는 TypeScript 언어 도구 파일(ts-worker.cjs, ts-lib/). 묶지 않은 실행(시험)에서는 없다. */
-const tsAsset = (name: string): string | null => {
-  if (typeof __dirname !== 'string') return null;
-  const path = unpacked(join(__dirname, name));
-  return existsSync(path) ? path : null;
-};
+/** 빌드가 dist/ 에 두는 TypeScript 언어 도구 파일(ts-worker.cjs, ts-lib/). asar 안에서는 worker 를 못 띄우므로 풀어 둔 곳에서 읽는다. 묶지 않은 실행(시험)에서는 없다. */
+const tsAsset = (name: string): string | null => (typeof __dirname === 'string' ? unpackedAsset(__dirname, name, existsSync) : null);
 
 /** 레포 목록은 git을 불러 읽으므로 잠깐 기억해 둔다 */
 const REPO_TTL_MS = 10_000;

@@ -29,6 +29,9 @@ const unpacked = join(app.resources, 'app.asar.unpacked', 'node_modules', '@anth
 need(join(unpacked, 'claude-agent-sdk', 'sdk.mjs'), 'Agent SDK (asar 밖)');
 need(join(unpacked, `claude-agent-sdk-${app.sdk}`, app.bin), 'Agent SDK 실행 파일(asar 밖)');
 need(join(app.resources, 'app.asar.unpacked', 'node_modules', '@playwright', 'mcp', 'package.json'), '브라우저 MCP(asar 밖)');
+// 코드 탭 TS 언어 도구: worker 파일과 lib 는 asar 밖에서만 띄울 수 있다(scripts/smoke-features.mjs 가 실제로 돌려 본다)
+need(join(app.resources, 'app.asar.unpacked', 'dist', 'ts-worker.cjs'), 'TS 언어 도구 worker(asar 밖)');
+need(join(app.resources, 'app.asar.unpacked', 'dist', 'ts-lib', 'lib.d.ts'), 'TS lib 파일(asar 밖)');
 if (problems.length) { console.error(problems.join('\n')); process.exit(1); }
 console.log('파일 배치 확인 완료');
 

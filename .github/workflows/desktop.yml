@@ -41,6 +41,8 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       # 설치본 파일 배치 확인 + 가짜 팀으로 Electron 실행 스모크(실제 Claude 호출 없음)
       - run: yarn workspace @rauha/desktop smoke:dist
+      # 설치본(asar)에서 TS 언어 도구·전체 찾기·SQLite·이미지 첨부·docker 안내가 실제로 도는지 확인(가짜 팀, 임시 홈)
+      - run: yarn workspace @rauha/desktop smoke:features
       - uses: actions/upload-artifact@v7
         with:
           name: rauha-desktop-${{ runner.os }}

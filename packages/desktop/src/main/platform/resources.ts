@@ -46,3 +46,13 @@ export function claudeBinaryPath(env: ResourceEnv, platform: NodeJS.Platform, ar
 export function fallbackWorkDir(env: { readonly packaged: boolean; readonly userDataPath: string; readonly cwd: string }): string {
   return env.packaged ? join(env.userDataPath, 'no-work-folder') : env.cwd;
 }
+
+/**
+ * 설치본에서 asar 밖으로 풀어 둔 빌드 파일(dist/ts-worker.cjs, dist/ts-lib/ …)의 실제 경로.
+ * `dir`은 main 번들이 있는 폴더(__dirname: 설치본은 `…/app.asar/dist`, 개발 실행은 `dist`).
+ * 풀어 둔 파일이 없으면 null — asar 안 경로는 worker 로 띄울 수 없어서 되돌아가지 않는다.
+ */
+export function unpackedAsset(dir: string, name: string, exists: (path: string) => boolean): string | null {
+  const path = unpackedPath(join(dir, name));
+  return exists(path) ? path : null;
+}

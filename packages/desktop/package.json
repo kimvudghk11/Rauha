@@ -13,7 +13,8 @@
     "dist": "node scripts/dist.mjs",
     "dist:mac": "node scripts/dist.mjs --mac",
     "dist:win": "node scripts/dist.mjs --win",
-    "smoke:dist": "node scripts/smoke-dist.mjs"
+    "smoke:dist": "node scripts/smoke-dist.mjs",
+    "smoke:features": "node scripts/smoke-features.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.296",
