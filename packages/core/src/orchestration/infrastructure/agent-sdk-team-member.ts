@@ -122,9 +122,14 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       // 턴 한도에 닿았거나 결과 형식만 못 맞춘 호출은 멈추지 않고 같은 대화를 이어서 끝낸다(MemberContinue).
       for (let continued = 0; ; continued += 1) {
         result = null;
-        for await (const message of messages) {
-          if (message.type === 'result') result = message;
-          else if (message.type === 'assistant') partial = lastText(message.message.content) ?? partial;
+        try {
+          for await (const message of messages) {
+            if (message.type === 'result') result = message;
+            else if (message.type === 'assistant') partial = lastText(message.message.content) ?? partial;
+          }
+        } catch (error) {
+          // SDK는 턴 한도 같은 오류 결과를 준 뒤에 예외도 던진다. 결과를 이미 받았으면 그 결과로 판단한다(버리면 이어 하기도 멈춘 이유도 잃는다).
+          if (result === null) throw error;
         }
         if (result === null || controller.signal.aborted) break;
         const done: SDKResultMessage = result;
