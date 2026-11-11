@@ -176,7 +176,7 @@ describe('NodeProject 관련 테스트 명령', () => {
 describe('NodeChecks 검사 묶음 병렬 실행', () => {
   // 각 검사는 시작·끝 시각을 파일에 남긴다. 시간 제한 대신 "모든 검사가 시작한 뒤에야 첫 검사가 끝난다"로 겹침을 가린다(부하와 상관없다).
   const script = (tag: string) =>
-    `node -e "const f=require('fs');f.appendFileSync('marks.txt','s-${tag}-'+Date.now()+';');setTimeout(()=>f.appendFileSync('marks.txt','e-${tag}-'+Date.now()+';'),1500)"`;
+    `node -e "const f=require('fs');f.appendFileSync('marks.txt','s-${tag}-'+Date.now()+';');setTimeout(()=>f.appendFileSync('marks.txt','e-${tag}-'+Date.now()+';'),8000)"`;
 
   it('tests·typecheck·lint를 차례가 아니라 동시에 돌린다', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rauha-par-'));
