@@ -31,6 +31,7 @@ import { ManyRepoDesk, type RepoRunner } from './many-repo-desk.js';
 import { ToolTally, type ToolCount } from '../domain/tool-tally.js';
 import type { CompanyBookPort, LearningPort, MemberResult, PreparedCall, ProgressPort, TeamMemberPort, UserPort, WorkspacePort } from './ports.js';
 import { stoppedMember } from './member-stop-note.js';
+import { PastReference } from '../domain/past-reference.js';
 import { conversationBlock } from './prompt-blocks.js';
 import type { DesignTaskResult, TurnOutcome } from './turn-outcome.js';
 
@@ -271,6 +272,8 @@ export class ChatSession {
     if (route.mode === 'ideate') return this.desk.analyze('planner', '기획', input, conversation, started, 'planning');
     if (route.mode === 'risk') return this.analysis('riskchecker', '위험 점검', route, input, conversation, also, started);
     const changesCode = route.mode === 'work' || route.mode === 'feature';
+    // 이어 할 대상이 없는 지시어 요청은 팀을 돌리지 않고 바로 되묻는다(호출 0, 기록 없음).
+    if ((changesCode || route.mode === 'question') && (await this.lacksPastTarget(input, route, conversation))) return { kind: 'notice', message: PastReference.notice() };
     // 고칠 수 있는 저장소가 함께 넘어오면 저장소별로 나눠 맡고, 읽기 전용 참고뿐이면 이 저장소만 고치며 참고로 넘긴다.
     if (changesCode && also.length > 0 && also.some((a) => a.work !== undefined)) return this.manyRepos(input, conversation, also, await this.knowledgeOf(), await this.othersKnown(also, 'deep'), started);
     const references = changesCode && also.length > 0 ? referenceBlock(await this.othersKnown(also, 'deep')) : null;
@@ -656,10 +659,22 @@ ${SINGLE_REPO_NOTE}
   // ── 지난 작업 고르기 ─────────────────────────────────────
 
   /** 흐릿하게 가리킨 지난 작업을 기억에서 찾아 사용자에게 고르게 한다. 하나여도 묻는다. 화면이 없으면 새 작업. */
+  private async pastCandidates(query: string, mode: Route['mode']): Promise<readonly Recall[]> {
+    // 작업이면 질문·답을 걸러 낸 뒤에도 후보가 남도록 넉넉히 찾는다.
+    return mode === 'work' || mode === 'feature' ? continuable(await this.deps.memory.search(query, CANDIDATES * 3), CANDIDATES) : this.deps.memory.search(query, CANDIDATES);
+  }
+
+  /** 앞 대화가 없을 때만 기억을 뒤진다(검색 호출은 팀원 호출이 아니다). */
+  private async lacksPastTarget(input: string, route: Route, conversation: string | null): Promise<boolean> {
+    const asks = { text: input, refersToPast: route.refersToPast, hasConversation: conversation !== null, hasPastWork: false };
+    if (!PastReference.lacksTarget(asks)) return false;
+    const found = await this.pastCandidates(route.pastQuery ?? input, route.mode);
+    return PastReference.lacksTarget({ ...asks, hasPastWork: found.length > 0 });
+  }
+
   private async pickPast(query: string, mode: Route['mode']): Promise<Recall | null> {
     if (!this.deps.user.interactive) return null;
-    // 작업이면 질문·답을 걸러 낸 뒤에도 후보가 남도록 넉넉히 찾는다.
-    const candidates = mode === 'work' || mode === 'feature' ? continuable(await this.deps.memory.search(query, CANDIDATES * 3), CANDIDATES) : await this.deps.memory.search(query, CANDIDATES);
+    const candidates = await this.pastCandidates(query, mode);
     if (candidates.length === 0) return null;
     const picked = await this.deps.user.pickPast(candidates.map((c) => ({ id: c.work.id, title: c.work.text.split('\n')[0]!, at: c.work.at })));
     return candidates.find((c) => c.work.id === picked) ?? null;

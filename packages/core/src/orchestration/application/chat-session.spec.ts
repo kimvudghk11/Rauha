@@ -686,6 +686,64 @@ describe('ChatSession — 작업과 기억', () => {
     expect(loops.runs[1]!.context.pastWork).toBeNull();
   });
 
+  it('앞 대화도 지난 작업도 없는데 "아까 그거 이어서"라고 하면 팀을 부르지 않고 무엇을 이어서 할지 되묻는다', async () => {
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('work', true, '아까 그거')] });
+    const turn = await session({ team, loops }).handle('아까 그거 이어서 해줘');
+    expect(turn).toMatchObject({ kind: 'notice', message: expect.stringContaining('이어서 할 작업을 찾지 못했어요') });
+    expect(team.calls.map((c) => c.role)).toEqual(['router']);
+    expect(loops.runs).toEqual([]);
+  });
+
+  it('라우터가 지난 일을 가리킨다고 표시하지 않아도 지시어와 맥락 없음이면 같은 안내로 끝낸다', async () => {
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('work')] });
+    const turn = await session({ team, loops }).handle('이어서 해줘');
+    expect(turn.kind).toBe('notice');
+    expect(loops.runs).toEqual([]);
+  });
+
+  it('되물은 턴은 대화 기록에 남기지 않아 다음 요청의 앞 대화가 되지 않는다', async () => {
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('work', true), route('work')] });
+    const chat = session({ team, loops });
+    await chat.handle('아까 그거 이어서 해줘');
+    await chat.handle('로그인 잠금 기능 만들어줘');
+    expect(loops.runs[0]!.context.conversation).toBeNull();
+  });
+
+  it('지난 작업이 기억에 있으면(앞 대화가 없어도) 되묻지 않고 후보를 보여 준다', async () => {
+    const memory = new FakeMemory();
+    const loops = new FakeLoops();
+    const user = new FakeUser(true);
+    const team = new FakeTeam({ router: [route('work'), route('work', true, 'discount 할인')] });
+    const chat = session({ team, memory, loops, user });
+    await chat.handle('Money에 할인 넣어줘');
+    chat.clear();
+    const turn = await chat.handle('아까 그거 이어서 해줘');
+    expect(turn.kind).toBe('work');
+    expect(user.pastAsked).toHaveLength(1);
+  });
+
+  it('앞 대화가 있으면 지시어가 있어도 이어서 진행한다', async () => {
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('work'), route('work')] });
+    const chat = session({ team, loops });
+    await chat.handle('Money에 할인 넣어줘');
+    const turn = await chat.handle('아까 그거 이어서 해줘');
+    expect(turn.kind).toBe('work');
+    expect(loops.runs[1]!.context.conversation).toContain('Money에 할인 넣어줘');
+  });
+
+  it('이어폰·아까운 같은 말은 맥락이 없어도 새 작업으로 진행한다', async () => {
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('work'), route('work')] });
+    const chat = session({ team, loops });
+    expect((await chat.handle('이어폰 버그 고쳐줘')).kind).toBe('work');
+    chat.clear();
+    expect((await chat.handle('아까운 메모리 줄여줘')).kind).toBe('work');
+  });
+
   it('라우터 출력이 깨지면 작업으로 진행한다', async () => {
     const loops = new FakeLoops();
     const team = new FakeTeam({ router: [() => ({ nonsense: true })] });
