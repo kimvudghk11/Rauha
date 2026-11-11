@@ -224,6 +224,21 @@ export function parseCurl(command: string, id: string): ApiRequest {
   if (!API_METHODS.includes(m)) throw new ApiError(`The method ${String(method)} is not supported.`);
   if (getMode && method === null) m = 'GET';
   const ct = headers.find((h) => h.key.toLowerCase() === 'content-type')?.value;
+  // 주소의 user:pw@ 는 주소에 남기지 않고 Basic 인증으로 올린다(주소는 기록·내보내기에 그대로 남기 때문)
+  const info = /^(https?:\/\/)([^/?#@\s]+)@/i.exec(url);
+  if (info !== null && user === null) {
+    const raw = info[2] as string;
+    const c = raw.indexOf(':');
+    const dec = (t: string): string => {
+      try {
+        return decodeURIComponent(t);
+      } catch {
+        return t;
+      }
+    };
+    user = dec(c === -1 ? raw : raw.slice(0, c)) + ':' + (c === -1 ? '' : dec(raw.slice(c + 1)));
+    url = (info[1] as string) + url.slice(info[0].length);
+  } else if (info !== null) url = (info[1] as string) + url.slice(info[0].length);
   let { url: bare, query } = splitQuery(url);
   let body: ApiBody = { kind: 'none' };
   if (form.length > 0) body = { kind: 'form', fields: form };

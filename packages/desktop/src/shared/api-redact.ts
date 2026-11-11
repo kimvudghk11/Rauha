@@ -1,5 +1,5 @@
 import { redactSecrets } from './chat-redact.js';
-import { isSensitiveHeaderName } from './api-request.js';
+import { isSensitiveHeaderName, isSensitiveQueryName } from './api-request.js';
 
 /** API 탭이 비밀을 가린 자리에 쓰는 글자 */
 export const API_HIDDEN = '[hidden]';
@@ -23,6 +23,12 @@ export function maskHeaderValue(name: string, value: string): string {
 
 export function maskHeaders(headers: readonly (readonly [string, string])[]): [string, string][] {
   return headers.map(([k, v]) => [k, maskHeaderValue(k, v)]);
+}
+
+/** 주소 하나에서 아는 비밀 값과 비밀 이름 쿼리(token·api_key …)의 값을 가린다(리다이렉트 주소 기록용) */
+export function maskUrlSecrets(url: string, secrets: readonly string[]): string {
+  const hidden = hideSecrets(url, secrets);
+  return hidden.replace(/([?&])([^=&#]+)=([^&#]*)/g, (m: string, sep: string, key: string) => (isSensitiveQueryName(key) ? sep + key + '=' + API_HIDDEN : m));
 }
 
 /**

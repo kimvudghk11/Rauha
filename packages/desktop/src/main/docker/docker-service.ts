@@ -26,6 +26,8 @@ export interface DockerServiceDeps {
   /** 지금 작업 폴더(compose 파일을 찾고 compose 명령을 돌리는 곳). 없으면 null */
   readonly workDir: () => string | null;
   readonly findCompose: (root: string) => readonly ComposeFileView[];
+  /** compose 파일이 작업 폴더 안의 진짜 파일인지(없으면 확인하지 않는다: 시험용) */
+  readonly resolveCompose?: (root: string, relative: string) => string | null;
   readonly newId: () => string;
   readonly emit: (event: DockerLogEvent) => void;
 }
@@ -37,6 +39,8 @@ const COMPOSE_UP_MS = 5 * 60_000;
 const EXEC_MS = 30_000;
 const EXEC_MAX_BYTES = 1024 * 1024;
 const LOG_MAX_BYTES = 8 * 1024 * 1024;
+/** 동시에 따라가는 로그 흐름(= docker 프로세스) 상한 */
+const MAX_STREAMS = 8;
 
 const fail = (failure: DockerFailure): { readonly ok: false; readonly failure: DockerFailure } => ({ ok: false, failure });
 const ok = <T>(data: T): DockerResult<T> => ({ ok: true, data });
@@ -160,6 +164,7 @@ export class DockerService {
   logs(raw: unknown): Promise<DockerResult<{ readonly streamId: string }>> {
     return this.guarded(async () => {
       const r = DockerRequest.logs(raw);
+      if (this.streams.size >= MAX_STREAMS) return fail({ kind: 'failed', title: 'Too many log streams', message: `At most ${MAX_STREAMS} logs can be open at once. Close one first.`, help: null, link: null });
       const streamId = this.deps.newId();
       const handle = this.deps.stream(
         ['logs', '--tail', String(r.tail.value), ...(r.follow ? ['--follow'] : []), r.ref.value],
@@ -205,6 +210,7 @@ export class DockerService {
       const r = DockerRequest.compose(raw);
       const root = this.deps.workDir();
       if (root === null) return fail({ kind: 'bad-input', title: 'No work folder', message: 'Pick a work folder first, so Rauha knows where the compose file is.', help: null, link: null });
+      if (this.deps.resolveCompose !== undefined && this.deps.resolveCompose(root, r.file.path) === null) return fail({ kind: 'bad-input', title: 'That value cannot be used', message: `That is not a compose file inside the work folder: ${r.file.path.slice(0, 80)}`, help: null, link: null });
       const base = ['compose', '-f', r.file.path];
       const tail = ['--no-color', '--tail', String(r.tail.value)];
       const args =

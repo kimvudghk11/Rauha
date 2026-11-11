@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell, type IpcMainInvokeEvent } from 'electron';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
@@ -83,17 +83,37 @@ import { decisionOf, JobTrail } from './team/job-trail.js';
 import { askCardFlow } from './team/ask-flow.js';
 import { newlyChanged, snapshotChanges } from './team/changed-files.js';
 import { recordInputOf } from './team/record-input.js';
-import { isAppPage, isSafeExternalUrl } from '../shared/navigation-guard.js';
+import { externalUrlOf, isAppPage } from '../shared/navigation-guard.js';
+import { guardIpcMain, isTrustedSender } from './ipc-guard.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
 const BACKGROUND = '#1f1f1f';
 
 /** 기본 브라우저로는 https 주소만 연다(다른 방식·사용자 정보가 든 주소는 조용히 버린다). */
 const openSafe = async (url: string): Promise<void> => {
-  if (isSafeExternalUrl(url)) await shell.openExternal(url);
+  // 열 때는 사용자가 넘긴 글이 아니라 파싱해서 다듬은 주소를 쓴다
+  const safe = externalUrlOf(url);
+  if (safe !== null) await shell.openExternal(safe);
 };
 
 let window: BrowserWindow | null = null;
+
+// 모든 IPC(handle·on)는 우리 창의 최상위 앱 화면에서 온 것만 받는다. 이 아래에서 등록하는 채널(다른 파일이 ipcMain 을 받아 등록하는 것 포함)이 모두 해당된다.
+guardIpcMain(ipcMain, (event) => {
+  const e = event as IpcMainInvokeEvent;
+  const frame = e.senderFrame ?? null;
+  return isTrustedSender({ fromWindow: window !== null && e.sender === window.webContents, frameUrl: frame?.url, isTopFrame: frame !== null && frame.parent === null }, window?.webContents.getURL() ?? '');
+});
+// 이 앱이 만드는 모든 화면(webContents)에서: 웹뷰 붙이기와 서버 리다이렉트로 옮겨 가는 것을 막는다
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+  contents.on('will-redirect', (event, url) => {
+    if (!isAppPage(url, contents.getURL())) {
+      event.preventDefault();
+      void openSafe(url).catch(() => undefined);
+    }
+  });
+});
 let limitNotified = false;
 
 /** 앱 오류 로그: 처리 안 된 오류와 화면(renderer)의 콘솔 error를 가려서 최근 200줄 + userData/logs/app.log에 쌓는다. 진단 정보 복사가 쓴다. */
@@ -505,6 +525,7 @@ function open(runner: JobRunner): void {
     }
   });
   window.webContents.session.setPermissionRequestHandler((_wc, _permission, done) => done(false));
+  window.webContents.session.setPermissionCheckHandler(() => false);
   if (remembers() && !auto) {
     let timer: NodeJS.Timeout | undefined;
     const save = () => {

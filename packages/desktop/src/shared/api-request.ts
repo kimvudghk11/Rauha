@@ -67,8 +67,21 @@ export function variablesIn(text: string): string[] {
 /** 값 전체가 `{{name}}` 하나이거나 비어 있으면 "비밀이 들어 있지 않다" */
 export const isVariableRef = (value: string): boolean => value.trim() === '' || WHOLE_VAR_RE.test(value);
 
+/** HTTP 헤더 이름으로 쓸 수 있는 글자(RFC 9110 token) */
+const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+/** 헤더 값에 못 들어가는 글자: 줄바꿈과 탭 아닌 제어 문자 */
+// eslint-disable-next-line no-control-regex
+const HEADER_VALUE_BAD_RE = /[\u0000-\u0008\u000a-\u001f\u007f]/;
+
 const SENSITIVE_HEADER_RE = /^(authorization|proxy-authorization|cookie|x-api-key|api-key|x-auth-token|x-access-token|x-amz-security-token)$/i;
 export const isSensitiveHeaderName = (name: string): boolean => SENSITIVE_HEADER_RE.test(name.trim());
+
+/** 값이 비밀일 가능성이 큰 쿼리 이름(token·api_key·password·signature …). 값으로 적혀 있으면 변수로 옮긴다. */
+const SENSITIVE_QUERY_RE = /^(access[-_]?token|refresh[-_]?token|id[-_]?token|auth[-_]?token|token|api[-_]?key|apikey|key|secret|client[-_]?secret|password|passwd|pwd|auth|authorization|sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token)$/i;
+export const isSensitiveQueryName = (name: string): boolean => SENSITIVE_QUERY_RE.test(name.trim());
+
+/** 이 값이 "그대로 적힌 비밀"인지: 비어 있지 않고 {{변수}}가 하나도 없다 */
+const isLiteralValue = (value: string): boolean => value.trim() !== '' && variablesIn(value).length === 0;
 
 const slug = (text: string): string => {
   const s = text
@@ -90,6 +103,14 @@ function fill(text: string, vars: ReadonlyMap<string, string>, missing: Set<stri
     return v;
   });
 }
+
+const safeDecode = (s: string): string => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
 
 export const encodeBasic = (user: string, pass: string): string => btoa(String.fromCharCode(...new TextEncoder().encode(`${user}:${pass}`)));
 
@@ -191,6 +212,10 @@ export class ApiRequest {
       throw new ApiError(`Missing variable${names.length > 1 ? 's' : ''}: ${names.map((n) => `{{${n}}}`).join(', ')}. Add ${names.length > 1 ? 'them' : 'it'} to the selected environment.`, names);
     }
     if (url === '') throw new ApiError('Enter a URL.');
+    for (const [k, v] of headers) {
+      if (!HEADER_NAME_RE.test(k)) throw new ApiError(`"${k.slice(0, 40)}" is not a valid header name. Use letters, digits and - _ . only (no spaces, colons or line breaks).`);
+      if (HEADER_VALUE_BAD_RE.test(v)) throw new ApiError(`The value of header ${k} has a line break or control character, which is not allowed.`);
+    }
 
     const allQuery = [...query, ...queryAuth];
     if (allQuery.length > 0) {
@@ -249,7 +274,9 @@ export class ApiRequest {
       const secret = (scheme[2] as string).trim();
       return isVariableRef(secret) ? h : { ...h, value: `${scheme[1]} ${take(slug(h.key), secret)}` };
     });
+    const query = this.props.query.map((q) => (isSensitiveQueryName(q.key) && isLiteralValue(q.value) ? { ...q, value: take(slug(q.key), q.value) } : q));
+    const url = this.props.url.replace(/([?&])([^=&#]+)=([^&#]*)/g, (m: string, sep: string, key: string, value: string) => (isSensitiveQueryName(safeDecode(key)) && isLiteralValue(value) ? `${sep}${key}=${take(slug(safeDecode(key)), value)}` : m));
     if (secrets.length === 0) return { request: this, secrets };
-    return { request: new ApiRequest({ ...this.props, auth, headers }), secrets };
+    return { request: new ApiRequest({ ...this.props, auth, headers, query, url }), secrets };
   }
 }

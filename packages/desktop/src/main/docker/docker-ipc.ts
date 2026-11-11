@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { IpcMain } from 'electron';
 import { DOCKER_IPC, type DockerLogEvent } from '../../shared/docker-api.js';
-import { findComposeFiles } from './compose-find.js';
+import { findComposeFiles, resolveComposeFile } from './compose-find.js';
 import { runDocker, streamDocker } from './docker-run.js';
 import { DockerService } from './docker-service.js';
 
@@ -19,6 +19,7 @@ export function registerDockerIpc(ipc: Pick<IpcMain, 'handle'>, deps: DockerIpcD
     stream: streamDocker,
     workDir: deps.workDir,
     findCompose: findComposeFiles,
+    resolveCompose: resolveComposeFile,
     newId: () => randomUUID(),
     emit: (event) => deps.send(DOCKER_IPC.logEvent, event),
   });

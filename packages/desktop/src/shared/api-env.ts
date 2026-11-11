@@ -76,6 +76,7 @@ export class ApiEnvironment {
       const n = checkVarName(e.name);
       const keep = e.value === null ? current.get(n) : undefined;
       if (e.value === null && keep === undefined) throw new ApiError(`Variable ${n} has no value to keep.`);
+      if (e.value === null && keep !== undefined && keep.secret && !e.secret) throw new ApiError(`${n} is a secret. Type the value again to make it a normal variable.`);
       return { name: n, value: e.value ?? (keep as EnvVar).value, secret: e.secret };
     });
     return ApiEnvironment.create({ id: this.props.id, name, vars });

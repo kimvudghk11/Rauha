@@ -1,5 +1,5 @@
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { isComposeFileName, type ComposeFileView } from '../../shared/docker-api.js';
 
 /** 안쪽을 뒤지지 않는 폴더(의존성·빌드 결과·숨김 폴더) */
@@ -43,6 +43,21 @@ export function findComposeFiles(root: string, options: FindOptions = {}): reado
     queue = next;
   }
   return sort(found.slice(0, maxFiles));
+}
+
+/**
+ * 화면이 고른 compose 파일이 정말 작업 폴더 안의 보통 파일인지 확인한다(심볼릭 링크·정션으로 밖을 가리키는 것은 거절).
+ * 맞으면 실제 경로, 아니면 null.
+ */
+export function resolveComposeFile(root: string, relative: string): string | null {
+  try {
+    const realRoot = realpathSync(root);
+    const real = realpathSync(resolve(root, relative));
+    const inside = real.startsWith(realRoot.endsWith(sep) ? realRoot : realRoot + sep);
+    return inside && statSync(real).isFile() ? real : null;
+  } catch {
+    return null;
+  }
 }
 
 const sort = (list: ComposeFileView[]): readonly ComposeFileView[] => [...list].sort((a, b) => a.path.localeCompare(b.path));

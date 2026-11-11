@@ -196,7 +196,7 @@ export class ComposeFile {
     if (typeof input !== 'string' || input.trim() === '') throw new DockerInputError('The compose file is missing.');
     const v = input.replace(/\\/g, '/');
     const parts = v.split('/');
-    const bad = v.startsWith('/') || v.startsWith('-') || /^[A-Za-z]:/.test(v) || v.includes('\0') || parts.some((p) => p === '' || p === '..' || p === '.');
+    const bad = v.startsWith('/') || v.startsWith('-') || v.includes(':') || v.includes('\0') || parts.some((p) => p === '' || p === '..' || p === '.');
     if (bad || !isComposeFileName(parts[parts.length - 1]!)) throw new DockerInputError(`That is not a compose file inside the work folder: ${v.slice(0, 80)}`);
     return new ComposeFile(v);
   }

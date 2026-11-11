@@ -1,5 +1,5 @@
 import { ApiError, type ApiRequestProps } from './api-request.js';
-import { hideSecrets, maskHeaders } from './api-redact.js';
+import { hideSecrets, maskHeaders, maskUrlSecrets } from './api-redact.js';
 
 export const RESPONSE_LIMITS = {
   /** 이만큼까지만 받는다(넘으면 자르고 알린다) */
@@ -66,7 +66,7 @@ export class ResponseSummary {
 
   /** 화면 복사용: 민감한 헤더(Set-Cookie·Authorization 등)와 아는 비밀 값을 가린 요약 */
   masked(secrets: readonly string[]): ResponseSummary {
-    return new ResponseSummary({ ...this.props, headers: maskHeaders(this.props.headers), body: hideSecrets(this.props.body, secrets) });
+    return new ResponseSummary({ ...this.props, headers: maskHeaders(this.props.headers), body: hideSecrets(this.props.body, secrets), redirects: this.props.redirects.map((u) => maskUrlSecrets(u, secrets)) });
   }
 
   /** 기록에 남길 모양: 가리고, 본문을 기록 상한으로 줄인다 */

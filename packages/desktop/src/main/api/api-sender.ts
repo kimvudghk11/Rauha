@@ -1,4 +1,4 @@
-import { checkTarget, explainNetworkError, REDIRECT_LIMIT } from '../../shared/api-guard.js';
+import { checkTarget, explainNetworkError, isMetadataAddress, REDIRECT_LIMIT } from '../../shared/api-guard.js';
 import { isSecretHeader } from '../../shared/api-redact.js';
 import type { PreparedRequest } from '../../shared/api-request.js';
 import { RESPONSE_LIMITS, type ResponseSummaryProps } from '../../shared/api-response.js';
@@ -14,6 +14,11 @@ export interface SendOptions {
   /** 시험에서 가짜 fetch를 넣는다 */
   readonly fetchFn?: typeof fetch;
   readonly now?: () => number;
+  /**
+   * 호스트 이름을 IP 목록으로 푼다. 주면 보내기 직전(리다이렉트마다)에 풀어서 메타데이터·링크로컬 주소로 가는 이름(DNS 속임)을 막는다.
+   * 풀지 못하면(없는 이름 등) 막지 않고 보내기에서 나는 오류를 그대로 쓴다.
+   */
+  readonly resolve?: (hostname: string) => Promise<readonly string[]>;
 }
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -95,6 +100,11 @@ export async function sendPrepared(request: PreparedRequest, options: SendOption
     for (let hop = 0; ; hop++) {
       const target = checkTarget(url);
       if (!target.ok) return fail('blocked', hop === 0 ? target.error : `Blocked a redirect: ${target.error}`);
+      const hostname = new URL(target.url).hostname;
+      if (options.resolve !== undefined && !/^[d.]+$/.test(hostname) && !hostname.startsWith('[')) {
+        const addresses = await options.resolve(hostname).catch(() => [] as readonly string[]);
+        if (addresses.some(isMetadataAddress)) return fail('blocked', `${hop === 0 ? '' : 'Blocked a redirect: '}${hostname} points to a cloud metadata or link-local address, which is blocked because it can expose credentials.`);
+      }
       const init: RequestInit = { method, headers, redirect: 'manual', signal: controller.signal };
       if (body !== null && method !== 'GET' && method !== 'HEAD') init.body = body;
       const res = await fetchFn(target.url, init);

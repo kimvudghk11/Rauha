@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
+import { findOnPath } from './docker-bin.js';
 
 export interface RunOptions {
   /** 이 시간이 지나면 멈춘다(밀리초) */
@@ -44,10 +46,14 @@ export const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
  * 실제로 부를 프로그램. 보통 PATH 의 `docker`(윈도우는 docker.exe 를 찾아 준다).
  * 시험용으로 RAUHA_DOCKER_BIN 이 .js/.mjs/.cjs 면 앱 자신의 node(ELECTRON_RUN_AS_NODE)로, 아니면 그 실행 파일을 쓴다.
  */
-export function dockerCommand(env: NodeJS.ProcessEnv, execPath: string): { readonly file: string; readonly prefix: readonly string[]; readonly env: NodeJS.ProcessEnv } {
+export function dockerCommand(env: NodeJS.ProcessEnv, execPath: string, platform: NodeJS.Platform = process.platform): { readonly file: string; readonly prefix: readonly string[]; readonly env: NodeJS.ProcessEnv } {
   const base: NodeJS.ProcessEnv = { ...env, DOCKER_CLI_HINTS: 'false' };
   const bin = env['RAUHA_DOCKER_BIN'];
-  if (bin === undefined || bin === '') return { file: 'docker', prefix: [], env: base };
+  if (bin === undefined || bin === '') {
+    // 윈도우는 cwd(작업 폴더)부터 뒤지므로 PATH 에서 절대 경로로 정해 둔다. 못 찾으면 빈 이름 = 실행 파일 없음으로 다룬다.
+    const found = findOnPath('docker', env['PATH'] ?? env['Path'] ?? '', platform);
+    return { file: found ?? (platform === 'win32' ? '' : 'docker'), prefix: [], env: base };
+  }
   if (/\.(c|m)?js$/i.test(bin)) return { file: execPath, prefix: [bin], env: { ...base, ELECTRON_RUN_AS_NODE: '1' } };
   return { file: bin, prefix: [], env: base };
 }
@@ -67,6 +73,7 @@ export const runDocker: RunDocker = (args, options = {}) =>
     let tooLarge = false;
     let done = false;
     let timer: NodeJS.Timeout | undefined;
+    if (cmd.file === '') return resolve({ code: null, stdout: '', stderr: '', timedOut: false, cancelled: false, tooLarge: false, spawnCode: 'ENOENT' });
     const child = spawn(cmd.file, [...cmd.prefix, ...args], { cwd: options.cwd, env: cmd.env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
     const finish = (code: number | null, spawnCode?: string): void => {
       if (done) return;
@@ -111,12 +118,18 @@ export const runDocker: RunDocker = (args, options = {}) =>
 export const streamDocker: StreamDocker = (args, on, options = {}) => {
   const cmd = dockerCommand(process.env, process.execPath);
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
+  if (cmd.file === '') {
+    queueMicrotask(() => on.end({ code: null, note: null, spawnCode: 'ENOENT', stderr: '' }));
+    return { stop: () => undefined };
+  }
   const child = spawn(cmd.file, [...cmd.prefix, ...args], { env: cmd.env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
   let size = 0;
   let note: string | null = null;
   let stopped = false;
   let ended = false;
   const errTail: string[] = [];
+  // 여러 바이트 글자가 두 조각에 걸쳐 와도 깨지지 않게, 흐름마다 디코더를 따로 둔다
+  const decoders = { out: new StringDecoder('utf8'), err: new StringDecoder('utf8') };
   const kill = (): void => {
     try {
       child.kill();
@@ -133,7 +146,8 @@ export const streamDocker: StreamDocker = (args, on, options = {}) => {
       kill();
       return;
     }
-    const text = chunk.toString('utf8');
+    const text = (isErr ? decoders.err : decoders.out).write(chunk);
+    if (text === '') return;
     if (isErr && errTail.join('').length < 4000) errTail.push(text);
     on.data(text);
   };

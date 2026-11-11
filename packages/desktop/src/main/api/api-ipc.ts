@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
 import { join } from 'node:path';
 import type { IpcMain } from 'electron';
 import { API_IPC } from '../../shared/api-ipc.js';
@@ -19,7 +20,7 @@ export function registerApiIpc(ipc: Pick<IpcMain, 'handle'>, deps: ApiIpcDeps): 
     collections: new CollectionsStore(join(deps.dataDir, 'api-collections.json')),
     envs: new EnvironmentsStore(join(deps.dataDir, 'api-environments.json')),
     history: new HistoryStore(join(deps.dataDir, 'api-history.json')),
-    send: (prepared, signal) => sendPrepared(prepared, { signal }),
+    send: (prepared, signal) => sendPrepared(prepared, { signal, resolve: async (host) => (await lookup(host, { all: true, verbatim: true })).map((a) => a.address) }),
     newId: () => randomUUID(),
     now: () => new Date(),
     saveFile: deps.saveFile,
