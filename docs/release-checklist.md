@@ -2,7 +2,18 @@
 
 사실만 적어요. 확인하지 못한 것은 "확인 못 함"이에요. 사용법은 `docs/desktop-guide.md`.
 
-## 인수인계 (2026-11-10 밤, 세션 89%에서 에이전트를 멈춤; 초기화 11-11 01:10 KST)
+## 인수인계 (2026-11-11 낮, 세션 89%·주간 80%에서 에이전트를 멈춤; 세션 초기화 11-11 04:40 UTC = 13:40 KST)
+
+- **배포 상태**: 마지막 태그 `v0.1.13`(설치 파일 3개). main 에는 0.1.14 후보가 쌓여 있다: 작업 실패 개선(커밋 안 한 변경 위에서 일함·다른 레포 이름은 읽기 전용·테스트 없는 프로젝트 처리·멈춤 이유 구분·git mv 무허락·"Needs your answer" 카드·Retry 가 이유 반영), Repo 편집기 자동 저장(Settings > Editor), 최근 작업 폴더 5개, Git Stash 탭, Ctrl/Cmd+1~8 탭 전환·Ctrl/Cmd+Shift+/ 단축키 안내, Settings 한도 줄 간격·탭 이름 Slash. **CI 결과를 보고(마지막 확인 때 16fc746 까지 success, 그 뒤 실행은 대기열) 초록이면 `v0.1.14` 태그(버전 올리는 커밋 → push → 태그 push), README 링크·크기 갱신.** 새 탭(API·Docker)은 아직 탭 등록 전이라 화면에 안 보인다.
+- **진행 중이던 올인원 로드맵(docs/roadmap-all-in-one.md, 사용자 요청: VS Code·Apidog·Docker Desktop·확장·GitHub Desktop 을 Rauha 하나로)**:
+  - **API 탭**(코드는 main 에 있음, 탭 등록은 보류): 도메인(요청·환경·컬렉션·기록·cURL/.http/OpenAPI 가져오기·내보내기)·main 전송(30s 시간 제한·5MB 상한·리다이렉트 10회·인증 헤더 제거·비밀은 api-environments.json 0600)·화면(renderer/api-*.ts, api.css). 로컬 서버 시험 통과(GET/POST/401/302/없는 변수/저장·기록). **실패: 느린 응답을 Cancel 로 끊는 동작이 앱에서 안 됨**(main 단위 시험은 통과; `api:cancel` 이 `inflight` 를 못 찾는지부터 확인, scratchpad 의 api-e2e.cjs·eval-cancel.js). 남은 순서: ① 취소 버그 수정 ② 탭 등록(tabs.ts 'API', app.ts 분기, Ctrl/Cmd+숫자 [1-9], tabs.spec·tab-shortcut.spec, measure-ui.cjs 의 TAB 맵에서 settings 가 7→8) ③ measure-ui API 장면과 폭 440~1700 위반 0건 ④ 문서·로드맵 '구현함' 표시 ⑤ 폴더 이름 바꾸기·복제·.http 저장·가져오기 창 화면 확인. 맥 미확인(0600 권한).
+  - **Docker 탭**(도메인·main 기초만, 화면 없음): shared/docker-*.ts(이름 검증·ps/images/volume/network/compose 파싱·상태·포트·실패 분류·요청 DTO)·main/docker/docker-run.ts(고정 인자 spawn, RAUHA_DOCKER_BIN 시험용)·compose-find.ts. 이 PC 에는 docker CLI 29.9.2 만 있고 엔진이 꺼져 있어 실제 컨테이너 시험은 못 함. 남은 순서: ① DockerService + docker-ipc + preload/ipc 배선(가짜 실행기 spec) ② renderer/docker-view.ts·docker.css(Containers/Images/Volumes/Networks/Compose, 로그 뷰어, 확인창, 5초 새로고침은 화면이 보일 때만) ③ tabs.ts 'Docker'(왼쪽 막대에서 잘리면 'Dock') ④ measure-ui 장면·문서.
+  - 이후: 0.1.17(채팅 @파일·선택 영역 전송·이미지 붙여넣기·체크포인트·diff 적용/거절), 0.1.18 DB 탭, 진짜 터미널(PTY, 사전 검증 필요).
+- **알려진 문제**: 작업 전체 타임아웃 없음, 허락 카드는 View progress 를 열어야 보임, 재시작 후 복원한 말풍선은 Steps 가 비어 있음, 레포 하나만 대화 초기화하는 길은 UI 에 없음, 기록 탭 폭 600/720/1700·git 좁은 창 눈 확인 미흡, 전체 `yarn test` 가 부하 때 시간 재는 시험(node-checks)·터미널 시험에서 가끔 흔들림(단독으로는 통과).
+- **맥에서 직접 확인(맥은 실행해 본 적 없음)**: 설치 후 `xattr -dr com.apple.quarantine /Applications/Rauha.app`; 앱 안 업데이트(이전 버전에서 올라가는지); Settings 계정 로그인; 리포트(AWS 개인 프로필 `rauha-personal` 등록 후 Settings 의 내 AWS 4칸 입력, 이 Windows PC 는 이미 default 프로필로 설정돼 있음); Repo 탭 미리보기·자동 저장·최근 폴더; 코드 수정 작업이 실패하면 결과 카드 글 전체와 기록 탭 항목을 리포트로 남기기.
+- **조심**: 에이전트는 파일 이름을 지정해 커밋(`git commit -- <파일>`), 앱을 띄우는 점검은 RAUHA_ 환경 변수(기본 2번 모니터·숨김)·임시 프로필만, `taskkill /IM electron.exe` 금지, CSS 는 `ui-components.spec.ts`, 문구를 바꾸면 그 문구를 기대하는 모든 spec 을 같은 커밋에서 고친다.
+
+## (이전) 인수인계 (2026-11-10 밤, 세션 89%에서 에이전트를 멈춤; 초기화 11-11 01:10 KST)
 
 - **배포 상태**: 마지막 태그는 `v0.1.10`. 그 뒤 main 에 쌓인 변경은 아직 배포 전(다음은 `v0.1.11`). 마지막 CI 는 passing(7f63b36 이전 확인). 전체 `yarn test` 는 에이전트별로 3172개까지 통과를 봤고, 마지막 영어 통일 커밋(7f63b36) 뒤 전체 시험은 못 돌렸다.
 - **오늘 끝낸 것**: 할 일 칸반 화면(272px 칸·가운데 모달·끌기·연속 입력)과 버튼/입력칸 28px 통일, Repo 탭 파일 아이콘 교체·md 미리보기·이미지 뷰어, Repo 사이드바 아이콘, git/기록 아이콘을 Octicons(MIT)로, 탭 이름 영어 통일(Chat·Repo·Todo·Records·Git·Commands·Rules·Settings), 메인–작업자 칸 비율 가변(0명 전체 · 1~2명 7:3 · 3~4명 6:4 · 5명~ 5:5), 대화 초기화가 화면도 비움, 이미 최신이면 '지금 업데이트' 불가, 로그인 브라우저 중복 방지, 시험 실행은 2번 모니터/숨김(RAUHA_ 환경 변수, RAUHA_DISPLAY=N), 보안 점검 수정(작업 트리 git 실행 차단, Windows 이름 우회), 리포트(버그 메모 → 개인 AWS) 기능, git 충돌 화면(내 쪽 파랑/상대 쪽 노랑)·충돌 시 충돌 탭으로 이동·큰 레포 분할 그리기(200개/600줄), 내 규칙 제자리 수정, 기록 탭 간격 통일·블로그 글 틀(Troubleshooting·Portfolio·TIL·Dev log)·front-matter 토글·Copy/Save .md, 영어 UI 통일 1~4영역(메인/채팅·Settings·첫 실행·업데이트), 빈 폴더에서 시작하면 git init.
