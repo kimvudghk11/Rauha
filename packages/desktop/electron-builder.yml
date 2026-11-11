@@ -7,11 +7,16 @@ files:
   - dist/main.cjs
   - dist/preload.cjs
   - dist/renderer/**
+  - dist/ts-worker.cjs
+  - dist/ts-lib/**
   - build/icon.png
   - package.json
   - "!**/*.map"
 # SDK 실행 파일과 브라우저 MCP는 asar 안에서 실행할 수 없으니 밖(app.asar.unpacked)에 푼다.
 asarUnpack:
+  # 코드 탭 정의로 이동·진단용 TypeScript 언어 도구(worker 파일은 asar 안에서 못 띄운다)
+  - dist/ts-worker.cjs
+  - dist/ts-lib/**
   - node_modules/@anthropic-ai/**
   - node_modules/@playwright/**
   - node_modules/playwright/**

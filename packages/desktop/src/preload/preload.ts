@@ -10,6 +10,7 @@ import { DATA_IPC } from '../shared/data-api.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
 import { BUG_IPC } from '../shared/bug-api.js';
 import { CODE_IPC } from '../shared/code-api.js';
+import { NAV_IPC } from '../shared/ts-nav.js';
 import { TERM_IPC, type TermEvent } from '../shared/terminal-api.js';
 import { exposeUsageBridge } from './usage-bridge.js';
 import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared/ipc.js';
@@ -103,6 +104,9 @@ const api: RauhaApi = {
     blame: (path) => ipcRenderer.invoke(CODE_IPC.blame, path),
     search: (options) => ipcRenderer.invoke(CODE_IPC.search, options),
     cancelSearch: (id) => ipcRenderer.invoke(CODE_IPC.searchCancel, id),
+    definition: (req) => ipcRenderer.invoke(NAV_IPC.definition, req),
+    references: (req) => ipcRenderer.invoke(NAV_IPC.references, req),
+    diagnostics: (req) => ipcRenderer.invoke(NAV_IPC.diagnostics, req),
     files: () => ipcRenderer.invoke(CODE_IPC.files),
     create: (req) => ipcRenderer.invoke(CODE_IPC.create, req),
     rename: (req) => ipcRenderer.invoke(CODE_IPC.rename, req),

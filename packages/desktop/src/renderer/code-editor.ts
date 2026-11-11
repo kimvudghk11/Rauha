@@ -19,13 +19,14 @@ import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { toml } from '@codemirror/legacy-modes/mode/toml';
 import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
 import { Compartment, EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state';
-import { drawSelection, dropCursor, EditorView, GutterMarker, gutter, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection } from '@codemirror/view';
+import { Decoration, drawSelection, dropCursor, EditorView, GutterMarker, gutter, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection, type DecorationSet } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import type { LineMark } from '../shared/code-changes.js';
 import type { CodeLanguage } from '../shared/code-language.js';
 import type { Indent } from '../shared/indent.js';
 import { runStarts, type BlameView } from '../shared/git-blame.js';
 import { laneColor } from '../shared/git-graph.js';
+import type { NavDiagnostic } from '../shared/ts-nav.js';
 import { ago } from './git-format.js';
 
 /** index.html의 CSP(style-src)에 같은 값이 있어야 편집기 스타일이 적용된다 */
@@ -72,6 +73,8 @@ const theme = EditorView.theme(
     '.cm-blame-line.cont': { color: 'transparent' },
     '.cm-blame-line.fresh': { color: 'var(--yellow)' },
     '.cm-blame .cm-gutterElement:hover .cm-blame-line': { backgroundColor: 'var(--row-hover)', color: 'var(--bright)' },
+    '.cm-diag-error': { textDecoration: 'underline wavy #f48771', textDecorationSkipInk: 'none' },
+    '.cm-diag-warning': { textDecoration: 'underline wavy #e2c08d', textDecorationSkipInk: 'none' },
     '.cm-tooltip': { backgroundColor: C.panel, border: `1px solid ${C.border}`, color: C.fg },
   },
   { dark: true },
@@ -195,6 +198,31 @@ const blameField = StateField.define<RangeSet<GutterMarker>>({
 });
 const blameSlot = new Compartment();
 
+/** 문법·타입 오류 밑줄. 글을 고치면 밑줄도 글자를 따라 움직이고, 다음 진단 결과가 오면 통째로 바뀐다. */
+const setDiagnostics = StateEffect.define<readonly NavDiagnostic[]>();
+function buildDiagnostics(doc: Text, items: readonly NavDiagnostic[]): DecorationSet {
+  const ranges = [];
+  for (const d of items) {
+    if (d.line < 1 || d.line > doc.lines) continue;
+    const from = Math.min(doc.line(d.line).from + d.column - 1, doc.line(d.line).to);
+    const endLine = Math.min(Math.max(d.endLine, d.line), doc.lines);
+    let to = Math.min(doc.line(endLine).from + d.endColumn - 1, doc.line(endLine).to);
+    if (to <= from) to = Math.min(from + 1, doc.length);
+    if (to <= from) continue;
+    ranges.push(Decoration.mark({ class: `cm-diag cm-diag-${d.severity}`, attributes: { title: d.message } }).range(from, to));
+  }
+  return Decoration.set(ranges, true);
+}
+const diagField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    let next = value.map(tr.changes);
+    for (const e of tr.effects) if (e.is(setDiagnostics)) next = buildDiagnostics(tr.state.doc, e.value);
+    return next;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 const PHRASES: Record<string, string> = {
   Find: 'Find',
   Replace: 'Replace with',
@@ -245,6 +273,10 @@ export interface EditorHooks {
   readonly onCursor: (line: number, column: number) => void;
   /** blame 거터의 줄을 눌렀다(커밋 전체 해시) */
   readonly onBlameClick?: (hash: string) => void;
+  /** F12 / Shift+F12 / Ctrl·Cmd+클릭: 이 자리(1부터)의 정의로 가기·참조 찾기 */
+  readonly onNavigate?: (kind: 'definition' | 'references', line: number, column: number) => void;
+  /** macOS 면 Cmd+클릭, 아니면 Ctrl+클릭으로 정의로 간다 */
+  readonly mac?: boolean;
 }
 
 /** 편집기 한 개. 파일마다 상태(되돌리기 기록·커서)를 따로 갖고, 탭을 바꿀 때 상태만 바꿔 끼운다. */
@@ -276,6 +308,35 @@ export class CodeEditor {
     });
   }
 
+  /** F12(정의로 이동)·Shift+F12(참조 찾기) */
+  private navKeys(): readonly { key: string; preventDefault: boolean; run: (v: EditorView) => boolean }[] {
+    const go = (kind: 'definition' | 'references') => (v: EditorView): boolean => {
+      const head = v.state.selection.main.head;
+      const line = v.state.doc.lineAt(head);
+      this.hooks.onNavigate?.(kind, line.number, head - line.from + 1);
+      return true;
+    };
+    return [
+      { key: 'F12', preventDefault: true, run: go('definition') },
+      { key: 'Shift-F12', preventDefault: true, run: go('references') },
+    ];
+  }
+
+  /** Ctrl/Cmd+클릭으로 정의로 간다 */
+  private clickNav(): Extension {
+    return EditorView.domEventHandlers({
+      mousedown: (e, view) => {
+        if (e.button !== 0 || e.altKey || e.shiftKey || !(this.hooks.mac === true ? e.metaKey : e.ctrlKey)) return false;
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        if (pos === null) return false;
+        const line = view.state.doc.lineAt(pos);
+        e.preventDefault();
+        this.hooks.onNavigate?.('definition', line.number, pos - line.from + 1);
+        return true;
+      },
+    });
+  }
+
   private makeState(text: string, language: CodeLanguage, indent: Indent, readOnly: boolean): EditorState {
     const unit = indent.unit === 'tab' ? '\t' : ' '.repeat(indent.size);
     return EditorState.create({
@@ -288,6 +349,7 @@ export class CodeEditor {
         lineNumbers(),
         highlightActiveLineGutter(),
         marksField,
+        diagField,
         gutter({ class: 'cm-changes', markers: (v) => v.state.field(marksField) }),
         highlightSpecialChars(),
         history(),
@@ -302,13 +364,14 @@ export class CodeEditor {
         highlightActiveLine(),
         highlightSelectionMatches(),
         search({ top: true }),
-        keymap.of([...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
+        keymap.of([...this.navKeys(), ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
         indentUnit.of(unit),
         EditorState.tabSize.of(indent.tabWidth),
         EditorState.readOnly.of(readOnly),
         EditorView.editable.of(!readOnly),
         languageExtension(language),
         theme,
+        this.clickNav(),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) this.hooks.onChange();
           if (u.selectionSet || u.docChanged) {
@@ -403,6 +466,16 @@ export class CodeEditor {
     }
     const state = this.states.get(path);
     if (state !== undefined) this.states.set(path, state.update({ effects: setMarks.of(marks) }).state);
+  }
+
+  /** 파일의 오류·경고 밑줄을 채운다(빈 목록이면 지운다) */
+  setDiagnostics(path: string, items: readonly NavDiagnostic[]): void {
+    if (this.current === path) {
+      this.view.dispatch({ effects: setDiagnostics.of(items) });
+      return;
+    }
+    const state = this.states.get(path);
+    if (state !== undefined) this.states.set(path, state.update({ effects: setDiagnostics.of(items) }).state);
   }
 
   /** blame 거터를 모든 파일에서 켜고 끈다. 끄면 쌓아 둔 표시도 지운다. */

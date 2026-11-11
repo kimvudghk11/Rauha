@@ -3,6 +3,7 @@ import type { LineHit, SearchOptions } from './text-search.js';
 import type { Eol } from './code-text.js';
 import type { EditorConfigProps } from './indent.js';
 import type { BlameView } from './git-blame.js';
+import type { NavApi } from './ts-nav.js';
 
 /** 코드 탭 IPC 채널. 파일을 읽고 쓰는 일은 전부 main이 한다. 화면은 작업 폴더 기준 상대 경로만 보낸다. */
 export const CODE_IPC = {
@@ -219,7 +220,7 @@ export interface CodeApi3 {
   reveal(req: PathRequest): Promise<{ readonly ok: boolean }>;
 }
 
-export interface CodeApi2 extends CodeApi3 {
+export interface CodeApi2 extends CodeApi3, NavApi {
   /** 작업 폴더 아래 레포들의 바뀐 파일(작업 폴더 기준 경로) */
   changes(): Promise<ChangesResult>;
   /** 한 파일의 저장된 내용이 HEAD와 다른 줄 */

@@ -31,6 +31,8 @@ export function shortcutSheet(platform: string): readonly ShortcutGroup[] {
         { keys: `${mod}P`, label: 'Open a file by name' },
         { keys: `${mod}${shift}F`, label: 'Search the work folder' },
         { keys: `${mod}F`, label: 'Find in the file' },
+        { keys: 'F12', label: `Go to definition (also ${mod}click)` },
+        { keys: `${shift}F12`, label: 'Find all references' },
         { keys: `${mod}${shift}E`, label: 'Send the selected code to chat' },
         { keys: `${mod}S`, label: 'Save' },
         { keys: `${mod}\``, label: 'Show or hide the terminal' },

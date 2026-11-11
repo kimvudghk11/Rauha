@@ -1,5 +1,7 @@
 import { codeFailText, type CodeApi, type RepoInfo, type SearchFileHits } from '../shared/code-api.js';
 import { searchFailText, searchSummaryText } from '../shared/search-summary.js';
+import { fallbackSearchFor } from '../shared/ts-nav.js';
+import { createCodeNav } from './code-nav.js';
 import { AUTO_SAVE_DELAY_MS, autoSaveSkip, wantsAutoSave, type AutoSaveMode, type AutoSaveTrigger } from '../shared/auto-save.js';
 import { ChangeMap } from '../shared/code-changes.js';
 import { rankFiles } from '../shared/quick-open.js';
@@ -201,6 +203,8 @@ export function buildCode(deps: CodeDeps) {
   const blameRoot = new Map<string, string>();
 
   const editor = new CodeEditor(host, {
+    mac: deps.platform === 'darwin',
+    onNavigate: (kind, line, column) => void nav.go(kind, line, column),
     onChange: () => {
       paintDirty();
       scheduleAutoSave();
@@ -754,6 +758,35 @@ export function buildCode(deps: CodeDeps) {
     if (tabs.active === path) editor.goto(line, column);
   }
 
+  /** 정의로 이동·참조 찾기가 찾은 위치 목록을 Search 칸에 보인다(전체 찾기 결과와 같은 모양) */
+  function showNavResults(title: string, files: readonly SearchFileHits[]): void {
+    setMode('search');
+    searchSeq++;
+    clearTimeout(searchTimer);
+    if (searchId !== '') void deps.api.cancelSearch(searchId);
+    searchId = '';
+    stopBtn.hidden = true;
+    searchSummary.textContent = title;
+    searchResults.replaceChildren(...files.map(resultGroup));
+  }
+
+  /** 언어 도구가 없을 때: 그 이름을 낱말 단위·대소문자 구분으로 전체 찾기 */
+  function searchByName(word: string): void {
+    const o = fallbackSearchFor(word);
+    setMode('search');
+    searchInput.value = word;
+    caseOn = o.caseSensitive;
+    regexOn = o.regex;
+    wordOn = o.wholeWord === true;
+    caseBtn.classList.toggle('on', caseOn);
+    regexBtn.classList.toggle('on', regexOn);
+    wordBtn.classList.toggle('on', wordOn);
+    clearTimeout(searchTimer);
+    void runSearch();
+  }
+
+  const nav = createCodeNav({ api: deps.api, active: () => tabs.active, textOf: (p) => editor.textOf(p), openAt, showResults: showNavResults, searchByName, say, clear: clearSay });
+
   // ── 빠른 열기(Ctrl/Cmd+P) ──
   let quick: { close: () => void } | null = null;
   let fileCache: { at: number; paths: readonly string[] } | null = null;
@@ -847,10 +880,19 @@ export function buildCode(deps: CodeDeps) {
     deps.toChat?.(share.toChatText());
   }
   host.addEventListener('contextmenu', (e) => {
-    if (deps.toChat === undefined || editor.selection() === null) return;
+    const items = [
+      { label: 'Go to definition', hint: 'F12', run: () => editorNav('definition') },
+      { label: 'Find all references', hint: deps.platform === 'darwin' ? '⇧F12' : 'Shift+F12', run: () => editorNav('references') },
+    ];
+    if (deps.toChat !== undefined && editor.selection() !== null) items.push({ label: 'Send selection to chat', hint: SEND_KEYS, run: sendSelection });
+    if (tabs.active === null) return;
     e.preventDefault();
-    openMenu([{ label: 'Send selection to chat', hint: SEND_KEYS, run: sendSelection }], e.clientX, e.clientY);
+    openMenu(items, e.clientX, e.clientY);
   });
+  /** 편집기의 지금 커서 자리에서 정의/참조를 찾는다 */
+  function editorNav(kind: 'definition' | 'references'): void {
+    void nav.go(kind, cursor.line, cursor.column);
+  }
 
   // ── 키 ──
   window.addEventListener('keydown', (e) => {
