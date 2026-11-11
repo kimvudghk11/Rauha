@@ -11,10 +11,8 @@ describe('탭 전환 단축키', () => {
     expect(tabShortcutIndex(key(), 'darwin')).toBeNull();
   });
   it('Windows에서 Win(meta)+숫자는 무시한다', () => expect(tabShortcutIndex(key({ ctrlKey: false, metaKey: true }), 'win32')).toBeNull());
-  it('9와 0은 탭이 아니다', () => {
-    expect(tabShortcutIndex(key({ code: 'Digit9' }), 'win32')).toBeNull();
-    expect(tabShortcutIndex(key({ code: 'Digit0' }), 'win32')).toBeNull();
-  });
+  it('Ctrl+9는 아홉째 탭(8)이다', () => expect(tabShortcutIndex(key({ code: 'Digit9' }), 'win32')).toBe(8));
+  it('Ctrl+0은 열째 탭(9)이다', () => expect(tabShortcutIndex(key({ code: 'Digit0' }), 'win32')).toBe(9));
   it('Shift나 Alt가 같이 눌리면 무시한다', () => {
     expect(tabShortcutIndex(key({ shiftKey: true }), 'win32')).toBeNull();
     expect(tabShortcutIndex(key({ altKey: true }), 'win32')).toBeNull();

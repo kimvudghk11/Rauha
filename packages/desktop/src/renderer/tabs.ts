@@ -1,4 +1,4 @@
-export type TabId = 'chat' | 'code' | 'todo' | 'records' | 'git' | 'commands' | 'rules' | 'settings';
+export type TabId = 'chat' | 'code' | 'todo' | 'api' | 'docker' | 'records' | 'git' | 'commands' | 'rules' | 'settings';
 
 export interface Tab {
   readonly id: TabId;
@@ -17,6 +17,8 @@ export const TABS: readonly Tab[] = [
   tab('chat', 'Chat', 'M4 5h16v11H9l-5 4z', true),
   tab('code', 'Repo', 'M3 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M10 11l-2 2 2 2 M14 11l2 2-2 2', true),
   tab('todo', 'Todo', 'M4 4h16v16H4z M8 12l3 3 5-6', true),
+  tab('api', 'API', 'M8 7l-4 5 4 5 M16 7l4 5-4 5 M13.5 5l-3 14', true),
+  tab('docker', 'Docker', 'M4 10h16v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z M8 10V6h3v4 M13 10V6h3v4', true),
   tab('records', 'Records', 'M5 4h11l3 3v13H5z M9 10h6 M9 14h6', true),
   tab('git', 'Git', 'M6 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M18 8a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 8v8 M18 12c0 3-5 3-12 4', true),
   tab('commands', 'Slash', 'M5 7l5 5-5 5 M12 17h7', true),
