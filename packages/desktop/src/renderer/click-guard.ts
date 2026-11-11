@@ -1,6 +1,9 @@
 /** 같은 버튼을 이 시간(ms) 안에 다시 누른 것은 한 번으로 본다(더블클릭·이중 발사로 같은 일이 두 번 돌지 않게). */
 export const REPEAT_MS = 450;
 
+/** Send↔Cancel 처럼 같은 단추가 곧바로 다른 뜻이 되는 단추는 data-repeat-ok 로 표시해 연타 막기에서 뺀다. */
+export const isRepeatExempt = (btn: { hasAttribute(name: string): boolean }): boolean => btn.hasAttribute('data-repeat-ok');
+
 /** 직전 누름과 같은 요소를 REPEAT_MS 안에 또 눌렀으면 삼킨다. */
 export function isRepeatPress(prev: { readonly target: EventTarget | null; readonly at: number } | null, target: EventTarget | null, at: number): boolean {
   return prev !== null && prev.target === target && at - prev.at >= 0 && at - prev.at < REPEAT_MS;
@@ -16,7 +19,7 @@ export function installClickGuard(doc: Document = document, now: () => number = 
     'click',
     (e) => {
       const btn = (e.target as Element | null)?.closest?.('button.btn');
-      if (!btn) return;
+      if (!btn || isRepeatExempt(btn)) return;
       const t = now();
       if (isRepeatPress(prev, btn, t)) {
         e.stopImmediatePropagation();

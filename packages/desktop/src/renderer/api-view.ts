@@ -92,6 +92,7 @@ export function buildApi(deps: ApiViewDeps) {
     }
   });
   const sendBtn = button('Send', 'btn primary api-send', () => (sending ? void cancel() : void send()));
+  sendBtn.setAttribute('data-repeat-ok', '');
   const saveBtn = button('Save', 'btn', () => void saveDraft());
   const nameInput = el('input', 'api-name-input');
   nameInput.placeholder = 'Request name';
