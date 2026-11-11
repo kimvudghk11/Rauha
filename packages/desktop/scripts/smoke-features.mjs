@@ -102,6 +102,8 @@ const check = (label, ok, detail) => results.push({ label, ok: Boolean(ok), deta
 
 // 1·2·3·5(docker 없음): PATH 에서 docker 를 뺀다
 const noDockerPath = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32') : '/usr/bin:/bin';
+const dockerInBase = noDockerPath.split(delimiter).some((d) => existsSync(join(d, process.platform === 'win32' ? 'docker.exe' : 'docker')));
+if (dockerInBase) console.log('참고: 기본 PATH 폴더에 docker 가 있어 5a(docker 없음 안내)는 건너뜁니다');
 const main = `(async () => {
   const r = window.rauha; const o = {};
   const t0 = Date.now();
@@ -156,7 +158,8 @@ if (v === null) {
   check('6b 터미널: echo 가 입력→출력으로 돌아온다', v.pty?.echoed, JSON.stringify(v.pty)?.slice(0, 2400));
   check('6c 터미널: rauha 내부 환경 변수(RAUHA_DATA_DIR)가 셸에 없다', v.pty?.envClean, JSON.stringify(v.pty)?.slice(0, 2400));
   check('6d 터미널: exit 로 셸이 끝나면 종료 이벤트가 온다', v.pty?.exit?.code === 0, JSON.stringify(v.pty)?.slice(0, 2400));
-  check('5a docker 없음 안내(PATH 에 없음)', v.docker?.ready === false && v.docker.failure !== null && v.docker.clientVersion === null, JSON.stringify(v.docker)?.slice(0, 300));
+  // GitHub 윈도우 러너처럼 docker 가 시스템 폴더(System32)에 깔린 PC 는 PATH 를 줄여도 docker 가 남는다. 그때는 "없음 안내"를 볼 수 없어 건너뛴다.
+  if (!dockerInBase) check('5a docker 없음 안내(PATH 에 없음)', v.docker?.ready === false && v.docker.failure !== null && v.docker.clientVersion === null, JSON.stringify(v.docker)?.slice(0, 300));
 }
 
 // 6 터미널은 위 m 식에서 같이 돈다(앱 한 번 띄우는 비용을 아낀다)
