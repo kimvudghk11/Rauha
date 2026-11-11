@@ -10,6 +10,9 @@ const HEAD_CHARS = 2000;
 const RECENT_MAX = 20;
 const TRAILING_PUNCT = /[.,!?;:)\]}"'、。]+$/;
 const LINE_RANGE = /:(\d+(?:-\d+)?)$/;
+/** 제어 문자(C0·DEL·C1)와 보이지 않는/방향을 바꾸는 글자: 프롬프트에 찍히는 경로를 속일 수 있다 */
+const ODD_CHARS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/;
+const SHORT_GIT = /^git~\d+$/i;
 const MENTION = /(?:^|\s)@([^\s@]+)/g;
 
 /**
@@ -24,7 +27,7 @@ export class FileMention {
   ) {}
 
   static fromToken(raw: string): FileMention | null {
-    if (raw.includes('\0')) return null;
+    if (ODD_CHARS.test(raw)) return null;
     let token = raw.replace(TRAILING_PUNCT, '');
     const range = LINE_RANGE.exec(token);
     const lines = range === null ? null : range[1]!;
@@ -34,7 +37,7 @@ export class FileMention {
     const parts = slashed.split('/');
     for (const part of parts) {
       if (part === '' || part === '.' || part === '..') return null;
-      if (part.replace(/[. ]+$/, '').toLowerCase() === '.git') return null;
+      if (part.replace(/[. ]+$/, '').toLowerCase() === '.git' || SHORT_GIT.test(part.replace(/[. ]+$/, ''))) return null;
       if (part.includes(':')) return null;
     }
     if (!slashed.includes('/') && !slashed.includes('.')) return null;

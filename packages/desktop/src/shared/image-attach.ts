@@ -6,12 +6,16 @@ export type ImageMime = 'image/png' | 'image/jpeg' | 'image/webp';
 const EXT: Readonly<Record<ImageMime, string>> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 const LABEL_MAX = 24;
 
-/** 첫 바이트(매직 넘버)로 형식을 알아본다. 이름·확장자·보낸 쪽이 말한 형식은 믿지 않는다. png·jpg·webp 만 받는다. */
+/**
+ * 첫 바이트(매직 넘버)로 형식을 알아본다. 이름·확장자·보낸 쪽이 말한 형식은 믿지 않는다. png·jpg·webp 만 받는다.
+ * 머리 글자만 붙인 글 파일을 거르려고 머리 다음 구조도 본다: PNG 는 첫 조각이 IHDR, JPEG 은 표지 바이트(0xC0~0xFE), WebP 는 VP8/VP8L/VP8X 조각.
+ */
 export function sniffImageMime(b: Uint8Array): ImageMime | null {
   const at = (i: number): number => b[i] ?? -1;
-  if (b.length >= 8 && at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47 && at(4) === 0x0d && at(5) === 0x0a && at(6) === 0x1a && at(7) === 0x0a) return 'image/png';
-  if (b.length >= 3 && at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return 'image/jpeg';
-  if (b.length >= 12 && at(0) === 0x52 && at(1) === 0x49 && at(2) === 0x46 && at(3) === 0x46 && at(8) === 0x57 && at(9) === 0x45 && at(10) === 0x42 && at(11) === 0x50) return 'image/webp';
+  const word = (i: number, w: string): boolean => [...w].every((c, k) => at(i + k) === c.charCodeAt(0));
+  if (b.length >= 16 && at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47 && at(4) === 0x0d && at(5) === 0x0a && at(6) === 0x1a && at(7) === 0x0a && word(12, 'IHDR')) return 'image/png';
+  if (b.length >= 4 && at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff && at(3) >= 0xc0 && at(3) <= 0xfe) return 'image/jpeg';
+  if (b.length >= 16 && word(0, 'RIFF') && word(8, 'WEBP') && (word(12, 'VP8 ') || word(12, 'VP8L') || word(12, 'VP8X'))) return 'image/webp';
   return null;
 }
 

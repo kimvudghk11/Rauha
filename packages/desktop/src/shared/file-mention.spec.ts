@@ -24,6 +24,13 @@ describe('FileMention.fromToken', () => {
     expect(FileMention.fromToken('a/.git/hooks/x.sh')).toBeNull();
     expect(FileMention.fromToken('a\0b.ts')).toBeNull();
   });
+  it('제어 문자·보이지 않는 글자·방향 바꾸기 글자가 든 경로와 짧은 .git 이름은 받지 않는다', () => {
+    for (const bad of ['src/a\u0007.ts', 'src/a\u001b[31m.ts', 'src/a\u0085.ts', 'src/a\u007f.ts', 'src/a\u202e.ts', 'src/a\u200b.ts', '.g\u200cit/config', 'GIT~1/config', 'sub/git~2/hooks']) {
+      expect(FileMention.fromToken(bad), JSON.stringify(bad)).toBeNull();
+    }
+    expect(FileMention.fromToken('docs/한글 아닌-이름_1.md')).not.toBeNull();
+  });
+
   it('폴더를 가리키는 끝 슬래시는 받지 않는다', () => {
     expect(FileMention.fromToken('src/')).toBeNull();
   });

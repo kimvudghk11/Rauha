@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -68,5 +68,30 @@ describe('AttachmentStore', () => {
   it('기본 폴더가 아직 없어도 sweep 은 조용히 넘어간다', async () => {
     base = tmp();
     await expect(new AttachmentStore(join(base, 'nope')).sweep()).resolves.toBeUndefined();
+  });
+
+  it('sweep 은 기본 폴더 안의 링크를 따라가 밖의 파일을 지우지 않는다', async () => {
+    base = tmp();
+    const outside = join(base, 'outside');
+    mkdirSync(outside);
+    writeFileSync(join(outside, 'keep.txt'), 'keep');
+    mkdirSync(join(base, 'att'));
+    try {
+      symlinkSync(outside, join(base, 'att', 'lnk'), 'junction');
+    } catch {
+      return; // 링크를 만들 수 없는 환경
+    }
+    await new AttachmentStore(join(base, 'att')).sweep();
+    expect(readFileSync(join(outside, 'keep.txt'), 'utf8')).toBe('keep');
+  });
+
+  it('cleanup 은 .. 로 기본 폴더 밖이나 기본 폴더 자체를 가리켜도 지우지 않는다', async () => {
+    base = tmp();
+    const store = new AttachmentStore(join(base, 'att'), () => 'j1');
+    const staged = await store.stage([png(1)]);
+    await store.cleanup(join(base, 'att', 'j1', '..'));
+    await store.cleanup(join(base, 'att', '..', 'att'));
+    await store.cleanup(join(base, 'att', 'j1', '..', '..'));
+    expect(existsSync(staged!.paths[0]!)).toBe(true);
   });
 });

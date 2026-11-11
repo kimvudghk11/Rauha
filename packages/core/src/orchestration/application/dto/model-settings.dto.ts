@@ -16,7 +16,7 @@ export class ModelSettingsDto {
     let names = ModelNames.defaults();
     const rejected: ModelTier[] = [];
     for (const tier of ModelNames.TIERS) {
-      const value = raw[tier];
+      const value = Object.hasOwn(raw, tier) ? raw[tier] : undefined;
       if (value === undefined || value === null) continue;
       if (typeof value !== 'string' || ModelNames.checkId(value) !== null) {
         rejected.push(tier);
