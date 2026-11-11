@@ -240,7 +240,7 @@ void window.rauha.getCommands().then((json) => (commandBook = CommandBookDto.fro
 const chat = buildChat({
   intercept: (text) => runner.intercept(text),
   suggest: (text) => commandBook.suggest(text),
-  submit: (text) => window.rauha.submit(text),
+  submit: (text, images) => window.rauha.submit(text, images),
   saveTodo: (text) => addTodo(window.rauha.todo, TodoDto.draftFromChat(text)),
   stop: (id) => window.rauha.stop(id),
   deeper: (id) => window.rauha.goDeeper(id),

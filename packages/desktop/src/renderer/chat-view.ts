@@ -7,6 +7,7 @@ import type { Command } from '../shared/command-book.js';
 import { attachSuggest } from './command-suggest.js';
 import { attachMentionSuggest } from './mention-suggest.js';
 import { recentList } from './recent-files.js';
+import { ImageAttachment, ImageDraft, MAX_IMAGE_BYTES, MAX_IMAGES } from '../shared/image-attach.js';
 import { askCard } from './ask-card.js';
 import { needLabel } from '../shared/ask-form.js';
 import { el, isEnterKey } from './dom.js';
@@ -36,7 +37,8 @@ const short = (text: string, max: number) => (text.length > max ? `${text.slice(
 const nameOf = (role: CharacterRole) => spriteFor(role).name;
 
 export interface ChatActions {
-  readonly submit: (text: string) => Promise<JobView | null>;
+  /** images: 입력칸에 붙인 이미지 바이트(없으면 생략) */
+  readonly submit: (text: string, images?: readonly Uint8Array[]) => Promise<JobView | null>;
   readonly stop: (id: string) => void;
   readonly deeper: (id: string) => Promise<JobView | null>;
   /** 보낸 일을 할 일로 담는다 */
@@ -118,8 +120,10 @@ export function buildChat(actions: ChatActions) {
   input.placeholder = 'Type a new task…  (@folder to pick a target, @file to attach one)';
   input.rows = 1;
   const hint = el('div', 'hint');
-  hint.innerHTML = '<span><span class="kbd">Enter</span> Send</span><span class="more"><span class="kbd">Shift+Enter</span> New line</span><span class="more"><span class="kbd">@</span> Pick folder or file</span>';
-  composer.append(input, hint);
+  hint.innerHTML = '<span><span class="kbd">Enter</span> Send</span><span class="more"><span class="kbd">Shift+Enter</span> New line</span><span class="more"><span class="kbd">@</span> Pick folder or file</span><span class="more">Paste or drop images (up to 3)</span>';
+  const attachBar = el('div', 'attach-bar');
+  attachBar.hidden = true;
+  composer.append(attachBar, input, hint);
   mainPane.append(head, msgs, composer);
 
   // ── 아주 좁을 때 맨 위 띠 ──
@@ -150,8 +154,16 @@ export function buildChat(actions: ChatActions) {
       input.focus();
       return;
     }
-    const job = await handIn(text);
+    // 붙인 이미지는 이 일에만 딸려 간다. 보내는 순간 칩을 비우고, 일을 못 받으면 되돌린다.
+    const sent = draft;
+    draft = draft.cleared();
+    paintAttach();
+    const job = await handIn(text, sent.toUploads());
     if (job === null) {
+      if (draft.list().length === 0) {
+        draft = sent;
+        paintAttach();
+      }
       // 작업 폴더를 고르고 허락하기 전이면 main이 받지 않는다. 쓴 글을 돌려주고 이유를 알린다(아무 말 없이 사라지지 않게).
       if (input.value.trim() === '') {
         input.value = text;
@@ -162,8 +174,8 @@ export function buildChat(actions: ChatActions) {
     input.focus();
   };
   /** 입력 글을 팀에 넘기고 카드를 단다. main이 받지 않으면(폴더 허락 전) null. */
-  const handIn = async (text: string): Promise<JobView | null> => {
-    const job = await actions.submit(text);
+  const handIn = async (text: string, images?: readonly Uint8Array[]): Promise<JobView | null> => {
+    const job = await actions.submit(text, images);
     if (job !== null) {
       jobs.set(job.id, job);
       addJob(job);
@@ -175,6 +187,85 @@ export function buildChat(actions: ChatActions) {
     input.style.height = 'auto';
     input.style.height = `${composerHeight(input.scrollHeight)}px`;
   };
+  // ── 이미지 붙이기(붙여넣기·끌어다 놓기): png·jpg·webp, 3장, 장당 5MB. 내용(첫 바이트)으로 다시 검사한다. ──
+  let draft = ImageDraft.empty();
+  function paintAttach(): void {
+    attachBar.replaceChildren();
+    for (const item of draft.list()) {
+      const chip = el('span', 'attach-item');
+      const thumb = el('img', 'attach-thumb');
+      thumb.alt = '';
+      thumb.src = thumbs.get(item.id) ?? '';
+      const remove = el('button', 'btn ghost icon sm', '×');
+      remove.type = 'button';
+      remove.title = 'Remove image';
+      remove.setAttribute('aria-label', 'Remove image');
+      remove.addEventListener('click', () => {
+        draft = draft.remove(item.id);
+        thumbs.delete(item.id);
+        paintAttach();
+        input.focus();
+      });
+      chip.append(thumb, el('span', 'attach-name', item.label), remove);
+      attachBar.appendChild(chip);
+    }
+    attachBar.hidden = draft.list().length === 0;
+  }
+  /** 미리보기 그림(data: URL). 내용 검사를 통과한 바이트에서 우리가 정한 형식으로만 만든다. */
+  const thumbs = new Map<string, string>();
+  const dataUrl = (blob: Blob): Promise<string> =>
+    new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(typeof r.result === 'string' ? r.result : '');
+      r.onerror = () => resolve('');
+      r.readAsDataURL(blob);
+    });
+  async function addFiles(files: readonly File[]): Promise<void> {
+    for (const file of files) {
+      if (file.size > MAX_IMAGE_BYTES) {
+        flash('Each image must be 5MB or smaller.');
+        continue;
+      }
+      const made = ImageAttachment.fromBytes(file.name, new Uint8Array(await file.arrayBuffer()));
+      if (!made.ok) {
+        flash(made.reason === 'too-big' ? 'Each image must be 5MB or smaller.' : 'Only PNG, JPG and WEBP images can be attached.');
+        continue;
+      }
+      const added = draft.add(made.image);
+      if (!added.ok) {
+        flash(`You can attach up to ${MAX_IMAGES} images.`);
+        break;
+      }
+      draft = added.draft;
+      const id = draft.list()[draft.list().length - 1]!.id;
+      thumbs.set(id, await dataUrl(new Blob([made.image.bytes as BlobPart], { type: made.image.mime })));
+      paintAttach();
+    }
+  }
+  input.addEventListener('paste', (e) => {
+    const files = [...(e.clipboardData?.files ?? [])];
+    // 글과 함께 온 붙여넣기는 글로 둔다. 파일만 온 경우(스크린샷 등)에만 이미지로 받는다.
+    if (files.length === 0 || (e.clipboardData?.getData('text/plain') ?? '') !== '') return;
+    e.preventDefault();
+    void addFiles(files);
+  });
+  const hasFiles = (e: DragEvent): boolean => [...(e.dataTransfer?.types ?? [])].includes('Files');
+  composer.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    composer.classList.add('drop');
+  });
+  composer.addEventListener('dragleave', (e) => {
+    if (e.relatedTarget instanceof Node && composer.contains(e.relatedTarget)) return;
+    composer.classList.remove('drop');
+  });
+  composer.addEventListener('drop', (e) => {
+    composer.classList.remove('drop');
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    void addFiles([...(e.dataTransfer?.files ?? [])]);
+  });
+
   const suggest = attachSuggest(input, composer, (t) => actions.suggest?.(t) ?? []);
   const mention = attachMentionSuggest(
     input,

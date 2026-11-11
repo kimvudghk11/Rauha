@@ -176,7 +176,8 @@ export type ApprovalChoice =
 
 /** preload가 화면에 열어 주는 API(window.rauha) */
 export interface RauhaApi {
-  submit(text: string): Promise<JobView | null>;
+  /** images: 채팅에 붙인 이미지 바이트(png·jpg·webp, 3장·5MB 이하). main이 다시 검사한다. */
+  submit(text: string, images?: readonly Uint8Array[]): Promise<JobView | null>;
   stop(id: string): void;
   /** 끝난 작업의 질문을 깊게 다시 묻는 새 작업을 만든다 */
   goDeeper(id: string): Promise<JobView | null>;

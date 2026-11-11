@@ -30,6 +30,8 @@ import { accountNames, composeSession, profileResolver } from './team/compose.js
 import { fakeTeam } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { resolveMentions } from './team/mention-context.js';
+import { AttachmentStore, type StagedImages } from './team/attachment-store.js';
+import { ImageUploadDto } from '../shared/image-attach.js';
 import { withAttachments } from '../shared/file-mention.js';
 import type { CodeFiles } from './code/code-files.js';
 import { teamWork, type TeamIo, type TeamSession } from './team/team-work.js';
@@ -294,9 +296,11 @@ async function startRunner(): Promise<JobRunner> {
               before = await snapshotChanges(cwd);
               // 되돌리기·변경 보기를 위한 기준(HEAD·시작 때 파일 상태). worktree 작업은 그 브랜치가 체크포인트다.
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
+              const staged = jobImages.get(job.id);
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, readRoots: staged === undefined ? [] : [staged.dir] }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
-              return await session.handle(withAttachments(mentioned, [], target.text), depth);
+              return await session.handle(withAttachments(mentioned, staged?.paths ?? [], target.text), depth);
             } finally {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
               const after = before === null ? null : await snapshotChanges(cwd);
@@ -352,6 +356,9 @@ const usageOverSeen = new Set<string>();
 
 /** 할 일·기록(앱 데이터 폴더의 JSON 파일). 기록은 이 PC에만 둔다. 확인용으로 RAUHA_DATA_DIR로 폴더를 바꿀 수 있다. */
 const dataDir = process.env['RAUHA_DATA_DIR'] ?? join(homedir(), '.rauha', 'desktop');
+/** 채팅에 붙인 이미지의 임시 자리(앱 데이터 폴더). 작업 폴더·저장소에는 두지 않고, 일이 끝나면 지운다. */
+const attachments = new AttachmentStore(join(dataDir, 'attachments'));
+const jobImages = new Map<string, StagedImages>();
 const todoService = new TodoService({
   store: new TodoStore(join(dataDir, 'todos.json')),
   newId: () => randomUUID(),
@@ -390,15 +397,20 @@ const askCard = askCardFlow({
 });
 
 /** 팀(메인)에 일을 넘긴다. 폴더를 고르고 허락하기 전에는 일을 받지 않는다(엉뚱한 폴더에서 일하지 않게). 확인용 환경 변수가 있으면 건너뛴다. */
+const submitReady = (): boolean => runnerRef !== null && (process.env['RAUHA_WORK_DIR'] !== undefined || FAKE || canWork(settings));
 function submitJob(text: string): { id: string } | null {
-  const ready = process.env['RAUHA_WORK_DIR'] !== undefined || FAKE || canWork(settings);
-  return runnerRef !== null && ready ? runnerRef.submit(text) : null;
+  return submitReady() ? runnerRef!.submit(text) : null;
 }
 
 /** 끝난 작업을 기록으로 옮기고, 맡겨 둔 할 일을 끝/멈춤으로 바꾼다. 같은 작업은 한 번만 처리한다. */
 function onJobOver(job: Parameters<typeof jobView>[0]): void {
   if (recorded.has(job.id)) return;
   recorded.add(job.id);
+  const staged = jobImages.get(job.id);
+  if (staged !== undefined) {
+    jobImages.delete(job.id);
+    void attachments.cleanup(staged.dir).catch(() => undefined);
+  }
   // 허락을 닫는 답(작업 정리로 인한 거절)이 모두 들어온 뒤에 모은 것을 꺼낸다
   setTimeout(() => {
     const input = recordInputOf(jobView(job), trail.take(job.id), new Date().toISOString());
@@ -717,6 +729,8 @@ function reportStartupFailure(error: unknown): void {
 }
 
 void app.whenReady().then(async () => {
+  // 꺼지다 남은 이미지 임시 폴더를 치운다
+  void attachments.sweep();
   // Finder·Dock으로 연 앱은 셸 PATH를 못 받는다. 로그인 셸에서 읽어 합친다(Windows는 그대로).
   await adoptShellPath();
   installMenu();
@@ -903,10 +917,21 @@ void app.whenReady().then(async () => {
     const wanted = Array.isArray(paths) ? paths.filter((p): p is string => typeof p === 'string') : [];
     return removeTerminalRauha(terminalFound.filter((f) => wanted.includes(f.path)));
   });
-  ipcMain.handle(IPC.submit, (_e, text: unknown) => {
+  ipcMain.handle(IPC.submit, async (_e, text: unknown, images: unknown) => {
+    // 이미지는 main이 다시 검사한다(형식·장수·크기). 하나라도 이상하면 일을 받지 않는다.
+    const uploads = ImageUploadDto.from(images);
+    if (typeof text !== 'string' || uploads === null) return null;
     // 폴더를 고르고 허락하기 전에는 일을 받지 않는다(엉뚱한 폴더에서 일하지 않게). 확인용 환경 변수가 있으면 건너뛴다.
-    const job = typeof text === 'string' ? submitJob(text) : null;
-    return job === null ? null : boardView(runner.board).jobs.find((j) => j.id === job.id) ?? null;
+    const staged = uploads.length === 0 || !submitReady() ? null : await attachments.stage(uploads).catch(() => null);
+    if (uploads.length > 0 && staged === null) return null;
+    const job = submitJob(text);
+    if (job === null) {
+      if (staged !== null) void attachments.cleanup(staged.dir).catch(() => undefined);
+      return null;
+    }
+    // 일이 시작되어 이미지를 읽기 전에(첫 await 전에) 같은 틱에 등록한다
+    if (staged !== null) jobImages.set(job.id, staged);
+    return boardView(runner.board).jobs.find((j) => j.id === job.id) ?? null;
   });
   ipcMain.handle(IPC.deeper, (_e, id: unknown) => {
     const done = typeof id === 'string' ? runner.board.find(id) : null;

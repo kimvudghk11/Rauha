@@ -202,3 +202,9 @@
 .recent-row { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
 .recent-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .recent-text b, .recent-text .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 입력칸에 붙인 이미지 미리보기 줄 */
+.attach-bar { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s2); }
+.attach-item { display: inline-flex; align-items: center; gap: var(--s2); min-width: 0; max-width: 100%; padding: var(--s1); border: 1px solid var(--border2); border-radius: var(--r-md); background: var(--card); font-size: var(--fs-sm); color: var(--muted); }
+.attach-thumb { width: var(--h-lg); height: var(--h-lg); object-fit: cover; border-radius: var(--r-sm); background: var(--well); flex: 0 0 auto; }
+.attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.composer.drop textarea { border-style: dashed; }

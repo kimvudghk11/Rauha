@@ -26,6 +26,8 @@ export interface AgentSdkTeamMemberOptions {
   readonly rules?: (tool: string, detail: string) => 'allow' | 'ask' | null;
   /** 사용자의 "항상 지킬 것" 글. 팀원 시스템 프롬프트 끝에 붙는다. 없으면 빈 글. */
   readonly alwaysRules?: () => string;
+  /** 작업 폴더 밖에서 읽기만 허락할 폴더들(예: 사용자가 채팅에 붙인 이미지가 있는 임시 폴더). 쓰기는 늘어나지 않는다. */
+  readonly readRoots?: readonly string[];
 }
 
 /** 호출 하나가 쓰는 것들. 미리 띄운 프로세스는 띄울 때 이것까지 정해진다. */
@@ -188,7 +190,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       model: MODEL_ID[call.setting.tier],
       abortController: session.controller,
       cwd: this.options.cwd,
-      ...((call.additionalDirectories?.length ?? 0) > 0 ? { additionalDirectories: [...call.additionalDirectories!] } : {}),
+      ...(readDirs(call.additionalDirectories, this.options.readRoots).length > 0 ? { additionalDirectories: readDirs(call.additionalDirectories, this.options.readRoots) } : {}),
       env: this.options.env,
       ...(this.options.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: this.options.claudeExecutable } : {}),
       systemPrompt: withTeamInstruction(this.withAlwaysRules(this.options.prompts.system(call.role, call.kits ?? [])), call.setting.extraInstruction),
@@ -212,6 +214,11 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       },
     };
   }
+}
+
+/** 호출이 더 읽을 폴더 + 항상 읽을 폴더(중복 없이) */
+export function readDirs(call: readonly string[] | undefined, always: readonly string[] | undefined): string[] {
+  return [...new Set([...(call ?? []), ...(always ?? [])])];
 }
 
 const CANCELLED: AccountBlock = { reason: 'cancelled', message: '사용자가 작업을 멈췄습니다.' };

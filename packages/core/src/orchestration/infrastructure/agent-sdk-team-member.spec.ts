@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
-import { toolCountHook, withTeamInstruction } from './agent-sdk-team-member.js';
+import { readDirs, toolCountHook, withTeamInstruction } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -33,5 +33,14 @@ describe('toolCountHook', () => {
     const tally = ToolTally.empty();
     await run(toolCountHook(tally), { hook_event_name: 'PreToolUse', tool_name: 'Grep', tool_input: {} });
     expect(tally.entries()).toEqual([]);
+  });
+});
+
+describe('readDirs', () => {
+  it('호출이 더 읽을 폴더와 항상 읽을 폴더를 겹치지 않게 합친다', () => {
+    expect(readDirs(['/a', '/b'], ['/b', '/img'])).toEqual(['/a', '/b', '/img']);
+  });
+  it('둘 다 없으면 빈 목록이다(읽을 폴더가 늘지 않는다)', () => {
+    expect(readDirs(undefined, undefined)).toEqual([]);
   });
 });

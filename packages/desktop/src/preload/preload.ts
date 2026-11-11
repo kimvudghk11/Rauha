@@ -16,7 +16,7 @@ const git = Object.fromEntries(GIT_FUNCTIONS.map((fn) => [fn, (root: string, arg
 
 const api: RauhaApi = {
   git,
-  submit: (text) => ipcRenderer.invoke(IPC.submit, text),
+  submit: (text, images) => ipcRenderer.invoke(IPC.submit, text, images),
   stop: (id) => ipcRenderer.send(IPC.stop, id),
   goDeeper: (id) => ipcRenderer.invoke(IPC.deeper, id),
   onBoard: (listener) => {

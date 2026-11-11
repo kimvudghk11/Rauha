@@ -100,6 +100,8 @@ export interface ComposeOptions {
   readonly roleOverrides?: (() => RoleOverrides) | undefined;
   /** 분석 단계(조사 → 방향 비교 → 설계·계획)를 쓸지. 부를 때마다 최신 설정을 돌려준다. 없으면 쓴다. */
   readonly analysis?: (() => boolean) | undefined;
+  /** 팀원이 읽기만 할 수 있는 작업 폴더 밖 폴더들(채팅에 붙인 이미지 임시 폴더). 없으면 없음. */
+  readonly readRoots?: readonly string[] | undefined;
 }
 
 /** 작업 공간(rauha가 여는 폴더)과 그 안의 레포들, 그리고 이번 요청이 가리킨 다른 레포들(읽기만) */
@@ -140,6 +142,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     secrets,
     secretFiles: () => listSecretFiles(root, secrets),
     ...(options.claudeExecutable !== undefined ? { claudeExecutable: options.claudeExecutable } : {}),
+    ...((options.readRoots?.length ?? 0) > 0 ? { readRoots: options.readRoots! } : {}),
     ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
   });
   const team = stoppable(inner, io.signal);
