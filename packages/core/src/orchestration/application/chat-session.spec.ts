@@ -126,7 +126,7 @@ function outcome(over: Partial<RunOutcome> = {}): RunOutcome {
     explanation: null,
     logDir: '/runs/x',
     basis: null,
-    guide: { toMarkdown: () => '# 안내서', toTerminal: () => '# 안내서' } as unknown as RunOutcome['guide'],
+    guide: { toMarkdown: () => '# 안내서', toTerminal: () => '# 안내서', stopMessage: () => null } as unknown as RunOutcome['guide'],
     ...over,
   };
 }
@@ -405,6 +405,16 @@ describe('ChatSession — 여러 저장소', () => {
     expect(references).toContain('shop-web');
     expect(references).toContain('<repo_knowledge repo="shop-web"');
     expect(references).toContain('읽기 전용');
+  });
+
+  it('멈춘 작업의 멈춘 이유가 앞 대화에 남아 다시 맡길 때 같은 길로 가지 않게 한다', async () => {
+    const stoppedOutcome = outcome({ status: 'stopped', stopReason: 'escalation-exhausted', guide: { toMarkdown: () => '', toTerminal: () => '', stopMessage: () => '여러 번 시도했지만 검사를 통과시키지 못했어요' } as unknown as RunOutcome['guide'] });
+    const team = new FakeTeam({ router: [route('work'), route('work')] });
+    const chat = ChatSession.start({ ...sessionDeps({ team, loops: new FakeLoops([stoppedOutcome]) }), repoName: 'shop-api' });
+    await chat.handle('할인 추가해줘');
+    await chat.handle('다시 해줘');
+    const second = team.calls.filter((c) => c.role === 'router')[1]!;
+    expect(second.message).toContain('검사를 통과시키지 못했어요');
   });
 
   it('다른 저장소가 없으면 참고 블록도 없다', async () => {

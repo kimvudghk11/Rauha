@@ -148,7 +148,7 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 
 ### 다음 버전 (v0.1.14): 바로 쓰는 작은 것
 - **앱 탭 전환 단축키 Ctrl/Cmd+1~8 [구현함]**: 왼쪽 막대의 위쪽부터 순서대로 Chat, Repo, Todo, Records, Git, Slash, Rules, Settings. 영향 파일: `shared/tab-shortcut.ts`(+spec), `renderer/app.ts`.
-- **단축키 안내창 Ctrl/Cmd+/ [구현함]**: 앱 전체·Repo·채팅 단축키를 한 장으로. 영향 파일: `shared/shortcut-sheet.ts`(+spec), `renderer/shortcut-view.ts`, `renderer/app.ts`, `renderer/ui.css`(또는 `code.css`).
+- **단축키 안내창 Ctrl/Cmd+Shift+/ [구현함]**: 앱 전체·Repo·채팅 단축키를 한 장으로. 영향 파일: `shared/shortcut-sheet.ts`(+spec), `renderer/shortcut-view.ts`, `renderer/app.ts`, `renderer/ui.css`(또는 `code.css`).
 - **자동 저장(P1)**: 설정에 "Auto save" 켜기/끄기(기본 끔), 입력 멈춘 뒤 1초 저장. 영향: `shared/settings.ts`, `renderer/code-view.ts`, `settings-view.ts`.
 - **최근 폴더(P1)**: `Settings` 에 `recentFolders`(최대 8, 중복 제거 DTO 메서드)를 두고 설정 화면에 목록 칩. 영향: `shared/settings.ts`, `main/settings-store.ts`, `renderer/settings-view.ts`.
 
@@ -171,8 +171,8 @@ VS Code 와 Cursor 가 가진 편집기 기능은 Rauha 에 없는 것이 많지
 
 | 항목 | 상태 |
 |---|---|
-| 앱 탭 전환 Ctrl/Cmd+1~8 | 구현 전 (이 줄은 구현 후 갱신) |
-| 단축키 안내창 Ctrl/Cmd+/ | 구현 전 (이 줄은 구현 후 갱신) |
+| 앱 탭 전환 Ctrl/Cmd+1~8 | 구현함 (왼쪽 막대 순서, 탭 단추 툴팁에 키 표시, 창이 떠 있으면 무시). 테스트 `shared/tab-shortcut.spec.ts` |
+| 단축키 안내창 Ctrl/Cmd+Shift+/ | 구현함 (Shift 없는 Ctrl+/ 는 편집기 주석 전환이라 쓰지 않음). 테스트 `shared/shortcut-sheet.spec.ts` |
 
 ## 7. 출처
 

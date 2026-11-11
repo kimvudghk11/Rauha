@@ -20,6 +20,8 @@ import { createUsageFeed, usageTooltip } from './usage-feed.js';
 import { createChrome } from './chrome.js';
 import { openBugDialog, shortcutText } from './bug-view.js';
 import { isBugShortcut } from '../shared/bug-shortcut.js';
+import { isShortcutSheetKey, tabShortcutIndex } from '../shared/tab-shortcut.js';
+import { toggleShortcutSheet } from './shortcut-view.js';
 import { installClickGuard } from './click-guard.js';
 import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
@@ -74,11 +76,14 @@ window.addEventListener('resize', () => {
 });
 
 // ── 탭 ──
+/** 왼쪽 막대에 보이는 순서(위쪽 탭, 맨 아래 탭). Ctrl/Cmd+숫자가 이 순서를 따른다. */
+const tabOrder = (): readonly (typeof TABS)[number][] => [...TABS.filter((t) => !t.bottom), ...TABS.filter((t) => t.bottom)];
+
 function renderTabs(): void {
   tabsNav.replaceChildren();
   const add = (t: (typeof TABS)[number]) => {
     const b = el('button');
-    b.title = t.label;
+    b.title = `${t.label} (${platform === 'darwin' ? '⌘' : 'Ctrl+'}${tabOrder().indexOf(t) + 1})`;
     b.classList.toggle('on', t.id === current);
     b.append(icon(t.icon), el('span', undefined, t.label));
     b.addEventListener('click', () => show(t.id));
@@ -110,6 +115,19 @@ window.addEventListener('keydown', (e) => {
   if (isBugShortcut(e)) {
     e.preventDefault();
     openBug();
+    return;
+  }
+  if (isShortcutSheetKey(e, platform)) {
+    e.preventDefault();
+    toggleShortcutSheet(platform);
+    return;
+  }
+  // 확인 창·답답한 점 창이 떠 있는 동안에는 뒤 화면을 옮기지 않는다
+  const index = tabShortcutIndex(e, platform);
+  const target = index === null || document.querySelector('.veil') !== null ? undefined : tabOrder()[index];
+  if (target !== undefined) {
+    e.preventDefault();
+    show(target.id);
   }
 });
 

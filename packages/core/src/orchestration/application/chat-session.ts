@@ -338,7 +338,7 @@ export class ChatSession {
     await this.learn(outcome);
     this.answered.clear();
     this.lastTitle = outcome.title;
-    this.turns.push({ input, result: `작업 "${outcome.title}" ${outcome.status === 'complete' ? '완료' : `멈춤(${outcome.stopReason})`}, 바뀐 파일 ${outcome.changedInRun.map((c) => c.path).join(', ') || '없음'}` });
+    this.turns.push({ input, result: `작업 "${outcome.title}" ${outcome.status === 'complete' ? '완료' : `멈춤(${outcome.stopReason}${outcome.guide.stopMessage() === null ? '' : `: ${outcome.guide.stopMessage()}`})`}, 바뀐 파일 ${outcome.changedInRun.map((c) => c.path).join(', ') || '없음'}` });
     return { kind: 'work', outcome };
   }
 

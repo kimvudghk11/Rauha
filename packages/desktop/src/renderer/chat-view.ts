@@ -21,7 +21,7 @@ import { mountStage, paintOnce } from './stage.js';
 const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
   queued: 'Queued',
   running: 'Running',
-  waiting: 'Waiting',
+  waiting: 'Needs your answer',
   done: 'Done',
   stopped: 'Stopped',
 };
