@@ -129,3 +129,12 @@ textarea.ginput, input.ginput { width: 100%; }
 .gdot.merge { background: var(--bg); border-color: var(--lane, var(--muted)); }
 .glc0 { --lane: var(--accent); } .glc1 { --lane: var(--green); } .glc2 { --lane: var(--yellow); } .glc3 { --lane: var(--purple); }
 .glc4 { --lane: var(--red); } .glc5 { --lane: var(--delfi); } .glc6 { --lane: color-mix(in srgb, var(--red) 55%, var(--yellow)); } .glc7 { --lane: color-mix(in srgb, var(--green) 55%, var(--accent)); }
+
+/* 3-way 충돌: 구역마다 Mine · Base · Theirs 를 나란히(좁으면 위아래로) */
+.gconfbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); padding: var(--s1) var(--s3); background: var(--card); }
+.gconfbar b { margin-right: auto; color: var(--bright); }
+.gconfcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gconfcols.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app[data-tier=s] .gconfcols, .app[data-tier=xs] .gconfcols { grid-template-columns: minmax(0, 1fr); }
+.gconfcols .gconfcode { overflow: hidden; text-overflow: ellipsis; }
+.gconfside.base { background: color-mix(in srgb, var(--purple) 14%, var(--bg)); border-left-color: var(--purple); } .gconfside.base .gconfwho { color: var(--purple); }

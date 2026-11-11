@@ -17,7 +17,7 @@ Rauha(`packages/desktop`)는 편집기가 아니라 팀장이 일을 팀원(Haik
 5. **채팅 이미지 첨부 없음** — 스크린샷을 붙여 "이 화면 고쳐줘"가 안 된다.
 6. **Problems 패널(진단)·자동완성·정의로 이동 없음** — 편집기는 CodeMirror 6 에 하이라이트·접기·찾기만 있고 언어 서버가 없다(`code-editor.ts`).
 7. **편집기 보조: 분할 보기·자동 저장·미니맵·브레드크럼·파일 비교(diff 편집기)·Timeline 없음** — Ctrl+S 수동 저장만 있다.
-8. **Git: stash · blame · 커밋 그래프 · 3-way 충돌 편집기 · 줄 단위 인라인 diff 없음** — 단, 줄 선택 스테이지(`stageSelection`)와 충돌 텍스트 편집은 있다.
+8. **Git: 줄 단위 인라인 diff 없음** — stash·blame·커밋 그래프·3-way 충돌 구역 해결은 구현함(2026-11-11). 줄 선택 스테이지(`stageSelection`)와 충돌 텍스트 편집도 있다.
 9. **최근 폴더(작업 폴더 목록)·멀티 루트 전환 없음** — 작업 폴더 하나만 기억한다(`shared/settings.ts` 의 `workFolder`). 회사 맥북·집 PC 에서 폴더를 자주 바꾸면 매번 대화상자를 연다.
 10. **단축키 안내·앱 전체 탭 전환 단축키·명령 팔레트 없음** — 코드 탭 안의 Ctrl/Cmd+P·S·Shift+F·`만 있고, 앱 탭(Chat/Repo/Todo…)을 키로 옮길 수 없고 단축키 목록도 볼 곳이 없다.
 
@@ -69,10 +69,10 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 | 인라인 diff(편집기 안) | 있음 | 같음 | 일부: 편집기 왼쪽 막대만, diff 는 git 탭에서 | ★★ | M | P2 |
 | 브랜치 만들기·전환·삭제·머지 | 있음 | 같음 | 있음 (`createBranch/switchBranch/merge/deleteBranch`) | ★★★ | - | 이미 있음 |
 | Fetch/Pull/Push | 있음 | 같음 | 있음, 보호 브랜치 확인 창 포함 | ★★★ | - | 이미 있음 |
-| 히스토리·커밋 diff | Graph [V5] | 같음 | 일부: 목록+diff(`log`, `commitDiff`), 그래프 선 없음 | ★★ | M | P2 |
+| 히스토리·커밋 diff | Graph [V5] | 같음 | **구현함(2026-11-11)**: 목록+diff(`log`, `commitDiff`) + 브랜치 선·점 그래프(`shared/git-graph.ts`, 상한 500커밋, 병합 커밋 표시, All branches 토글). 맥 실기·1000개 넘는 이력 속도는 미확인 | ★★ | M | P2 |
 | stash | 있음 [V5] | 같음 | **구현함(6절)** (git 탭 Stash 탭, `shared/git-stash.ts`) | ★★★ | S | **P1** |
-| blame | 있음 [V5] | 같음 | 없음 | ★★ | M | P2 |
-| 충돌 해결 | 인라인 + 3-way 편집기 [V5] | 같음 | 일부: 내 것/상대 것/텍스트 직접 편집 (`resolveSide`, `readConflict`, `writeConflict`), 3-way 화면 없음 | ★★ | L | P2 |
+| blame | 있음 [V5] | 같음 | **구현함(2026-11-11)**: Repo 편집기 Blame 토글(`shared/git-blame.ts`, `code:blame`, 5000줄 상한, 저장한 글 기준), 거터 클릭 시 Git History 의 그 커밋으로 이동. 맥 실기 미확인 | ★★ | M | P2 |
+| 충돌 해결 | 인라인 + 3-way 편집기 [V5] | 같음 | **구현함(2026-11-11)**: Mine / Base / Theirs 나란히 + 구역별 Accept mine·theirs·both·base (`shared/conflict-text.ts`, `readConflict {base}` 는 `git merge-file --diff3` 로 임시 폴더에서 조상 재현). 파일 통째 내 것/상대 것·텍스트 직접 편집도 유지. 맥 실기 미확인 | ★★ | L | P2 |
 | 커밋 취소 | 있음 | 같음 | 있음 (`undoCommit` soft reset) | ★★ | - | 이미 있음 |
 | worktree | 있음 [V5] | 같음 | 있음: 팀 작업용 자동 worktree + 목록 (`worktrees`, `git-worktree-graph.ts`) | ★★ | - | 이미 있음 |
 | PR 열기 | GitHub 확장 [V5] | 같음 | 일부: PR 만들기 페이지 열기(`openPr`)만 | ★★ | M | P3 |

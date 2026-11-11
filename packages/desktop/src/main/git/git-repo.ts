@@ -1,4 +1,5 @@
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { type ConfirmArg, type Done, type DiffView, type FileDiffView, type Overview, protectedMessage } from '../../shared/git-api.js';
 import { ChangeSet } from '../../shared/git-changes.js';
@@ -14,6 +15,8 @@ import { GitFailure, mustGit, runGit } from './git-run.js';
 
 const ok = (message: string, extra: Partial<Done> = {}): Done => ({ message, ...extra });
 const NO_COMMIT = /^[0-9a-f]{4,64}$/;
+/** 충돌 조상 글을 다시 만들 때 한 단계 글의 최대 크기(글자 수) */
+const CONFLICT_BASE_MAX = 2 * 1024 * 1024;
 
 /**
  * 레포 한 곳에서 git을 돌린다. root는 호출하는 쪽(RepoGate)이 이미 앱이 아는 레포 루트인지 확인한 값이다.
@@ -305,10 +308,37 @@ export class GitRepo {
     return ok(`${p}: resolved using ${side === 'ours' ? 'mine' : 'theirs'}.`);
   }
 
-  async readConflict(path: string): Promise<{ text: string }> {
-    const file = join(this.root, await this.assertConflict(path));
+  /**
+   * 충돌 파일의 글. withBase 면 공통 조상 줄이 든 diff3 글(diff3)도 함께 준다: 인덱스의 세 단계(1 조상·2 내 것·3 상대 것)를
+   * `git merge-file -p --diff3` 로 임시 폴더에서 다시 합친 것이라 작업 파일은 바뀌지 않는다. 만들 수 없으면(삭제/수정 충돌·바이너리·큰 파일) 생략한다.
+   */
+  async readConflict(path: string, withBase = false): Promise<{ text: string; diff3?: string }> {
+    const p = await this.assertConflict(path);
+    const file = join(this.root, p);
     await assertPlainFile(file);
-    return { text: await readFile(file, 'utf8') };
+    const text = await readFile(file, 'utf8');
+    if (!withBase) return { text };
+    const diff3 = await this.diff3Of(p).catch(() => null);
+    return diff3 === null ? { text } : { text, diff3 };
+  }
+
+  private async stageText(stage: 1 | 2 | 3, path: string): Promise<string | null> {
+    const r = await runGit(this.root, ['cat-file', 'blob', `:${stage}:${path}`]);
+    if (r.code !== 0 || r.stdout.length > CONFLICT_BASE_MAX || r.stdout.includes('\0')) return null;
+    return r.stdout;
+  }
+
+  private async diff3Of(path: string): Promise<string | null> {
+    const [ours, base, theirs] = [await this.stageText(2, path), await this.stageText(1, path), await this.stageText(3, path)];
+    if (ours === null || theirs === null) return null;
+    const dir = await mkdtemp(join(tmpdir(), 'rauha-merge-'));
+    try {
+      await Promise.all([writeFile(join(dir, 'ours'), ours), writeFile(join(dir, 'base'), base ?? ''), writeFile(join(dir, 'theirs'), theirs)]);
+      const r = await runGit(this.root, ['merge-file', '-p', '--diff3', '-L', 'HEAD', '-L', 'base', '-L', 'MERGE_HEAD', join(dir, 'ours'), join(dir, 'base'), join(dir, 'theirs')]);
+      return r.code >= 0 && r.code < 128 ? r.stdout : null;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   }
 
   async writeConflict(path: string, text: string): Promise<Done> {

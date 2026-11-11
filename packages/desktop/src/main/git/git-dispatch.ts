@@ -66,7 +66,7 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       commitDiff: () => repo.commitDiff(str(a['hash'])),
       mergeState: () => repo.mergeState(),
       resolveSide: () => repo.resolveSide(str(a['path']), a['side'] === 'theirs' ? 'theirs' : 'ours'),
-      readConflict: () => repo.readConflict(str(a['path'])),
+      readConflict: () => repo.readConflict(str(a['path']), a['base'] === true),
       writeConflict: () => repo.writeConflict(str(a['path']), str(a['text'])),
       markResolved: () => repo.markResolved(str(a['path'])),
       finishMerge: () => repo.finishMerge(),

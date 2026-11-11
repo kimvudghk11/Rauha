@@ -78,7 +78,8 @@ export interface GitCalls {
   commitDiff: [{ hash: string }, readonly FileDiffView[]];
   mergeState: [void, { merging: boolean; conflicts: readonly string[] }];
   resolveSide: [{ path: string; side: 'ours' | 'theirs' }, Done];
-  readConflict: [{ path: string }, { text: string }];
+  /** base 를 켜면 공통 조상 줄이 든 diff3 글(diff3)을 함께 준다(만들 수 없으면 없음) */
+  readConflict: [{ path: string; base?: boolean }, { text: string; diff3?: string }];
   writeConflict: [{ path: string; text: string }, Done];
   markResolved: [{ path: string }, Done];
   finishMerge: [void, Done];

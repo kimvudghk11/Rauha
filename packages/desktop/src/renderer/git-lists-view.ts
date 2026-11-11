@@ -9,9 +9,11 @@ import { openNewBranchDialog, trackBadgeEl } from './git-branch-ui.js';
 import { sortBranchesRecent } from '../shared/git-lists.js';
 import { graphCell, graphCols } from './git-graph-view.js';
 import { layoutGraph } from '../shared/git-graph.js';
-import { ConflictText } from '../shared/conflict-text.js';
+import { ConflictText, type ConflictChoice } from '../shared/conflict-text.js';
 
 const NL = String.fromCharCode(10);
+/** 3-way 화면에 한 번에 그리는 구역 수 상한(나머지는 글상자에서 고친다) */
+const CONFLICT_BLOCK_CAP = 100;
 
 /** 브랜치 탭: 로컬·원격 목록, 새로 만들기(지금 브랜치에서), 전환, 현재 브랜치로 머지, 안전한 삭제(-d) */
 export function buildBranches(ctx: GitCtx) {
@@ -173,37 +175,63 @@ export function buildConflicts(ctx: GitCtx) {
   async function edit(path: string): Promise<void> {
     selected = path;
     main.replaceChildren();
-    const r = await ctx.call('readConflict', { path });
+    const r = await ctx.call('readConflict', { path, base: true });
     if (r === null) return;
     const head = el('div', 'gmh');
     head.appendChild(el('b', undefined, path));
     const area = el('textarea', 'ginput gconf');
-    area.value = r.text;
+    area.value = ConflictText.withBase(r.text, r.diff3 ?? null).toText();
     area.spellcheck = false;
     const done = async (fn: () => Promise<unknown>) => {
       if (await fn()) await refresh();
     };
-    // 내 쪽(파랑)과 상대 쪽(노랑)을 색으로 나눠 보여 주는 미리보기. 아래 글상자를 고치면 바로 따라 바뀐다.
+    // 3-way 미리보기: 구역마다 Mine · Base(있으면) · Theirs 를 나란히 보이고, 구역별로 받을 쪽을 고른다. 아래 글상자를 고치면 바로 따라 바뀐다.
     const preview = el('div', 'gconfview');
+    const accept = (index: number, choice: ConflictChoice): void => {
+      area.value = ConflictText.parse(area.value).resolve(index, choice).toText();
+      drawPreview();
+    };
     const drawPreview = (): void => {
       const t = ConflictText.parse(area.value);
       preview.replaceChildren();
       const n = t.count();
-      preview.append(el('div', 'gconfsum', n === 0 ? 'All conflict markers are gone. Press "Resolved".' : `${n} place(s) to resolve · blue is mine, yellow is theirs`));
+      preview.append(el('div', 'gconfsum', n === 0 ? 'All conflict markers are gone. Press "Resolved".' : `${n} place(s) to resolve · pick Mine, Theirs or Both for each place`));
+      let k = -1;
       for (const part of t.parts) {
         if (part.kind === 'plain') {
           const shown = part.lines.length > 6 ? [...part.lines.slice(0, 3), '…', ...part.lines.slice(-3)] : part.lines;
           preview.append(el('pre', 'gconfplain', shown.join(NL)));
           continue;
         }
+        k++;
+        if (k >= CONFLICT_BLOCK_CAP) {
+          if (k === CONFLICT_BLOCK_CAP) preview.append(el('div', 'gconfsum', `More places are below. Resolve the first ${CONFLICT_BLOCK_CAP}, or edit the text box.`));
+          continue;
+        }
+        const index = k;
         const block = el('div', 'gconfblock');
-        const side = (cls: 'ours' | 'theirs', who: string, label: string, lines: readonly string[]) => {
+        const bar = el('div', 'gconfbar');
+        bar.append(el('b', undefined, `Place ${index + 1} of ${n}`));
+        const pick = (label: string, choice: ConflictChoice, cls = '') => {
+          const b = el('button', cls === '' ? 'btn sm' : `btn sm ${cls}`, label);
+          b.type = 'button';
+          b.addEventListener('click', () => accept(index, choice));
+          bar.append(b);
+        };
+        pick('Accept mine', 'mine', 'gours');
+        pick('Accept theirs', 'theirs', 'gtheirs');
+        pick('Accept both', 'both');
+        if (part.base !== undefined) pick('Accept base', 'base');
+        const cols = el('div', `gconfcols${part.base === undefined ? ' two' : ''}`);
+        const side = (cls: 'ours' | 'base' | 'theirs', who: string, label: string, lines: readonly string[]) => {
           const box = el('div', `gconfside ${cls}`);
           box.append(el('div', 'gconfwho', `${who}${label === '' ? '' : ` · ${label}`}`), el('pre', 'gconfcode', lines.length === 0 ? '(empty)' : lines.join(NL)));
-          block.append(box);
+          cols.append(box);
         };
         side('ours', 'Mine', part.oursLabel, part.ours);
+        if (part.base !== undefined) side('base', 'Base', '', part.base);
         side('theirs', 'Theirs', part.theirsLabel, part.theirs);
+        block.append(bar, cols);
         preview.append(block);
       }
     };
