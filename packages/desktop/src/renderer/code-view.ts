@@ -172,7 +172,12 @@ export function buildCode(deps: CodeDeps) {
   const sRight = el('span', 'sr');
   const problems = createProblemsPanel((p, l, c) => void openAt(p, l, c));
   status.append(sPath, problems.button, sRight);
-  const term = buildTerminal(deps.terminal);
+  const term = buildTerminal(deps.terminal, {
+    platform: deps.platform,
+    workFolder: deps.workFolder,
+    openFile: (path, line, column) => openAt(path, line, column),
+    say: (message) => say(message),
+  });
   termBtn.addEventListener('click', () => void term.toggle());
   // 터미널이 열려 있으면 단추가 눌린 모양(btn.on)이어서 켜졌는지 한눈에 보인다
   const syncTermBtn = (): void => void termBtn.classList.toggle('on', !term.root.hidden);
@@ -925,7 +930,7 @@ export function buildCode(deps: CodeDeps) {
     const key = e.key.toLowerCase();
     if (e.key === '`' || e.code === 'Backquote') {
       e.preventDefault();
-      void term.toggle();
+      void (e.shiftKey ? term.create() : term.toggle());
       return;
     }
     if (!e.shiftKey && key === 's') {

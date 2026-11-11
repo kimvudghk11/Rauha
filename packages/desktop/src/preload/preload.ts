@@ -118,10 +118,12 @@ const api: RauhaApi = {
   },
   terminal: {
     roots: () => ipcRenderer.invoke(TERM_IPC.roots),
-    open: (rootPath) => ipcRenderer.invoke(TERM_IPC.open, rootPath),
-    run: (id, line) => ipcRenderer.invoke(TERM_IPC.run, id, line),
-    stop: (id) => ipcRenderer.invoke(TERM_IPC.stop, id),
+    open: (req) => ipcRenderer.invoke(TERM_IPC.open, req),
+    write: (id, data) => ipcRenderer.invoke(TERM_IPC.write, id, data),
+    resize: (id, cols, rows) => ipcRenderer.invoke(TERM_IPC.resize, id, cols, rows),
+    ack: (id, n) => ipcRenderer.invoke(TERM_IPC.ack, id, n),
     close: (id) => ipcRenderer.invoke(TERM_IPC.close, id),
+    closeAll: () => ipcRenderer.invoke(TERM_IPC.closeAll),
     onEvent: (listener) => {
       ipcRenderer.on(TERM_IPC.event, (_e, event: TermEvent) => listener(event));
     },

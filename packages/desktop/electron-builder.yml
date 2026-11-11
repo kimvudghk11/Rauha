@@ -12,12 +12,15 @@ files:
   - build/icon.png
   - package.json
   - "!**/*.map"
+  - "!**/*.pdb"
 # SDK 실행 파일과 브라우저 MCP는 asar 안에서 실행할 수 없으니 밖(app.asar.unpacked)에 푼다.
 asarUnpack:
   # 코드 탭 정의로 이동·진단용 TypeScript 언어 도구(worker 파일은 asar 안에서 못 띄운다)
   - dist/ts-worker.cjs
   - dist/ts-lib/**
   - node_modules/@anthropic-ai/**
+  # 진짜 터미널(PTY): 네이티브 .node·spawn-helper·ConPTY 파일과 Windows의 출력 worker 는 asar 안에서 실행할 수 없다
+  - node_modules/@lydell/**
   - node_modules/@playwright/**
   - node_modules/playwright/**
   - node_modules/playwright-core/**
@@ -30,6 +33,8 @@ extraResources:
 mac:
   files:
     - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+    - "!node_modules/@lydell/node-pty-win32-*/**"
+    - "!node_modules/@lydell/node-pty-linux-*/**"
   category: public.app-category.developer-tools
   icon: build/icon.icns
   target:
@@ -49,6 +54,9 @@ dmg:
 win:
   files:
     - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+    - "!node_modules/@lydell/node-pty-darwin-*/**"
+    - "!node_modules/@lydell/node-pty-linux-*/**"
+    - "!node_modules/@lydell/node-pty-win32-arm64/**"
   icon: build/icon.ico
   target:
     - { target: nsis, arch: [x64] }

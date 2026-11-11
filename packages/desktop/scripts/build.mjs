@@ -13,7 +13,7 @@ mkdirSync(join(dist, 'renderer'), { recursive: true });
 // core가 쓰는 import.meta.url(프롬프트 폴더 찾기 등)은 번들(cjs)에서 이 값으로 바꾼다.
 const metaUrl = { banner: { js: "const __importMetaUrl = require('node:url').pathToFileURL(__filename).href;" }, define: { 'import.meta.url': '__importMetaUrl' } };
 // Agent SDK는 자기 폴더의 실행 파일을 찾아 쓰므로 묶지 않고 node_modules에서 읽는다.
-const runtimeExternal = ['electron', '@anthropic-ai/claude-agent-sdk', '@playwright/mcp'];
+const runtimeExternal = ['electron', '@anthropic-ai/claude-agent-sdk', '@playwright/mcp', '@lydell/node-pty'];
 
 // DB 탭의 SQLite 자식 프로세스 코드: 한 줄짜리 CJS 로 묶어 main 번들에 문자열로 넣는다(파일을 따로 싣지 않으니 asar 안에서도 된다).
 const dbChild = await build({ entryPoints: [join(src, 'main', 'db', 'sqlite-child.ts')], bundle: true, platform: 'node', format: 'cjs', minify: true, write: false, conditions: ['rauha-source'], logLevel: 'warning' });
@@ -32,7 +32,9 @@ await Promise.all([
   build({ ...common, entryPoints: [join(src, 'preload', 'preload.ts')], outfile: join(dist, 'preload.cjs'), platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: [join(src, 'renderer', 'app.ts')], outfile: join(dist, 'renderer', 'app.js'), platform: 'browser', format: 'iife' }),
 ]);
-for (const file of ['index.html', 'styles.css', 'ui.css', 'chat.css', 'git.css', 'commands.css', 'data-tabs.css', 'todo.css', 'blog.css', 'code.css', 'api.css', 'docker.css', 'db.css', 'changes.css']) cpSync(join(src, 'renderer', file), join(dist, 'renderer', file));
+for (const file of ['index.html', 'styles.css', 'ui.css', 'chat.css', 'git.css', 'commands.css', 'data-tabs.css', 'todo.css', 'blog.css', 'code.css', 'api.css', 'docker.css', 'db.css', 'changes.css', 'terminal.css']) cpSync(join(src, 'renderer', file), join(dist, 'renderer', file));
+// xterm.js 의 기본 CSS(터미널 칸 배치). 번들하지 않고 앱 안 파일로 복사한다(CSP: style-src 'self').
+cpSync(join(dirname(createRequire(import.meta.url).resolve('@xterm/xterm/package.json')), 'css', 'xterm.css'), join(dist, 'renderer', 'xterm.css'));
 // 타입 검사에 쓰는 typescript 의 lib.*.d.ts (dist/ts-lib/)
 const tsLib = join(dirname(createRequire(import.meta.url).resolve('typescript')));
 mkdirSync(join(dist, 'ts-lib'), { recursive: true });

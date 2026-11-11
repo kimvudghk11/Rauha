@@ -66,3 +66,12 @@ CI 기준(실행 42417327547, macos-latest·windows-latest 둘 다 초록, 2026-
 - 알림 권한, 문서·데스크톱 폴더 접근 권한, 첫 실행 때 터미널 rauha 지우기 대화상자 동작.
 - Windows 설치본의 exe 아이콘: `signAndEditExecutable: false`라 exe 파일 자체에는 아이콘이 입혀지지 않는다(창 아이콘은 `build/icon.png`).
 - artifact 용량: macOS 약 960MB(dmg·zip 각 2개), Windows 약 220MB.
+
+## 진짜 터미널(PTY): 네이티브 모듈과 설치본 (2026-11-11)
+
+- 쓰는 것: `@lydell/node-pty`(MIT, microsoft/node-pty 의 작은 배포판). **Node-API(N-API)로 빌드된 프리빌트**를 플랫폼별 optionalDependencies(`@lydell/node-pty-{win32,darwin}-{x64,arm64}`)로 받는다. 그래서 **Electron ABI 재빌드(electron-rebuild)가 필요 없고**, 설치 때 node-gyp·Visual Studio·Xcode 도 필요 없다(`install` 스크립트 없음). 공식 `node-pty` 1.1.0 은 `install: node scripts/prebuild.js || node-gyp rebuild` 라 맥·윈도우 러너에서 컴파일 실패 위험이 있어 고르지 않았다.
+- yarn: `.yarnrc.yml` 의 `supportedArchitectures`(os current·darwin·win32, cpu current·x64·arm64)가 이미 있어서, 맥 한 러너가 arm64·x64 패키지를 모두 받고 `yarn install --immutable` 도 같은 yarn.lock 으로 통과한다(리눅스 패키지는 받지 않는다).
+- 묶기(`electron-builder.yml`): `@lydell/node-pty` 는 **dependencies**(devDependencies 면 설치본에 안 들어간다). `asarUnpack: node_modules/@lydell/**` — `.node`·맥 `spawn-helper`(실행 비트가 있어야 한다)·Windows ConPTY 파일(`conpty.dll`·`OpenConsole.exe`)과 출력 worker 는 asar 안에서 실행할 수 없다. `@lydell/node-pty` 의 `unixTerminal.js` 는 `app.asar` 를 `app.asar.unpacked` 로 바꿔 helper 를 찾는다. 맥 빌드는 win·linux 패키지를, 윈도 빌드는 darwin·linux·win32-arm64 패키지를 `files` 에서 뺀다. `*.pdb` 도 뺀다. 맥은 arm64·x64 설치 파일이 각각 darwin 두 패키지(합쳐 약 0.3MB)를 모두 싣는다(작아서 그대로 뒀다).
+- main 번들: `build.mjs` 의 `runtimeExternal` 에 `@lydell/node-pty` 를 넣어 묶지 않는다. 처음 터미널을 열 때 `await import()` 하고, 못 불러오면 칸에 이유 한 줄을 보인다(앱의 다른 부분은 멀쩡하다).
+- 확인: `scripts/smoke-features.mjs` 의 6a~6d 가 만든 설치본(`release/win-unpacked`, 맥은 `Rauha.app`)을 임시 홈으로 띄워 PTY 시작 → `echo` 왕복 → 크기 조절 → 환경 변수 격리(`RAUHA_DATA_DIR` 가 셸에 없음) → `exit` 종료 이벤트를 본다. CI 의 맥·윈도우 러너가 `yarn dist` 뒤에 돌린다. 이 PC 에서는 Windows x64 설치본으로만 확인했다. **맥(arm64·x64)은 CI 가 처음 확인한다**(spawn-helper 실행 비트·ad-hoc 서명·zsh 로그인 셸).
+- 크기: 윈도 설치 폴더(win-unpacked) 약 357→358MB(app.asar 24→26MB: xterm.js 번들, app.asar.unpacked 276→278MB: ConPTY 파일). 설치 파일(NSIS) 약 226MB.

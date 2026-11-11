@@ -1,5 +1,6 @@
 // 만든 설치본(압축 푼 폴더)에서 "개발 실행에서만 확인되던 기능"이 실제로 도는지 확인한다.
 //  1 코드 탭 TS 언어 도구 worker(정의 이동·진단)  2 전체 찾기 worker(정규식)  3 DB 탭 SQLite 자식 프로세스
+//  6 진짜 터미널(PTY): 셸 띄우기 → echo → 출력 받기 → 크기 조절 → 환경 변수 격리 → exit
 //  4 채팅 이미지 첨부 임시 폴더(만들어짐·읽을 수 있음·일이 끝나면 지워짐)  5 docker 없음 안내 / 있으면 찾음
 // 실제 Claude는 부르지 않는다(RAUHA_FAKE_TEAM=1). 홈·앱 데이터·사용자 데이터는 임시 폴더로 바꾸고, 자기가 띄운 프로세스만 다룬다.
 // 창은 시험 실행 규칙대로 2번 모니터(없으면 숨김). 사용: node scripts/smoke-features.mjs  (먼저 yarn dist --dir 같은 빌드가 필요)
@@ -33,6 +34,8 @@ writeFileSync(join(dirs.work, 'src', 'a.ts'), "export function greet(name: strin
 const bText = "import { greet } from './a';\nexport const x: number = greet('a');\n";
 writeFileSync(join(dirs.work, 'src', 'b.ts'), bText);
 writeFileSync(join(dirs.work, 'notes.txt'), 'alpha-123\nbeta\nalpha-45\n');
+// zsh 는 홈에 .zshrc 가 없으면 새 사용자 안내 질문을 해서 입력을 먹는다. 빈 파일을 둔다.
+writeFileSync(join(dirs.home, '.zshrc'), '');
 const greetColumn = bText.split('\n')[1].indexOf('greet(') + 2; // 1부터, 이름 안쪽
 
 // ── 임시 sqlite 파일: 설치본 자신(ELECTRON_RUN_AS_NODE)의 node:sqlite 로 만든다 ──
@@ -114,6 +117,26 @@ const main = `(async () => {
     o.dbQuery = await r.db.query({ id, sql: 'select name from pets order by id', writeMode: false, confirm: false });
   }
   o.docker = await r.docker.status();
+  o.pty = await (async () => {
+    const t = r.terminal; const sleep = (ms) => new Promise((x) => setTimeout(x, ms));
+    const evs = []; t.onEvent((e) => { evs.push(e); if (e.type === 'data') t.ack(e.id, e.data.length); });
+    const op = await t.open({ rootPath: '', cols: 100, rows: 30 });
+    if (!op.ok) return { open: op };
+    const id = op.id;
+    const text = () => evs.filter((e) => e.id === id && e.type === 'data').map((e) => e.data).join('').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+    const until = async (re, ms) => { for (let i = 0; i < ms / 100; i++) { if (re.test(text())) return true; await sleep(100); } return false; };
+    const started = await until(/[\\s\\S]/, 20000);
+    await sleep(1500);
+    await t.write(id, 'echo PTYMARK1\\r');
+    const echoed = await until(/\\r?\\nPTYMARK1\\r?\\n/, 15000);
+    await t.resize(id, 140, 30);
+    await t.write(id, ${JSON.stringify(process.platform === 'win32')} ? 'echo "ENV[$env:RAUHA_DATA_DIR]"\\r' : 'echo "ENV[$RAUHA_DATA_DIR]"\\r');
+    const envClean = await until(/\\r?\\nENV\\[\\]\\r?\\n/, 15000);
+    await t.write(id, 'exit\\r');
+    let exit = null; for (let i = 0; i < 100 && exit === null; i++) { exit = evs.find((e) => e.id === id && e.type === 'exit') ?? null; await sleep(100); }
+    await t.close(id);
+    return { open: op, started, echoed, envClean, exit, head: text().slice(0, 1200), tail: text().slice(-600) };
+  })();
   return o;
 })()`;
 const m = await launch('main', main, { PATH: noDockerPath });
@@ -129,8 +152,14 @@ if (v === null) {
   check('3a SQLite 파일 열기', v.dbAdd?.ok, JSON.stringify(v.dbAdd)?.slice(0, 200));
   check('3b 표 목록', v.dbTables?.ok && v.dbTables.data.some((t) => t.name === 'pets'), JSON.stringify(v.dbTables)?.slice(0, 200));
   check('3c 쿼리 결과', v.dbQuery?.ok && JSON.stringify(v.dbQuery.data).includes('delfi'), JSON.stringify(v.dbQuery)?.slice(0, 300));
+  check('6a 진짜 터미널: 셸이 뜨고 출력이 온다', v.pty?.open?.ok && v.pty.started, JSON.stringify(v.pty)?.slice(0, 2400));
+  check('6b 터미널: echo 가 입력→출력으로 돌아온다', v.pty?.echoed, JSON.stringify(v.pty)?.slice(0, 2400));
+  check('6c 터미널: rauha 내부 환경 변수(RAUHA_DATA_DIR)가 셸에 없다', v.pty?.envClean, JSON.stringify(v.pty)?.slice(0, 2400));
+  check('6d 터미널: exit 로 셸이 끝나면 종료 이벤트가 온다', v.pty?.exit?.code === 0, JSON.stringify(v.pty)?.slice(0, 2400));
   check('5a docker 없음 안내(PATH 에 없음)', v.docker?.ready === false && v.docker.failure !== null && v.docker.clientVersion === null, JSON.stringify(v.docker)?.slice(0, 300));
 }
+
+// 6 터미널은 위 m 식에서 같이 돈다(앱 한 번 띄우는 비용을 아낀다)
 
 // 5b: docker 가 있는 PC 에서만 — PATH 를 넣으면 절대 경로로 찾는지(엔진이 꺼져 있어도 client 버전은 나온다)
 const found = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['docker'], { encoding: 'utf8' });

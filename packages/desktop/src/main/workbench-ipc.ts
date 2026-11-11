@@ -18,7 +18,7 @@ export interface WorkbenchDeps extends CodeShellDeps {
 export function registerWorkbench(ipc: Pick<IpcMain, 'handle'>, deps: WorkbenchDeps): CodeFiles {
   const secrets = createSecretSource(deps.workFolder);
   const files = registerCodeIpc(ipc, deps.workFolder, secrets, { trash: deps.trash, reveal: deps.reveal });
-  const terminals = registerTerminalIpc(ipc, { workFolder: deps.workFolder, secrets, send: deps.send });
+  const terminals = registerTerminalIpc(ipc, { workFolder: deps.workFolder, send: deps.send });
   deps.onQuit(() => terminals.disposeAll());
   return files;
 }

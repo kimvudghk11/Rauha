@@ -46,7 +46,7 @@ section.chat  (grid: data-mode = xl 2열 방 · side 나란히 · rows 위아래
 알림 토스트 .toasts > .toast: b · 문구 · .btn.primary 「정리 보기」
 ```
 
-### 코드 (`code-view.ts`, `code-tree-view.ts`, `code-file-ops.ts`, `code-menu.ts`, `code-dialog.ts`, `code-editor.ts`, `terminal-view.ts`, `code.css`)
+### 코드 (`code-view.ts`, `code-tree-view.ts`, `code-file-ops.ts`, `code-menu.ts`, `code-dialog.ts`, `code-editor.ts`, `terminal-view.ts`, `code.css`, `terminal.css`, 복사해 쓰는 `xterm.css`)
 
 ```
 section.code  (flex, 테두리 1px, 둥근 6px)
@@ -59,7 +59,7 @@ section.code  (flex, 테두리 1px, 둥근 6px)
       ├─ .code-bar      35px: .code-ibtn ☰ · .code-tabs(.code-tab + .code-x) · .code-ibtn >_
       ├─ .code-notice   .note(.warn) + .btn
       ├─ .code-host(CodeMirror) 또는 .code-empty
-      ├─ .term          터미널 칸: .term-grip · .term-bar(30px: .term-tabs .term-stop .code-ibtn + ×) · .term-note · pre.term-out · .term-row(.term-prompt input.term-input)
+      ├─ .term          터미널 칸(xterm.js, 탭 하나 = PTY 하나): .term-grip · .term-bar(.term-tabs + ⌕ 찾기 · + 새 터미널 · ×) · .term-find(input.term-find-input + ↑ ↓ ×, 숨김이 기본) · .term-body > .term-pane(터미널마다 하나, xterm이 안을 그린다) · .term-empty(오류·안내) · .term-menu(시작 폴더 고르기)
       └─ .code-status   22px
  오버레이 .qo-veil > .qo(input.qo-input · .qo-row)
 ```

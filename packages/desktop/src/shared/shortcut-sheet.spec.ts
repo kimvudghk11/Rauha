@@ -24,6 +24,12 @@ describe('단축키 안내', () => {
     expect(rows.find((r) => r.label === 'Settings')?.keys).toBe('Ctrl+,');
     expect(shortcutSheet('darwin').find((g) => g.title === 'Switch tab')!.rows.find((r) => r.label === 'DB')?.keys).toBe('⌘6');
   });
+  it('터미널 단축키(칸 토글·새 터미널·터미널 안 찾기·복사)가 안내에 있다', () => {
+    const rows = shortcutSheet('win32').flatMap((g) => g.rows);
+    expect(rows.find((r) => r.label === 'New terminal')?.keys).toBe('Ctrl+Shift+`');
+    expect(rows.find((r) => r.label === 'Find in the terminal')?.keys).toBe('Ctrl+F');
+    expect(shortcutSheet('darwin').flatMap((g) => g.rows).find((r) => r.label === 'Copy the selection')?.keys).toBe('⌘C');
+  });
   it('모든 줄에 키와 설명이 있다', () => {
     for (const g of shortcutSheet('win32')) for (const r of g.rows) expect(r.keys !== '' && r.label !== '').toBe(true);
   });

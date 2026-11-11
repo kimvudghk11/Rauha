@@ -1170,6 +1170,75 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@lydell/node-pty-darwin-arm64@npm:1.2.0-beta.18":
+  version: 1.2.0-beta.18
+  resolution: "@lydell/node-pty-darwin-arm64@npm:1.2.0-beta.18"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@lydell/node-pty-darwin-x64@npm:1.2.0-beta.18":
+  version: 1.2.0-beta.18
+  resolution: "@lydell/node-pty-darwin-x64@npm:1.2.0-beta.18"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@lydell/node-pty-linux-arm64@npm:1.2.0-beta.18":
+  version: 1.2.0-beta.18
+  resolution: "@lydell/node-pty-linux-arm64@npm:1.2.0-beta.18"
+  conditions: os=linux & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@lydell/node-pty-linux-x64@npm:1.2.0-beta.18":
+  version: 1.2.0-beta.18
+  resolution: "@lydell/node-pty-linux-x64@npm:1.2.0-beta.18"
+  conditions: os=linux & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@lydell/node-pty-win32-arm64@npm:1.2.0-beta.18":
+  version: 1.2.0-beta.18
+  resolution: "@lydell/node-pty-win32-arm64@npm:1.2.0-beta.18"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@lydell/node-pty-win32-x64@npm:1.2.0-beta.18":
+  version: 1.2.0-beta.18
+  resolution: "@lydell/node-pty-win32-x64@npm:1.2.0-beta.18"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@lydell/node-pty@npm:1.2.0-beta.18":
+  version: 1.2.0-beta.18
+  resolution: "@lydell/node-pty@npm:1.2.0-beta.18"
+  dependencies:
+    "@lydell/node-pty-darwin-arm64": "npm:1.2.0-beta.18"
+    "@lydell/node-pty-darwin-x64": "npm:1.2.0-beta.18"
+    "@lydell/node-pty-linux-arm64": "npm:1.2.0-beta.18"
+    "@lydell/node-pty-linux-x64": "npm:1.2.0-beta.18"
+    "@lydell/node-pty-win32-arm64": "npm:1.2.0-beta.18"
+    "@lydell/node-pty-win32-x64": "npm:1.2.0-beta.18"
+  dependenciesMeta:
+    "@lydell/node-pty-darwin-arm64":
+      optional: true
+    "@lydell/node-pty-darwin-x64":
+      optional: true
+    "@lydell/node-pty-linux-arm64":
+      optional: true
+    "@lydell/node-pty-linux-x64":
+      optional: true
+    "@lydell/node-pty-win32-arm64":
+      optional: true
+    "@lydell/node-pty-win32-x64":
+      optional: true
+  checksum: 10c0/f8eb6a94f1405273372eb8793d8d3e9243322467d34bdcd2c537a46b5407316e169e5fc79aab0fb44e4bb10252a55767424591c0e16af601189e94ec7a6a5533
+  languageName: node
+  linkType: hard
+
 "@malept/cross-spawn-promise@npm:^2.0.0":
   version: 2.0.0
   resolution: "@malept/cross-spawn-promise@npm:2.0.0"
@@ -1324,9 +1393,14 @@ __metadata:
     "@codemirror/state": "npm:^6.7.6"
     "@codemirror/view": "npm:^6.43.15"
     "@lezer/highlight": "npm:^1.2.5"
+    "@lydell/node-pty": "npm:1.2.0-beta.18"
     "@playwright/mcp": "npm:0.0.84"
     "@rauha/core": "workspace:^"
     "@types/node": "npm:^22.20.5"
+    "@xterm/addon-fit": "npm:^0.11.0"
+    "@xterm/addon-search": "npm:^0.16.0"
+    "@xterm/addon-web-links": "npm:^0.12.0"
+    "@xterm/xterm": "npm:^6.0.0"
     electron: "npm:45.2.3"
     electron-builder: "npm:26.18.0"
     esbuild: "npm:^0.28.2"
@@ -1814,6 +1888,34 @@ __metadata:
   version: 0.9.12
   resolution: "@xmldom/xmldom@npm:0.9.12"
   checksum: 10c0/0a9ef38e203213717dde8d16c62743c26c37eb4195aeb4f286550a0aec2145c063a6c3633f253c29f75202f922d7c961d1acaad4dd93e5db1ef05c813354d178
+  languageName: node
+  linkType: hard
+
+"@xterm/addon-fit@npm:^0.11.0":
+  version: 0.11.0
+  resolution: "@xterm/addon-fit@npm:0.11.0"
+  checksum: 10c0/c0ce94f7e877d07e7197d15d041cc629ce2e853016400aadddc9810838ea8a26e836f87f325eba36df88c03feb72d9f13cd8c3bb41ee31e701f1058edb8553c3
+  languageName: node
+  linkType: hard
+
+"@xterm/addon-search@npm:^0.16.0":
+  version: 0.16.0
+  resolution: "@xterm/addon-search@npm:0.16.0"
+  checksum: 10c0/bcd4c27852df1a9cfffb112174a510b0a410fc72f7f2ca431ae2ed3414c575cb1022795d491c7111382195b2d7f299b1f43d69674905c84cf31bafec7e48be9f
+  languageName: node
+  linkType: hard
+
+"@xterm/addon-web-links@npm:^0.12.0":
+  version: 0.12.0
+  resolution: "@xterm/addon-web-links@npm:0.12.0"
+  checksum: 10c0/1c4847f43948483a6a0f59994090b8b9d9f6006a1e4a8deed7d9c28fcb47422d77eb418fb8fc63fbfb0c486c49e4646b73188ff2efac5290b680db34f298f334
+  languageName: node
+  linkType: hard
+
+"@xterm/xterm@npm:^6.0.0":
+  version: 6.0.0
+  resolution: "@xterm/xterm@npm:6.0.0"
+  checksum: 10c0/b99122553f323a65b708e5eba9903d4c5a1bcb59fe576d29d6e91a33002bccfd1b99403e1e839e1942f4952039db6d3d74ca9d65ed0399b4e9a0a5f35b8c12d9
   languageName: node
   linkType: hard
 

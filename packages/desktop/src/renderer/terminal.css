@@ -1,0 +1,9 @@
+/* 코드 탭 아래 터미널 칸(xterm.js). 기본 배치는 xterm.css, 여기서는 앱 토큰으로 칸·찾기 줄·빈 상태를 정한다. */
+.term-tab.exited .term-tab-name { color: var(--dim); text-decoration: line-through; }
+.term-find { flex: none; display: flex; align-items: center; gap: var(--s1); padding: var(--s1) var(--s2); background: var(--card); border-bottom: 1px solid var(--border); }
+.term-find-input { flex: 1; min-width: 0; font-family: var(--mono); }
+.term-body { flex: 1; min-height: 0; position: relative; background: var(--bg); overflow: hidden; }
+.term-pane { position: absolute; top: 0; right: 0; bottom: 0; left: 0; padding: var(--s1) 0 0 var(--s3); box-sizing: border-box; }
+.term-empty { padding: var(--s3); font-size: var(--fs-sm); color: var(--muted); }
+.term .xterm { height: 100%; }
+.term .xterm-viewport { background: transparent; }

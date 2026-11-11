@@ -10,7 +10,7 @@ Rauha(`packages/desktop`)는 편집기가 아니라 팀장이 일을 팀원(Haik
 
 ## 1. 요약: 가장 아쉬운 10가지
 
-1. **진짜 터미널(PTY) 없음** — 명령마다 새 셸이라 vim·ssh·대화형 CLI·`export` 유지가 안 된다. (VS Code 터미널 vs `main/terminal/terminal-host.ts`)
+1. ~~**진짜 터미널(PTY) 없음**~~ — **구현함(2026-11-11)**: `main/terminal/pty-host.ts`(`@lydell/node-pty`)+`renderer/terminal-view.ts`(xterm.js). 여러 탭·크기 조절·복사/붙여넣기·찾기·링크(URL·파일 경로). 아직 없음: 분할·셸 선택·셸 통합. 맥은 확인 못 함.
 2. **채팅에서 코드 변경을 diff 로 보고 적용·거절하는 흐름이 약함** — Cursor 는 Apply/Accept/Reject 를 줄 단위로 한다. Rauha 는 worktree 브랜치(`rauha/job-…`)로 남기고 허락 카드의 "diff 보기"만 있다.
 3. **체크포인트(작업 전 상태로 되돌리기) 없음** — Cursor 는 큰 변경 전 스냅샷을 만들어 복원한다. Rauha 는 브랜치로 대체되지만 "이 작업 전으로 되돌리기" 단추가 없다.
 4. **채팅 @ 컨텍스트가 `@폴더` 하나뿐** — Cursor 는 @파일·@폴더·@터미널·@이전 채팅·@git diff·@브라우저. 특정 파일을 채팅에 붙이는 길이 없다(`chat-view.ts` 입력창 안내는 `@folder` 만).
@@ -82,8 +82,8 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 
 | 기능 | VS Code | Cursor | Rauha 현황 + 근거 | 가치 | 난이도 | 우선순위 |
 |---|---|---|---|---|---|---|
-| PTY(대화형) | 있음 [V6] | 같음 | **없음**: 명령마다 새 셸, 네이티브 모듈 회피 (`main/terminal/terminal-host.ts`, `docs/desktop-guide.md` 7절) | ★★★ | L | P1(큰 항목, 문서만) |
-| 여러 탭 | 있음 [V6] | 같음 | 있음 (`terminal-view.ts` `newTab`) | ★★ | - | 이미 있음 |
+| PTY(대화형) | 있음 [V6] | 같음 | **있음(2026-11-11)**: 프리빌트 N-API `@lydell/node-pty` + xterm.js (`main/terminal/pty-host.ts`, `docs/desktop-guide.md` 7절). 맥 미확인 | ★★★ | - | 구현함 |
+| 여러 탭 | 있음 [V6] | 같음 | 있음 (`terminal-view.ts` `newTab`, 탭 하나 = PTY 하나) | ★★ | - | 이미 있음 |
 | 분할 | 있음 [V6] | 같음 | 없음 | ★ | M | P3 |
 | 셸 선택(프로필) | 있음 [V6] | 같음 | 없음(OS 기본 셸 고정: mac `$SHELL`, Windows PowerShell) | ★★ | S | P2 |
 | 링크 열기 | 있음 [V6] | 같음 | 없음 | ★★ | M | P2 |
@@ -163,7 +163,7 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 - **선택 영역을 채팅으로 보내기(Cmd+K 대응)(P2)**: 편집기에서 선택 후 Ctrl/Cmd+L 로 `@파일:줄` 형태로 입력창에 채움. 영향: `renderer/code-view.ts`, `chat.fill`.
 - **채팅 이미지 붙여넣기(P2)**: 붙여넣은 PNG 를 임시 파일로 저장해 요청에 경로로 첨부. 영향: `renderer/chat-view.ts`, `main/main.ts`.
 - **터미널 셸 선택·링크 열기(P2)**: 영향: `main/terminal/shell-command.ts`, `renderer/terminal-view.ts`.
-- **PTY 터미널(큰 항목)**: 네이티브 모듈이 맥·Windows 설치 파일을 깨뜨릴 위험 때문에 보류. 사전 검증(prebuilt 확인, GitHub Actions 로 맥 빌드) 후 결정.
+- **PTY 터미널**: 구현함(2026-11-11). 방법 비교·근거는 `docs/desktop-guide.md` 7절과 `packages/desktop/PACKAGING.md`의 '진짜 터미널(PTY)' 절.
 
 ## 5. Rauha 만의 강점 (비교를 공정하게)
 

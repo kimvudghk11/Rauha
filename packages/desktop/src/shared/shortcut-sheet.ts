@@ -37,7 +37,17 @@ export function shortcutSheet(platform: string): readonly ShortcutGroup[] {
         { keys: `${mod}${shift}E`, label: 'Send the selected code to chat' },
         { keys: `${mod}S`, label: 'Save' },
         { keys: `${mod}\``, label: 'Show or hide the terminal' },
+        { keys: `${mod}${shift}\``, label: 'New terminal' },
         { keys: 'F2', label: 'Rename the selected item' },
+      ],
+    },
+    {
+      title: 'Terminal (when it has focus)',
+      rows: [
+        { keys: `${mod}F`, label: 'Find in the terminal' },
+        { keys: mac ? '⌘C' : `${mod}${shift}C`, label: 'Copy the selection' },
+        { keys: `${mod}V`, label: 'Paste' },
+        { keys: `${mod}click`, label: 'Open a link or a file path' },
       ],
     },
     {

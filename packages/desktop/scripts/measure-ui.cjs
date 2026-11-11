@@ -200,6 +200,8 @@ const TAB = { chat: 0, code: 1, todo: 2, api: 3, docker: 4, db: 5, records: 6, g
 const pickRepo = (name) => `(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); let s = null; for (let i = 0; i < 80 && !(s = document.querySelector('.gselect')); i++) await sleep(100); if (!s) throw new Error('git 탭의 .gselect(레포 고르기)가 8초 안에 나타나지 않았어요'); const o = [...s.options].find((o) => o.text.startsWith(${JSON.stringify(name)})); s.value = o.value; s.dispatchEvent(new Event('change')); await sleep(300); for (let i = 0; i < 80 && !document.querySelector('.gcommit'); i++) await sleep(100); await sleep(400); })() /* querySelector */`;
 // 코드 탭 장면 도우미: 열려 있는 메뉴·대화상자·입력칸을 닫고, 레포 정보가 입혀질 때까지 기다리고, 이름으로 줄을 찾아 누른다
 const CLEAN = "(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); if (['s', 'xs'].includes(document.querySelector('.app').dataset.tier)) document.querySelector('.code').classList.add('explorer-open'); })() /* querySelector */";
+// 터미널 칸을 열고(접혀 있으면) 터미널이 n개 이상 되게 하며, 폴더 목록·찾기 줄은 닫아 둔다
+const TERM_ENSURE = (n) => `(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); const t = document.querySelector('.term'); if (t.hidden) { document.querySelector('.code-termbtn').click(); await w(500); } while (document.querySelectorAll('.term-tab').length < ${n}) { [...document.querySelectorAll('.term-bar .btn')].find((b) => b.textContent === '+').click(); await w(200); [...document.querySelectorAll('.term-menu button')].find((b) => b.textContent.includes('Work folder')).click(); await w(2500); } document.querySelectorAll('.term-menu').forEach((x) => x.remove()); const f = document.querySelector('.term-find'); if (!f.hidden) f.querySelector('button:last-child').click(); await w(300); })()`;
 const WAIT = "(() => new Promise((r) => setTimeout(r, 1200)))() /* querySelector */";
 // 팀이 일하는 레포의 파일을 바꾸려 하면 뜨는 "작업 중인 레포예요" 경고만 넘긴다(다른 대화상자는 그대로 둔다)
 const WARNOK = "(() => { const d = document.querySelector('.dialog'); if (d?.querySelector('b')?.textContent.includes('작업 중인 레포')) d.querySelector('.btn.primary').click(); })() /* querySelector */";
@@ -256,7 +258,11 @@ const SCENES = [
   ['code-edit', 'code', ['.tree-row:not(.heavy)', '.tree-row:not(.heavy):nth-child(3)', `(() => { const c = document.querySelector('.cm-content'); c.focus(); const k = (key, o = {}) => c.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...o })); k('f', { ctrlKey: true }); k('Alt', { altKey: true }); k('End'); k('Tab'); document.execCommand('insertText', false, 'x'); k('p', { ctrlKey: true }); k('Escape'); })()`]],
   // 아이콘 갤러리: 문서에 들어 있는 모든 파일 아이콘 심볼을 16px로 그려 크기를 잰다
   ['code-icons', 'code', [`(() => { const g = document.createElement('div'); g.className = 'tree'; for (const sym of document.querySelectorAll('symbol[id^=fi-]')) { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'fi fi-blue'); s.setAttribute('width', '16'); s.setAttribute('height', '16'); const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#' + sym.id); s.append(u); g.append(s); } document.querySelector('.code-explorer').append(g); })()`]],
-  ['code-term', 'code', ['.code-termbtn']],
+  // 진짜 터미널(PTY, xterm.js): 장면마다 같은 칸을 이어 쓴다(폭마다 되풀이돼도 터미널이 늘지 않게 TERM_ENSURE 가 필요한 만큼만 연다)
+  ['code-term', 'code', [TERM_ENSURE(1)]],
+  ['code-term-menu', 'code', [TERM_ENSURE(1), byText('.term-bar .btn', '+')]],
+  ['code-term-find', 'code', [TERM_ENSURE(1), byText('.term-bar .btn', '⌕'), typeInto('.term-find-input', 'PS')]],
+  ['code-term-two', 'code', [TERM_ENSURE(2)]],
   ['code-search', 'code', [byText('.code-ehead .tab', 'Search')]],
   // 전체 찾기: 단어 단위 켜기, 포함/제외 칸 열기, 결과(파일별 묶음)와 요약 줄 / 잘못된 정규식 안내
   ['code-search-results', 'code', [byText('.code-ehead .tab', 'Search'), on('.cs-row .cs-opt:nth-child(3)'), on('.cs-row .cs-opt:nth-child(5)'), typeInto('.code-search .cs-row .cs-input', 'export'), typeInto('.cs-globs .cs-input:nth-child(1)', '*.ts, *.md'), typeInto('.cs-globs .cs-input:nth-child(2)', 'node_modules'), WAIT]],
