@@ -19,7 +19,7 @@ const GIT_EXEC_CONFIG = /^(alias\.|core\.(sshcommand|fsmonitor|hookspath|pager|e
 const GIT_INTERNALS = /(^|[\s"'=<>/\\])\.git[/\\](hooks|config)\b/i;
 const GIT_WRITES = new Set([
   'reset', 'checkout', 'restore', 'switch', 'clean', 'stash', 'rebase', 'merge', 'cherry-pick',
-  'revert', 'tag', 'rm', 'mv', 'am', 'apply', 'update-ref', 'filter-branch', 'gc', 'prune',
+  'revert', 'tag', 'rm', 'am', 'apply', 'update-ref', 'filter-branch', 'gc', 'prune',
 ]);
 const DELETE_COMMANDS = new Set(['rm', 'rmdir', 'del', 'erase', 'rd', 'unlink', 'shred', 'remove-item', 'ri']);
 const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);

@@ -28,6 +28,16 @@ describe('ToolRisk', () => {
     }
   });
 
+  it('파일 이름을 바꾸는 git mv는 그냥 mv처럼 묻지 않는다(되돌릴 수 있는 이름 바꾸기)', () => {
+    expect(bash('git mv src/cart.ts src/cart/total.ts')).toBe('allow');
+    expect(bash('mv src/cart.ts src/cart/total.ts')).toBe('allow');
+  });
+
+  it('git mv 뒤에 위험한 명령을 이으면 그 명령대로 판정한다', () => {
+    expect(bash('git mv a b && git push origin main')).toBe('deny');
+    expect(bash('git mv a b && git reset --hard')).toBe('ask');
+  });
+
   it('git 읽기 명령은 허용한다', () => {
     for (const cmd of ['git status', 'git diff --stat', 'git log -3', 'git show HEAD', 'git branch']) {
       expect(bash(cmd), cmd).toBe('allow');
