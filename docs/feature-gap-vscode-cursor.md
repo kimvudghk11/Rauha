@@ -154,7 +154,7 @@ VS Code/Cursor 칸은 5절 출처 번호. "-" 는 해당 제품이 그 항목을
 
 ### 그다음 (v0.1.15): 맡긴 일을 확인하는 흐름
 - **git stash(P1) [구현함]**: `GIT_FUNCTIONS` 에 `stashList/stash/stashApply/stashPop/stashDrop` 추가, git 탭에 "Stash" 탭(메시지·새 파일 포함·목록·Apply/Pop/Drop). 영향: `shared/git-api.ts`, `shared/git-guard.ts`(StashRef·StashMessage), `shared/git-stash.ts`(+spec), `main/git/git-dispatch.ts`, `main/git/git-repo.ts`, `renderer/git-stash-view.ts`, `renderer/git-view.ts`.
-- **작업 되돌리기(체크포인트 역할)(P1)**: 끝난 일 카드에 "이 작업 이전으로" — worktree 브랜치를 버리거나 되돌린다. 허락 카드 거쳐 실행. 영향: `main/workspace/git-worktree.ts`, `renderer/chat-view.ts`.
+- **작업 변경 보기·되돌리기(체크포인트)(P1) [구현함]**: 코드를 고치는 작업이 시작될 때 HEAD와 시작 시점 미커밋 상태(git 트리 해시)를 앱 데이터 `checkpoints.json`에 남기고, 끝난 일 카드/팀 상세에 Changes 칸(바뀐 파일·+/-줄·읽기 전용 diff·비밀 파일 숨김), 파일별 Revert file·Undo all changes(확인창, 작업 뒤 직접 고친 파일은 충돌로 건너뜀), 되돌리기 전 백업 patch(최근 20개)와 Undo the undo, worktree 브랜치는 Discard branch. 영향: `shared/checkpoint*.ts`, `main/git/checkpoint-git.ts`, `main/team/checkpoint-keeper.ts`, `renderer/changes-view.ts`. 가짜 팀 시험: RAUHA_FAKE_EDIT=1 + 요청에 [edit].
 - **채팅 @파일(P1)**: `@` 입력 시 파일·폴더 자동완성(코드 탭 `fileCache` 재사용), 고른 파일 경로를 요청 앞에 붙인다. 영향: `renderer/command-suggest.ts`(또는 새 `mention-suggest.ts`), `renderer/chat-view.ts`.
 
 ### 그다음 (v0.1.16): 편집·터미널 체감

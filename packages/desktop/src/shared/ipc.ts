@@ -5,6 +5,7 @@ import type { RuleView } from './rules-form.js';
 import type { FolderKind } from './folder-kind.js';
 import type { RepoStatus } from './git-status.js';
 import type { GitApi } from './git-api.js';
+import type { CheckpointApi } from './checkpoint-api.js';
 import type { Settings } from './settings.js';
 import type { Effort, MemberDefaults, MemberSetting, Tier, TeamSettingsJson } from './team-settings.js';
 import type { CommandBookJson } from './command-dto.js';
@@ -208,6 +209,8 @@ export interface RauhaApi {
   listRepos(): Promise<readonly RepoRow[]>;
   /** git 탭: 앱이 아는 레포에서만 순수 git 명령을 돌린다(모델 호출 없음) */
   readonly git: GitApi;
+  /** 끝난 작업의 변경 보기·파일 되돌리기·Undo the undo·브랜치 버리기 */
+  readonly checkpoint: CheckpointApi;
   getCommands(): Promise<CommandBookJson>;
   /** 명령 모음을 저장한다(깨진 항목은 빠진 채 저장된 모양을 돌려준다) */
   saveCommands(book: CommandBookJson): Promise<CommandBookJson>;

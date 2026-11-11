@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
+import { CHECKPOINT_FUNCTIONS, CHECKPOINT_IPC, type CheckpointApi, type CheckpointReply } from '../shared/checkpoint-api.js';
 import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { API_IPC } from '../shared/api-ipc.js';
@@ -14,8 +15,20 @@ import { IPC, type ApprovalView, type BoardView, type RauhaApi } from '../shared
 
 const git = Object.fromEntries(GIT_FUNCTIONS.map((fn) => [fn, (root: string, arg: unknown) => ipcRenderer.invoke(IPC.gitCall, fn, root, arg ?? {})])) as unknown as GitApi;
 
+const checkpoint = Object.fromEntries(
+  CHECKPOINT_FUNCTIONS.map((fn) => [
+    fn,
+    async (arg: unknown) => {
+      const reply = (await ipcRenderer.invoke(CHECKPOINT_IPC.call, fn, arg ?? {})) as CheckpointReply;
+      if (!reply.ok) throw new Error(reply.error);
+      return reply.data;
+    },
+  ]),
+) as unknown as CheckpointApi;
+
 const api: RauhaApi = {
   git,
+  checkpoint,
   submit: (text, images) => ipcRenderer.invoke(IPC.submit, text, images),
   stop: (id) => ipcRenderer.send(IPC.stop, id),
   goDeeper: (id) => ipcRenderer.invoke(IPC.deeper, id),

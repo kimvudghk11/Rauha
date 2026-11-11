@@ -7,6 +7,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 process.env.RAUHA_FAKE_TEAM = '1';
+// 가짜 팀이 "[edit]" 요청에서 작업 폴더 파일을 실제로 바꾼다(변경 보기·되돌리기 장면용)
+process.env.RAUHA_FAKE_EDIT = '1';
 // Docker 탭은 진짜 docker 대신 가짜 실행기를 쓴다(엔진이 꺼진 PC에서도 목록·꺼짐 안내를 잰다). 장면에서 FAKE_DOCKER_MODE 로 켜짐/꺼짐을 바꾼다.
 process.env.RAUHA_DOCKER_BIN = path.join(__dirname, '..', 'src', 'main', 'docker', 'fake-docker.cjs');
 process.env.FAKE_DOCKER_MODE = 'ok';
@@ -172,13 +174,27 @@ const pressKey = (name, key) => "(() => { " + rowOf(name) + "?.dispatchEvent(new
 const typeInto = (sel, text) => `(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.focus(); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 const TODO_SEED = "(() => { window.rauha.todo.apply({ kind: 'add', title: '시험 카드', priority: 'high', labels: [{ name: '중요', color: 'blue' }], checklist: [{ id: 'c1', text: '항목', done: true }] }); return new Promise((r) => setTimeout(r, 500)); })() /* querySelector */";
 const SELECT_ALL = "(() => { const c = document.querySelector('.cm-content'); c.focus(); c.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })); })() /* querySelector */";
+// 변경 보기 장면: [edit] 일이 끝나 결과 카드에 변경 칸이 나타날 때까지 기다렸다가 펼친다 / 그 일의 팀 상세를 연다
+const CHG_OPEN = "(async () => { for (let i = 0; i < 80 && !document.querySelector('.chg:not([hidden]) .chg-toggle'); i++) await new Promise((r) => setTimeout(r, 200)); const t = document.querySelector('.chg:not([hidden]) .chg-toggle'); if (t?.getAttribute('aria-expanded') === 'false') t.click(); })() /* querySelector */";
+const CHG_DETAIL = "(async () => { for (let i = 0; i < 80 && !document.querySelector('.chg:not([hidden]) .chg-toggle'); i++) await new Promise((r) => setTimeout(r, 200)); [...document.querySelectorAll('.hand')].find((h) => h.textContent.includes('[edit]'))?.querySelector('.go')?.click(); await new Promise((r) => setTimeout(r, 600)); })() /* querySelector */";
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 // 클립보드에 그림 파일만 있는 붙여넣기(스크린샷)를 흉내 낸다. count 장, 마지막에 글 파일(이미지가 아님)을 하나 더 넣을 수 있다.
 const pasteImages = (count, withText) => `(async () => { const i = document.querySelector('.composer textarea'); i.focus(); const dt = new DataTransfer(); const b = Uint8Array.from(atob(${JSON.stringify('${PNG}')}), (c) => c.charCodeAt(0)); for (let n = 0; n < ${count}; n++) dt.items.add(new File([b], 'shot-' + n + '-with-a-quite-long-file-name-to-check-ellipsis.png', { type: 'image/png' })); if (${withText}) dt.items.add(new File([new TextEncoder().encode('console.log(1) console.log(2)')], 'fake.png', { type: 'image/png' })); i.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); await new Promise((r) => setTimeout(r, 600)); })() /* querySelector */`.replace('${PNG}', PNG_B64);
+const DLG = "(async () => { for (let i = 0; i < 60 && !document.querySelector('.veil .dialog'); i++) await new Promise((r) => setTimeout(r, 200)); })() /* querySelector */";
+const DLG_OK = "(async () => { for (let i = 0; i < 60 && !document.querySelector('.veil .dialog'); i++) await new Promise((r) => setTimeout(r, 200)); document.querySelector('.veil .dialog .btn.danger, .veil .dialog .btn.primary')?.click(); await new Promise((r) => setTimeout(r, 3000)); })() /* querySelector */";
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
   // @ 를 치면 폴더와 파일 후보가 입력칸 위에 뜬다(검색어 없음 / 경로 일부)
+  // 작업 결과 변경 보기: 카드(접힘→펼침) · 파일 diff · 전체 되돌리기 확인 창 · 팀 상세의 변경 칸 · 되돌린 뒤 · Undo the undo (되돌리는 장면은 마지막에)
+  ['chat-changes', 'chat', [CHG_OPEN]],
+  ['chat-changes-diff', 'chat', [CHG_OPEN, q('.chg-file')]],
+  ['chat-changes-file-ask', 'chat', [CHG_OPEN, byText('.chg .btn', 'Revert file'), DLG]],
+  ['chat-changes-undo-ask', 'chat', [CHG_OPEN, byText('.chg .btn', 'Undo all changes'), DLG]],
+  ['chat-changes-detail', 'chat', [CHG_DETAIL]],
+  ['chat-changes-detail-diff', 'chat', [CHG_DETAIL, q('.dbody .chg-file')]],
+  ['chat-changes-reverted', 'chat', [CHG_OPEN, byText('.chg .btn', 'Undo all changes'), DLG_OK]],
+  ['chat-changes-redo', 'chat', [CHG_OPEN, byText('.chg .btn', 'Undo the undo'), DLG_OK]],
   // 이미지 붙여넣기: 1장 / 3장(칩 3개) / 5장(3장까지만, 안내) / 이미지가 아닌 파일(거절 안내)
   // 그림을 붙인 채 보내면 팀에 넘어가고(가짜 팀) 입력칸의 칩이 비워진다. 앱 데이터 폴더의 attachments 에 일이 도는 동안만 그림이 있다.
   ['chat-image-send', 'chat', [pasteImages(2, false), typeInto('.composer textarea', '그림 보내기 시험'), "(async () => { const i = document.querySelector('.composer textarea'); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); await new Promise((r) => setTimeout(r, 900)); })() /* querySelector */"]],
@@ -366,8 +382,9 @@ async function run(win) {
     if (process.env.MEASURE_PROBE) await ev(process.env.MEASURE_PROBE);
     const work = sandbox();
     await ev(`window.rauha.updateSettings({ workFolder: ${JSON.stringify(work)}, folderApproved: true, firstRunDone: true, awsProfile: 'test-profile', awsBucket: 'example-bucket', awsRegion: 'ap-northeast-2', awsAccount: '000000000000' })`);
+    await ev(`window.rauha.submit('README 고치기 [edit]')`);
     for (const t of ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림'].slice(0, Number(process.env.MEASURE_TASKS ?? 5))) await ev(`window.rauha.submit(${JSON.stringify(t)})`);
-    await sleep(4800);
+    await sleep(6500);
     for (const [name, tab, clicks] of SCENES) {
       if (!TABS.includes(tab) || (SCENE_FILTER && !SCENE_FILTER.includes(name))) continue;
       for (const width of WIDTHS) {

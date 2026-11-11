@@ -45,7 +45,7 @@ const FAKE_APPROVAL_CARD: ApprovalCard = {
 /**
  * 확인용 가짜 팀(RAUHA_FAKE_TEAM=1). 실제 Claude를 부르지 않고 단계·역할·허락 요청을 흉내 낸다.
  * 요청에 "허락"이 들어 있으면 중간에 main push 허락을 묻는다.
- * 환경 변수 RAUHA_FAKE_EDIT=1 이고 root 가 있으면 "고치는 중" 단계에서 작업 폴더의 파일을 실제로 바꾼다(변경 보기·되돌리기 확인용).
+ * 환경 변수 RAUHA_FAKE_EDIT=1 이고 요청에 [edit] 가 들어 있으면 "고치는 중" 단계에서 작업 폴더의 파일을 실제로 바꾼다(변경 보기·되돌리기 확인용).
  */
 export function fakeTeam(io: TeamIo, request: string, root?: string): TeamSession {
   return {
@@ -57,7 +57,7 @@ export function fakeTeam(io: TeamIo, request: string, root?: string): TeamSessio
       step('tester', '재현 테스트를 쓰는 중');
       await sleep(1400, io.signal);
       step('implementer', '고치는 중: retry.policy.ts');
-      if (root !== undefined && process.env['RAUHA_FAKE_EDIT'] === '1') fakeEdits(root);
+      if (root !== undefined && process.env['RAUHA_FAKE_EDIT'] === '1' && request.includes('[edit]')) fakeEdits(root);
       await sleep(1400, io.signal);
       if (request.includes('허락')) {
         step('implementer', '변경을 main에 올리려고 해요');

@@ -1,0 +1,19 @@
+/* 작업 변경 보기 (결과 카드·팀 상세 안. 버튼·칩·링크 모양은 ui.css) */
+.chg { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--border); white-space: normal; font-size: var(--fs-sm); min-width: 0; }
+.chg[hidden] { display: none; }
+.chg-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); min-width: 0; }
+.chg-head b { color: var(--bright); overflow-wrap: anywhere; }
+.chg-toggle { margin-left: auto; }
+.chg-add { color: var(--green); font-family: var(--mono); }
+.chg-del { color: var(--red); font-family: var(--mono); }
+.chg-msg { color: var(--text); overflow-wrap: anywhere; }
+.chg-note { font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.chg-list { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.chg-item { min-width: 0; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--well); }
+.chg-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); padding: var(--s1) var(--s2); min-width: 0; }
+.chg-file { flex: 1 1 140px; min-width: 0; padding: 0; border: none; background: none; color: var(--accentfg); text-align: left; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.chg-file:hover { text-decoration: underline; }
+.chg-file:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chg-diff { max-height: 320px; overflow: auto; border-top: 1px solid var(--border); background: var(--bg); }
+.chg-more { align-self: flex-start; }
+.chg-foot { margin-top: var(--s1); }

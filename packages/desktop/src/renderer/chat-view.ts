@@ -20,6 +20,7 @@ import { flash } from './record-parts.js';
 import { canRevise, composerHeight, replyWho, roomLogLine, stopReasonText } from '../shared/chat-text.js';
 import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { mountStage, paintOnce } from './stage.js';
+import { changesPanel } from './changes-view.js';
 
 const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
   queued: 'Queued',
@@ -375,6 +376,8 @@ export function buildChat(actions: ChatActions) {
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', 'Repo info is not read yet. It is loading in the background, so later questions will be more accurate.'));
     // 팀원이 찾아본 도구(Grep·Read 횟수): 폴더를 제대로 훑었는지 보이게 작게 한 줄. 쓴 도구가 없으면 줄이 없다.
     if (job.toolsLine !== null) card.appendChild(el('div', 'kn', `Looked up: ${job.toolsLine}`));
+    // 코드를 고친 일이면 무엇이 바뀌었는지 보고 되돌릴 수 있다(바뀐 게 없으면 숨는다)
+    card.appendChild(changesPanel(job.id, 'card'));
     // 멈춘 일은 같은 요청을 그대로 다시 맡길 수 있다(로그인 때문이면 로그인한 뒤 누른다)
     if (job.status === 'stopped') {
       const again = el('button', 'btn sm retry', 'Retry');
@@ -675,6 +678,7 @@ export function buildChat(actions: ChatActions) {
       now.textContent = job.status === 'done' ? 'Done.' : job.status === 'stopped' ? `Stopped${job.stopReason !== null ? ` · ${job.stopReason}` : ''}` : job.status === 'waiting' ? 'Waiting for a permission or a choice.' : job.status === 'queued' ? 'Waiting in the queue.' : `${job.roleName ?? 'Team'}: ${job.lastLine ?? 'starting'}`;
       body.appendChild(now);
       if (job.result !== null) body.appendChild(el('div', 'result', job.result));
+      if (job.status === 'done' || job.status === 'stopped') body.appendChild(changesPanel(job.id, 'detail'));
       if (job.status === 'stopped' && needsLogin(`${job.result ?? ''} ${job.stopReason ?? ''}`)) body.appendChild(loginCard());
       const doneNotes = job.notes.filter((n) => n.role !== null).slice(-8);
       if (doneNotes.length > 0) {
