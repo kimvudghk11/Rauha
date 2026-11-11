@@ -102,7 +102,7 @@ yarn desktop             # 데스크톱 앱 실행
 
 `main`에 push하면 GitHub Actions가 macOS·Windows에서 타입 검사·테스트·빌드·설치 파일 생성·실행 스모크를 돌리고, `v*` 태그를 올리면 설치 파일을 Releases에 올린다.
 
-- 설계: [데스크톱 앱](docs/superpowers/specs/2026-11-08-rauha-desktop-design.md) · [엔진 속도·사용량](docs/superpowers/specs/2026-11-08-engine-speed-usage-design.md) · [팀 구성](docs/design/claude-team-design.md)
+- 설계: [팀 구성](docs/design/claude-team-design.md) · [화면 구조](docs/design/ui-structure.md)
 - 개발 규칙(DDD, 엔티티·DTO): [docs/conventions/ddd-entity-dto.md](docs/conventions/ddd-entity-dto.md)
 
 ```

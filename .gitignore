@@ -62,6 +62,17 @@ id_ed25519*
 .env.*.local
 credentials*.json
 service-account*.json
-packages/desktop/release/
 update.json
 electron-builder.signed.tmp.yml
+
+# 내부 작업 문서(AI 작업 계획·설계 초안·사용 피드백 메모)는 이 PC 에만 둔다
+docs/superpowers/
+docs/feedback/
+
+# 앱·스크립트가 남기는 임시 산출물
+*.bak
+*.bak-*
+*.tmp
+rauha-smoke*.png
+measure-out/
+screenshots/
