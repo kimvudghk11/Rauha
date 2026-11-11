@@ -29,6 +29,7 @@ import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
 import { resolveTab, TABS, type TabId } from './tabs.js';
+import { mergeTabOrder, moveTab } from '../shared/tab-order.js';
 
 installClickGuard();
 
@@ -47,7 +48,7 @@ window.rauha.onFullScreen((on) => chrome.setFullScreen(on));
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
-const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), repos: () => window.rauha.listRepos() });
+const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
 
@@ -79,7 +80,19 @@ window.addEventListener('resize', () => {
 
 // ── 탭 ──
 /** 왼쪽 막대에 보이는 순서(위쪽 탭, 맨 아래 탭). Ctrl/Cmd+숫자가 이 순서를 따른다. */
-const tabOrder = (): readonly (typeof TABS)[number][] => [...TABS.filter((t) => !t.bottom), ...TABS.filter((t) => t.bottom)];
+const TAB_ORDER_KEY = 'rauha.tabOrder';
+/** 끌어서 바꾼 위쪽 탭 순서(맨 아래 탭은 고정). 기억 못 하면 기본 순서. */
+function topTabs(): (typeof TABS)[number][] {
+  let saved: unknown = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(TAB_ORDER_KEY) ?? 'null');
+  } catch {
+    /* 기본 순서 */
+  }
+  const top = TABS.filter((t) => !t.bottom);
+  return mergeTabOrder(top.map((t) => t.id), saved).map((id) => top.find((t) => t.id === id)!);
+}
+const tabOrder = (): readonly (typeof TABS)[number][] => [...topTabs(), ...TABS.filter((t) => t.bottom)];
 
 function renderTabs(): void {
   tabsNav.replaceChildren();
@@ -89,9 +102,37 @@ function renderTabs(): void {
     b.classList.toggle('on', t.id === current);
     b.append(icon(t.icon), el('span', undefined, t.label));
     b.addEventListener('click', () => show(t.id));
+    if (!t.bottom) {
+      b.draggable = true;
+      b.addEventListener('dragstart', (e) => {
+        e.dataTransfer?.setData('text/rauha-tab', t.id);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+      });
+      const side = (e: DragEvent): boolean => e.offsetY > b.clientHeight / 2;
+      const clear = (): void => b.classList.remove('drop-before', 'drop-after');
+      b.addEventListener('dragover', (e) => {
+        if (e.dataTransfer?.types.includes('text/rauha-tab') !== true) return;
+        e.preventDefault();
+        clear();
+        b.classList.add(side(e) ? 'drop-after' : 'drop-before');
+      });
+      b.addEventListener('dragleave', clear);
+      b.addEventListener('drop', (e) => {
+        e.preventDefault();
+        clear();
+        const from = e.dataTransfer?.getData('text/rauha-tab') ?? '';
+        const next = moveTab(topTabs().map((x) => x.id), from, t.id, side(e));
+        try {
+          localStorage.setItem(TAB_ORDER_KEY, JSON.stringify(next));
+        } catch {
+          /* 이번 실행에서만 바뀐다 */
+        }
+        renderTabs();
+      });
+    }
     tabsNav.appendChild(b);
   };
-  TABS.filter((t) => !t.bottom).forEach(add);
+  topTabs().forEach(add);
   tabsNav.appendChild(el('span', 'spacer'));
   TABS.filter((t) => t.bottom).forEach(add);
   // 탭이 아닌 단추: 어느 탭에서나 답답한 점을 적는 창을 연다(단축키와 같다). 막대 맨 끝에 둬서 탭 순서를 건드리지 않는다.

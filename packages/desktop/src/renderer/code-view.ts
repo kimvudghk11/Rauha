@@ -19,6 +19,8 @@ import { iconByName } from './file-icons.js';
 import { CodePreview } from './code-preview.js';
 import { previewKindOf } from '../shared/preview-kind.js';
 import { clearRecent, noteGone, noteOpened } from './recent-files.js';
+import { CodeSelection } from '../shared/code-share.js';
+import { openMenu } from './code-menu.js';
 
 export interface CodeDeps {
   readonly api: CodeApi;
@@ -32,6 +34,8 @@ export interface CodeDeps {
   readonly repos: () => Promise<readonly RepoRow[]>;
   /** 설정의 자동 저장 방식(없으면 끔). 코드 탭을 열 때마다 다시 읽는다. */
   readonly autoSaveMode?: () => Promise<AutoSaveMode>;
+  /** 선택한 코드를 채팅 입력칸에 붙이고 채팅 탭으로 간다(보내지는 않는다) */
+  readonly toChat?: (text: string) => void;
 }
 
 interface FileInfo {
@@ -736,6 +740,24 @@ export function buildCode(deps: CodeDeps) {
     }
   }
 
+  // ── 선택한 코드를 채팅으로 ──
+  const SEND_KEYS = deps.platform === 'darwin' ? '⌘⇧E' : 'Ctrl+Shift+E';
+  function sendSelection(): void {
+    const path = tabs.active;
+    const sel = path === null ? null : editor.selection();
+    const share = path === null || sel === null ? null : CodeSelection.of(path, sel.fromLine, sel.toLine, sel.text);
+    if (share === null) {
+      say('Select some code first (secret files are never sent).');
+      return;
+    }
+    deps.toChat?.(share.toChatText());
+  }
+  host.addEventListener('contextmenu', (e) => {
+    if (deps.toChat === undefined || editor.selection() === null) return;
+    e.preventDefault();
+    openMenu([{ label: 'Send selection to chat', hint: SEND_KEYS, run: sendSelection }], e.clientX, e.clientY);
+  });
+
   // ── 키 ──
   window.addEventListener('keydown', (e) => {
     if (!root.isConnected || root.offsetParent === null) return;
@@ -756,6 +778,9 @@ export function buildCode(deps: CodeDeps) {
     } else if (e.shiftKey && key === 'f') {
       e.preventDefault();
       setMode('search');
+    } else if (e.shiftKey && key === 'e') {
+      e.preventDefault();
+      if (!e.repeat) sendSelection();
     }
   });
   host.addEventListener('focusout', (e) => {

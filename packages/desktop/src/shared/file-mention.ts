@@ -83,12 +83,17 @@ export function completeMention(text: string, draft: MentionDraft, path: string)
 const SECRET_NAME = /^(\.env(\..+)?|\.npmrc|\.pypirc|id_rsa|id_ed25519|credentials\.json|.+\.(pem|key|p12|pfx|keystore))$/i;
 const EXAMPLE_NAME = /\.(example|sample|template|dist)$/i;
 
+/** 이름만 보고 비밀 파일처럼 보이는가(.env·키 파일 …). 예시 파일(.env.example)은 아니다. */
+export function looksSecretName(path: string): boolean {
+  const name = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
+  return SECRET_NAME.test(name) && !EXAMPLE_NAME.test(name);
+}
+
 /** 목록에 보이지 않을 파일: 비밀처럼 보이는 이름, 생성물 폴더 안(node_modules·dist·.git …). 진짜 비밀 판정은 main의 규칙이 따로 한다. */
 function hidden(path: string): boolean {
   const parts = path.split('/');
-  const name = parts[parts.length - 1]!;
   if (parts.slice(0, -1).some((p) => SKIPPED_FOLDERS.has(p))) return true;
-  return SECRET_NAME.test(name) && !EXAMPLE_NAME.test(name);
+  return looksSecretName(path);
 }
 
 /** 자동완성 후보. 검색어가 맞는 순서, 같은 정도면 최근 연 파일이 먼저. 검색어가 없으면 최근 연 파일, 그다음 가나다순. */

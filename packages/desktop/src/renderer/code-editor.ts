@@ -299,6 +299,14 @@ export class CodeEditor {
     return this.states.get(path)?.doc.length ?? null;
   }
 
+  /** 지금 고른 글(여러 개 고른 경우 마지막으로 고른 하나)과 그 줄 범위. 아무것도 안 골랐으면 null. 끝이 다음 줄 맨 앞이면 그 줄은 넣지 않는다. */
+  selection(): { fromLine: number; toLine: number; text: string } | null {
+    const { from, to } = this.view.state.selection.main;
+    if (from === to) return null;
+    const doc = this.view.state.doc;
+    return { fromLine: doc.lineAt(from).number, toLine: doc.lineAt(to > from && doc.lineAt(to).from === to ? to - 1 : to).number, text: doc.sliceString(from, to) };
+  }
+
   /** 저장된 내용이 HEAD와 다른 줄을 왼쪽에 표시한다 */
   setMarks(path: string, marks: readonly LineMark[]): void {
     if (this.current === path) {

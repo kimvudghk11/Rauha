@@ -171,6 +171,7 @@ const rightClick = (name) => "(() => { const r = " + rowOf(name) + "; const b = 
 const pressKey = (name, key) => "(() => { " + rowOf(name) + "?.dispatchEvent(new KeyboardEvent('keydown', { key: " + JSON.stringify(key) + ", bubbles: true, cancelable: true })); })()";
 const typeInto = (sel, text) => `(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.focus(); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 const TODO_SEED = "(() => { window.rauha.todo.apply({ kind: 'add', title: '시험 카드', priority: 'high', labels: [{ name: '중요', color: 'blue' }], checklist: [{ id: 'c1', text: '항목', done: true }] }); return new Promise((r) => setTimeout(r, 500)); })() /* querySelector */";
+const SELECT_ALL = "(() => { const c = document.querySelector('.cm-content'); c.focus(); c.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })); })() /* querySelector */";
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
@@ -239,6 +240,9 @@ const SCENES = [
   // 코드 탭 탐색기: 레포 노드 줄(브랜치·↑↓·변경 수) · 오른쪽 클릭 메뉴 · 이름 바꾸기 입력 · 삭제 확인(휴지통)
   ['code-repos', 'code', [CLEAN, WAIT]],
   ['code-repo-open', 'code', [CLEAN, WAIT, expandByName('app-one')]],
+  // 편집기에서 코드를 고르고 우클릭 → "Send selection to chat" 메뉴 / Ctrl+Shift+E → 채팅 입력칸에 붙는다
+  ['code-send-menu', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), WAIT, SELECT_ALL, "(() => { const h = document.querySelector('.code-host'); const b = h.getBoundingClientRect(); h.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.x + 60, clientY: b.y + 30 })); })() /* querySelector */"]],
+  ['code-send-chat', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), WAIT, SELECT_ALL, "(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'E', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })); })() /* querySelector */", WAIT]],
   ['code-ctx-menu', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rightClick('main.ts')]],
   ['code-ctx-menu-repo', 'code', [CLEAN, WAIT, rightClick('app-one')]],
   ['code-rename', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), pressKey('main.ts', 'F2'), WARNOK]],
