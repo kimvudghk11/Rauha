@@ -1,0 +1,31 @@
+/* Docker 탭 (배치와 이 탭만의 모양. 버튼·칩·입력칸·탭·표 모양은 ui.css) */
+.docker { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; }
+.docker .rhead { flex-wrap: wrap; }
+.dk-head .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-problem { display: flex; flex-direction: column; gap: var(--s1); align-items: flex-start; }
+.dk-tools { flex-wrap: wrap; }
+.dk-search { min-width: 120px; }
+
+/* 몸: 목록 카드와 로그 카드 */
+.dk-main { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s2); }
+.dk-list { flex: 0 0 auto; min-height: 120px; }
+.dk-scroll { max-height: 320px; overflow: auto; min-width: 0; }
+.dk-empty { padding: var(--s5) var(--s3); text-align: center; }
+.dk-empty b { color: var(--bright); font-size: var(--fs-lg); }
+.dk-skip { padding: var(--s2) var(--s3); }
+.dk-table { table-layout: auto; }
+.dk-table td { min-width: 0; overflow-wrap: anywhere; }
+.dk-table tr.sel td { background: var(--sel); }
+.dk-name { display: flex; flex-direction: column; min-width: 0; }
+.dk-end { text-align: right; }
+.dk-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s1); }
+.app[data-tier=s] .dk-opt, .app[data-tier=xs] .dk-opt { display: none; }
+.app[data-tier=xs] .dk-opt2 { display: none; }
+
+/* 로그 */
+.dk-logs { flex: 0 0 auto; }
+.dk-log { margin: 0; padding: var(--s2) var(--s3); height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-xs); color: var(--text); background: var(--bg); }
+.dk-compose-out { height: auto; max-height: 220px; border-top: 1px solid var(--border); }
+.dk-log-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-exec { padding: var(--s2) var(--s3); border-top: 1px solid var(--border); flex-wrap: nowrap; }
+.dk-exec-input { flex: 1; min-width: 0; font-family: var(--mono); }
