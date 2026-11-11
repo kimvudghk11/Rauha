@@ -23,7 +23,7 @@ import { createUsageFeed, usageTooltip } from './usage-feed.js';
 import { createChrome } from './chrome.js';
 import { openBugDialog, shortcutText } from './bug-view.js';
 import { isBugShortcut } from '../shared/bug-shortcut.js';
-import { isShortcutSheetKey, tabShortcutIndex } from '../shared/tab-shortcut.js';
+import { isSettingsKey, isShortcutSheetKey, tabShortcutIndex } from '../shared/tab-shortcut.js';
 import { toggleShortcutSheet } from './shortcut-view.js';
 import { installClickGuard } from './click-guard.js';
 import { createUpdateFeed } from './update-view.js';
@@ -95,11 +95,19 @@ function topTabs(): (typeof TABS)[number][] {
 }
 const tabOrder = (): readonly (typeof TABS)[number][] => [...topTabs(), ...TABS.filter((t) => t.bottom)];
 
+let scrollerEdges: () => void = () => {};
+new ResizeObserver(() => scrollerEdges()).observe(tabsNav);
 function renderTabs(): void {
-  tabsNav.replaceChildren();
-  const add = (t: (typeof TABS)[number]) => {
+  // 위쪽 탭만 세로로 스크롤되고(스크롤바 없음), Settings·Report 는 늘 아래에 고정된다
+  const scroller = el('div', 'act-scroll');
+  const topBox = el('div', 'act-top');
+  scroller.appendChild(topBox);
+  const bottomBox = el('div', 'act-bottom');
+  tabsNav.replaceChildren(scroller, bottomBox);
+  const add = (t: (typeof TABS)[number], into: HTMLElement) => {
     const b = el('button');
-    b.title = `${t.label} (${platform === 'darwin' ? '⌘' : 'Ctrl+'}${tabOrder().indexOf(t) + 1})`;
+    const at = tabOrder().indexOf(t);
+    b.title = `${t.label} (${platform === 'darwin' ? '⌘' : 'Ctrl+'}${at < 10 ? (at + 1) % 10 : ','})`;
     b.classList.toggle('on', t.id === current);
     b.append(icon(t.icon), el('span', undefined, t.label));
     b.addEventListener('click', () => show(t.id));
@@ -131,19 +139,28 @@ function renderTabs(): void {
         renderTabs();
       });
     }
-    tabsNav.appendChild(b);
+    into.appendChild(b);
   };
-  topTabs().forEach(add);
-  tabsNav.appendChild(el('span', 'spacer'));
-  TABS.filter((t) => t.bottom).forEach(add);
+  topTabs().forEach((t) => add(t, topBox));
+  TABS.filter((t) => t.bottom).forEach((t) => add(t, bottomBox));
   // 탭이 아닌 단추: 어느 탭에서나 답답한 점을 적는 창을 연다(단축키와 같다). 막대 맨 끝에 둬서 탭 순서를 건드리지 않는다.
   const bug = el('button', 'bug-open');
   bug.title = `Write a report (${shortcutText(platform)})`;
   bug.setAttribute('aria-label', 'Write a report');
   bug.append(icon('M12 8v5 M12 16.5v.5 M10.3 3.9L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'), el('span', undefined, 'Report'));
   bug.addEventListener('click', openBug);
-  tabsNav.appendChild(bug);
+  bottomBox.appendChild(bug);
+  // 위/아래에 더 있으면 옅은 그라데이션으로 알리고, 지금 탭은 보이게 스크롤한다
+  const edges = (): void => {
+    scroller.classList.toggle('more-up', topBox.scrollTop > 1);
+    scroller.classList.toggle('more-down', topBox.scrollTop + topBox.clientHeight < topBox.scrollHeight - 1);
+  };
+  topBox.addEventListener('scroll', edges, { passive: true });
+  scrollerEdges = edges;
+  topBox.querySelector('button.on')?.scrollIntoView({ block: 'nearest' });
+  edges();
 }
+
 
 /** 답답한 점 적기 창(어느 탭에서나) */
 function openBug(): void {
@@ -167,6 +184,11 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   // 확인 창·답답한 점 창이 떠 있는 동안에는 뒤 화면을 옮기지 않는다
+  if (isSettingsKey(e, platform) && document.querySelector('.veil') === null) {
+    e.preventDefault();
+    show('settings');
+    return;
+  }
   const index = tabShortcutIndex(e, platform);
   const target = index === null || document.querySelector('.veil') !== null ? undefined : tabOrder()[index];
   if (target !== undefined) {

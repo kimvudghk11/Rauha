@@ -54,7 +54,7 @@ disabled는 모두 같은 `opacity .45`.
 ### 탭
 
 `.tabs`(줄) 안에 `.tab`(`on`으로 선택, 밑줄 `--accent`). 높이 32, `tab sm`은 28. git 탭 줄, 팀 상세, 코드 탐색기 머리가 같은 부품이다. 배치 토글은 `.seg`.
-왼쪽 탭 막대(`nav.act`)는 아이콘 막대라 따로 둔다(52×52, 좁으면 44×42).
+왼쪽 탭 막대(`nav.act`)는 아이콘 막대라 따로 둔다(52×52, 좁으면 44×42). 안은 `.act-scroll > .act-top`(위쪽 탭, 세로 스크롤·스크롤바 없음, 넘치면 `more-up`/`more-down` 그라데이션)과 `.act-bottom`(Settings·Report, 늘 보임)으로 나뉜다. 높이 360·480 장면은 measure-ui 의 tabbar 검사가 확인한다.
 
 ### 칩
 

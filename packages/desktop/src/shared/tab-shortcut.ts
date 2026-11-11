@@ -15,3 +15,6 @@ export function tabShortcutIndex(e: KeyLike, platform: string): number | null {
 
 /** 단축키 안내창: Ctrl+Shift+/(맥은 Cmd+Shift+/). Shift 없는 Ctrl+/ 는 편집기의 주석 전환이라 쓰지 않는다. */
 export const isShortcutSheetKey = (e: KeyLike, platform: string): boolean => e.code === 'Slash' && modOf(e, platform) && e.shiftKey && !e.altKey && e.isComposing !== true;
+
+/** 설정 열기: Ctrl+,(맥은 Cmd+,). 설정은 열한째 탭이라 숫자 키가 없어서 VS Code 관례를 따른다. */
+export const isSettingsKey = (e: KeyLike, platform: string): boolean => e.code === 'Comma' && modOf(e, platform) && !e.shiftKey && !e.altKey && e.isComposing !== true;

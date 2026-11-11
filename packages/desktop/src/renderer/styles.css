@@ -14,8 +14,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .app { height: 100vh; display: grid; grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: var(--titlebar-h, 0px) auto minmax(0, 1fr) var(--h-sm); }
 
 /* 왼쪽 탭 */
-.act { grid-row: 3; background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
-.act .spacer { flex: 1; }
+/* 위쪽 탭(.act-scroll)만 스크롤되고 아래 묶음(.act-bottom: Settings·Report)은 늘 보인다 */
+.act { grid-row: 3; min-height: 0; background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+.act-scroll { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: flex; }
+.act-top { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
+.act-top button { flex: none; }
+.act-bottom { flex: none; width: 100%; display: flex; flex-direction: column; align-items: center; }
+.act-scroll::before, .act-scroll::after { content: ''; position: absolute; left: 0; right: 0; height: 18px; pointer-events: none; opacity: 0; transition: opacity 0.12s; z-index: 1; }
+.act-scroll::before { top: 0; background: linear-gradient(var(--side), transparent); }
+.act-scroll::after { bottom: 0; background: linear-gradient(transparent, var(--side)); }
+.act-scroll.more-up::before, .act-scroll.more-down::after { opacity: 1; }
 .act button { width: 52px; height: 52px; background: none; border: none; border-left: 2px solid transparent; color: var(--dim); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 9.5px; }
 .act button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .act button:hover { color: var(--text); }

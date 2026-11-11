@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isShortcutSheetKey, tabShortcutIndex } from './tab-shortcut.js';
+import { isSettingsKey, isShortcutSheetKey, tabShortcutIndex } from './tab-shortcut.js';
 
 const key = (o: Partial<Parameters<typeof tabShortcutIndex>[0]> = {}) => ({ code: 'Digit1', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, ...o });
 
@@ -29,4 +29,19 @@ describe('단축키 안내 열기', () => {
   });
   it('Shift 없는 Ctrl+/ 는 편집기 주석 단축키라 건드리지 않는다', () => expect(isShortcutSheetKey(sheet({ shiftKey: false }), 'win32')).toBe(false));
   it('글자 조합 중에는 무시한다', () => expect(isShortcutSheetKey(sheet({ isComposing: true }), 'win32')).toBe(false));
+});
+
+describe('설정 열기 단축키', () => {
+  const k = (o: Partial<Parameters<typeof isSettingsKey>[0]> = {}) => ({ code: 'Comma', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, ...o });
+  it('Windows에서 Ctrl+, 이면 설정이 열린다', () => expect(isSettingsKey(k(), 'win32')).toBe(true));
+  it('맥에서는 Cmd+, 이고 Ctrl+, 는 무시한다', () => {
+    expect(isSettingsKey(k({ ctrlKey: false, metaKey: true }), 'darwin')).toBe(true);
+    expect(isSettingsKey(k(), 'darwin')).toBe(false);
+  });
+  it('Shift나 Alt가 같이 눌리거나 다른 키이거나 글자 조합 중이면 무시한다', () => {
+    expect(isSettingsKey(k({ shiftKey: true }), 'win32')).toBe(false);
+    expect(isSettingsKey(k({ altKey: true }), 'win32')).toBe(false);
+    expect(isSettingsKey(k({ code: 'Period' }), 'win32')).toBe(false);
+    expect(isSettingsKey(k({ isComposing: true }), 'win32')).toBe(false);
+  });
 });

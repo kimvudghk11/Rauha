@@ -407,8 +407,8 @@ async function run(win) {
   wc.on('console-message', (e) => { const m = e.message ?? ''; if ((e.level === 'error' || e.level === 3 || /Content Security Policy/.test(m))) consoleErrors.push(m.slice(0, 300) + ' @' + (e.sourceId || '') + ':' + (e.lineNumber || '')); });
   const ev = (js) => wc.executeJavaScript(js);
   const results = [];
-  const resize = async (width) => {
-    win.setContentSize(width, 760);
+  const resize = async (width, height = 760) => {
+    win.setContentSize(width, height);
     const tier = width >= 1700 ? 'xl' : width >= 1100 ? 'm' : width >= 720 ? 's' : 'xs';
     // 창 크기와 화면의 폭 단계(data-tier)가 둘 다 바뀔 때까지 기다린다
     for (let i = 0; i < 40 && (await ev(`window.innerWidth === ${width} && document.querySelector('.app')?.dataset.tier === '${tier}'`)) !== true; i++) await sleep(100);
@@ -418,6 +418,7 @@ async function run(win) {
   try {
     await sleep(2500);
     await resize(1100);
+  const tabbarBad = [];
     // 대화상자(예전 rauha 지우기 → 첫 실행 마법사)를 한 걸음씩 재면서 넘긴다
     for (let i = 0; i < 6; i++) {
       const step = await ev(`document.querySelector('.dialog b')?.textContent ?? ''`);
@@ -465,7 +466,25 @@ async function run(win) {
   } catch (e) {
     results.push({ error: String(e && e.stack ? e.stack : e) });
   }
-  const violations = check(results);
+  const violations = [...check(results), ...tabbarBad];
+    // 창이 낮을 때(최소 360, 480) 왼쪽 막대: Settings·Report 는 늘 창 안에 보이고, 탭마다 눌러 보면 그 탭이 스크롤해서 막대 안에 보인다
+    for (const height of [360, 480]) {
+      for (const width of [1100, 600]) {
+        await resize(width, height);
+        const n = await ev('document.querySelectorAll("#tabs .act-top button").length');
+        for (let i = 0; i <= n; i++) {
+          const r = await ev(`(async () => { const bs = [...document.querySelectorAll('#tabs button')]; const i = ${i}; bs[i].click(); await new Promise((r) => setTimeout(r, 250)); const box = document.querySelector('#tabs .act-top').getBoundingClientRect(); const on = document.querySelector('#tabs .act-top button.on'); const o = on?.getBoundingClientRect(); const bot = [...document.querySelectorAll('#tabs .act-bottom button')].map((b) => { const q = b.getBoundingClientRect(); return { t: b.textContent, top: q.top, bottom: q.bottom }; }); const sc = document.querySelector('#tabs .act-top'); return { h: window.innerHeight, label: on?.textContent, inView: i === ${n} || (!!o && o.top >= box.top - 1 && o.bottom <= box.bottom + 1), boxBottom: box.bottom, bot, scrolls: sc.scrollHeight > sc.clientHeight, down: document.querySelector('.act-scroll').classList.contains('more-down') }; })()`);
+          const where = 'tabbar@' + width + 'x' + height + ' ' + (r.label ?? '?');
+          if (!r.inView) tabbarBad.push(where + ' 현재 탭이 막대 안에 안 보여요');
+          for (const b of r.bot) {
+            if (b.bottom > r.h + 1) tabbarBad.push(where + ' ' + b.t + ' 단추가 창 아래로 잘려요 ' + Math.round(b.bottom) + '>' + r.h);
+            if (b.top < r.boxBottom - 1) tabbarBad.push(where + ' ' + b.t + ' 단추가 위쪽 탭과 겹쳐요');
+          }
+          if (i === 0 && height === 360 && !r.scrolls) tabbarBad.push(where + ' 높이 360에서 스크롤이 안 생겨요(시험이 의미 없음)');
+        }
+      }
+    }
+    await resize(1100);
   for (const m of new Set(consoleErrors)) violations.push('화면 콘솔 오류: ' + m);
   results.push({ violations });
   if (violations.length > 0) console.log(['규칙 위반 ' + violations.length + '건:', ...violations.slice(0, 40)].join(String.fromCharCode(10)));
