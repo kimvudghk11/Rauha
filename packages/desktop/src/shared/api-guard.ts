@@ -49,6 +49,7 @@ export function explainNetworkError(code: string | undefined, message: string): 
     case 'UND_ERR_CONNECT_TIMEOUT':
       return 'The connection timed out.';
     default:
+      if (message === 'bad port') return 'That port is blocked for web requests (ports such as 1, 22, 25 and 6000 cannot be used). Use a different port.';
       return code !== undefined && code.startsWith('ERR_SSL') ? `TLS error (${code}).` : message === '' ? 'The request failed.' : message;
   }
 }

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { GIT_FUNCTIONS, type GitApi } from '../shared/git-api.js';
 import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
+import { API_IPC } from '../shared/api-ipc.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
 import { BUG_IPC } from '../shared/bug-api.js';
@@ -103,6 +104,25 @@ const api: RauhaApi = {
     onEvent: (listener) => {
       ipcRenderer.on(TERM_IPC.event, (_e, event: TermEvent) => listener(event));
     },
+  },
+  api: {
+    send: (req) => ipcRenderer.invoke(API_IPC.send, req),
+    cancel: (key) => ipcRenderer.invoke(API_IPC.cancel, key),
+    collections: {
+      get: () => ipcRenderer.invoke(API_IPC.collectionsGet),
+      apply: (op) => ipcRenderer.invoke(API_IPC.collectionsApply, op),
+    },
+    env: {
+      get: () => ipcRenderer.invoke(API_IPC.envGet),
+      apply: (op) => ipcRenderer.invoke(API_IPC.envApply, op),
+    },
+    history: {
+      get: () => ipcRenderer.invoke(API_IPC.historyGet),
+      remove: (id) => ipcRenderer.invoke(API_IPC.historyRemove, id),
+      clear: () => ipcRenderer.invoke(API_IPC.historyClear),
+    },
+    import: (req) => ipcRenderer.invoke(API_IPC.import, req),
+    export: (req, save) => ipcRenderer.invoke(API_IPC.export, req, save === true),
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

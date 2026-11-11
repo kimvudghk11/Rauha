@@ -142,7 +142,7 @@ export class ApiRequest {
    * 변수를 채워 보낼 요청을 만든다. 없는 변수가 있으면 이름을 모두 알리며 실패한다.
    * 켜진 쿼리만 URL에 붙고, 인증은 헤더(또는 쿼리)로 풀린다. GET·HEAD에는 본문을 싣지 않는다.
    */
-  prepare(vars: ReadonlyMap<string, string>): PreparedRequest {
+  prepare(vars: ReadonlyMap<string, string>, secretNames: ReadonlySet<string> = new Set()): PreparedRequest {
     const p = this.props;
     const missing = new Set<string>();
     const used = new Set<string>();
@@ -204,8 +204,9 @@ export class ApiRequest {
     if (p.method === 'GET' || p.method === 'HEAD') body = null;
     for (const name of used) {
       const v = vars.get(name);
-      if (v !== undefined && v !== '') secretValues.push(v);
+      if (secretNames.has(name) && v !== undefined && v !== '') secretValues.push(v);
     }
+    for (const [k, v] of headers) if (isSensitiveHeaderName(k) && v !== '') secretValues.push(v, v.replace(/^(Bearer|Basic)\s+/i, ''));
     return { method: p.method, url, headers, body, secrets: [...new Set(secretValues.filter((s) => s.length >= 4))] };
   }
 

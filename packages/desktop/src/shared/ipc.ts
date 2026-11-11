@@ -14,6 +14,7 @@ import type { BlogApi } from './blog-dto.js';
 import type { BugApi } from './bug-api.js';
 import type { CodeApi } from './code-api.js';
 import type { TerminalApi } from './terminal-api.js';
+import type { ApiApi } from './api-ipc.js';
 import type { LoginView } from './claude-login.js';
 import type { AccountCheck } from './account-state.js';
 import type { DefaultRuleView, DefaultVariant, InfraRisk } from '@rauha/core/jobs';
@@ -238,6 +239,8 @@ export interface RauhaApi {
   readonly code: CodeApi;
   /** 코드 탭 아래 터미널 칸 */
   readonly terminal: TerminalApi;
+  /** API 탭: 요청 보내기(main이 보낸다)·컬렉션·환경·기록·가져오기/내보내기 */
+  readonly api: ApiApi;
   readonly auth: AuthApi;
   /** 진단 정보(가린 마크다운)를 모아 클립보드에 복사한다. 문제가 생겼을 때 개발자에게 붙여 넣으려는 것 */
   copyDiagnostics(): Promise<DiagnosticsResult>;

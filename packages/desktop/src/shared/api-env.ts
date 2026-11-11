@@ -158,10 +158,10 @@ export class ApiEnvironments {
   }
 
   /**
-   * 요청에서 꺼낸 비밀 값을 환경에 넣는다. 고른 환경이 없으면 "Default" 환경을 만든다.
+   * 요청에서 꺼낸 비밀 값(secret=false면 보통 변수)을 환경에 넣는다. 고른 환경이 없으면 "Default" 환경을 만든다.
    * 같은 이름이 이미 있으면 덮지 않고 그대로 둔다(사용자가 정한 값을 지키려고).
    */
-  withSecrets(secrets: readonly { readonly name: string; readonly value: string }[], newId: () => string): ApiEnvironments {
+  withSecrets(secrets: readonly { readonly name: string; readonly value: string }[], newId: () => string, secret = true): ApiEnvironments {
     if (secrets.length === 0) return this;
     let all: ApiEnvironments = this;
     if (all.find(all.selectedId) === null) {
@@ -171,7 +171,7 @@ export class ApiEnvironments {
     const env = all.find(all.selectedId) as ApiEnvironment;
     const known = env.variableMap();
     let next = env;
-    for (const s of secrets) if (!known.has(s.name)) next = next.withVar({ name: s.name, value: s.value, secret: true });
+    for (const s of secrets) if (!known.has(s.name)) next = next.withVar({ name: s.name, value: s.value, secret });
     return all.replace(next);
   }
 }

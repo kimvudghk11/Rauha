@@ -56,6 +56,7 @@ import { READ_EVERY_MS } from '../shared/usage-freshness.js';
 import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
+import { registerApiIpc } from './api/api-ipc.js';
 import { registerBlogIpc } from './blog/blog-ipc.js';
 import { registerBugIpc } from './bugs/bug-ipc.js';
 import { BugStore } from './bugs/bug-store.js';
@@ -770,6 +771,16 @@ void app.whenReady().then(async () => {
     },
   });
   registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
+  registerApiIpc(ipcMain, {
+    dataDir,
+    saveFile: async (fileName, text) => {
+      const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
+      const result = await dialog.showSaveDialog(window ?? undefined!, { title: 'Save requests', defaultPath: join(startIn, fileName), filters: [{ name: 'HTTP requests', extensions: ['http', 'sh'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });
+      if (result.canceled || !result.filePath) return null;
+      writeFileSync(result.filePath, text, 'utf8');
+      return result.filePath;
+    },
+  });
   ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
   ipcMain.handle(IPC.teamGet, () => teamView(team));
   ipcMain.handle(IPC.teamApply, async (_e, op: unknown) => {

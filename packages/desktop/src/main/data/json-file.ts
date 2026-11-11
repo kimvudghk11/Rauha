@@ -12,7 +12,11 @@ export class JsonFile {
   private static readonly queues = new Map<string, Promise<unknown>>();
   private static counter = 0;
 
-  constructor(readonly file: string) {}
+  /** mode: 새 파일의 권한(예: 0o600). 맥·리눅스에서만 뜻이 있다. */
+  constructor(
+    readonly file: string,
+    private readonly mode?: number,
+  ) {}
 
   async read(): Promise<JsonRead> {
     let raw: string;
@@ -44,7 +48,7 @@ export class JsonFile {
     JsonFile.counter += 1;
     const tmp = `${this.file}.tmp-${process.pid}-${JsonFile.counter}`;
     try {
-      await writeFile(tmp, json, 'utf8');
+      await writeFile(tmp, json, this.mode === undefined ? 'utf8' : { encoding: 'utf8', mode: this.mode });
       await rename(tmp, this.file);
     } catch (error) {
       await rm(tmp, { force: true }).catch(() => undefined);
