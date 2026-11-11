@@ -16,6 +16,7 @@ import type { BugApi } from './bug-api.js';
 import type { CodeApi } from './code-api.js';
 import type { TerminalApi } from './terminal-api.js';
 import type { ApiApi } from './api-ipc.js';
+import type { DbApi } from './db-api.js';
 import type { DockerApi } from './docker-api.js';
 import type { LoginView } from './claude-login.js';
 import type { AccountCheck } from './account-state.js';
@@ -248,6 +249,8 @@ export interface RauhaApi {
   readonly api: ApiApi;
   /** Docker 탭: docker CLI 로 컨테이너·이미지·볼륨·네트워크·compose 를 보고 다룬다(main이 부른다) */
   readonly docker: DockerApi;
+  /** DB 탭: SQLite 파일을 열어 테이블·행·쿼리를 본다(main이 자식 프로세스에서 돌린다) */
+  readonly db: DbApi;
   readonly auth: AuthApi;
   /** 진단 정보(가린 마크다운)를 모아 클립보드에 복사한다. 문제가 생겼을 때 개발자에게 붙여 넣으려는 것 */
   copyDiagnostics(): Promise<DiagnosticsResult>;

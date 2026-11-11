@@ -4,6 +4,7 @@ import { CHECKPOINT_FUNCTIONS, CHECKPOINT_IPC, type CheckpointApi, type Checkpoi
 import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { API_IPC } from '../shared/api-ipc.js';
+import { DB_IPC } from '../shared/db-api.js';
 import { DOCKER_IPC, type DockerLogEvent } from '../shared/docker-api.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
@@ -99,6 +100,7 @@ const api: RauhaApi = {
     stat: (paths) => ipcRenderer.invoke(CODE_IPC.stat, paths),
     changes: () => ipcRenderer.invoke(CODE_IPC.changes),
     diff: (path) => ipcRenderer.invoke(CODE_IPC.diff, path),
+    blame: (path) => ipcRenderer.invoke(CODE_IPC.blame, path),
     search: (options) => ipcRenderer.invoke(CODE_IPC.search, options),
     files: () => ipcRenderer.invoke(CODE_IPC.files),
     create: (req) => ipcRenderer.invoke(CODE_IPC.create, req),
@@ -118,6 +120,18 @@ const api: RauhaApi = {
     onEvent: (listener) => {
       ipcRenderer.on(TERM_IPC.event, (_e, event: TermEvent) => listener(event));
     },
+  },
+  db: {
+    list: () => ipcRenderer.invoke(DB_IPC.list),
+    addPath: (req) => ipcRenderer.invoke(DB_IPC.addPath, req),
+    pick: () => ipcRenderer.invoke(DB_IPC.pick),
+    remove: (id) => ipcRenderer.invoke(DB_IPC.remove, id),
+    tables: (id) => ipcRenderer.invoke(DB_IPC.tables, id),
+    detail: (req) => ipcRenderer.invoke(DB_IPC.detail, req),
+    rows: (req) => ipcRenderer.invoke(DB_IPC.rows, req),
+    query: (req) => ipcRenderer.invoke(DB_IPC.query, req),
+    cancel: (key) => ipcRenderer.invoke(DB_IPC.cancel, key),
+    exportCsv: (req) => ipcRenderer.invoke(DB_IPC.exportCsv, req),
   },
   docker: {
     status: () => ipcRenderer.invoke(DOCKER_IPC.status),

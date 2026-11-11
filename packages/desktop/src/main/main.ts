@@ -65,6 +65,7 @@ import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
 import { registerApiIpc } from './api/api-ipc.js';
 import { registerDockerIpc } from './docker/docker-ipc.js';
+import { registerDbIpc } from './db/db-ipc.js';
 import { registerBlogIpc } from './blog/blog-ipc.js';
 import { registerBugIpc } from './bugs/bug-ipc.js';
 import { BugStore } from './bugs/bug-store.js';
@@ -858,6 +859,22 @@ void app.whenReady().then(async () => {
   });
   codeFiles = registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
   registerDockerIpc(ipcMain, { workDir: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
+  registerDbIpc(ipcMain, {
+    dataDir,
+    onQuit: (cleanup) => app.on('before-quit', cleanup),
+    pickFile: async () => {
+      const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
+      const result = await dialog.showOpenDialog(window ?? undefined!, { title: 'Open a SQLite file', defaultPath: startIn, properties: ['openFile'], filters: [{ name: 'SQLite database', extensions: ['db', 'sqlite', 'sqlite3', 'db3', 's3db', 'sl3'] }, { name: 'All files', extensions: ['*'] }] });
+      return result.canceled || result.filePaths[0] === undefined ? null : result.filePaths[0];
+    },
+    saveCsv: async (fileName, text) => {
+      const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
+      const result = await dialog.showSaveDialog(window ?? undefined!, { title: 'Save CSV', defaultPath: join(startIn, fileName), filters: [{ name: 'CSV', extensions: ['csv'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });
+      if (result.canceled || !result.filePath) return null;
+      writeFileSync(result.filePath, text, 'utf8');
+      return result.filePath;
+    },
+  });
   registerApiIpc(ipcMain, {
     dataDir,
     saveFile: async (fileName, text) => {
