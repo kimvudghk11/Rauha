@@ -21,6 +21,7 @@ interface PackageJson {
 
 const SCRIPT: Readonly<Record<SuiteCheck, string>> = { tests: 'test', typecheck: 'typecheck', lint: 'lint' };
 const CHECKS: readonly SuiteCheck[] = ['tests', 'typecheck', 'lint'];
+const SKIP_DIRS: ReadonlySet<string> = new Set(['node_modules', 'dist', 'build', 'out']);
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** 대상 Node 프로젝트에서 어떤 명령으로 검사할지. 파일을 읽지 않는 순수 판단만 한다. */
@@ -133,6 +134,26 @@ export class NodeChecks implements ChecksPort {
    * 테스트 파일마다 그 파일이 속한 패키지(가장 가까운 package.json)에서 돌린다. 모노레포의 루트 test는
    * 여러 패키지를 차례로 도는 묶음일 때가 많아 파일 인자를 받지 못한다. 패키지가 여럿이면 차례로 돌려 합친다.
    */
+  /** 테스트를 돌릴 test 스크립트가 루트나 하위 패키지(깊이 3, node_modules 제외)에 하나라도 있는지. 없으면 테스트 팀원을 부르지 않는다. */
+  async hasTestRunner(): Promise<boolean> {
+    const walk = async (dir: string, depth: number): Promise<boolean> => {
+      if (hasTestScript(join(dir, 'package.json'))) return true;
+      if (depth === 0) return false;
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        return false;
+      }
+      for (const e of entries) {
+        if (!e.isDirectory() || SKIP_DIRS.has(e.name) || e.name.startsWith('.')) continue;
+        if (await walk(join(dir, e.name), depth - 1)) return true;
+      }
+      return false;
+    };
+    return walk(this.root, 3);
+  }
+
   async runTests(files: readonly string[]): Promise<TestsResult> {
     const rootFiles = await readdir(this.root);
     const groups = new Map<string, string[]>();

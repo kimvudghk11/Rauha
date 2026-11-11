@@ -456,6 +456,23 @@ describe('MinimalLoopService', () => {
     expect(steps.some((m) => m.includes('테스트를 실행할 수 없어요'))).toBe(true);
   });
 
+  it('테스트를 돌릴 방법이 없다고 미리 알면 테스트 팀원을 부르지 않고 바로 구현한다(쓰지도 못할 테스트 파일을 남기지 않는다)', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const noRunner: ChecksPort = {
+      ...new FakeChecks(ws),
+      hasTestRunner: async () => false,
+      runTests: async () => { throw new Error('테스트를 돌릴 방법이 없는데 돌리려 했다'); },
+      runQuick: async () => ({ results: [{ name: 'tests', status: 'skip', failures: [], command: null, summary: '스크립트 없음' }], narrowed: false }),
+      runSuite: async () => [{ name: 'tests', status: 'skip', failures: [], command: null, summary: '스크립트 없음' }],
+    };
+    const steps: string[] = [];
+    const outcome = await service(ws, team, noRunner, new FakeLog(), new FakeUser(false), { step: (m: string) => steps.push(m) }).run('Money에 할인 추가');
+    expect(team.calls).toEqual(['intake', 'implementer']);
+    expect(outcome).toMatchObject({ status: 'complete', testless: true, lockedTests: [] });
+    expect(steps.some((m) => m.includes('테스트를 실행할 수 없어요'))).toBe(true);
+  });
+
   it('시니어 시도에서 잠긴 테스트를 고치면 쓰기 거부로 실패 처리한다', async () => {
     const ws = new FakeWorkspace();
     const touchLocked: Script = (_c, w) => {

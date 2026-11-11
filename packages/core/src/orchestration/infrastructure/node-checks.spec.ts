@@ -245,3 +245,45 @@ describe('NodeChecks 바뀐 곳 먼저 검사', () => {
     }
   }, 30000);
 });
+
+describe('NodeChecks.hasTestRunner', () => {
+  const make = (files: Record<string, string>) => {
+    const dir = mkdtempSync(join(tmpdir(), 'rauha-runner-'));
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(join(dir, path, '..'), { recursive: true });
+      writeFileSync(join(dir, path), text);
+    }
+    return dir;
+  };
+
+  it('package.json이 없는 정적 프로젝트는 테스트를 돌릴 방법이 없다', async () => {
+    const dir = make({ 'index.html': '<p/>', 'app.js': '1' });
+    try {
+      expect(await new NodeChecks(dir).hasTestRunner()).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('test 스크립트가 없는 package.json만 있으면 돌릴 방법이 없다', async () => {
+    const dir = make({ 'package.json': '{"scripts":{"build":"x"}}' });
+    try {
+      expect(await new NodeChecks(dir).hasTestRunner()).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('루트나 하위 패키지에 test 스크립트가 있으면 돌릴 수 있다(node_modules 안은 보지 않는다)', async () => {
+    const root = make({ 'package.json': '{"scripts":{"test":"vitest run"}}' });
+    const sub = make({ 'packages/core/package.json': '{"scripts":{"test":"vitest run"}}' });
+    const dep = make({ 'node_modules/x/package.json': '{"scripts":{"test":"x"}}' });
+    try {
+      expect(await new NodeChecks(root).hasTestRunner()).toBe(true);
+      expect(await new NodeChecks(sub).hasTestRunner()).toBe(true);
+      expect(await new NodeChecks(dep).hasTestRunner()).toBe(false);
+    } finally {
+      for (const d of [root, sub, dep]) rmSync(d, { recursive: true, force: true });
+    }
+  });
+});

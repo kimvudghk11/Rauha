@@ -128,6 +128,8 @@ export interface QuickChecksResult {
 }
 
 export interface ChecksPort {
+  /** 이 프로젝트에 테스트를 돌릴 방법(test 스크립트)이 있는지. 없으면 테스트 팀원을 부르지 않는다. 구현하지 않으면 부르고 나서 알아낸다. */
+  hasTestRunner?(): Promise<boolean>;
   runTests(files: readonly string[]): Promise<TestsResult>;
   /** 바뀐 파일과 관련된 테스트 + 타입 검사 + 린트를 동시에. 좁힐 수 없으면 전체를 돌린다(narrowed=false). */
   runQuick(changedFiles: readonly string[]): Promise<QuickChecksResult>;

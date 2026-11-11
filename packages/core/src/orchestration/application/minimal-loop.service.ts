@@ -301,6 +301,15 @@ export class MinimalLoopService {
 
       if (decision.assignment.role === 'tester') {
         const attempt = tally.attempts.tester + 1;
+        if (attempt === 1 && (await this.deps.checks.hasTestRunner?.()) === false) {
+          // 테스트를 돌릴 방법이 없다고 미리 알면 쓰지도 못할 테스트 파일을 만들게 하지 않는다.
+          order.proceedWithoutTests();
+          this.testless = true;
+          lockedTests = [];
+          current.lockedTests = [];
+          progress.step('이 프로젝트에서는 테스트를 실행할 수 없어요(test 스크립트나 테스트 도구가 없음). 테스트 없이 구현하고 타입 검사·리뷰로 확인합니다');
+          continue;
+        }
         const message = [
           brief,
           await this.filesBlock(dto.readFirst),
