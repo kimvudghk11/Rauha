@@ -92,6 +92,10 @@ describe('testsOutcome', () => {
     expect(testsOutcome(null, 1, "'jest' is not recognized as an internal or external command").cannotRun()).toBe(true);
   });
 
+  it('package.json이 없는 폴더(Node 프로젝트가 아님)도 실행할 방법이 없는 것이다', () => {
+    expect(testsOutcome(null, 254, 'npm error code ENOENT\nnpm error enoent Could not read package.json: Error: ENOENT').cannotRun()).toBe(true);
+  });
+
   it('테스트가 실제로 실패한 출력은 그대로 assertion 실패다', () => {
     const run = testsOutcome(null, 1, 'AssertionError: expected 1 to equal 2');
     expect(run.cannotRun()).toBe(false);

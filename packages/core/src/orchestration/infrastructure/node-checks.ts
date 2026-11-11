@@ -100,7 +100,7 @@ function shellQuote(arg: string): string {
 }
 
 /** 테스트 스크립트가 없거나(npm init 기본값 포함) 테스트 도구 실행 파일이 없을 때의 출력 */
-const NO_RUNNER = /Missing script:\s*"?test|no test specified|^\s*(?:\/bin\/)?(?:sh|bash|zsh)\b[^\n]*: (?:command )?not found|is not recognized as an internal or external command|spawn \S+ ENOENT/im;
+const NO_RUNNER = /Could not read package.json|Missing script:\s*"?test|no test specified|^\s*(?:\/bin\/)?(?:sh|bash|zsh)\b[^\n]*: (?:command )?not found|is not recognized as an internal or external command|spawn \S+ ENOENT/im;
 
 /**
  * vitest 보고서 + 종료 코드 → TestRun. 보고서가 통과여도 종료 코드가 0이 아니면
