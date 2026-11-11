@@ -23,12 +23,12 @@ export class GitFailure extends Error {
  * 폴더 설정의 core.fsmonitor 는 status 때마다 프로그램을 돌리므로 끈다.
  * 비밀번호 창이 뜨지 않게 GIT_TERMINAL_PROMPT=0, 한글 경로가 깨지지 않게 core.quotepath=false.
  */
-export function runGit(root: string, args: readonly string[], input?: string): Promise<RunResult> {
+export function runGit(root: string, args: readonly string[], input?: string, extraEnv?: Readonly<Record<string, string>>): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = execFile(
       'git',
       ['-c', 'core.quotepath=false', '-c', 'core.fsmonitor=false', ...args],
-      { cwd: root, windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_MERGE_AUTOEDIT: 'no' } },
+      { cwd: root, windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_MERGE_AUTOEDIT: 'no', ...extraEnv } },
       (error, stdout, stderr) => {
         const e = error as (NodeJS.ErrnoException & { code?: number | string }) | null;
         if (e !== null && typeof e.code === 'string') return reject(new GitFailure('FAILED', e.code === 'ENOENT' ? 'git was not found. Check that git is installed.' : e.message));

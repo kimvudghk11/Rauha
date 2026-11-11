@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DirectionSet, type ApprovalCard, type DirectionCard, type TurnOutcome } from '@rauha/core';
 import type { TeamIo, TeamSession } from './team-work.js';
 
@@ -43,8 +45,9 @@ const FAKE_APPROVAL_CARD: ApprovalCard = {
 /**
  * 확인용 가짜 팀(RAUHA_FAKE_TEAM=1). 실제 Claude를 부르지 않고 단계·역할·허락 요청을 흉내 낸다.
  * 요청에 "허락"이 들어 있으면 중간에 main push 허락을 묻는다.
+ * 환경 변수 RAUHA_FAKE_EDIT=1 이고 root 가 있으면 "고치는 중" 단계에서 작업 폴더의 파일을 실제로 바꾼다(변경 보기·되돌리기 확인용).
  */
-export function fakeTeam(io: TeamIo, request: string): TeamSession {
+export function fakeTeam(io: TeamIo, request: string, root?: string): TeamSession {
   return {
     handle: async (): Promise<TurnOutcome> => {
       const step = (role: Parameters<TeamIo['progress']['step']>[1], message: string) => io.progress.step(message, role);
@@ -54,6 +57,7 @@ export function fakeTeam(io: TeamIo, request: string): TeamSession {
       step('tester', '재현 테스트를 쓰는 중');
       await sleep(1400, io.signal);
       step('implementer', '고치는 중: retry.policy.ts');
+      if (root !== undefined && process.env['RAUHA_FAKE_EDIT'] === '1') fakeEdits(root);
       await sleep(1400, io.signal);
       if (request.includes('허락')) {
         step('implementer', '변경을 main에 올리려고 해요');
@@ -85,4 +89,13 @@ async function fakeAnalysis(io: TeamIo, step: (role: Parameters<TeamIo['progress
   const summary = `(가짜 분석) 고른 방향: ${choice.chosen}${choice.divergedFromAi() ? ' (AI 추천과 다르게 골랐어요)' : ''}
 ${decided.kind === 'proceed' ? '승인해서 구현으로 넘겼어요(가짜라 고치지는 않았어요).' : decided.kind === 'revise' ? `고칠 점을 말하고 멈췄어요: ${decided.note}` : '승인하지 않고 멈췄어요.'}`;
   return { ...base, summary, stopped: decided.kind !== 'proceed', choice: { recommended: choice.recommended, chosen: choice.chosen, reason: choice.reason, diverged: choice.divergedFromAi() }, durationMs: Date.now() - started };
+}
+
+/** 확인용 가짜 편집: README.md 수정, src/fake-new.ts 추가, fake-old.txt 삭제(있을 때), .env 변경(비밀 파일은 목록에 안 보여야 한다) */
+function fakeEdits(root: string): void {
+  appendFileSync(join(root, 'README.md'), '\nAdded by the fake team.\nSecond added line.\n');
+  mkdirSync(join(root, 'src'), { recursive: true });
+  writeFileSync(join(root, 'src', 'fake-new.ts'), 'export const fake = 1;\nexport const team = 2;\n');
+  if (existsSync(join(root, 'fake-old.txt'))) rmSync(join(root, 'fake-old.txt'));
+  writeFileSync(join(root, '.env'), 'FAKE_SECRET=1\n');
 }

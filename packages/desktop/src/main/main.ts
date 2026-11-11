@@ -32,7 +32,7 @@ import { parseTarget, type TargetFolder } from './team/target.js';
 import { resolveMentions } from './team/mention-context.js';
 import { withAttachments } from '../shared/file-mention.js';
 import type { CodeFiles } from './code/code-files.js';
-import { teamWork } from './team/team-work.js';
+import { teamWork, type TeamIo, type TeamSession } from './team/team-work.js';
 import { appMenuTemplate, quitWhenAllClosed, windowChrome } from './platform/app-menu.js';
 import { claudeBinaryPath, fallbackWorkDir, promptsDir as resolvePromptsDir, type ResourceEnv } from './platform/resources.js';
 import { displayKey, parseWindowFile, isAutomatedRun, placeOnDisplay, restoreBounds, testDisplay, type Rect } from './platform/window-state.js';
@@ -72,6 +72,8 @@ import { TodoService } from './data/todo-service.js';
 import { RecordStore } from './data/record-store.js';
 import { ChatHistoryStore } from './data/chat-history-store.js';
 import { ChatHistoryKeeper } from './team/chat-history-keeper.js';
+import { CheckpointStore } from './data/checkpoint-store.js';
+import { CheckpointKeeper } from './team/checkpoint-keeper.js';
 import { RecordService } from './data/record-service.js';
 import { decisionOf, JobTrail } from './team/job-trail.js';
 import { askCardFlow } from './team/ask-flow.js';
@@ -238,10 +240,28 @@ async function carryPreviousFiles(root: string, worktree: string): Promise<void>
 /** 코드 탭과 같은 파일 읽기 길(작업 폴더 밖·비밀 파일·링크 검사 포함). 채팅의 @파일 언급을 읽을 때 쓴다. */
 let codeFiles: CodeFiles | null = null;
 
+/** 확인용 가짜 팀 세션: 진짜와 같은 체크포인트 기록을 남긴다(RAUHA_FAKE_EDIT=1 이면 가짜 팀이 작업 폴더 파일을 바꾼다) */
+function fakeSession(io: TeamIo, jobId: string, request: string): TeamSession {
+  const root = folders()[0]?.root ?? currentWorkDir();
+  jobRoots.set(jobId, root);
+  trail.repo(jobId, basename(root));
+  const inner = fakeTeam(io, request, root);
+  return {
+    handle: async (input, depth) => {
+      await checkpoints.begin(jobId, { repoRoot: root, cwd: root, place: 'repo' });
+      try {
+        return await inner.handle(input, depth);
+      } finally {
+        await checkpoints.finishInPlace(jobId);
+      }
+    },
+  };
+}
+
 async function startRunner(): Promise<JobRunner> {
   let work;
   if (FAKE) {
-    work = teamWork({ newSession: (io, job) => (jobRoots.set(job.id, folders()[0]?.root ?? currentWorkDir()), trail.repo(job.id, basename(folders()[0]?.root ?? currentWorkDir())), fakeTeam(io, job.request)), askUser: (jobId, request) => askWithNotice(jobId, request), askCard: (jobId, payload, signal) => askCard(jobId, payload, signal) });
+    work = teamWork({ newSession: (io, job) => fakeSession(io, job.id, job.request), askUser: (jobId, request) => askWithNotice(jobId, request), askCard: (jobId, payload, signal) => askCard(jobId, payload, signal) });
   } else {
     const prompts = await PromptLibrary.load(promptsDir());
     const profileFor = await profileResolver(home, settings.account);
@@ -272,6 +292,8 @@ async function startRunner(): Promise<JobRunner> {
                 await carryPreviousFiles(root, cwd).catch(() => undefined);
               }
               before = await snapshotChanges(cwd);
+              // 되돌리기·변경 보기를 위한 기준(HEAD·시작 때 파일 상태). worktree 작업은 그 브랜치가 체크포인트다.
+              await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               return await session.handle(withAttachments(mentioned, [], target.text), depth);
@@ -279,10 +301,12 @@ async function startRunner(): Promise<JobRunner> {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
               const after = before === null ? null : await snapshotChanges(cwd);
               if (before !== null && after !== null) trail.files(job.id, newlyChanged(before, after));
+              await checkpoints.finishInPlace(job.id);
               const released = ledger.release(job.id);
               ledger = released.ledger;
               if (released.worktree !== null) {
                 const branch = await finishWorktree(root, released.worktree, job.id, job.request).catch(() => null);
+                await checkpoints.finishBranch(job.id, branch);
                 if (branch !== null) note = `같은 레포에서 다른 일이 함께 돌고 있어서 따로 작업했어요. 고친 내용은 브랜치 ${branch}에 있어요.`;
               }
             }
@@ -344,6 +368,18 @@ const recordService = new RecordService({
 });
 /** 작업이 도는 동안 기록에 쓸 것(허락 결정·바뀐 파일·레포)을 모아 둔다 */
 const trail = new JobTrail();
+/** 작업 체크포인트(시작 기준·변경 목록)와 되돌리기 안전 백업: 앱 데이터 폴더 */
+const checkpoints = new CheckpointKeeper({
+  store: new CheckpointStore(dataDir),
+  secretOf: (root) => {
+    const policy = loadSecretPolicy(root);
+    return (rel) => policy.isSecret(rel);
+  },
+  protectedBranches: () => settings.protectedBranches,
+  newId: () => randomUUID(),
+  now: () => new Date().toISOString(),
+});
+const checkpointsReady = checkpoints.load().catch(() => undefined);
 const recorded = new Set<string>();
 /** 분석의 질문 카드(방향 고르기·계획 승인): 허락 창구에 올리고, 고른 방향을 기록거리로 남긴다 */
 const askCard = askCardFlow({
