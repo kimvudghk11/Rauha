@@ -37,3 +37,26 @@ describe('WorkspaceState — 대화 세션에서 이어 일하기', () => {
     expect(() => WorkspaceState.of(['src/a.ts', 'src/b.ts'], carried, current).assertReady(true)).toThrow(/src\/b\.ts/);
   });
 });
+
+describe('WorkspaceState — 사용자가 커밋하지 않은 변경 위에서 일하기', () => {
+  it('시작 전에 사용자가 커밋하지 않은 파일을 돌려준다', () => {
+    expect(WorkspaceState.of(['README.md', 'src/a.ts']).userFiles()).toEqual(['README.md', 'src/a.ts']);
+  });
+
+  it('세션에서 rauha가 남긴 파일은 사용자 파일이 아니다', () => {
+    const carried = new Map([['src/a.ts', 'h1']]);
+    expect(WorkspaceState.of(['src/a.ts', 'README.md'], carried, new Map([['src/a.ts', 'h1']])).userFiles()).toEqual(['README.md']);
+  });
+
+  it('git 저장소가 아니면 사용자 파일이 없다', () => {
+    expect(WorkspaceState.of(null).userFiles()).toEqual([]);
+  });
+
+  it('rauha가 사용자가 고치던 파일을 또 바꿨으면 섞인 파일로 알린다', () => {
+    expect(WorkspaceState.of(['README.md', 'src/a.ts']).mixedWith(['src/a.ts', 'src/b.ts'])).toEqual(['src/a.ts']);
+  });
+
+  it('사용자 파일을 건드리지 않았으면 섞인 파일이 없다', () => {
+    expect(WorkspaceState.of(['README.md']).mixedWith(['src/b.ts'])).toEqual([]);
+  });
+});

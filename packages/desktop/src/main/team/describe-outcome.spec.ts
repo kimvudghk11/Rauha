@@ -26,6 +26,19 @@ describe('describeOutcome', () => {
     expect(text).toContain('재시도 횟수는 확인 못 함');
   });
 
+  it('내가 커밋하지 않은 파일을 rauha가 또 고쳤으면 섞였다고 알린다', () => {
+    const text = describeOutcome(work({ userFiles: ['src/pay.ts', 'README.md'], mixedFiles: ['src/pay.ts'] }));
+    expect(text).toContain('커밋하지 않은 변경 2개 위에서 일했어요');
+    expect(text).toContain('src/pay.ts');
+    expect(text).toContain('섞여');
+  });
+
+  it('내가 커밋하지 않은 파일이 있어도 건드리지 않았으면 섞였다는 말은 없다', () => {
+    const text = describeOutcome(work({ userFiles: ['README.md'], mixedFiles: [] }));
+    expect(text).toContain('커밋하지 않은 변경 1개 위에서 일했어요');
+    expect(text).not.toContain('섞여');
+  });
+
   it('돈(달러)은 보이지 않는다', () => {
     expect(describeOutcome(work())).not.toMatch(/\$|1\.23/);
   });

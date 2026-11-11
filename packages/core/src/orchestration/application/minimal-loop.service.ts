@@ -69,6 +69,10 @@ export interface RunOutcome {
   readonly basis: string | null;
   /** 마지막 팀원 호출이 한도·도구 거절로 멈춘 이유 문장. 그런 일이 없었거나 그 뒤 호출이 잘 끝났으면 null. */
   readonly memberStop?: string | null;
+  /** 시작할 때 사용자가 이미 커밋하지 않고 두었던 파일. 그 위에서 일했다. */
+  readonly userFiles?: readonly string[];
+  /** 그중 rauha가 또 고친 파일(git 차이에서 두 사람의 변경이 섞여 보인다) */
+  readonly mixedFiles?: readonly string[];
 }
 
 /** 대화 세션이 접수 팀장에게 함께 넘기는 맥락 */
@@ -197,6 +201,8 @@ class RunTally {
 export class MinimalLoopService {
   /** 이번 실행이 본 기준. 루프는 요청 하나마다 새로 만들어지므로 여기 둔다. */
   private basis: string | null = null;
+  /** 이번 실행을 시작할 때의 작업 트리 상태 */
+  private startState: WorkspaceState = WorkspaceState.of([]);
 
   constructor(private readonly deps: MinimalLoopDeps) {}
 
@@ -220,7 +226,9 @@ export class MinimalLoopService {
     const { workspace } = this.deps;
     const dirty = await workspace.dirtyFiles();
     const start = dirty === null ? { files: new Map<string, string>() } : await workspace.snapshot();
-    WorkspaceState.of(dirty, this.deps.carried, start.files).assertReady(this.deps.requireClean);
+    this.startState = WorkspaceState.of(dirty, this.deps.carried, start.files);
+    this.startState.assertReady(this.deps.requireClean);
+    if (this.startState.userFiles().length > 0) this.deps.progress.step(`커밋하지 않은 변경 ${this.startState.userFiles().length}개가 있어요. 그 위에서 이어서 일해요`);
     const tally = new RunTally(request);
     const current: RunProgress = { title: request.slice(0, 60), assumptions: [], start, lockedTests: [] };
     try {
@@ -660,6 +668,8 @@ export class MinimalLoopService {
       logDir,
       basis: this.basis,
       memberStop: guideProps.memberStop,
+      userFiles: this.startState.userFiles(),
+      mixedFiles: this.startState.mixedWith(changedInRun.map((c) => c.path)),
     };
   }
 }

@@ -247,6 +247,18 @@ describe('MinimalLoopService', () => {
     expect(team.calls).toEqual([]);
   });
 
+  it('깨끗할 필요가 없게 정하면 커밋하지 않은 변경 위에서 일하고 그 파일을 결과에 남긴다', async () => {
+    const ws = new FakeWorkspace(['README.md']);
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const steps: string[] = [];
+    const loop = new MinimalLoopService({ ...deps(ws, team), requireClean: false, progress: { step: (m: string) => steps.push(m) } });
+    const outcome = await loop.run('Money에 할인 추가');
+    expect(outcome.status).toBe('complete');
+    expect(outcome.userFiles).toEqual(['README.md']);
+    expect(outcome.mixedFiles).toEqual([]);
+    expect(steps.some((m) => m.includes('커밋하지 않은 변경 1개'))).toBe(true);
+  });
+
   it('Red가 유효하면 구현 팀원을 부르고 검증이 통과하면 완료', async () => {
     const ws = new FakeWorkspace();
     const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });

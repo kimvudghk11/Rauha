@@ -29,6 +29,17 @@ export class WorkspaceState {
     return new WorkspaceState(dirty === null ? null : [...dirty], carried, current);
   }
 
+  /** 시작 전에 사용자가 커밋하지 않은 파일(세션에서 rauha가 남긴 것은 뺀다). git 저장소가 아니면 없다. */
+  userFiles(): readonly string[] {
+    return (this.dirty ?? []).filter((p) => !this.carried.has(p));
+  }
+
+  /** rauha가 이번에 바꾼 파일 중 사용자가 이미 고치던 파일. 이 파일은 git 차이에서 둘의 변경이 섞여 보인다. */
+  mixedWith(changed: readonly string[]): readonly string[] {
+    const mine = new Set(this.userFiles());
+    return changed.filter((p) => mine.has(p));
+  }
+
   assertReady(requireClean: boolean): void {
     if (this.dirty === null) {
       throw new DomainError('NOT_A_REPO', 'git 저장소에서만 실행할 수 있습니다. 바뀐 파일을 git으로 추적하기 때문입니다.');

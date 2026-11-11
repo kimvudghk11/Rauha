@@ -15,6 +15,10 @@ export function describeOutcome(turn: TurnOutcome): string {
       const stop = outcome.guide.stopMessage();
       if (stop !== null) lines.push(stop);
       if (outcome.changedInRun.length > 0) lines.push(`고친 파일 ${outcome.changedInRun.length}개 — ${outcome.changedInRun.map((c) => c.path).join(', ')}`);
+      const mine = outcome.userFiles ?? [];
+      if (mine.length > 0) lines.push(`내가 커밋하지 않은 변경 ${mine.length}개 위에서 일했어요.`);
+      const mixed = outcome.mixedFiles ?? [];
+      if (mixed.length > 0) lines.push(`이 파일은 내 변경과 rauha의 변경이 섞여 있어요: ${mixed.join(', ')}`);
       const decided = outcome.assumptions.filter((a) => !a.confirmed).map((a) => `${a.question} → ${a.chosen}`);
       if (decided.length > 0) lines.push('알아서 정한 것', ...decided.map((d) => `- ${d}`));
       const todo = outcome.facts.unconfirmed.map((c) => c.text);

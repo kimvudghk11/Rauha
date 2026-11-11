@@ -181,7 +181,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
         now: () => Date.now(),
         today: () => localDate(),
         badge: profile.badge(),
-        requireClean: true,
+        // 커밋하지 않은 변경이 있어도 막지 않는다: 시작 때의 모습을 기준으로 삼고, 섞인 파일은 결과 카드에 알린다
+        requireClean: false,
         threePass: true,
         lock: new FileWorkLock(projectLockFile(join(home, '.rauha', 'locks'), projectRoot(root))),
         carried,
