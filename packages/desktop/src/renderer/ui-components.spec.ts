@@ -212,3 +212,26 @@ describe('hidden 속성', () => {
     expect(rule?.decls['display']).toMatch(/^none\s*!important$/);
   });
 });
+
+describe('글자 크기와 화면 여백 토큰', () => {
+  /** 탭 CSS의 글자 크기는 --fs-* 단계만 쓴다(왼쪽 막대 라벨 9.5·아이콘 9·제목 입력 22·인사말 16은 예외). */
+  const OK_PX = new Set(['9px', '9.5px', '16px', '22px']);
+  for (const file of otherCss.filter((f) => !NOT_MIGRATED.includes(f))) {
+    it(`${file}는 글자 크기를 --fs-* 토큰으로만 정한다`, () => {
+      const found = [...read(file).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/font-size:\s*([0-9.]+px)/g)].map((m) => m[1]!);
+      expect(found.filter((v) => !OK_PX.has(v))).toEqual([]);
+    });
+  }
+
+  it('탭 바깥 여백은 --page-pad 하나로 정한다(탭마다 8·12를 따로 쓰지 않는다)', () => {
+    const ui = read('ui.css');
+    expect(ui).toMatch(/--page-pad:\s*var\(--s3\)/);
+    expect(ui).toMatch(/\.app\[data-tier=xs\]\s*\{\s*--page-pad:\s*var\(--s2\)/);
+    for (const file of ['chat.css', 'data-tabs.css', 'commands.css', 'git.css', 'code.css']) expect(read(file), file).toContain('var(--page-pad)');
+  });
+
+  it('칸 머리줄은 --h-head(36) 하나를 쓴다', () => {
+    expect(read('ui.css')).toMatch(/--h-head:\s*36px/);
+    for (const file of ['styles.css', 'code.css', 'git.css']) expect(read(file), file).toContain('var(--h-head)');
+  });
+});

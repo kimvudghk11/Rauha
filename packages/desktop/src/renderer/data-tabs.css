@@ -1,5 +1,5 @@
 /* 할 일 탭 · 기록 탭 (4단계 폭: xl 1700 · m 1100 · s 720 · xs) */
-.todo, .records { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3); min-width: 0; min-height: 0; overflow: auto; }
+.todo, .records { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; overflow: auto; }
 .todo .rhead, .records .rhead { flex-wrap: wrap; }
 .records .rhead { align-items: center; gap: var(--s3); }
 .records .rhead b { font-size: var(--fs-lg); font-weight: 600; }
@@ -67,7 +67,6 @@
 .app[data-tier=s] .rec, .app[data-tier=xs] .rec { grid-template-columns: minmax(0, 1fr); }
 .app[data-tier=s] .rec.show-detail .rclist, .app[data-tier=xs] .rec.show-detail .rclist { display: none; }
 .app[data-tier=s] .rec:not(.show-detail) .rcdet, .app[data-tier=xs] .rec:not(.show-detail) .rcdet { display: none; }
-.app[data-tier=xs] .todo, .app[data-tier=xs] .records { padding: 8px; }
 
 /* 채팅 카드의 "할 일로 담기" */
 .tform[hidden] { display: none; }

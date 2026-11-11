@@ -58,7 +58,7 @@ const MEASURE = `(() => {
     clippedBtn: [...document.querySelectorAll('.records .btn')].filter((n) => n.getBoundingClientRect().width > 0 && n.scrollWidth > n.clientWidth + 1).map((n) => n.textContent.trim()),
     rows: [...document.querySelectorAll('.records .ri')].slice(0, 3).map((n) => n.scrollWidth > n.clientWidth + 1), tier: document.querySelector('.app')?.dataset.tier, cols: getComputedStyle(document.querySelector('.records .rec')).gridTemplateColumns, cls: document.querySelector('.records .rec').className,
   } : null;
-  const cm = document.querySelector('.cm-content'); return { big: window.__bigT || null, tool, rec, cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
+  const layout = [...document.querySelector('.app').children].map((n) => n.className + ':' + Math.round(n.getBoundingClientRect().top) + '+' + Math.round(n.getBoundingClientRect().height)).join(' ') + ' scroll=' + document.scrollingElement.scrollTop + '/' + document.body.scrollTop + ' appTop=' + Math.round(document.querySelector('.app').getBoundingClientRect().top); const cm = document.querySelector('.cm-content'); return { layout, big: window.__bigT || null, tool, rec, cm: cm ? (cm.getAttribute('style') || cm.style.cssText || 'no-style') : 'no-editor', innerWidth: window.innerWidth, hscroll: document.scrollingElement.scrollWidth - window.innerWidth, over, rows };
 })()`;
 
 app.on('browser-window-created', (_e, win) => {
@@ -303,6 +303,7 @@ async function run(win) {
       for (const width of [1100, 600]) {
         await resize(width);
         await snap('dialog:' + step.slice(0, 12), width);
+        if (process.env.MEASURE_SHOT_DIR) fs.writeFileSync(path.join(process.env.MEASURE_SHOT_DIR, 'wizard-' + i + '-' + width + '.png'), (await wc.capturePage()).toPNG());
       }
       await resize(1100);
       const next = step.startsWith('1/3')

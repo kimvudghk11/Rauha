@@ -1,5 +1,5 @@
 /* git 탭. 색은 styles.css 토큰만 쓴다. 창이 좁으면(s·xs) 목록과 diff가 위아래로 쌓인다. */
-.git { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: var(--s3); gap: var(--s2); }
+.git { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: var(--page-pad); gap: var(--s2); }
 .gselect { max-width: 260px; }
 textarea.ginput, input.ginput { width: 100%; }
 .gbranch { font-family: var(--mono); color: var(--bright); }
@@ -21,11 +21,11 @@ textarea.ginput, input.ginput { width: 100%; }
 .gb.yellow { color: var(--yellow); } .gb.green { color: var(--green); } .gb.red { color: var(--red); } .gb.blue { color: var(--accentfg); } .gb.dim { color: var(--muted); }
 .gx:hover:not(:disabled) { color: var(--red); }
 .gcommit { border-top: 1px solid var(--border); padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
-.gmh { box-sizing: border-box; min-height: 40px; display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; flex-wrap: wrap; }
+.gmh { box-sizing: border-box; min-height: var(--h-head); display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; flex-wrap: wrap; }
 .gmh b { color: var(--bright); font-family: var(--mono); font-size: var(--fs-sm); word-break: break-all; }
 .gdiff { font-family: var(--mono); font-size: var(--fs-sm); min-width: min-content; }
 .gdbar { position: sticky; top: 0; display: flex; align-items: center; gap: var(--s2); min-height: var(--h-lg); padding: 0 var(--s3); background: var(--card); border-bottom: 1px solid var(--border); font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif; font-size: var(--fs-sm); z-index: 1; }
-.gmh + .gdiff .gdbar { top: 40px; }
+.gmh + .gdiff .gdbar { top: var(--h-head); }
 .gmore { display: flex; width: calc(100% - 2 * var(--s3)); margin: var(--s2) var(--s3); }
 .gh .btn { margin-left: auto; }
 .gh { display: flex; align-items: center; gap: var(--s2); min-height: var(--h-md); padding: var(--s1) var(--s3); background: #1c2a38; color: var(--accentfg); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -42,7 +42,7 @@ textarea.ginput, input.ginput { width: 100%; }
 .gpanel { overflow: hidden; }
 .gcm { align-items: flex-start; }
 /* 충돌 미리보기: 내 쪽은 파랑, 상대 쪽은 노랑(색만이 아니라 "내 쪽"/"상대 쪽" 글자도 붙는다) */
-.gconfview { max-height: 45%; overflow: auto; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; flex: 0 0 auto; }
+.gconfview { max-height: 45%; overflow: auto; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: var(--fs-sm); flex: 0 0 auto; }
 .gconfsum { padding: var(--s1) var(--s3); color: var(--dim); font-family: inherit; position: sticky; top: 0; background: var(--bg); }
 .gconfplain, .gconfcode { margin: 0; padding: 0 var(--s3); white-space: pre; font-family: inherit; line-height: 1.5; color: var(--dim); }
 .gconfblock { margin: var(--s1) 0; }
@@ -52,7 +52,7 @@ textarea.ginput, input.ginput { width: 100%; }
 .gconfside.ours { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); border-left-color: var(--accent); } .gconfside.ours .gconfwho { color: var(--accentfg); }
 .gconfside.theirs { background: color-mix(in srgb, var(--yellow) 16%, var(--bg)); border-left-color: var(--yellow); } .gconfside.theirs .gconfwho { color: var(--yellow); }
 .gours::before, .gtheirs::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; } .gours::before { background: var(--accent); } .gtheirs::before { background: var(--yellow); }
-.gconf { flex: 1; min-height: 300px; width: 100%; border: none; border-radius: 0; font-family: var(--mono); font-size: 12px; white-space: pre; resize: none; }
+.gconf { flex: 1; min-height: 300px; width: 100%; border: none; border-radius: 0; font-family: var(--mono); font-size: var(--fs-sm); white-space: pre; resize: none; }
 
 /* 동기화 툴바(Fetch·Pull·Push): 배치만 정한다. 좁으면 글자는 숨기고 아이콘과 ↑↓ 숫자만 남는다 */
 .gtool { gap: var(--s2); flex-wrap: nowrap; min-width: 0; }

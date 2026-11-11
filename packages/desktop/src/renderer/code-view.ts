@@ -122,7 +122,7 @@ export function buildCode(deps: CodeDeps) {
   const toggle = el('button', 'btn ghost icon sm code-toggle', '☰');
   toggle.title = 'Collapse/expand explorer';
   const strip = el('div', 'code-tabs');
-  const termBtn = el('button', 'btn ghost icon sm code-termbtn', '>_');
+  const termBtn = el('button', 'btn sm code-termbtn', '>_ Terminal');
   termBtn.title = 'Terminal (Ctrl/Cmd+`)';
   bar.append(toggle, strip, termBtn);
   const notice = el('div', 'code-notice');
@@ -136,6 +136,10 @@ export function buildCode(deps: CodeDeps) {
   status.append(sPath, sRight);
   const term = buildTerminal(deps.terminal);
   termBtn.addEventListener('click', () => void term.toggle());
+  // 터미널이 열려 있으면 단추가 눌린 모양(btn.on)이어서 켜졌는지 한눈에 보인다
+  const syncTermBtn = (): void => void termBtn.classList.toggle('on', !term.root.hidden);
+  new MutationObserver(syncTermBtn).observe(term.root, { attributes: true, attributeFilter: ['hidden'] });
+  syncTermBtn();
   const preview = new CodePreview(host, {
     api: deps.api,
     textOf: (p) => editor.textOf(p),

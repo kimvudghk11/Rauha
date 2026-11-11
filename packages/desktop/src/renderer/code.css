@@ -1,25 +1,25 @@
 /* 코드 탭: 탐색기 + 파일 탭 + 편집기. 색은 VS Code Dark Modern 토큰(styles.css :root)을 쓴다. */
-.code { flex: 1; min-width: 0; min-height: 0; display: flex; position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.code { flex: 1; margin: var(--page-pad); min-width: 0; min-height: 0; display: flex; position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .code [hidden] { display: none !important; }
 
 /* 탐색기 */
 .code-explorer { flex: 0 0 260px; width: 260px; min-width: 0; display: flex; flex-direction: column; background: var(--side); border-right: 1px solid var(--border); }
 .app[data-tier=xl] .code-explorer { flex-basis: 300px; width: 300px; }
 .code.explorer-hidden .code-explorer { display: none; }
-.code-ehead { display: flex; align-items: center; gap: 6px; height: 35px; padding: 0 8px 0 12px; flex: none; font-size: 11px; letter-spacing: .04em; color: var(--muted); }
+.code-ehead { display: flex; align-items: center; gap: 6px; height: var(--h-head); padding: 0 8px 0 12px; flex: none; font-size: var(--fs-xs); letter-spacing: .04em; color: var(--muted); }
 .code-ehead b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 
 .tree { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
-.tree-row { display: flex; align-items: center; gap: 4px; width: 100%; height: 22px; padding-right: 8px; background: none; border: none; text-align: left; color: var(--text); font-size: 13px; white-space: nowrap; }
+.tree-row { display: flex; align-items: center; gap: 4px; width: 100%; height: 22px; padding-right: 8px; background: none; border: none; text-align: left; color: var(--text); font-size: var(--fs-md); white-space: nowrap; }
 .tree-row:hover { background: var(--row-hover); }
 .tree-row.on { background: var(--sel); color: var(--bright); }
 .tree-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
-.tree-chev { flex: 0 0 12px; color: var(--muted); font-size: 11px; text-align: center; }
+.tree-chev { flex: 0 0 12px; color: var(--muted); font-size: var(--fs-xs); text-align: center; }
 .tree-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tree-tag { flex: none; margin-left: 6px; }
 .tree-row.heavy { color: var(--dim); }
 .tree-row.locked { color: var(--dim); cursor: not-allowed; }
-.tree-note { padding: 8px 14px; font-size: 12px; color: var(--muted); }
+.tree-note { padding: 8px 14px; font-size: var(--fs-sm); color: var(--muted); }
 
 /* 파일·폴더 아이콘(file-icons.ts): 16px, 색은 종류별 */
 .fi { flex: none; width: 16px; height: 16px; }
@@ -31,26 +31,26 @@
 
 /* 오른쪽 */
 .code-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.code-bar { display: flex; align-items: stretch; height: 35px; flex: none; background: var(--side); border-bottom: 1px solid var(--border); }
+.code-bar { display: flex; align-items: stretch; height: var(--h-head); flex: none; background: var(--side); border-bottom: 1px solid var(--border); }
 .code-bar > .btn { align-self: center; margin: 0 var(--s1); }
 .code-tabs { flex: 1; min-width: 0; display: flex; overflow-x: auto; overflow-y: hidden; }
-.code-tab { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; max-width: 220px; padding: 0 8px 0 12px; border-right: 1px solid var(--border); background: var(--side); color: var(--muted); font-size: 13px; cursor: pointer; white-space: nowrap; }
+.code-tab { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; max-width: 220px; padding: 0 8px 0 12px; border-right: 1px solid var(--border); background: var(--side); color: var(--muted); font-size: var(--fs-md); cursor: pointer; white-space: nowrap; }
 .code-tab:hover { color: var(--text); }
 .code-tab.on { background: var(--bg); color: var(--bright); box-shadow: inset 0 1px 0 var(--accent); }
 .code-tab-name { overflow: hidden; text-overflow: ellipsis; }
 .code-x.dirty { color: var(--bright); }
 
-.code-notice { flex: none; background: var(--card); border-bottom: 1px solid var(--border); font-size: 12px; }
+.code-notice { flex: none; background: var(--card); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
 .code-notice .note { display: flex; align-items: center; gap: 8px; padding: 5px 12px; color: var(--muted); }
 .code-notice .note.warn { color: var(--yellow); }
 
 .code-host { flex: 1; min-height: 0; min-width: 0; }
 .code-host .cm-editor { height: 100%; }
 .code-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); text-align: center; padding: 0 16px; }
-.code-empty b { color: var(--bright); font-size: 15px; }
-.code-empty .dim { color: var(--dim); font-size: 12px; }
+.code-empty b { color: var(--bright); font-size: var(--fs-lg); }
+.code-empty .dim { color: var(--dim); font-size: var(--fs-sm); }
 
-.code-status { display: flex; align-items: center; gap: 14px; height: var(--h-sm); padding: 0 12px; flex: none; background: var(--side); border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.code-status { display: flex; align-items: center; gap: 14px; height: var(--h-sm); padding: 0 12px; flex: none; background: var(--side); border-top: 1px solid var(--border); font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; }
 .code-status .sp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .code-status .sr { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
@@ -65,7 +65,7 @@
 .code-folder { flex: 1; min-width: 0; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--dim); text-align: right; }
 
 /* git 변경 표시 */
-.tree-badge { flex: none; margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); padding-left: 6px; }
+.tree-badge { flex: none; margin-left: auto; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); padding-left: 6px; }
 .tree-row.chg-dir .tree-name { color: var(--yellow); }
 .tree-row.chg-M .tree-name, .tree-row.chg-M .tree-badge, .qo-row .tree-badge.chg-M { color: var(--yellow); }
 .tree-row.chg-A .tree-name, .tree-row.chg-A .tree-badge, .tree-row.chg-U .tree-name, .tree-row.chg-U .tree-badge, .qo-row .tree-badge.chg-A, .qo-row .tree-badge.chg-U { color: var(--green); }
@@ -78,13 +78,13 @@
 .code-search { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cs-row { display: flex; gap: 4px; padding: 4px 8px 6px; }
 .cs-input { flex: 1; min-width: 0; }
-.cs-summary { padding: 0 12px 4px; font-size: 11.5px; color: var(--muted); min-height: 16px; }
+.cs-summary { padding: 0 12px 4px; font-size: var(--fs-sm); color: var(--muted); min-height: 16px; }
 .cs-results { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
-.cs-path { display: flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; color: var(--bright); }
+.cs-path { display: flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: var(--fs-sm); color: var(--bright); }
 .cs-path b { font-weight: 600; white-space: nowrap; }
 .cs-path .dim { color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .cs-count { margin-left: auto; flex: none; }
-.cs-hit { display: flex; gap: 8px; width: 100%; background: none; border: none; text-align: left; padding: 1px 10px 1px 18px; font-size: 12px; color: var(--text); font-family: var(--mono); }
+.cs-hit { display: flex; gap: 8px; width: 100%; background: none; border: none; text-align: left; padding: 1px 10px 1px 18px; font-size: var(--fs-sm); color: var(--text); font-family: var(--mono); }
 .cs-hit:hover { background: var(--row-hover); }
 .cs-line { flex: none; min-width: 26px; text-align: right; color: var(--dim); }
 .cs-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
@@ -93,28 +93,31 @@
 /* 빠른 열기 */
 .qo-veil { position: absolute; inset: 0; z-index: 8; display: flex; justify-content: center; align-items: flex-start; padding-top: 48px; background: #00000040; }
 .qo { width: min(560px, calc(100% - 24px)); max-height: min(420px, calc(100% - 64px)); display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border2); border-radius: 6px; box-shadow: 0 8px 32px #000a; overflow: hidden; }
-.qo-input { background: var(--input); color: var(--text); border: none; border-bottom: 1px solid var(--border2); padding: 8px 12px; font: inherit; font-size: 13.5px; outline: none; }
+.qo-input { background: var(--input); color: var(--text); border: none; border-bottom: 1px solid var(--border2); padding: 8px 12px; font: inherit; font-size: var(--fs-md); outline: none; }
 .qo-list { overflow: auto; padding: 4px 0; }
-.qo-row { display: flex; align-items: baseline; gap: 8px; width: 100%; background: none; border: none; text-align: left; padding: 3px 12px; font-size: 13px; color: var(--text); }
+.qo-row { display: flex; align-items: baseline; gap: 8px; width: 100%; background: none; border: none; text-align: left; padding: 3px 12px; font-size: var(--fs-md); color: var(--text); }
 .qo-row b { font-weight: 500; color: var(--bright); white-space: nowrap; }
-.qo-row .dim { color: var(--dim); font-size: 11.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.qo-row .dim { color: var(--dim); font-size: var(--fs-sm); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .qo-row.on, .qo-row:hover { background: var(--sel); }
-.qo-empty { padding: 10px 14px; font-size: 12px; color: var(--muted); }
+.qo-empty { padding: 10px 14px; font-size: var(--fs-sm); color: var(--muted); }
 
 /* 터미널 칸 */
 .term { flex: none; display: flex; flex-direction: column; min-height: 0; max-height: 60%; background: var(--bg); border-top: 1px solid var(--border); position: relative; }
 .term-grip { position: absolute; top: -3px; left: 0; right: 0; height: 6px; cursor: ns-resize; z-index: 2; }
-.term-bar { display: flex; align-items: center; gap: 4px; height: 30px; flex: none; padding-right: 6px; background: var(--side); position: relative; }
+.term-bar { display: flex; align-items: center; gap: 4px; height: var(--h-head); flex: none; padding-right: 6px; background: var(--side); border-bottom: 1px solid var(--border); position: relative; }
 .term-tabs { flex: 1; min-width: 0; display: flex; overflow-x: auto; }
-.term-tab { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; border-bottom: 1px solid transparent; }
+.term-tab { flex: none; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; font-size: var(--fs-sm); color: var(--muted); cursor: pointer; white-space: nowrap; border-bottom: 1px solid transparent; }
 .term-tab.on { color: var(--bright); border-bottom-color: var(--accent); }
-.term-note { flex: none; padding: 2px 12px; font-size: 11px; color: var(--dim); background: var(--card); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.term-out { flex: 1; min-height: 0; margin: 0; padding: 6px 12px; overflow: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: var(--text); white-space: pre-wrap; word-break: break-all; user-select: text; }
-.term-row { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 12px 6px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 12.5px; }
+.term-note { flex: none; padding: 2px 12px; font-size: var(--fs-xs); color: var(--dim); background: var(--card); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.term-out { flex: 1; min-height: 0; margin: 0; padding: 6px 12px; overflow: auto; font-family: var(--mono); font-size: var(--fs-sm); line-height: 1.5; color: var(--text); white-space: pre-wrap; word-break: break-all; user-select: text; }
+.term-row { flex: none; display: flex; align-items: center; gap: var(--s2); min-height: var(--h-lg); padding: 0 var(--s3); background: var(--input); border-top: 1px solid var(--border2); font-family: var(--mono); font-size: var(--fs-md); }
+.term-row:focus-within { border-top-color: var(--accent); box-shadow: inset 0 1px 0 var(--accent); }
+.term-row::before { content: ">"; flex: none; color: var(--accentfg); font-weight: 700; }
 .term-prompt { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accentfg); }
-.term-input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--bright); font: inherit; }
+.term-input { flex: 1; min-width: 0; height: var(--h-lg); background: none; border: none; outline: none; color: var(--bright); font: inherit; }
+.term-input::placeholder { color: var(--muted); }
 .term-menu { position: absolute; right: 36px; top: 28px; z-index: 6; display: flex; flex-direction: column; min-width: 160px; background: var(--card); border: 1px solid var(--border2); border-radius: 4px; box-shadow: 0 6px 20px #000a; padding: 3px 0; }
-.term-menu button { background: none; border: none; text-align: left; padding: 3px 12px; font-size: 12.5px; }
+.term-menu button { background: none; border: none; text-align: left; padding: 3px 12px; font-size: var(--fs-sm); }
 .term-menu button:hover { background: var(--sel); }
 .app[data-tier=xs] .term-note { display: none; }
 
@@ -192,3 +195,6 @@
 .md .md-img { max-width: 100%; border-radius: var(--r-sm); vertical-align: middle; }
 .md .md-img-off { color: var(--dim); font-size: var(--fs-sm); }
 .md .md-empty { color: var(--dim); }
+
+/* 파일 아이콘 심볼 모음(file-icons.ts가 body 맨 앞에 넣는다): 줄 상자를 만들지 않게 흐름에서 뺀다. 없으면 앱 전체가 19px 아래로 밀린다. */
+.fi-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }

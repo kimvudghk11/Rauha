@@ -10,6 +10,8 @@
   --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px;
   /* 조작 부품 높이: 작게 24 · 기본 28 · 크게 32 (버튼·입력칸·탭이 같은 높이를 쓴다) */
   --h-sm: 24px; --h-md: 28px; --h-lg: 32px;
+  /* 화면 바깥 여백(탭 공통, 좁으면 8) · 칸 머리줄 높이 */
+  --page-pad: var(--s3); --h-head: 36px;
   /* 모서리 */
   --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-pill: 999px;
   /* 버튼 색 */
@@ -29,7 +31,7 @@
 .err { color: var(--red); font-size: var(--fs-sm); }
 .err:empty { display: none; }
 .lbl { color: var(--muted); font-size: var(--fs-sm); }
-.pad { padding: var(--s3) var(--s4); }
+.pad { padding: var(--s2) var(--s3); }
 .grow { flex: 1 1 auto; min-width: 0; }
 .tg { display: flex; align-items: center; gap: var(--s1); flex: none; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 
@@ -183,3 +185,6 @@ button.chip:hover { border-color: var(--accentfg); }
 .sbadge.faint { font-weight: 400; color: var(--muted); }
 .fld-count { margin-left: auto; font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
 .fld-count.warn { color: var(--red); font-weight: 700; }
+
+/* 좁은 창(xs)에서는 모든 탭의 바깥 여백이 같이 줄어든다 */
+.app[data-tier=xs] { --page-pad: var(--s2); }
