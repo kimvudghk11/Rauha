@@ -299,3 +299,7 @@ nav.act            button 52×52 (s·xs 44×42): svg 22 + span 9.5px, .on = 왼�
 - 측정기 `scripts/measure-ui.cjs`는 이 규칙을 `check()`로 검사하고 화면 콘솔 오류(CSP 포함)도 모은다.
 - 어긋난 곳 처리: A1~A6 버튼(`.sec` 충돌, 6가지 높이, line-height) 해결 · B7 git 강조는 `primaryGitAction()`으로 하나만 · B9~B10 칩 색·토큰 밖 색은 토큰/허용 목록 · C12~C14 탭·칩·아이콘 버튼은 `tab`·`chip`·`btn icon` · D16~D23 이름 충돌은 공통 이름을 ui.css 한 곳에서만 정의하도록 spec 검사 · E24~E25 간격·글자는 단계 토큰.
 - 남은 것: 코드 탭 전용 밀집 부품(`tree-row` 22, `code-tab` 35, `term-tab` 30, `.ri` 기록 행)은 VS Code 규격이라 따로 둠. 글자 크기 10·10.5·12.5 일부가 코드 탭·캐릭터 말풍선에 남음. 첫 실행 마법사는 가짜 팀 실행에서 건너뛰어 측정하지 못함(같은 `.dialog`+`.btns` 부품). 맥 실기 확인 못 함.
+
+## 6. Docker 탭 (2026-11-11)
+
+머리줄(이름 · Connected/Not running 칩 · 엔진·CLI 버전 · Refresh) → 한계 안내 한 줄 → 엔진 문제 카드(꺼짐·CLI 없음일 때만, 이유·해결·설치 링크) → `.tabs`(Containers·Images·Volumes·Networks·Compose) → 도구줄(컨테이너만: 검색·상태 칩) → 목록 `.pane`(표 `.tbl`, 좁으면 Image·Ports·Created 열을 접는다) → 로그 `.pane`(최근 N줄·Refresh·Copy·한 줄 명령). 부품은 모두 ui.css 것이고 docker.css 는 배치만 정한다. 폭 440·600·720·1100·1700 에서 가짜 docker(목록·꺼짐·삭제 확인 창 장면) 측정 위반 0건. 왼쪽 막대에서 'Docker' 6자는 잘리지 않는다. 실제 Docker 엔진으로는 확인하지 못했다.

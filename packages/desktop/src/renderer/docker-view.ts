@@ -357,7 +357,7 @@ export function buildDocker(deps: DockerViewDeps) {
   }
 
   function paintBody(): void {
-    logPane.hidden = tab !== 'containers';
+    logPane.hidden = tab !== 'containers' || status?.ready !== true;
     if (status?.ready === false || (status === null && !loaded)) {
       scroller.replaceChildren(emptyState(status === null ? 'Checking Docker…' : 'Docker is not running', status === null ? 'Asking the docker CLI for its state.' : 'Start your Docker engine, then press Refresh. Nothing is listed until it answers.'));
       return;
