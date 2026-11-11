@@ -238,7 +238,7 @@ export async function deleteCreated(root: string, path: string): Promise<void> {
   if (!info.isFile() || !(await insideRoot(root, abs))) throw new GitInputError(`This path cannot be removed: ${path}`);
   await unlink(abs);
   const rootReal = await realpath(root);
-  let dir = dirname(abs);
+  let dir = (await realpath(dirname(abs)).catch(() => null)) ?? rootReal;
   while (dir.length > rootReal.length && dir.startsWith(rootReal + sep)) {
     try {
       await rmdir(dir);
