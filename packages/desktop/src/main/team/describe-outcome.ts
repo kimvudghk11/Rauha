@@ -16,6 +16,8 @@ export function describeOutcome(turn: TurnOutcome): string {
       if (stop !== null) lines.push(stop);
       if (outcome.changedInRun.length > 0) lines.push(`고친 파일 ${outcome.changedInRun.length}개 — ${outcome.changedInRun.map((c) => c.path).join(', ')}`);
       if (outcome.testless === true) lines.push('이 프로젝트에서는 테스트를 실행할 수 없어서 테스트 없이 구현하고 타입 검사와 리뷰로만 확인했어요. 직접 한 번 실행해 보세요.');
+      const beyond = outcome.outOfScope ?? [];
+      if (beyond.length > 0) lines.push(`처음 잡은 범위 밖 파일도 고쳤어요: ${beyond.join(', ')}`);
       const mine = outcome.userFiles ?? [];
       if (mine.length > 0) lines.push(`내가 커밋하지 않은 변경 ${mine.length}개 위에서 일했어요.`);
       const mixed = outcome.mixedFiles ?? [];

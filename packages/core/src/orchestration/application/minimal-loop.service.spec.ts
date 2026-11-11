@@ -433,7 +433,7 @@ describe('MinimalLoopService', () => {
     const steps: string[] = [];
     const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog(), new FakeUser(false), { step: (m: string) => steps.push(m) }, true).run('Money에 할인 추가');
     const tiers = team.log.filter((c) => c.role === 'implementer').map((c) => c.tier);
-    expect(tiers).toEqual(['haiku', 'haiku', 'sonnet', 'sonnet', 'sonnet']);
+    expect(tiers).toEqual(['haiku', 'haiku', 'sonnet', 'sonnet', 'sonnet', 'opus']);
     expect(outcome).toMatchObject({ status: 'stopped', stopReason: 'escalation-exhausted' });
     expect(steps.some((m) => m.includes('원인부터'))).toBe(true);
   });
@@ -580,11 +580,40 @@ describe('MinimalLoopService', () => {
     expect(outcome.status).toBe('complete');
   });
 
-  it('접수가 두 번 실패하면 intake-failed로 멈춘다', async () => {
+  it('접수가 두 번 실패해도 멈추지 않고 요청 그대로 업무를 만들어 끝까지 진행한다', async () => {
     const ws = new FakeWorkspace();
-    const team = new FakeTeam(ws, { intake: [() => ({ nonsense: true })] });
-    const outcome = await service(ws, team, new FakeChecks(ws)).run('?');
-    expect(outcome).toMatchObject({ status: 'stopped', stopReason: 'intake-failed' });
+    const team = new FakeTeam(ws, { intake: [() => ({ nonsense: true })], tester: [writeTest], implementer: [implement] });
+    const steps: string[] = [];
+    const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog(), new FakeUser(false), { step: (m: string) => steps.push(m) }).run('Money에 할인 추가해줘');
+    expect(team.calls).toEqual(['intake', 'intake', 'tester', 'implementer']);
+    expect(outcome).toMatchObject({ status: 'complete', stopReason: null, title: 'Money에 할인 추가해줘' });
+    expect(steps.some((m) => m.includes('요청 그대로'))).toBe(true);
+    expect(team.log.find((c) => c.role === 'tester')!.message).toContain('Money에 할인 추가해줘');
+  });
+
+  it('올바른 Red를 세 번 못 만들면 멈추지 않고 테스트 없이 구현한 뒤 그 사실을 결과에 남긴다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [() => report], implementer: [implement] });
+    const steps: string[] = [];
+    const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog(), new FakeUser(false), { step: (m: string) => steps.push(m) }).run('버튼 이름 바꿔줘');
+    expect(team.calls).toEqual(['intake', 'tester', 'tester', 'tester', 'implementer']);
+    expect(outcome).toMatchObject({ status: 'complete', stopReason: null, testless: true });
+    expect(steps.some((m) => m.includes('테스트 없이'))).toBe(true);
+    expect(team.log.find((c) => c.role === 'implementer')!.message).toContain('테스트 없이 진행');
+  });
+
+  it('구현 팀원이 지시서 범위 밖 파일을 고쳐도 실패로 치지 않고, 범위를 넘은 파일을 결과에 알린다', async () => {
+    const ws = new FakeWorkspace();
+    const wide: Script = (call, w) => {
+      expect(call.canWrite('src/other.ts')).toBe(true);
+      w.files.set('src/other.ts', 'new');
+      return implement(call, w);
+    };
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [wide] });
+    const outcome = await service(ws, team, new FakeChecks(ws)).run('할인');
+    expect(team.calls).toEqual(['intake', 'tester', 'implementer']);
+    expect(outcome.status).toBe('complete');
+    expect(outcome.outOfScope).toEqual(['src/other.ts']);
   });
 
   it('테스트를 만들지 않은 Red는 무효이고 다시 맡긴다', async () => {

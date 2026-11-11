@@ -140,18 +140,30 @@ describe('RunScope.threePass', () => {
     expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'haiku' } });
   });
 
-  it('리뷰 수정 요청이 두 번이면 멈춘다(halted)', () => {
+  it('리뷰 수정 요청이 두 번이어도 멈추지 않고 구현 팀원이 마지막 지적을 고친 뒤 완료한다', () => {
     const order = atReview();
     order.recordReview('changes');
     order.recordGreen(green);
     order.recordReview('changes');
-    expect(three.decide(order)).toEqual({ kind: 'stop', reason: 'review-loop' });
+    expect(three.decide(order)).toMatchObject({ kind: 'continue', assignment: { role: 'implementer' } });
+    order.recordGreen(green);
+    expect(three.decide(order)).toEqual({ kind: 'complete' });
   });
 
-  it('올바른 Red를 네 번 못 만들어 멈추면 그 이유(invalid-tests)로 알린다', () => {
+  it('올바른 Red를 세 번 못 만들어도 멈추지 않고 테스트 없이 구현 팀원을 부른다', () => {
     const order = openAtRed();
-    for (let i = 0; i < 4; i += 1) order.recordRed(invalid);
-    expect(three.decide(order)).toEqual({ kind: 'stop', reason: 'invalid-tests' });
+    for (let i = 0; i < 3; i += 1) order.recordRed(invalid);
+    expect(three.decide(order)).toMatchObject({ kind: 'continue', assignment: { role: 'implementer' } });
+  });
+
+  it('마지막 시도는 가장 높은 모델(opus) 구현 팀원이 맡는다', () => {
+    const order = openAtRed();
+    order.recordRed(red);
+    while (order.rung !== 'final') {
+      if (order.pendingSupport !== null) order.resolveSupport();
+      else order.recordGreen(fail);
+    }
+    expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'opus' } });
   });
 
   it('구현 사다리를 다 올라도 실패하면 그 이유(escalation-exhausted)로 알린다', () => {

@@ -50,15 +50,19 @@ describe('WorkOrder 파이프라인', () => {
     expect(order.nextAssignment()).toEqual({ role: 'tester', tier: 'sonnet' });
   });
 
-  it('무효 Red가 네 번 쌓이면(주니어 두 번 + 시니어 두 번) 계속 부르지 않고 멈춘다', () => {
+  it('무효 Red가 세 번 쌓이면(주니어 두 번 + 시니어 한 번) 멈추지 않고 테스트 없이 구현으로 간다', () => {
     const order = WorkOrder.open({ id: 'w', title: 't', difficulty: Difficulty.of('S'), sensitive: false, scope: ['src/**'] });
     order.approveScenario({ happyPaths: 1, errorPaths: 1 });
     const invalid = TestRun.of({ passed: 0, failed: 1, failureKind: 'import' });
-    for (let i = 0; i < 3; i += 1) order.recordRed(invalid);
+    for (let i = 0; i < 2; i += 1) order.recordRed(invalid);
     expect(order.stage).toBe('red');
+    expect(order.testsWaived).toBe(false);
     order.recordRed(invalid);
-    expect(order.stage).toBe('halted');
-    expect(order.haltReason).toBe('invalid-tests');
+    expect(order.stage).toBe('green');
+    expect(order.haltReason).toBeNull();
+    expect(order.testsLocked).toBe(false);
+    expect(order.testsWaived).toBe(true);
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'haiku' });
   });
 
   it('예외 경로가 없는 시나리오는 넘기지 않는다', () => {
@@ -153,7 +157,7 @@ describe('WorkOrder 테스트 없이 진행', () => {
 });
 
 describe('WorkOrder 승격 사다리', () => {
-  it('주니어 2회 실패 → 시니어 → 디버깅 → 설계 자문 → 중단', () => {
+  it('주니어 2회 실패 → 시니어 → 디버깅 → 설계 자문 → 가장 높은 모델로 마지막 한 번 → 그래도 실패하면 중단', () => {
     const order = openAtGreen();
 
     order.recordGreen(fail, '첫 시도: 잠금 시간 계산 누락');
@@ -173,8 +177,25 @@ describe('WorkOrder 승격 사다리', () => {
     expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'sonnet' });
 
     order.recordGreen(fail);
+    expect(order.stage).toBe('green');
+    expect(order.rung).toBe('final');
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'opus' });
+
+    order.recordGreen(fail);
     expect(order.stage).toBe('halted');
     expect(order.haltReason).toBe('escalation-exhausted');
+  });
+
+  it('마지막 시도에서 테스트가 통과하면 리뷰로 간다', () => {
+    const order = openAtGreen();
+    for (let i = 0; i < 5; i += 1) {
+      if (order.pendingSupport) order.resolveSupport();
+      order.recordGreen(fail);
+    }
+    if (order.pendingSupport) order.resolveSupport();
+    expect(order.rung).toBe('final');
+    order.recordGreen(green);
+    expect(order.stage).toBe('review');
   });
 
   it('승격 시 넘기는 실패 요약은 최근 5줄까지만', () => {
@@ -195,15 +216,29 @@ describe('WorkOrder 승격 사다리', () => {
     expect(order.stage).toBe('review');
   });
 
-  it('리뷰 수정 요청이 2번이면 중단하고 나에게 보고한다', () => {
+  it('리뷰 수정 요청이 2번이면 멈추지 않고, 마지막 지적을 한 번 더 고친 뒤 다시 리뷰하지 않고 마친다', () => {
     const order = openAtGreen();
     order.recordGreen(green);
     order.recordReview('changes');
     expect(order.stage).toBe('green');
+    expect(order.reviewWaived).toBe(false);
     order.recordGreen(green);
     order.recordReview('changes');
-    expect(order.stage).toBe('halted');
-    expect(order.haltReason).toBe('review-loop');
+    expect(order.stage).toBe('green');
+    expect(order.haltReason).toBeNull();
+    expect(order.reviewWaived).toBe(true);
+    order.recordGreen(green);
+    expect(order.stage).toBe('docs');
+  });
+
+  it('리뷰를 건너뛰기로 한 뒤에도 구현이 실패하면 사다리대로 다시 시도한다', () => {
+    const order = openAtGreen();
+    order.recordGreen(green);
+    order.recordReview('changes');
+    order.recordGreen(green);
+    order.recordReview('changes');
+    order.recordGreen(fail);
+    expect(order.stage).toBe('green');
   });
 });
 
@@ -215,10 +250,20 @@ describe('WorkOrder 쓰기 권한', () => {
     );
   });
 
-  it('구현 팀은 지시서 범위 밖을 바꿀 수 없다', () => {
+  it('구현 팀은 필요하면 지시서 범위 밖 소스도 바꿀 수 있고, 범위 밖으로 나간 파일은 따로 알 수 있다', () => {
     const order = openAtGreen();
-    expect(() => order.assertDiffAllowed('implementer', ['src/billing/pay.ts'])).toThrow(DomainError);
+    expect(() => order.assertDiffAllowed('implementer', ['src/billing/pay.ts'])).not.toThrow();
     expect(() => order.assertDiffAllowed('implementer', ['src/auth/login.ts'])).not.toThrow();
+    expect(order.allowsWrite('implementer', 'src/billing/pay.ts')).toBe(true);
+    expect(order.outOfScope(['src/auth/login.ts', 'src/billing/pay.ts', 'src\\billing\\x.ts'])).toEqual(['src/billing/pay.ts', 'src\\billing\\x.ts']);
+  });
+
+  it('테스트 없이 진행하는 업무에서는 구현 팀이 테스트 파일도 고칠 수 있다', () => {
+    const order = WorkOrder.open({ id: 'w', title: 't', difficulty: Difficulty.of('S'), sensitive: false, scope: ['src/**'] });
+    order.approveScenario({ happyPaths: 1, errorPaths: 1 });
+    order.proceedWithoutTests();
+    expect(order.allowsWrite('implementer', 'src/a.spec.ts')).toBe(true);
+    expect(() => order.assertDiffAllowed('implementer', ['tests/a.test.ts'])).not.toThrow();
   });
 
   it('테스트가 잠긴 뒤에는 테스트 팀도 테스트를 바꿀 수 없다', () => {

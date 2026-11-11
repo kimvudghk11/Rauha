@@ -9,9 +9,9 @@ export type Stage = 'scenario' | 'design' | 'red' | 'green' | 'review' | 'docs' 
 /**
  * 구현 승격 사다리.
  * junior(Haiku) 2회 실패 → senior(Sonnet) 1회 실패 → 디버깅 지원 후 재시도
- * → 또 실패 → 설계 자문(Opus) 후 재시도 → 또 실패 → 작업 중단, 나에게 보고
+ * → 또 실패 → 설계 자문(Opus) 후 재시도 → 또 실패 → 가장 높은 모델(Opus)이 마지막으로 한 번 → 또 실패 → 작업 중단, 나에게 보고
  */
-export type ImplementerRung = 'junior' | 'senior' | 'senior-after-debug' | 'senior-after-advice';
+export type ImplementerRung = 'junior' | 'senior' | 'senior-after-debug' | 'senior-after-advice' | 'final';
 
 export type SupportRequest = 'debugger' | 'advisor';
 
@@ -27,9 +27,13 @@ export interface ScenarioSummary {
 const JUNIOR_ATTEMPTS = 2;
 const SCENARIO_REJECTIONS_BEFORE_SENIOR = 2;
 const INVALID_REDS_BEFORE_SENIOR = 2;
-/** 올바른 이유로 실패하는 테스트를 이만큼 못 쓰면 요청이 테스트로 풀 일이 아니거나 막힌 것이므로 멈춘다. */
-const INVALID_REDS_BEFORE_HALT = 4;
-const REVIEW_CHANGES_BEFORE_HALT = 2;
+/**
+ * 올바른 이유로 실패하는 테스트를 이만큼 못 쓰면 테스트로 풀 일이 아닌 요청(이름 바꾸기·설정·문서·화면 손질)이다.
+ * 멈추면 사용자가 코드 수정을 못 받으므로, 테스트 없이 구현으로 가고 검증은 타입·린트 검사와 리뷰가 맡는다.
+ */
+const INVALID_REDS_BEFORE_SKIP = 3;
+/** 리뷰 수정 요청이 이만큼 쌓이면 마지막 지적을 한 번 더 고친 뒤 다시 리뷰하지 않고 마친다(멈추지 않는다). */
+const REVIEW_CHANGES_BEFORE_WAIVE = 2;
 const HANDOFF_LINES = 5;
 
 interface WorkOrderState {
@@ -46,6 +50,10 @@ interface WorkOrderState {
   invalidReds: number;
   reviewChanges: number;
   testsLocked: boolean;
+  /** 올바른 Red를 못 만들어 테스트 없이 진행하기로 했는지 */
+  testsWaived: boolean;
+  /** 리뷰가 반복돼 다음 구현 뒤에는 리뷰하지 않고 마치기로 했는지 */
+  reviewWaived: boolean;
   haltReason: HaltReason | null;
   failureNotes: string[];
 }
@@ -84,6 +92,8 @@ export class WorkOrder {
       invalidReds: 0,
       reviewChanges: 0,
       testsLocked: false,
+      testsWaived: false,
+      reviewWaived: false,
       haltReason: null,
       failureNotes: [],
     });
@@ -109,6 +119,12 @@ export class WorkOrder {
   }
   get testsLocked(): boolean {
     return this.state.testsLocked;
+  }
+  get testsWaived(): boolean {
+    return this.state.testsWaived;
+  }
+  get reviewWaived(): boolean {
+    return this.state.reviewWaived;
   }
   get haltReason(): HaltReason | null {
     return this.state.haltReason;
@@ -155,7 +171,10 @@ export class WorkOrder {
     this.assertStage('red');
     if (!run.isValidRed()) {
       this.state.invalidReds += 1;
-      if (this.state.invalidReds >= INVALID_REDS_BEFORE_HALT) this.halt('invalid-tests');
+      if (this.state.invalidReds >= INVALID_REDS_BEFORE_SKIP) {
+        this.state.testsWaived = true;
+        this.state.stage = 'green';
+      }
       return;
     }
     this.state.testsLocked = true;
@@ -182,7 +201,7 @@ export class WorkOrder {
       );
     }
     if (run.isGreen()) {
-      this.state.stage = 'review';
+      this.state.stage = this.state.reviewWaived ? 'docs' : 'review';
       this.state.failureNotes = [];
       return;
     }
@@ -217,10 +236,7 @@ export class WorkOrder {
       return;
     }
     this.state.reviewChanges += 1;
-    if (this.state.reviewChanges >= REVIEW_CHANGES_BEFORE_HALT) {
-      this.halt('review-loop');
-      return;
-    }
+    if (this.state.reviewChanges >= REVIEW_CHANGES_BEFORE_WAIVE) this.state.reviewWaived = true;
     this.state.stage = 'green';
   }
 
@@ -268,6 +284,11 @@ export class WorkOrder {
     return WritePolicy.forScope(this.state.scope).allows(role, path, this.state.testsLocked);
   }
 
+  /** 바뀐 파일 중 지시서 범위 밖에 있는 것(입력 그대로). 구현 팀은 필요하면 범위를 넘을 수 있고, 넘은 곳은 결과에 알린다. */
+  outOfScope(changedPaths: readonly string[]): string[] {
+    return changedPaths.filter((path) => !WritePolicy.forScope(this.state.scope).covers(path));
+  }
+
   /** 팀원이 낸 diff를 검사한다. 거부된 경로가 있으면 DomainError. */
   assertDiffAllowed(role: TeamRole, changedPaths: readonly string[]): void {
     WritePolicy.forScope(this.state.scope).assertDiff(role, changedPaths, this.state.testsLocked);
@@ -276,6 +297,7 @@ export class WorkOrder {
   // ── 내부 규칙 ─────────────────────────────────────────────
 
   private implementerTier(): ModelTier {
+    if (this.state.rung === 'final') return 'opus';
     return this.state.rung === 'junior' ? 'haiku' : 'sonnet';
   }
 
@@ -296,6 +318,10 @@ export class WorkOrder {
         this.state.pendingSupport = 'advisor';
         return;
       case 'senior-after-advice':
+        this.state.rung = 'final';
+        this.state.failuresOnRung = 0;
+        return;
+      case 'final':
         this.halt('escalation-exhausted');
         return;
     }

@@ -103,7 +103,7 @@ describe('RoleSettingsDto — 가벼운 답변', () => {
     const light = RoleSettingsDto.defaults().lightAnswerer();
     expect(light.tier).toBe('haiku');
     expect(light.effort).toBe('low');
-    expect(light.maxTurns).toBe(6);
+    expect(light.maxTurns).toBe(12);
     expect(light.tools).toEqual(['Read', 'Grep', 'Glob']);
   });
 

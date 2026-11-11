@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
-import { modelOf, readDirs, toolCountHook, withTeamInstruction } from './agent-sdk-team-member.js';
+import type { MemberUsage } from '../application/ports.js';
+import { addUsage, modelOf, readDirs, toolCountHook, withTeamInstruction } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -52,5 +53,18 @@ describe('modelOf', () => {
   });
   it('없으면 등급의 기본 모델이다', () => {
     expect(modelOf({ setting: setting('sonnet') })).toBe('claude-sonnet-5-5');
+  });
+});
+
+describe('이어서 부른 호출의 사용량 합치기', () => {
+  const usage = (over: Partial<MemberUsage>): MemberUsage => ({ model: 'm', durationMs: 10, costUsd: 0.1, turns: 3, inputTokens: 100, outputTokens: 50, cacheReadTokens: 5, denials: [], endReason: 'success', ...over });
+
+  it('앞 호출이 없으면 마지막 호출 그대로다', () => {
+    expect(addUsage(null, usage({}))).toEqual(usage({}));
+  });
+
+  it('시간·턴·토큰은 더하고 종료 이유는 마지막 호출의 것을 쓴다', () => {
+    const sum = addUsage(usage({ endReason: 'error_max_turns', denials: ['Bash: x'] }), usage({ turns: 7, denials: ['Edit: y'] }));
+    expect(sum).toMatchObject({ durationMs: 20, turns: 10, inputTokens: 200, outputTokens: 100, cacheReadTokens: 10, endReason: 'success', denials: ['Bash: x', 'Edit: y'] });
   });
 });

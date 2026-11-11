@@ -32,6 +32,9 @@ export class WritePolicy {
         // 올바른 Red를 만들기 위해서다. 구현까지 해 버리면 Red가 실패 0개라 무효가 된다.
         return !testsLocked && (WritePolicy.isTestFile(p) || this.inScope(p));
       case 'implementer':
+        // 범위는 길잡이다: 요청을 끝내려면 범위 밖 파일을 고쳐야 할 때가 많고, 막으면 구현이 계속 실패해 작업이 멈춘다.
+        // 잠긴 테스트만 지킨다(비밀 파일은 도구 검사가 따로 막는다). 테스트 없이 진행하는 업무에서는 테스트 파일도 고칠 수 있다.
+        return !testsLocked || !WritePolicy.isTestFile(p);
       case 'reviewer':
         return !WritePolicy.isTestFile(p) && this.inScope(p);
       case 'writer':
@@ -53,6 +56,11 @@ export class WritePolicy {
         `${role} 역할은 다음 파일을 바꿀 수 없습니다: ${denied.join(', ')}`,
       );
     }
+  }
+
+  /** 지시서 범위 안의 경로인지 */
+  covers(path: string): boolean {
+    return this.inScope(toPosixPath(path));
   }
 
   private inScope(path: string): boolean {

@@ -83,6 +83,9 @@
 .app[data-mode=side] .detail, .app[data-mode=xl] .detail { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
 .app[data-mode=side] .dside .tl, .app[data-mode=xl] .dside .tl { flex-direction: row; flex-wrap: wrap; gap: 14px; }
 
+/* 입력칸 위 대기 카드 묶음(배치만. 카드 겉모양은 .approval) */
+.ask-tray { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s3) 0; max-height: 45%; overflow: auto; border-top: 1px solid var(--border); }
+.ask-item { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
 /* 허락 카드(정리 보기) */
 .approval { border: 1px solid var(--warn-border); background: var(--warn-bg); border-radius: var(--r-md); padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
 .approval .ah { color: var(--yellow); font-weight: 600; }

@@ -14,7 +14,7 @@ describe('WorkOrderService', () => {
     expect(status.next?.model).toBe('claude-haiku-5-5');
   });
 
-  it('범위 밖 파일을 바꾼 구현 보고는 거부한다', async () => {
+  it('잠긴 테스트를 바꾼 구현 보고는 거부한다', async () => {
     const repo = new InMemoryWorkOrderRepository();
     const service = new WorkOrderService(repo, () => 'wo-1');
     await service.open(OpenWorkOrderDto.from({ title: 't', fileCount: 1, scope: ['src/auth/**'] }));
@@ -25,10 +25,10 @@ describe('WorkOrderService', () => {
     const report = WorkReportDto.from({
       result: 'done',
       did: ['구현'],
-      changedFiles: ['src/billing/pay.ts'],
+      changedFiles: ['src/auth/login.spec.ts'],
       passed: 1,
       failed: 0,
     });
-    await expect(service.submitImplementation('wo-1', report)).rejects.toThrow(/billing/);
+    await expect(service.submitImplementation('wo-1', report)).rejects.toThrow(/login.spec/);
   });
 });

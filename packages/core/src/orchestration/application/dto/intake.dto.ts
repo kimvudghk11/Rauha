@@ -106,6 +106,31 @@ export class IntakeDto {
     );
   }
 
+  /**
+   * 팀장이 업무 지시서를 끝내 만들지 못했을 때 쓰는 지시서: 요청 글 그대로를 수용 기준으로 삼는다.
+   * 접수 실패로 작업을 멈추면 사용자는 아무것도 못 받으므로, 범위를 저장소 전체로 두고 팀원이 요청을 직접 읽고 일하게 한다.
+   */
+  static fallback(request: string): IntakeDto {
+    const text = request.trim();
+    const title = (text.split('\n')[0] ?? '').trim().slice(0, 60) || '요청한 작업';
+    return new IntakeDto(
+      title,
+      3,
+      false,
+      false,
+      ['**'],
+      [
+        { kind: 'happy', text: `사용자의 요청을 그대로 해낸다: ${text}` },
+        { kind: 'error', text: '기존 동작과 기존 검사(테스트·타입·린트)가 깨지지 않는다' },
+      ],
+      '요청한 변경이 반영되고 기존 검사가 통과한다',
+      [],
+      [],
+      [],
+      [],
+    );
+  }
+
   toOpenWorkOrder(): OpenWorkOrderDto {
     return OpenWorkOrderDto.from({
       title: this.title,

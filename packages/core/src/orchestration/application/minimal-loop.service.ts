@@ -38,7 +38,7 @@ import type {
 
 const INTAKE_ATTEMPTS = 2;
 /** 상태 머신이 멈추게 되어 있지만, 무한 반복을 막는 마지막 안전장치. */
-const MAX_STEPS = 12;
+const MAX_STEPS = 24;
 const toSettled = ({ question, chosen, confirmed }: SettledAssumptionChoice): SettledAssumption => ({ question, chosen, confirmed });
 
 export interface RunOutcome {
@@ -75,6 +75,8 @@ export interface RunOutcome {
   readonly mixedFiles?: readonly string[];
   /** 이 프로젝트에서 테스트를 실행할 수 없어 테스트 없이 구현하고 타입 검사·리뷰로만 확인했는지 */
   readonly testless?: boolean;
+  /** 업무 지시서의 범위를 넘어 고친 파일(막지는 않고 알린다) */
+  readonly outOfScope?: readonly string[];
 }
 
 /** 대화 세션이 접수 팀장에게 함께 넘기는 맥락 */
@@ -212,6 +214,8 @@ export class MinimalLoopService {
   private startState: WorkspaceState = WorkspaceState.of([]);
   /** 테스트를 실행할 방법이 없어 Red 없이 진행한 실행인지 */
   private testless = false;
+  /** 구현 팀원이 업무 지시서의 범위를 넘어 고친 파일 */
+  private readonly outOfScope = new Set<string>();
 
   constructor(private readonly deps: MinimalLoopDeps) {}
 
@@ -255,10 +259,7 @@ export class MinimalLoopService {
     const baseline = Verification.of(baselineResults);
     await log.recordChecks('baseline', baselineResults);
 
-    if (intake === null) {
-      return this.finish({ tally, started, start: current.start, lockedTests: current.lockedTests, title: request.slice(0, 60), status: 'stopped', stopReason: 'intake-failed', assumptions: [] });
-    }
-    const { dto, order, assumptions } = intake;
+    const { dto, order, assumptions } = intake ?? this.fallbackIntake(request);
     current.title = order.title;
     current.assumptions = assumptions;
     const commands = baseline.commandsNote();
@@ -318,6 +319,12 @@ export class MinimalLoopService {
         lockedTests = result.testFiles;
         current.lockedTests = lockedTests;
         redFeedback = result.feedback;
+        if (order.testsWaived) {
+          this.testless = true;
+          lockedTests = [];
+          current.lockedTests = [];
+          progress.step('이 요청은 "지금은 실패하는 테스트"로 확인하기 어려워요(이름 바꾸기·설정·문서·화면 손질 같은 변경). 멈추지 않고 테스트 없이 구현한 뒤 타입 검사·리뷰로 확인합니다');
+        }
         continue;
       }
 
@@ -328,7 +335,9 @@ export class MinimalLoopService {
         brief,
         `<locked_tests>\n${lockedTests.join('\n')}\n</locked_tests>`,
         await this.filesBlock([...lockedTests, ...dto.readFirst]),
-        this.testless
+        order.testsWaived
+          ? '<task>수용 기준을 만족하는 구현을 하세요. 이 요청은 실패하는 테스트로 먼저 확인하기 어려워 테스트 없이 진행합니다. 요청이 테스트를 고치거나 더하는 일이면 테스트 파일도 고칠 수 있습니다. 타입 검사와 직접 실행해 본 결과로 확인하세요.</task>'
+          : this.testless
           ? '<task>수용 기준을 만족하는 최소 구현을 하세요. 이 프로젝트에서는 테스트를 실행할 수 없으니 테스트를 새로 만들거나 고치지 마세요. 대신 타입 검사와 직접 실행해 본 결과로 확인하세요.</task>'
           : '<task>잠긴 테스트를 통과시키는 최소 구현을 하세요. 테스트 파일은 고칠 수 없습니다.</task>',
         handoff !== '' ? `<handoff>\n이전 시도의 실패 요약입니다.\n${handoff}\n</handoff>` : '',
@@ -354,6 +363,11 @@ export class MinimalLoopService {
         order.recordGreen(TestRun.of({ passed: 0, failed: 1, failedNames: ['쓰기 거부'] }), `쓰기 거부: ${error.message}`);
         lastFailure = error.message;
         continue;
+      }
+      const beyond = order.outOfScope(changed);
+      if (beyond.length > 0) {
+        for (const path of beyond) this.outOfScope.add(path);
+        progress.step(`업무 범위 밖 파일도 고쳤어요: ${beyond.join(', ')}`);
       }
 
       progress.step('검증 묶음을 실행합니다');
@@ -490,6 +504,15 @@ export class MinimalLoopService {
     const second = await this.intakeOnce(request, settled, tally, context, known);
     if (second === null) return null;
     return { ...second, assumptions: [...settled.map(toSettled), ...second.dto.settleAssumptions(null).map(toSettled)] };
+  }
+
+  /** 팀장이 업무 지시서를 못 만들었을 때: 멈추지 않고 요청 글 그대로 업무를 만든다. */
+  private fallbackIntake(request: string): { dto: IntakeDto; order: WorkOrder; assumptions: SettledAssumption[] } {
+    const dto = IntakeDto.fallback(request);
+    const order = dto.toOpenWorkOrder().toEntity(this.deps.newId());
+    order.approveScenario(dto.toScenarioSummary());
+    this.deps.progress.step('팀장이 업무 지시서를 정리하지 못했어요. 멈추지 않고 요청 그대로 팀원에게 맡깁니다');
+    return { dto, order, assumptions: [] };
   }
 
   private async intakeOnce(
@@ -695,6 +718,7 @@ export class MinimalLoopService {
       basis: this.basis,
       memberStop: guideProps.memberStop,
       testless: this.testless,
+      outOfScope: [...this.outOfScope],
       userFiles: this.startState.userFiles(),
       mixedFiles: this.startState.mixedWith(changedInRun.map((c) => c.path)),
     };

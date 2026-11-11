@@ -125,7 +125,10 @@ export function buildChat(actions: ChatActions) {
   const attachBar = el('div', 'attach-bar');
   attachBar.hidden = true;
   composer.append(attachBar, input, hint);
-  mainPane.append(head, msgs, composer);
+  // 답을 기다리는 허락·질문 카드. 팀 상세를 열지 않아도 입력칸 바로 위에서 답할 수 있다(안 보여서 작업이 멈춘 듯 보이지 않게).
+  const askTray = el('div', 'ask-tray');
+  askTray.hidden = true;
+  mainPane.append(head, msgs, askTray, composer);
 
   // ── 아주 좁을 때 맨 위 띠 ──
   const strip = el('div', 'strip');
@@ -501,12 +504,14 @@ export function buildChat(actions: ChatActions) {
     root.closest('.app')?.setAttribute('data-detail', '1');
     renderDetail();
     renderRooms();
+    renderAskTray();
   }
   function close(): void {
     openId = null;
     root.closest('.app')?.setAttribute('data-detail', '0');
     detail.replaceChildren();
     renderRooms();
+    renderAskTray();
   }
 
   const reviews = new Map<string, Promise<ChangeReview | null>>();
@@ -577,6 +582,20 @@ export function buildChat(actions: ChatActions) {
       table.appendChild(tr);
     }
     return table;
+  }
+
+  /** 입력칸 위 대기 카드: 상세에 이미 보이는 작업의 카드는 겹쳐 그리지 않는다. */
+  function renderAskTray(): void {
+    const shown = approvals.filter((a) => a.jobId !== openId);
+    askTray.replaceChildren();
+    askTray.hidden = shown.length === 0;
+    for (const a of shown) {
+      const job = jobs.get(a.jobId);
+      const box = el('div', 'ask-item');
+      if (job !== undefined) box.appendChild(el('div', 'sub', `Needs your answer · ${short(job.request, 60)}`));
+      box.appendChild(approvalCard(a));
+      askTray.appendChild(box);
+    }
   }
 
   function approvalCard(a: ApprovalView): HTMLElement {
@@ -771,6 +790,7 @@ export function buildChat(actions: ChatActions) {
     },
     approvals(list: readonly ApprovalView[]): void {
       approvals = list;
+      renderAskTray();
       renderRooms();
       if (openId !== null) renderDetail();
     },

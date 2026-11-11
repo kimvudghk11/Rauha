@@ -104,3 +104,24 @@ describe('IntakeDto — 해석이 갈리는 요청', () => {
     expect(IntakeDto.from({ ...valid, specialties: ['요리'] }).toBrief('S')).not.toContain('<specialty>');
   });
 });
+
+describe('IntakeDto.fallback — 팀장이 지시서를 못 만들었을 때', () => {
+  it('요청 글 그대로를 수용 기준으로 삼고 정상·예외 경로를 하나씩 갖춰 업무를 열 수 있다', () => {
+    const dto = IntakeDto.fallback('  버튼 색을 파랑으로 바꿔줘\n그리고 여백도 줄여줘  ');
+    expect(dto.title).toBe('버튼 색을 파랑으로 바꿔줘');
+    expect(dto.toScenarioSummary()).toEqual({ happyPaths: 1, errorPaths: 1 });
+    expect(dto.acceptance[0]!.text).toContain('여백도 줄여줘');
+    expect(dto.scope).toEqual(['**']);
+    expect(() => dto.toOpenWorkOrder()).not.toThrow();
+  });
+
+  it('제목은 60자까지만 쓰고, 빈 요청이어도 제목이 비지 않는다', () => {
+    expect(IntakeDto.fallback('가'.repeat(200)).title).toHaveLength(60);
+    expect(IntakeDto.fallback('   ').title).toBe('요청한 작업');
+  });
+
+  it('범위가 저장소 전체라 어느 소스 파일이든 범위 안이다', () => {
+    const order = IntakeDto.fallback('고쳐줘').toOpenWorkOrder().toEntity('w');
+    expect(order.outOfScope(['src/a.ts', 'packages/x/y.tsx', 'README.md'])).toEqual([]);
+  });
+});

@@ -8,6 +8,7 @@ import { createFetchLog } from './fetch-log.js';
 import { createToolGuard, type PermissionAsker } from './tool-guard.js';
 import { ToolTally } from '../domain/tool-tally.js';
 import { accountBlock } from './usage-limit.js';
+import { MemberContinue } from '../domain/member-continue.js';
 
 export interface AgentSdkTeamMemberOptions {
   /** 작업 폴더. 팀원은 이 안에서만 일한다. */
@@ -115,10 +116,24 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     this.running.add(controller);
     let result: SDKResultMessage | null = null;
     let partial: string | null = null;
+    let spent: MemberUsage | null = null;
+    let messages = opened.messages;
     try {
-      for await (const message of opened.messages) {
-        if (message.type === 'result') result = message;
-        else if (message.type === 'assistant') partial = lastText(message.message.content) ?? partial;
+      // 턴 한도에 닿았거나 결과 형식만 못 맞춘 호출은 멈추지 않고 같은 대화를 이어서 끝낸다(MemberContinue).
+      for (let continued = 0; ; continued += 1) {
+        result = null;
+        for await (const message of messages) {
+          if (message.type === 'result') result = message;
+          else if (message.type === 'assistant') partial = lastText(message.message.content) ?? partial;
+        }
+        if (result === null || controller.signal.aborted) break;
+        const done: SDKResultMessage = result;
+        const failure = done.subtype === 'success' ? null : `${done.subtype}: ${done.errors.join(' / ')}`;
+        if (failure !== null && accountBlock(failure) !== null) break;
+        const next = MemberContinue.after({ endReason: done.terminal_reason ?? done.subtype, hasOutput: done.subtype === 'success' && done.structured_output !== undefined, done: continued });
+        if (next === null) break;
+        spent = addUsage(spent, toUsage(model, done));
+        messages = query({ prompt: next.prompt, options: { ...this.sdkOptions(call, opened), resume: done.session_id } });
       }
     } catch (error) {
       const detail = stderr.join('').trim().split('\n').slice(-5).join('\n');
@@ -126,9 +141,10 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       return {
         output: null,
         error: message,
-        usage: { ...emptyUsage(model, Date.now() - started), tools: tally.entries() },
+        usage: { ...addUsage(spent, emptyUsage(model, Date.now() - started)), tools: tally.entries() },
         fetched: fetchLog.entries(),
         blocked: controller.signal.aborted ? CANCELLED : accountBlock(message),
+        partial,
       };
     } finally {
       this.running.delete(controller);
@@ -139,8 +155,8 @@ export class AgentSdkTeamMember implements TeamMemberPort {
 
     const fetched = fetchLog.entries();
     if (controller.signal.aborted) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, Date.now() - started), fetched, blocked: CANCELLED };
-    if (result === null) return { output: null, error: '결과 메시지를 받지 못했습니다.', usage: emptyUsage(model, Date.now() - started), fetched };
-    const usage = { ...toUsage(model, result), tools: tally.entries() };
+    if (result === null) return { output: null, error: '결과 메시지를 받지 못했습니다.', usage: addUsage(spent, emptyUsage(model, Date.now() - started)), fetched, partial };
+    const usage = { ...addUsage(spent, toUsage(model, result)), tools: tally.entries() };
     if (result.subtype !== 'success') {
       const error = `${result.subtype}: ${result.errors.join(' / ')}`;
       return { output: null, error, usage, fetched, blocked: accountBlock(error), partial };
@@ -202,7 +218,6 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       settingSources: call.setting.readsProject ? ['project'] : [],
       effort: call.setting.effort,
       maxTurns: call.setting.maxTurns,
-      maxBudgetUsd: call.setting.maxBudgetUsd,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
         PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
@@ -254,6 +269,21 @@ function lastText(content: unknown): string | null {
 
 function emptyUsage(model: string, durationMs: number): MemberUsage {
   return { model, durationMs, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' };
+}
+
+/** 이어서 부른 호출들의 사용량을 하나로 합친다. 종료 이유와 거절 목록은 마지막 호출의 것이다. */
+export function addUsage(before: MemberUsage | null, last: MemberUsage): MemberUsage {
+  if (before === null) return last;
+  return {
+    ...last,
+    durationMs: before.durationMs + last.durationMs,
+    costUsd: before.costUsd + last.costUsd,
+    turns: before.turns + last.turns,
+    inputTokens: before.inputTokens + last.inputTokens,
+    outputTokens: before.outputTokens + last.outputTokens,
+    cacheReadTokens: before.cacheReadTokens + last.cacheReadTokens,
+    denials: [...before.denials, ...last.denials],
+  };
 }
 
 function toUsage(model: string, result: SDKResultMessage): MemberUsage {
