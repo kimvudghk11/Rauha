@@ -300,6 +300,10 @@ nav.act            button 52×52 (s·xs 44×42): svg 22 + span 9.5px, .on = 왼�
 - 어긋난 곳 처리: A1~A6 버튼(`.sec` 충돌, 6가지 높이, line-height) 해결 · B7 git 강조는 `primaryGitAction()`으로 하나만 · B9~B10 칩 색·토큰 밖 색은 토큰/허용 목록 · C12~C14 탭·칩·아이콘 버튼은 `tab`·`chip`·`btn icon` · D16~D23 이름 충돌은 공통 이름을 ui.css 한 곳에서만 정의하도록 spec 검사 · E24~E25 간격·글자는 단계 토큰.
 - 남은 것: 코드 탭 전용 밀집 부품(`tree-row` 22, `code-tab` 35, `term-tab` 30, `.ri` 기록 행)은 VS Code 규격이라 따로 둠. 글자 크기 10·10.5·12.5 일부가 코드 탭·캐릭터 말풍선에 남음. 첫 실행 마법사는 가짜 팀 실행에서 건너뛰어 측정하지 못함(같은 `.dialog`+`.btns` 부품). 맥 실기 확인 못 함.
 
+## 6-1. API 탭 (2026-11-11, `api-view.ts`, `api-editor.ts`, `api-response-view.ts`, `api-tree.ts`, `api-parts.ts`, `api-env-dialog.ts`, `api.css`)
+
+왼쪽 목록(Requests: 컬렉션·기록, Import) | 가운데 이름 줄(Save)·주소 줄(메서드·주소·Send↔Cancel)·편집기(Params·Headers·Auth·Body) | 응답 칸(상태 칩·시간·크기·Body/Headers·복사). 환경 선택 옆 Manage 가 환경 창을 연다. Send 단추는 누른 뒤 같은 자리에서 Cancel 이 되므로 `data-repeat-ok` 로 연타 막기에서 뺀다(그렇지 않으면 450ms 안의 Cancel 이 삼켜진다). 폭 440~1700 에서 측정 장면 5개(api·api-failed·api-list·api-env·api-import) 위반 0건.
+
 ## 6. Docker 탭 (2026-11-11)
 
 머리줄(이름 · Connected/Not running 칩 · 엔진·CLI 버전 · Refresh) → 한계 안내 한 줄 → 엔진 문제 카드(꺼짐·CLI 없음일 때만, 이유·해결·설치 링크) → `.tabs`(Containers·Images·Volumes·Networks·Compose) → 도구줄(컨테이너만: 검색·상태 칩) → 목록 `.pane`(표 `.tbl`, 좁으면 Image·Ports·Created 열을 접는다) → 로그 `.pane`(최근 N줄·Refresh·Copy·한 줄 명령). 부품은 모두 ui.css 것이고 docker.css 는 배치만 정한다. 폭 440·600·720·1100·1700 에서 가짜 docker(목록·꺼짐·삭제 확인 창 장면) 측정 위반 0건. 왼쪽 막대에서 'Docker' 6자는 잘리지 않는다. 실제 Docker 엔진으로는 확인하지 못했다.
