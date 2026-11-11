@@ -261,6 +261,9 @@ const SCENES = [
   // 전체 찾기: 단어 단위 켜기, 포함/제외 칸 열기, 결과(파일별 묶음)와 요약 줄 / 잘못된 정규식 안내
   ['code-search-results', 'code', [byText('.code-ehead .tab', 'Search'), on('.cs-row .cs-opt:nth-child(3)'), on('.cs-row .cs-opt:nth-child(5)'), typeInto('.code-search .cs-row .cs-input', 'export'), typeInto('.cs-globs .cs-input:nth-child(1)', '*.ts, *.md'), typeInto('.cs-globs .cs-input:nth-child(2)', 'node_modules'), WAIT]],
   ['code-search-bad', 'code', [byText('.code-ehead .tab', 'Search'), on('.cs-row .cs-opt:nth-child(4)'), typeInto('.code-search .cs-row .cs-input', '(unclosed'), WAIT]],
+  // Problems: TS 파일에 타입 오류를 쳐 넣고 잠시 뒤 상태줄 단추로 목록을 연다 / 닫힌 상태
+  ['code-problems', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), WAIT, "(() => { const c = document.querySelector('.cm-content'); c.focus(); document.execCommand('insertText', false, 'const bad: number = \"x\";'); })() /* querySelector */", "(() => new Promise((r) => setTimeout(r, 4500)))() /* querySelector */", q('.code-status .cp-btn')]],
+  ['code-problems-closed', 'code', [CLEAN, WAIT, expandByName('app-one'), WAIT, rowByName('main.ts'), WAIT]],
   ['todo', 'todo', []],
   // 칸반: 카드 하나를 넣고(체크리스트·라벨·우선순위 포함) 보드 · 새 카드 입력 · 카드 모달 · 우클릭 메뉴 · 칸 메뉴 · 칸 지우기 창
   ['todo-seeded', 'todo', [TODO_SEED]],

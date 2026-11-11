@@ -2,6 +2,10 @@ import { codeFailText, type CodeApi, type RepoInfo, type SearchFileHits } from '
 import { searchFailText, searchSummaryText } from '../shared/search-summary.js';
 import { fallbackSearchFor } from '../shared/ts-nav.js';
 import { createCodeNav } from './code-nav.js';
+import { createDiagnostics } from './code-diagnostics.js';
+import { ProblemBook } from '../shared/problems.js';
+import { createProblemsPanel } from './code-problems.js';
+import { isTsLikePath } from '../shared/ts-nav.js';
 import { AUTO_SAVE_DELAY_MS, autoSaveSkip, wantsAutoSave, type AutoSaveMode, type AutoSaveTrigger } from '../shared/auto-save.js';
 import { ChangeMap } from '../shared/code-changes.js';
 import { rankFiles } from '../shared/quick-open.js';
@@ -166,7 +170,8 @@ export function buildCode(deps: CodeDeps) {
   const status = el('div', 'code-status');
   const sPath = el('span', 'sp');
   const sRight = el('span', 'sr');
-  status.append(sPath, sRight);
+  const problems = createProblemsPanel((p, l, c) => void openAt(p, l, c));
+  status.append(sPath, problems.button, sRight);
   const term = buildTerminal(deps.terminal);
   termBtn.addEventListener('click', () => void term.toggle());
   // 터미널이 열려 있으면 단추가 눌린 모양(btn.on)이어서 켜졌는지 한눈에 보인다
@@ -182,9 +187,22 @@ export function buildCode(deps: CodeDeps) {
   bar.insertBefore(preview.modeBar, blameBtn);
   // 창 크기 단계(data-tier)가 바뀐 뒤에 다시 계산한다
   window.addEventListener('resize', () => window.setTimeout(() => root.isConnected && preview.relayout(), 60));
-  main.append(bar, notice, preview.body, empty, term.root, status);
+  main.append(bar, notice, preview.body, empty, problems.root, term.root, status);
 
   let tabs = OpenFiles.empty();
+  let lastBook = ProblemBook.empty();
+  let lastFailure: string | null = null;
+  const paintProblems = (): void => problems.paint(lastBook, lastFailure, tabs.active !== null && isTsLikePath(tabs.active));
+  const diag = createDiagnostics({
+    api: deps.api,
+    textOf: (p) => editor.textOf(p),
+    underline: (p, items) => editor.setDiagnostics(p, items),
+    changed: (book, failure) => {
+      lastBook = book;
+      lastFailure = failure;
+      paintProblems();
+    },
+  });
   const info = new Map<string, FileInfo>();
   const saving = new Set<string>();
   let autoMode: AutoSaveMode = 'off';
@@ -206,6 +224,7 @@ export function buildCode(deps: CodeDeps) {
     mac: deps.platform === 'darwin',
     onNavigate: (kind, line, column) => void nav.go(kind, line, column),
     onChange: () => {
+      diag.schedule(tabs.active);
       paintDirty();
       scheduleAutoSave();
       preview.textChanged();
@@ -412,6 +431,7 @@ export function buildCode(deps: CodeDeps) {
     paintTabs();
     paintNotice();
     paintStatus();
+    paintProblems();
     tree.setActive(preview.activeImage()?.path ?? tabs.active);
   }
 
@@ -453,6 +473,7 @@ export function buildCode(deps: CodeDeps) {
   function register(path: string, text: string, i: FileInfo): void {
     info.set(path, i);
     editor.replace(path, text, i.language, i.indent, i.readOnly);
+    diag.refresh(path);
   }
 
   async function openPath(path: string): Promise<void> {
@@ -496,6 +517,7 @@ export function buildCode(deps: CodeDeps) {
     const wasActive = tabs.active === path;
     tabs = tabs.closed(path);
     editor.remove(path);
+    diag.forget(path);
     info.delete(path);
     if (wasActive && tabs.active !== null) editor.show(tabs.active);
     else if (tabs.active === null) editor.hide();
@@ -524,6 +546,7 @@ export function buildCode(deps: CodeDeps) {
           paintAll();
           void refreshMarks(path);
           void refreshChanges();
+          diag.refresh(path);
           return true;
         }
         // 자동 저장은 충돌·삭제를 묻지 않고 멈춘다(덮어쓰기는 사람이 손으로 저장할 때만 고른다)
@@ -914,6 +937,9 @@ export function buildCode(deps: CodeDeps) {
     } else if (e.shiftKey && key === 'f') {
       e.preventDefault();
       setMode('search');
+    } else if (e.shiftKey && key === 'm') {
+      e.preventDefault();
+      if (!e.repeat) problems.toggle();
     } else if (e.shiftKey && key === 'e') {
       e.preventDefault();
       if (!e.repeat) sendSelection();
@@ -949,6 +975,7 @@ export function buildCode(deps: CodeDeps) {
       editor.remove(f.path);
       info.delete(f.path);
     }
+    diag.reset();
     tabs = OpenFiles.empty();
     clearRecent();
     preview.closeAllImages();
@@ -985,6 +1012,7 @@ export function buildCode(deps: CodeDeps) {
     }
     for (const m of moves) {
       editor.rename(m.from, m.to);
+      diag.renamed(m.from, m.to);
       const old = info.get(m.from);
       info.delete(m.from);
       if (old === undefined) continue;
@@ -1006,6 +1034,7 @@ export function buildCode(deps: CodeDeps) {
         continue;
       }
       editor.remove(f.path);
+      diag.forget(f.path);
       info.delete(f.path);
       noteGone(f.path);
       tabs = tabs.closed(f.path);

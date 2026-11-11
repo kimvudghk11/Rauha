@@ -202,3 +202,17 @@
 
 /* 파일 아이콘 심볼 모음(file-icons.ts가 body 맨 앞에 넣는다): 줄 상자를 만들지 않게 흐름에서 뺀다. 없으면 앱 전체가 19px 아래로 밀린다. */
 .fi-sprite { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+
+/* Problems 목록(편집기 아래) */
+.code-problems { flex: none; height: 168px; display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--side); min-height: 0; }
+.code-problems[hidden] { display: none; }
+.cp-head { flex: none; display: flex; align-items: center; gap: var(--s2); height: var(--h-head); padding: 0 var(--s3); font-size: var(--fs-sm); color: var(--bright); }
+.cp-count { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-list { flex: 1; min-height: 0; overflow: auto; padding-bottom: var(--s2); }
+.cp-row { display: flex; align-items: center; gap: var(--s2); width: 100%; min-height: 24px; padding: 0 var(--s3); background: none; border: none; text-align: left; font-size: var(--fs-sm); color: var(--text); }
+.cp-row:hover { background: var(--row-hover); }
+.cp-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-where { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-empty { padding: var(--s2) var(--s3); font-size: var(--fs-sm); color: var(--muted); }
+.code-status .cp-btn { flex: none; }
+.code-status .cp-btn.err { color: var(--red); }
