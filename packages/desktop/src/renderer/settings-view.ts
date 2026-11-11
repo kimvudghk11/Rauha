@@ -8,7 +8,7 @@ import type { UpdateFeed } from './update-view.js';
 import { createLoginControl } from './login-view.js';
 import { usageTooltip, type UsageFeed } from './usage-feed.js';
 import { diagnosticsText } from './diagnostics-text.js';
-import { syncBlockReason } from '../shared/bug-sync.js';
+import { personalAwsHint } from '../shared/personal-aws.js';
 import { CHARACTER_SETS } from './character-sets/index.js';
 import { setSprite, type CharacterRole } from './characters.js';
 import { AUTO_SAVE_MODES, autoSaveLabel, parseAutoSaveMode } from '../shared/auto-save.js';
@@ -243,30 +243,8 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     root.appendChild(section('Character theme', sets, el('div', 'hint pad', 'Click to change all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.')));
 
     if (api.team !== undefined) root.appendChild(section('Team settings', api.team.build()));
-    // 내 AWS: 답답한 점 메모를 올리고 받는 곳. 키는 받지도 저장하지도 않고, 터미널에서 등록한 프로필 이름만 적는다.
-    const awsField = (key: 'awsProfile' | 'awsBucket' | 'awsRegion' | 'awsAccount', label: string, placeholder: string): HTMLElement => {
-      const input = el('input');
-      input.placeholder = placeholder;
-      input.value = s[key] ?? '';
-      input.autocomplete = 'off';
-      input.spellcheck = false;
-      input.addEventListener('change', () => void api.update({ [key]: input.value.trim() === '' ? null : input.value.trim() }).then(render));
-      return row(label, input);
-    };
-    // 아직 아무것도 안 적었으면 오류가 아니라 안내다(쓰고 싶을 때 등록하는 선택 기능)
-    const awsUnset = [s.awsProfile, s.awsBucket, s.awsRegion, s.awsAccount].every((v) => v === null || v === '');
-    const awsHint = syncBlockReason({ profile: s.awsProfile, bucket: s.awsBucket, region: s.awsRegion, account: s.awsAccount });
-    root.appendChild(
-      section(
-        'My AWS (upload reports)',
-        awsField('awsProfile', 'Profile name', 'e.g. rauha-personal'),
-        awsField('awsBucket', 'Bucket', 'e.g. example-bucket'),
-        awsField('awsRegion', 'Region', 'e.g. ap-northeast-2'),
-        awsField('awsAccount', 'Personal account ID (12 digits)', '000000000000'),
-        el('div', awsHint === null || awsUnset ? 'hint pad' : 'err pad', awsHint ?? 'Ready. Before every upload or download, the real account is checked against this ID, and it stops if they differ.'),
-        el('div', 'hint pad', 'AWS keys are never typed into the app. Enter only a profile name registered in the terminal with aws configure --profile NAME. Upload and download stay off until a profile name is set.'),
-      ),
-    );
+    // 내 AWS: 리포트를 올리고 받는 곳. 계정은 개인 계정으로 고정이라 입력칸이 없다.
+    root.appendChild(section('My AWS (upload reports)', el('div', 'hint pad', personalAwsHint()), el('div', 'hint pad', 'AWS keys are never typed into the app. On a computer without that profile, run aws configure --profile personal in a terminal once.')));
     root.appendChild(section('Data storage', el('div', 'dim pad', 'Records are stored only on this computer for now (Records tab). Sending summaries to your AWS (S3) will open later.')));
     if (api.diagnostics !== undefined) {
       const run = api.diagnostics;
