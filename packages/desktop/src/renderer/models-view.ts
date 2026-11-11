@@ -36,6 +36,6 @@ export function buildModels(current: Readonly<Record<ModelTier, string>>, update
   reset.addEventListener('click', () => void update(ModelNames.defaults().toRecord()));
   const actions = el('div', 'srow');
   actions.append(el('span', 'lbl'), reset);
-  const hint = el('div', 'hint pad', 'Model IDs for each tier. Type your own ID (for example claude-fable-5-2) or pick a suggestion. Applies from the next request.');
+  const hint = el('div', 'hint pad', 'Model IDs for each tier. Type your own ID (for example claude-fable-5-2) or pick a suggestion. If a teammate call fails because a model is missing or not allowed for your account, Rauha retries with the previous version of that model and then one tier lower (at most twice), and says so in the chat result. Applies from the next request.');
   return [list, ...rows, error, actions, hint];
 }

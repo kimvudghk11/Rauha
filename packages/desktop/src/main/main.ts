@@ -275,8 +275,9 @@ async function startRunner(): Promise<JobRunner> {
         const target = parseTarget(job.request, all);
         const root = target.folder?.root ?? all[0]?.root ?? currentWorkDir();
         let note: string | null = null;
+        const fallbacks = new Set<string>();
         return {
-          note: () => note,
+          note: () => [...fallbacks, ...(note === null ? [] : [note])].join('\n') || null,
           handle: async (_input, depth) => {
             const problem = workFolderProblem(root, folderFacts(root));
             if (problem !== null) throw new Error(problem);
@@ -300,7 +301,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, readRoots: staged === undefined ? [] : [staged.dir] }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir] }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               return await session.handle(withAttachments(mentioned, staged?.paths ?? [], target.text), depth);
             } finally {

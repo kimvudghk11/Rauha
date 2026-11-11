@@ -107,6 +107,8 @@ export interface ComposeOptions {
   readonly readRoots?: readonly string[] | undefined;
   /** 등급별 모델 ID(설정의 Models). 부를 때마다 최신 값을 돌려준다. 없거나 이상한 값은 기본 모델이다. */
   readonly models?: (() => Readonly<Partial<Record<ModelTier, string>>>) | undefined;
+  /** 모델을 쓸 수 없어 다른 모델로 대신 실행했을 때의 한 줄 안내(결과 글 끝에 붙인다). 진행 표시에는 항상 보인다. */
+  readonly onFallback?: ((line: string) => void) | undefined;
 }
 
 /** 작업 공간(rauha가 여는 폴더)과 그 안의 레포들, 그리고 이번 요청이 가리킨 다른 레포들(읽기만) */
@@ -150,7 +152,10 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     ...((options.readRoots?.length ?? 0) > 0 ? { readRoots: options.readRoots! } : {}),
     ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
   });
-  const team = stoppable(new ModelRoutingTeam(inner, () => ModelSettingsDto.from(options.models?.()).toEntity()), io.signal);
+  const team = stoppable(new ModelRoutingTeam(inner, () => ModelSettingsDto.from(options.models?.()).toEntity(), (line) => {
+    io.progress.step(line);
+    options.onFallback?.(line);
+  }), io.signal);
   const knowledge = new KnowledgeService({
     reader: new GitRepoReader(root, secrets),
     store: new FileKnowledgeStore(profile.knowledgeDir(home), keyRoot),
