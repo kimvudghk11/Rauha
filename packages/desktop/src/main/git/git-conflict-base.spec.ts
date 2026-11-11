@@ -12,11 +12,12 @@ afterEach(() => {
   for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
 });
 
-const sh = (cwd: string, ...args: string[]): string => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+const sh = (cwd: string, ...args: string[]): string => execFileSync('git', ['-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 const mk = (): string => {
   const r = mkdtempSync(join(tmpdir(), 'rauha-cbase-'));
   roots.push(r);
   sh(r, 'init', '-q', '-b', 'main');
+  execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: r });
   return r;
 };
 const ctx = (r: string) => ({ gate: new RepoGate(async () => [r]), protectedBranches: () => [] as string[], openExternal: async () => undefined });
@@ -76,6 +77,30 @@ describe('충돌 읽기에서 공통 조상(base) 얻기', () => {
     const res = (await read(r, { path: 'n.txt', base: true })) as { ok: true; data: { diff3?: string } };
     expect(res.ok).toBe(true);
     expect(res.data.diff3 === undefined || res.data.diff3.includes('<<<<<<<')).toBe(true);
+  });
+
+  it('autocrlf=true 라 작업 파일이 CRLF 여도 구역 줄에 CR 이 없고 base 가 붙으며, 복원하면 CRLF 를 지킨다', async () => {
+    const r = mk();
+    const crlfGit = (...args: string[]): string => execFileSync('git', ['-c', 'core.autocrlf=true', '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: r, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    writeFileSync(join(r, 'a.txt'), 'l1\nbase\nl3\n');
+    crlfGit('add', '.');
+    crlfGit('commit', '-qm', 'base');
+    crlfGit('checkout', '-qb', 'topic');
+    writeFileSync(join(r, 'a.txt'), 'l1\ntopic\nl3\n');
+    crlfGit('commit', '-qam', 'topic');
+    crlfGit('checkout', '-q', 'main');
+    writeFileSync(join(r, 'a.txt'), 'l1\nmain\nl3\n');
+    crlfGit('commit', '-qam', 'main');
+    try {
+      crlfGit('merge', 'topic');
+    } catch {
+      /* 충돌 */
+    }
+    expect(readFileSync(join(r, 'a.txt'), 'utf8').includes('\r\n')).toBe(true); // 이 시험이 정말 CRLF 조건인지
+    const res = (await read(r, { path: 'a.txt', base: true })) as { ok: true; data: { text: string; diff3?: string } };
+    const t = ConflictText.withBase(res.data.text, res.data.diff3 ?? null);
+    expect(t.parts.find((p) => p.kind === 'conflict')).toMatchObject({ ours: ['main'], theirs: ['topic'], base: ['base'] });
+    expect(t.resolve(0, 'theirs').toText()).toBe('l1\r\ntopic\r\nl3\r\n');
   });
 
   it('충돌 중이 아닌 파일은 base 를 요청해도 거절한다', async () => {

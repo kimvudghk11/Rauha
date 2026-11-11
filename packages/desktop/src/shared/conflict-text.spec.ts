@@ -86,6 +86,20 @@ describe('글로 되돌리기', () => {
   });
 });
 
+describe('CRLF 파일', () => {
+  const crlf = ['a', '<<<<<<< HEAD', 'm', '||||||| base', 'o', '=======', 't', '>>>>>>> x', 'z', ''].join(String.fromCharCode(13, 10));
+  it('구역 안 줄에는 CR 이 없어 화면에 그대로 보여도 된다', () => {
+    const c = ConflictText.parse(crlf).parts.find((p) => p.kind === 'conflict');
+    expect(c).toMatchObject({ ours: ['m'], base: ['o'], theirs: ['t'], oursLabel: 'HEAD', theirsLabel: 'x' });
+  });
+  it('되돌리면 원래 줄 끝이 그대로고, 구역을 풀어도 모든 줄이 CRLF 다', () => {
+    const t = ConflictText.parse(crlf);
+    expect(t.toText()).toBe(crlf);
+    const out = t.resolve(0, 'both').toText();
+    expect(out.split(String.fromCharCode(10)).filter((l) => l !== '' && !l.endsWith(String.fromCharCode(13)))).toEqual([]);
+  });
+});
+
 describe('조상(base) 붙이기', () => {
   const working = ['앞', '<<<<<<< HEAD', '내', '=======', '상대', '>>>>>>> topic', '뒤', ''].join('\n');
   const diff3 = ['앞', '<<<<<<< HEAD', '내', '||||||| base', '옛', '=======', '상대', '>>>>>>> MERGE_HEAD', '뒤', ''].join('\n');

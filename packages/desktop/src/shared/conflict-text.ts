@@ -14,7 +14,7 @@ const bare = (line: string): string => line.replace(/\r$/, '');
  * git이 파일에 남긴 충돌 표시(<<<<<<< ======= >>>>>>>)를 조각으로 나눈다. 화면은 이걸로 "내 쪽"·"공통 조상"·"상대 쪽"을 나란히 보여 주고,
  * 구역마다 어느 쪽을 받을지 골라 글로 되돌린다(`resolve` → `toText`).
  * diff3 형식의 공통 조상(||||||| 부분)은 base 로 읽는다. 끝 표시가 없는 덩어리는 충돌로 보지 않고 그냥 줄로 둔다.
- * 줄 끝의 CR(CRLF 파일)과 파일 끝 줄 바꿈은 그대로 지킨다.
+ * 충돌 구역 안 줄(ours·theirs·base)에는 줄 끝 CR 을 떼어 두고(화면에 \r 이 보이지 않게), 글로 되돌릴 때 파일의 줄 끝(CRLF 면 CR)을 다시 붙인다. 파일 끝 줄 바꿈도 지킨다.
  */
 export class ConflictText {
   private constructor(
@@ -60,9 +60,9 @@ export class ConflictText {
           theirsLabel = b.slice(8).trim();
           closed = true;
           break;
-        } else if (side === 'ours') ours.push(l);
-        else if (side === 'base') base.push(l);
-        else theirs.push(l);
+        } else if (side === 'ours') ours.push(b);
+        else if (side === 'base') base.push(b);
+        else theirs.push(b);
       }
       if (!closed) {
         plain.push(line);
@@ -95,7 +95,8 @@ export class ConflictText {
     let n = -1;
     let changed = false;
     const next: ConflictPart[] = [];
-    const push = (lines: readonly string[]): void => {
+    const push = (picked: readonly string[], fromBlock = false): void => {
+      const lines = fromBlock ? picked.map((l) => l + this.cr) : picked;
       if (lines.length === 0) return;
       const last = next[next.length - 1];
       if (last !== undefined && last.kind === 'plain') next[next.length - 1] = { kind: 'plain', lines: [...last.lines, ...lines] };
@@ -113,7 +114,7 @@ export class ConflictText {
         continue;
       }
       changed = true;
-      push(lines);
+      push(lines, true);
     }
     return changed ? new ConflictText(next, this.endsWithNewline, this.cr) : this;
   }
@@ -134,9 +135,10 @@ export class ConflictText {
         continue;
       }
       const label = (mark: string, name: string): string => `${mark}${name === '' ? '' : ` ${name}`}${this.cr}`;
-      out.push(label('<<<<<<<', part.oursLabel), ...part.ours);
-      if (part.base !== undefined) out.push(`||||||| base${this.cr}`, ...part.base);
-      out.push(`=======${this.cr}`, ...part.theirs, label('>>>>>>>', part.theirsLabel));
+      const eol = (lines: readonly string[]): string[] => lines.map((l) => l + this.cr);
+      out.push(label('<<<<<<<', part.oursLabel), ...eol(part.ours));
+      if (part.base !== undefined) out.push(`||||||| base${this.cr}`, ...eol(part.base));
+      out.push(`=======${this.cr}`, ...eol(part.theirs), label('>>>>>>>', part.theirsLabel));
     }
     return out.join('\n') + (this.endsWithNewline && out.length > 0 ? '\n' : '');
   }
@@ -161,7 +163,7 @@ export class ConflictText {
         continue;
       }
       if (dp.kind !== 'conflict' || !same(wp.ours, dp.ours) || !same(wp.theirs, dp.theirs)) return w;
-      parts.push(dp.base === undefined ? wp : { ...wp, base: dp.base.map((l) => bare(l) + w.cr) });
+      parts.push(dp.base === undefined ? wp : { ...wp, base: dp.base });
     }
     return new ConflictText(parts, w.endsWithNewline, w.cr);
   }
