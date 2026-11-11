@@ -1,4 +1,5 @@
 import { codeFailText, type CodeApi, type RepoInfo, type SearchFileHits } from '../shared/code-api.js';
+import { searchFailText, searchSummaryText } from '../shared/search-summary.js';
 import { AUTO_SAVE_DELAY_MS, autoSaveSkip, wantsAutoSave, type AutoSaveMode, type AutoSaveTrigger } from '../shared/auto-save.js';
 import { ChangeMap } from '../shared/code-changes.js';
 import { rankFiles } from '../shared/quick-open.js';
@@ -121,10 +122,27 @@ export function buildCode(deps: CodeDeps) {
   caseBtn.title = 'Match case';
   const regexBtn = el('button', 'btn ghost icon sm cs-opt', '.*');
   regexBtn.title = 'Regex';
-  searchRow.append(searchInput, caseBtn, regexBtn);
+  const wordBtn = el('button', 'btn ghost icon sm cs-opt', 'ab');
+  wordBtn.title = 'Match whole word';
+  const detailsBtn = el('button', 'btn ghost icon sm cs-opt', '…');
+  detailsBtn.title = 'Toggle include / exclude';
+  searchRow.append(searchInput, caseBtn, wordBtn, regexBtn, detailsBtn);
+  const globRow = el('div', 'cs-globs');
+  globRow.hidden = true;
+  const includeInput = el('input', 'cs-input sm');
+  includeInput.placeholder = 'Include: *.ts, src/**';
+  includeInput.spellcheck = false;
+  const excludeInput = el('input', 'cs-input sm');
+  excludeInput.placeholder = 'Exclude: *.test.ts, docs';
+  excludeInput.spellcheck = false;
+  globRow.append(includeInput, excludeInput);
   const searchSummary = el('div', 'cs-summary');
+  const stopBtn = el('button', 'btn ghost sm cs-stop', 'Stop');
+  stopBtn.hidden = true;
+  const summaryRow = el('div', 'cs-summary-row');
+  summaryRow.append(searchSummary, stopBtn);
   const searchResults = el('div', 'cs-results');
-  searchPanel.append(searchRow, searchSummary, searchResults);
+  searchPanel.append(searchRow, globRow, summaryRow, searchResults);
   explorer.append(head, tools, tree.root, searchPanel);
 
   // ── 오른쪽 ──
@@ -648,6 +666,32 @@ export function buildCode(deps: CodeDeps) {
     regexBtn.classList.toggle('on', regexOn);
     void runSearch();
   });
+  let wordOn = false;
+  wordBtn.addEventListener('click', () => {
+    wordOn = !wordOn;
+    wordBtn.classList.toggle('on', wordOn);
+    void runSearch();
+  });
+  detailsBtn.addEventListener('click', () => {
+    globRow.hidden = !globRow.hidden;
+    detailsBtn.classList.toggle('on', !globRow.hidden);
+    if (!globRow.hidden) includeInput.focus();
+  });
+  for (const input of [includeInput, excludeInput]) {
+    input.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => void runSearch(), 350);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (!isEnterKey(e)) return;
+      clearTimeout(searchTimer);
+      void runSearch();
+    });
+  }
+  let searchId = '';
+  stopBtn.addEventListener('click', () => {
+    if (searchId !== '') void deps.api.cancelSearch(searchId);
+  });
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = window.setTimeout(() => void runSearch(), 350);
@@ -661,21 +705,28 @@ export function buildCode(deps: CodeDeps) {
   async function runSearch(): Promise<void> {
     const query = searchInput.value;
     const seq = ++searchSeq;
+    if (searchId !== '') void deps.api.cancelSearch(searchId);
     if (query === '') {
+      searchId = '';
+      stopBtn.hidden = true;
       searchSummary.textContent = '';
       searchResults.replaceChildren();
       return;
     }
+    const id = `s${seq}-${Date.now().toString(36)}`;
+    searchId = id;
+    stopBtn.hidden = false;
     searchSummary.textContent = 'Searching…';
-    const r = await deps.api.search({ query, caseSensitive: caseOn, regex: regexOn });
+    const r = await deps.api.search({ query, caseSensitive: caseOn, regex: regexOn, wholeWord: wordOn, include: includeInput.value, exclude: excludeInput.value, id });
     if (seq !== searchSeq) return;
+    searchId = '';
+    stopBtn.hidden = true;
     if (!r.ok) {
       searchResults.replaceChildren();
-      searchSummary.textContent = r.reason === 'bad-regex' ? 'The regex is not valid.' : r.reason === 'empty' ? '' : codeFailText(r.reason);
+      searchSummary.textContent = searchFailText(r.reason);
       return;
     }
-    const hitCount = r.files.reduce((n, f) => n + f.hits.length, 0);
-    searchSummary.textContent = hitCount === 0 ? 'No matches.' : `${hitCount} match(es) in ${r.files.length} file(s)${r.truncated ? ' (too many; showing some)' : ''}`;
+    searchSummary.textContent = searchSummaryText(r);
     searchResults.replaceChildren(...r.files.map(resultGroup));
   }
 

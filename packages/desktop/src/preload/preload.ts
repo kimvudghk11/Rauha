@@ -102,6 +102,7 @@ const api: RauhaApi = {
     diff: (path) => ipcRenderer.invoke(CODE_IPC.diff, path),
     blame: (path) => ipcRenderer.invoke(CODE_IPC.blame, path),
     search: (options) => ipcRenderer.invoke(CODE_IPC.search, options),
+    cancelSearch: (id) => ipcRenderer.invoke(CODE_IPC.searchCancel, id),
     files: () => ipcRenderer.invoke(CODE_IPC.files),
     create: (req) => ipcRenderer.invoke(CODE_IPC.create, req),
     rename: (req) => ipcRenderer.invoke(CODE_IPC.rename, req),

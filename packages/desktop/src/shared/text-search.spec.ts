@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SearchMatcher } from './text-search.js';
+import { isGeneratedFile, SearchMatcher } from './text-search.js';
 
 const matcher = (query: string, caseSensitive = false, regex = false): SearchMatcher => {
   const r = SearchMatcher.from({ query, caseSensitive, regex });
@@ -53,5 +53,34 @@ describe('파일 안 검색 맞추기', () => {
 
   it('CRLF 줄 끝은 지운다', () => {
     expect(matcher('a').search('a\r', 1)[0]?.preview).toBe('a');
+  });
+
+  it('단어 단위를 켜면 단어의 일부에는 맞지 않는다', () => {
+    const word = (q: string, text: string, regex = false): number => {
+      const r = SearchMatcher.from({ query: q, caseSensitive: false, regex, wholeWord: true });
+      if (!r.ok) throw new Error(r.reason);
+      return r.matcher.search(text, 5).length;
+    };
+    expect(word('foo', 'foobar')).toBe(0);
+    expect(word('foo', 'a foo b')).toBe(1);
+    expect(word('foo', 'x.foo(')).toBe(1);
+    expect(word('foo', 'foo_bar')).toBe(0);
+    expect(word('foo', 'foo한글')).toBe(0);
+    expect(word('fo+', 'foo fooo', true)).toBe(1);
+    expect(word('fo+', 'xfoo', true)).toBe(0);
+  });
+
+  it('단어 단위에서 검색어 가장자리가 기호면 그쪽은 경계를 따지지 않는다', () => {
+    const r = SearchMatcher.from({ query: '.foo', caseSensitive: false, regex: false, wholeWord: true });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.matcher.search('a.foo b', 5)).toHaveLength(1);
+    expect(r.matcher.search('a.foobar', 5)).toHaveLength(0);
+  });
+});
+
+describe('만들어 낸 파일 건너뛰기', () => {
+  it('압축본·소스맵·잠금 파일은 찾지 않는다', () => {
+    for (const p of ['dist/a.min.js', 'x/y.min.css', 'a.js.map', 'package-lock.json', 'sub/yarn.lock', 'pnpm-lock.yaml']) expect(isGeneratedFile(p)).toBe(true);
+    for (const p of ['src/a.ts', 'minify.ts', 'docs/lock.md']) expect(isGeneratedFile(p)).toBe(false);
   });
 });

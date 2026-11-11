@@ -209,6 +209,7 @@ const rightClick = (name) => "(() => { const r = " + rowOf(name) + "; const b = 
 const pressKey = (name, key) => "(() => { " + rowOf(name) + "?.dispatchEvent(new KeyboardEvent('keydown', { key: " + JSON.stringify(key) + ", bubbles: true, cancelable: true })); })()";
 const typeInto = (sel, text) => `(() => { const i = document.querySelector(${JSON.stringify(sel)}); i.focus(); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 const TODO_SEED = "(() => { window.rauha.todo.apply({ kind: 'add', title: '시험 카드', priority: 'high', labels: [{ name: '중요', color: 'blue' }], checklist: [{ id: 'c1', text: '항목', done: true }] }); return new Promise((r) => setTimeout(r, 500)); })() /* querySelector */";
+const on = (sel) => "(() => { const b = document.querySelector('" + sel + "'); if (!b.classList.contains('on')) b.click(); })() /* querySelector */";
 const SELECT_ALL = "(() => { const c = document.querySelector('.cm-content'); c.focus(); c.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })); })() /* querySelector */";
 // 변경 보기 장면: [edit] 일이 끝나 결과 카드에 변경 칸이 나타날 때까지 기다렸다가 펼친다 / 그 일의 팀 상세를 연다
 const CHG_OPEN = "(async () => { for (let i = 0; i < 80 && !document.querySelector('.chg:not([hidden]) .chg-toggle'); i++) await new Promise((r) => setTimeout(r, 200)); const t = document.querySelector('.chg:not([hidden]) .chg-toggle'); if (t?.getAttribute('aria-expanded') === 'false') t.click(); })() /* querySelector */";
@@ -251,7 +252,10 @@ const SCENES = [
   // 아이콘 갤러리: 문서에 들어 있는 모든 파일 아이콘 심볼을 16px로 그려 크기를 잰다
   ['code-icons', 'code', [`(() => { const g = document.createElement('div'); g.className = 'tree'; for (const sym of document.querySelectorAll('symbol[id^=fi-]')) { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'fi fi-blue'); s.setAttribute('width', '16'); s.setAttribute('height', '16'); const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#' + sym.id); s.append(u); g.append(s); } document.querySelector('.code-explorer').append(g); })()`]],
   ['code-term', 'code', ['.code-termbtn']],
-  ['code-search', 'code', ['.code-mode:nth-child(2)']],
+  ['code-search', 'code', [byText('.code-ehead .tab', 'Search')]],
+  // 전체 찾기: 단어 단위 켜기, 포함/제외 칸 열기, 결과(파일별 묶음)와 요약 줄 / 잘못된 정규식 안내
+  ['code-search-results', 'code', [byText('.code-ehead .tab', 'Search'), on('.cs-row .cs-opt:nth-child(3)'), on('.cs-row .cs-opt:nth-child(5)'), typeInto('.code-search .cs-row .cs-input', 'export'), typeInto('.cs-globs .cs-input:nth-child(1)', '*.ts, *.md'), typeInto('.cs-globs .cs-input:nth-child(2)', 'node_modules'), WAIT]],
+  ['code-search-bad', 'code', [byText('.code-ehead .tab', 'Search'), on('.cs-row .cs-opt:nth-child(4)'), typeInto('.code-search .cs-row .cs-input', '(unclosed'), WAIT]],
   ['todo', 'todo', []],
   // 칸반: 카드 하나를 넣고(체크리스트·라벨·우선순위 포함) 보드 · 새 카드 입력 · 카드 모달 · 우클릭 메뉴 · 칸 메뉴 · 칸 지우기 창
   ['todo-seeded', 'todo', [TODO_SEED]],

@@ -6,7 +6,13 @@ import { runGit } from '../git/git-run.js';
 import { CodeFiles } from './code-files.js';
 import { CodeGit } from './code-git.js';
 import { FileOps } from './file-ops.js';
+import { InlineSearchRunner, WorkerSearchRunner } from './search-runner.js';
 import type { SecretSource } from './secret-cache.js';
+
+/** 빌드가 search-worker 를 묶어 넣는 자리(scripts/build.mjs). 묶지 않은 실행(시험)에서는 없다. */
+declare const __SEARCH_WORKER_SOURCE__: string | undefined;
+
+const searchRunner = (): InlineSearchRunner | WorkerSearchRunner => (typeof __SEARCH_WORKER_SOURCE__ === 'string' ? new WorkerSearchRunner(() => __SEARCH_WORKER_SOURCE__ as string) : new InlineSearchRunner());
 
 /** 레포 목록은 git을 불러 읽으므로 잠깐 기억해 둔다 */
 const REPO_TTL_MS = 10_000;
@@ -28,7 +34,7 @@ export function registerCodeIpc(ipc: Pick<IpcMain, 'handle'>, workFolder: () => 
     return repoCache.repos;
   };
   // 규칙을 못 읽으면 막는 쪽으로(읽는 쪽이 비밀 파일을 열어 주지 않게)
-  const files = new CodeFiles({ root: workFolder, isSecret: (rel) => secrets.policy()?.isSecret(rel) ?? true });
+  const files = new CodeFiles({ root: workFolder, isSecret: (rel) => secrets.policy()?.isSecret(rel) ?? true, searchRunner: searchRunner() });
   const git = new CodeGit({ files, repos, run: (root, args) => runGit(root, args) });
   // 앱이 작업 폴더에서 찾은 레포·문서 폴더의 루트는 이름 바꾸기·삭제·옮기기를 막는다(.git이 든 폴더는 따로 항상 막는다)
   let rootsCache: { dir: string; at: number; roots: Promise<string[]> } | null = null;
@@ -57,6 +63,7 @@ export function registerCodeIpc(ipc: Pick<IpcMain, 'handle'>, workFolder: () => 
   ipc.handle(CODE_IPC.diff, (_e, path: unknown) => git.diff(path));
   ipc.handle(CODE_IPC.blame, (_e, path: unknown) => git.blame(path));
   ipc.handle(CODE_IPC.search, (_e, options: unknown) => files.searchAll(options));
+  ipc.handle(CODE_IPC.searchCancel, (_e, id: unknown) => files.cancelSearch(id));
   ipc.handle(CODE_IPC.files, () => files.listFiles());
   return files;
 }

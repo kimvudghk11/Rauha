@@ -78,7 +78,11 @@
 .code-search { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .cs-row { display: flex; gap: 4px; padding: 4px 8px 6px; }
 .cs-input { flex: 1; min-width: 0; }
-.cs-summary { padding: 0 12px 4px; font-size: var(--fs-sm); color: var(--muted); min-height: 16px; }
+.cs-globs { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 0 8px 6px; }
+.cs-summary-row { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px 4px 0; }
+.cs-globs .cs-input { flex: none; }
+.cs-summary { flex: 1; min-width: 0; padding: 0 0 0 12px; font-size: var(--fs-sm); color: var(--muted); min-height: 16px; }
+.cs-stop { flex: none; }
 .cs-results { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
 .cs-path { display: flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: var(--fs-sm); color: var(--bright); }
 .cs-path b { font-weight: 600; white-space: nowrap; }

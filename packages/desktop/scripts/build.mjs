@@ -18,10 +18,14 @@ const runtimeExternal = ['electron', '@anthropic-ai/claude-agent-sdk', '@playwri
 const dbChild = await build({ entryPoints: [join(src, 'main', 'db', 'sqlite-child.ts')], bundle: true, platform: 'node', format: 'cjs', minify: true, write: false, conditions: ['rauha-source'], logLevel: 'warning' });
 const dbChildSource = dbChild.outputFiles[0].text;
 
+// 전체 찾기 worker 코드(정규식이 멈추면 main 이 worker 째 끊는다): 같은 방식으로 문자열로 넣는다.
+const searchWorker = await build({ entryPoints: [join(src, 'main', 'code', 'search-worker.ts')], bundle: true, platform: 'node', format: 'cjs', minify: true, write: false, conditions: ['rauha-source'], logLevel: 'warning' });
+const searchWorkerSource = searchWorker.outputFiles[0].text;
+
 const common = { bundle: true, sourcemap: true, conditions: ['rauha-source'], logLevel: 'warning' };
 
 await Promise.all([
-  build({ ...common, entryPoints: [join(src, 'main', 'main.ts')], outfile: join(dist, 'main.cjs'), platform: 'node', format: 'cjs', external: runtimeExternal, ...metaUrl, define: { ...metaUrl.define, __DB_CHILD_SOURCE__: JSON.stringify(dbChildSource) } }),
+  build({ ...common, entryPoints: [join(src, 'main', 'main.ts')], outfile: join(dist, 'main.cjs'), platform: 'node', format: 'cjs', external: runtimeExternal, ...metaUrl, define: { ...metaUrl.define, __DB_CHILD_SOURCE__: JSON.stringify(dbChildSource), __SEARCH_WORKER_SOURCE__: JSON.stringify(searchWorkerSource) } }),
   build({ ...common, entryPoints: [join(src, 'preload', 'preload.ts')], outfile: join(dist, 'preload.cjs'), platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: [join(src, 'renderer', 'app.ts')], outfile: join(dist, 'renderer', 'app.js'), platform: 'browser', format: 'iife' }),
 ]);

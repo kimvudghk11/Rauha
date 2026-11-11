@@ -14,6 +14,7 @@ export const CODE_IPC = {
   diff: 'code:diff',
   blame: 'code:blame',
   search: 'code:search',
+  searchCancel: 'code:search-cancel',
   files: 'code:files',
   create: 'code:create',
   rename: 'code:rename',
@@ -149,8 +150,11 @@ export interface SearchFileHits {
 }
 
 export type SearchResult =
-  | { readonly ok: true; readonly files: readonly SearchFileHits[]; readonly truncated: boolean; readonly scanned: number }
-  | { readonly ok: false; readonly reason: CodeFail | 'empty' | 'bad-regex' };
+  | { readonly ok: true; readonly files: readonly SearchFileHits[]; readonly truncated: boolean; readonly scanned: number; readonly skipped: number; readonly stopped: SearchStop | null }
+  | { readonly ok: false; readonly reason: CodeFail | 'empty' | 'bad-regex' | 'bad-glob' };
+
+/** 검색이 끝까지 가지 못한 까닭: 결과 상한 · 시간 상한 · 사용자가 멈춤 · 정규식이 멈춰 있어 끊음 */
+export type SearchStop = 'limit' | 'timeout' | 'cancelled' | 'stalled';
 
 export type FilesResult = { readonly ok: true; readonly paths: readonly string[]; readonly truncated: boolean } | { readonly ok: false; readonly reason: CodeFail };
 
@@ -223,5 +227,7 @@ export interface CodeApi2 extends CodeApi3 {
   /** 한 파일의 줄별 작성자·날짜·커밋(읽기 전용) */
   blame(path: string): Promise<BlameResult>;
   search(options: SearchOptions): Promise<SearchResult>;
+  /** 돌고 있는 전체 찾기를 id 로 멈춘다 */
+  cancelSearch(id: string): Promise<void>;
   files(): Promise<FilesResult>;
 }

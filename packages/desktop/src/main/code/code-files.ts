@@ -8,6 +8,7 @@ import { SKIPPED_FOLDERS } from '../../shared/folder-kind.js';
 import { imageMimeOf, MAX_IMAGE_BYTES } from '../../shared/preview-kind.js';
 import { cleanRelative, isInside } from './code-path.js';
 import { searchWorkspace } from './code-search.js';
+import { InlineSearchRunner, type SearchRunner } from './search-runner.js';
 import { walkFiles } from './code-walk.js';
 import { WriteRequestDto } from './write-request.js';
 
@@ -24,6 +25,8 @@ export interface CodeFilesDeps {
   /** 작업 폴더 기준 경로가 비밀 파일인지(core의 SecretPolicy) */
   readonly isSecret: (relPath: string) => boolean;
   readonly platform?: NodeJS.Platform;
+  /** 전체 찾기를 돌리는 곳(앱에서는 worker 스레드). 없으면 main 스레드에서 돈다(시험용). */
+  readonly searchRunner?: SearchRunner;
 }
 
 export interface Resolved {
@@ -51,7 +54,11 @@ const toSlash = (p: string): string => p.split(sep).join('/');
  * - 저장은 같은 폴더의 임시 파일에 쓰고 이름을 바꾼다(중간에 끊겨도 원본이 남는다). 디스크가 읽을 때와 달라졌으면 충돌로 돌려준다.
  */
 export class CodeFiles {
-  constructor(private readonly deps: CodeFilesDeps) {}
+  private readonly searchRunner: SearchRunner;
+
+  constructor(private readonly deps: CodeFilesDeps) {
+    this.searchRunner = deps.searchRunner ?? new InlineSearchRunner();
+  }
 
   private get caseInsensitive(): boolean {
     return (this.deps.platform ?? process.platform) === 'win32';
@@ -171,7 +178,12 @@ export class CodeFiles {
   async searchAll(input: unknown): Promise<SearchResult> {
     const rootReal = await this.rootReal();
     if (rootReal === null) return { ok: false, reason: 'no-folder' };
-    return searchWorkspace(rootReal, input, this.deps.isSecret);
+    return searchWorkspace(rootReal, input, this.deps.isSecret, this.searchRunner, this.caseInsensitive);
+  }
+
+  /** 돌고 있는 전체 찾기를 id 로 멈춘다 */
+  cancelSearch(id: unknown): void {
+    if (typeof id === 'string' && id.length > 0 && id.length <= 64) this.searchRunner.cancel(id);
   }
 
   async tree(rawPath: unknown): Promise<TreeResult> {
