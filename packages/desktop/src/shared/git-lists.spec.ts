@@ -15,6 +15,23 @@ describe('parseLog', () => {
     expect(rows[1]!.refs).toEqual([]);
   });
 
+  it('부모 해시들을 읽는다(병합 커밋은 둘 이상, 첫 커밋은 없음)', () => {
+    const p1 = 'b'.repeat(40);
+    const p2 = 'c'.repeat(40);
+    const text = ['a'.repeat(40), 'aaaaaaa', 'x', '1', 'merge', '', `${p1} ${p2}`].join(US) + RS + '\n' + ['b'.repeat(40), 'bbbbbbb', 'x', '1', 'root', '', ''].join(US) + RS;
+    const rows = parseLog(text);
+    expect(rows[0]!.parents).toEqual([p1, p2]);
+    expect(rows[1]!.parents).toEqual([]);
+  });
+
+  it('부모 칸이 없는 옛 출력도 읽는다', () => {
+    expect(parseLog(['a'.repeat(40), 'aaaaaaa', 'x', '1', 's', ''].join(US) + RS)[0]!.parents).toEqual([]);
+  });
+
+  it('부모 칸에 해시가 아닌 글이 있으면 버린다', () => {
+    expect(parseLog(['a'.repeat(40), 'aaaaaaa', 'x', '1', 's', '', 'zz --oops ' + 'd'.repeat(40)].join(US) + RS)[0]!.parents).toEqual(['d'.repeat(40)]);
+  });
+
   it('형식 문자열은 필드 구분자를 쓴다', () => {
     expect(LOG_FORMAT).toContain('%x1f');
   });

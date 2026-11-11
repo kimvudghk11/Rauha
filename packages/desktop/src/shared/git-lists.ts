@@ -2,8 +2,8 @@ const US = '\x1f';
 const RS = '\x1e';
 
 /** `git log --format=`에 넘기는 형식. 필드는 \x1f, 커밋은 \x1e로 끊는다(제목에 무엇이 들어 있어도 안전하다). */
-export const LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%at%x1f%s%x1f%D%x1e';
-export const LOG_LIMIT = 200;
+export const LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%at%x1f%s%x1f%D%x1f%P%x1e';
+export const LOG_LIMIT = 500;
 
 export interface LogRow {
   readonly hash: string;
@@ -13,6 +13,8 @@ export interface LogRow {
   readonly at: number;
   readonly subject: string;
   readonly refs: readonly string[];
+  /** 부모 커밋 전체 해시들. 첫 번째가 같은 줄기, 둘 이상이면 병합 커밋 */
+  readonly parents: readonly string[];
 }
 
 export function parseLog(text: string): LogRow[] {
@@ -21,8 +23,8 @@ export function parseLog(text: string): LogRow[] {
     .map((r) => r.replace(/^\n/, ''))
     .filter((r) => r.trim() !== '')
     .map((r) => {
-      const [hash = '', short = '', author = '', at = '0', subject = '', refs = ''] = r.split(US);
-      return { hash, short, author, at: Number(at), subject, refs: refs === '' ? [] : refs.split(', ') };
+      const [hash = '', short = '', author = '', at = '0', subject = '', refs = '', parents = ''] = r.split(US);
+      return { hash, short, author, at: Number(at), subject, refs: refs === '' ? [] : refs.split(', '), parents: parents.split(' ').filter((h) => /^[0-9a-f]{40,64}$/.test(h)) };
     });
 }
 

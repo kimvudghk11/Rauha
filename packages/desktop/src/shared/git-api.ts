@@ -74,7 +74,7 @@ export interface GitCalls {
   push: [ConfirmArg, Done];
   conventions: [void, ConventionsView];
   undoCommit: [void, Done];
-  log: [{ ref?: string }, readonly LogRow[]];
+  log: [{ ref?: string; all?: boolean }, readonly LogRow[]];
   commitDiff: [{ hash: string }, readonly FileDiffView[]];
   mergeState: [void, { merging: boolean; conflicts: readonly string[] }];
   resolveSide: [{ path: string; side: 'ours' | 'theirs' }, Done];

@@ -139,6 +139,32 @@ function sandbox() {
       for (let i = 0; i < 100; i++) w(g, 'dir' + d + '/f' + i + '.txt', 'x' + i + String.fromCharCode(10));
     }
   }
+  // 커밋 그래프 시험용: 병합 커밋 둘, 브랜치 셋, 작성자 둘(app-graph)
+  const gr = path.join(root, 'app-graph');
+  fs.mkdirSync(gr);
+  git(gr, 'init', '-b', 'main');
+  const lines = (...t) => t.join(String.fromCharCode(10)) + String.fromCharCode(10);
+  w(gr, 'src.ts', lines('line 1', 'line 2', 'line 3', 'line 4', 'line 5'));
+  git(gr, 'add', '.');
+  git(gr, 'commit', '-m', 'init');
+  git(gr, 'checkout', '-b', 'feature/a');
+  w(gr, 'src.ts', lines('line 1', 'line 2 from a', 'line 3', 'line 4', 'line 5'));
+  git(gr, 'commit', '-am', 'feature a: change line 2');
+  git(gr, 'checkout', 'main');
+  w(gr, 'src.ts', lines('line 1', 'line 2', 'line 3', 'line 4 from bo', 'line 5'));
+  git(gr, '-c', 'user.name=Bo Lee', 'commit', '-am', 'main: change line 4');
+  git(gr, 'merge', '--no-ff', '-m', 'Merge feature/a', 'feature/a');
+  git(gr, 'checkout', '-b', 'feature/b');
+  w(gr, 'b.ts', lines('export const b = 1;'));
+  git(gr, 'add', '.');
+  git(gr, 'commit', '-m', 'feature b: add b.ts');
+  git(gr, 'checkout', 'main');
+  w(gr, 'main.ts', lines('export const m = 1;'));
+  git(gr, 'add', '.');
+  git(gr, 'commit', '-m', 'main: add main.ts');
+  git(gr, 'merge', '--no-ff', '-m', 'Merge feature/b', 'feature/b');
+  w(gr, 'src.ts', lines('line 1', 'line 2 from a', 'line 3', 'line 4 from bo', 'line 5 latest'));
+  git(gr, 'commit', '-am', 'main: tweak line 5');
   // 원격보다 2커밋 뒤처진 레포: 다른 복제본에서 올린 뒤 fetch만 한다
   const d = path.join(root, 'app-three');
   git(root, 'clone', bare, d);
@@ -253,6 +279,7 @@ const SCENES = [
   ['git-big', 'git', [pickRepo('app-big'), "(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); const tabs = document.querySelectorAll('#tabs button'); tabs[9].click(); await sleep(400); const t0 = performance.now(); tabs[6].click(); while (!document.querySelector('.gf') && performance.now() - t0 < 30000) await sleep(10); const open = Math.round(performance.now() - t0); await sleep(300); const t1 = performance.now(); const row = [...document.querySelectorAll('.gf')].find((n) => n.textContent.includes('aaa-big')); row?.click(); while (!document.querySelector('.gl') && performance.now() - t1 < 30000) await sleep(10); const diff = Math.round(performance.now() - t1); await sleep(500); const root = document.querySelector('.gselect').value; const ta = performance.now(); await window.rauha.listRepos(); const listMs = Math.round(performance.now() - ta); const tb = performance.now(); await window.rauha.git.overview(root, undefined); const overviewMs = Math.round(performance.now() - tb); window.__bigT = { listReposMs: listMs, overviewMs, tabOpenMs: open, diffOpenMs: diff, nodes: document.querySelectorAll('*').length, files: document.querySelectorAll('.gf').length, lines: document.querySelectorAll('.gl').length }; })() /* querySelector */"]],
   ['git-branches', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'Branches')]],
   ['git-history', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'History')]],
+  ['git-history-graph', 'git', [pickRepo('app-graph'), byText('.tabs .tab', 'History'), "(() => { const b = document.querySelector('.gall input'); b.click(); })() /* querySelector */"]],
   ['git-conflicts', 'git', [pickRepo('app-two'), byText('.tabs .tab', 'Conflicts')]],
   // 동기화 툴바 상태 변형: 커밋이 강조된 상태(app-one) · 뒤처져 pull이 강조된 상태(app-three) · 원격 없음(app-two)
   ['git-toolbar-pull', 'git', [pickRepo('app-three')]],

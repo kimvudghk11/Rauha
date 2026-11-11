@@ -62,7 +62,7 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       push: () => repo.push(confirm),
       conventions: async () => conventionsView(await readConventions(checked)),
       undoCommit: () => repo.undoCommit(),
-      log: () => repo.log(typeof a['ref'] === 'string' ? a['ref'] : undefined),
+      log: () => repo.log(typeof a['ref'] === 'string' ? a['ref'] : undefined, a['all'] === true),
       commitDiff: () => repo.commitDiff(str(a['hash'])),
       mergeState: () => repo.mergeState(),
       resolveSide: () => repo.resolveSide(str(a['path']), a['side'] === 'theirs' ? 'theirs' : 'ours'),

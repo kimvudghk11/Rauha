@@ -120,3 +120,12 @@ textarea.ginput, input.ginput { width: 100%; }
 .gstash-tools { flex-wrap: wrap; align-items: center; }
 .gstash-tools .ginput { min-width: 160px; }
 .gstash-check { display: inline-flex; align-items: center; gap: var(--s1); white-space: nowrap; }
+
+/* 커밋 그래프(History): 선은 SVG, 점은 동그라미. 줄기 색은 토큰만 섞어 8가지 */
+.ggraph { position: relative; flex: none; align-self: stretch; margin: calc(-1 * var(--s1)) 0; }
+.ggraph svg { display: block; height: 100%; overflow: hidden; }
+.gedge { fill: none; stroke: var(--lane, var(--muted)); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.gdot { position: absolute; top: 50%; box-sizing: border-box; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--lane, var(--muted)); border: 2px solid var(--bg); }
+.gdot.merge { background: var(--bg); border-color: var(--lane, var(--muted)); }
+.glc0 { --lane: var(--accent); } .glc1 { --lane: var(--green); } .glc2 { --lane: var(--yellow); } .glc3 { --lane: var(--purple); }
+.glc4 { --lane: var(--red); } .glc5 { --lane: var(--delfi); } .glc6 { --lane: color-mix(in srgb, var(--red) 55%, var(--yellow)); } .glc7 { --lane: color-mix(in srgb, var(--green) 55%, var(--accent)); }

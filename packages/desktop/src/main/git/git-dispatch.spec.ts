@@ -281,6 +281,32 @@ describe('git 탭 main (임시 저장소)', () => {
     expect(await call(r, 'commitDiff', { hash: '--output=x' })).toMatchObject({ ok: false });
   });
 
+  it('커밋 목록에 부모 해시가 들어 있고 병합 커밋은 부모가 둘이며, all 은 다른 브랜치 커밋도 보여 준다', async () => {
+    const r = newRepo();
+    write(r, 'a.txt', 'a\n');
+    commitAll(r, 'base');
+    sh(r, 'checkout', '-b', 'topic');
+    write(r, 'b.txt', 'b\n');
+    commitAll(r, 'topic work');
+    sh(r, 'checkout', 'main');
+    write(r, 'c.txt', 'c\n');
+    commitAll(r, 'main work');
+    sh(r, 'merge', '--no-ff', '-m', 'merge topic', 'topic');
+    sh(r, 'checkout', '-b', 'lonely', 'HEAD~2');
+    write(r, 'd.txt', 'd\n');
+    commitAll(r, 'lonely work');
+    sh(r, 'checkout', 'main');
+    const head = await data<{ subject: string; parents: string[]; hash: string }[]>(r, 'log');
+    expect(head[0]!.subject).toBe('merge topic');
+    expect(head[0]!.parents).toHaveLength(2);
+    expect(head.map((l) => l.subject)).not.toContain('lonely work');
+    // 자식이 부모보다 먼저 온다(그래프 계산의 전제)
+    const pos = new Map(head.map((l, i) => [l.hash, i]));
+    for (const l of head) for (const par of l.parents) expect(pos.get(par) ?? Infinity).toBeGreaterThan(pos.get(l.hash)!);
+    const all = await data<{ subject: string }[]>(r, 'log', { all: true });
+    expect(all.map((l) => l.subject)).toContain('lonely work');
+  });
+
   it('PR 주소는 GitHub 원격일 때만 만들고 https만 연다', async () => {
     const r = newRepo();
     write(r, 'a', 'a');

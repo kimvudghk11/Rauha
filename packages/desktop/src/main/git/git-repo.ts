@@ -273,10 +273,11 @@ export class GitRepo {
     return ok(`Pushed ${branch}.`);
   }
 
-  async log(ref?: string) {
+  /** 최근 커밋 목록(상한 LOG_LIMIT). --topo-order 라 자식이 부모보다 먼저 와서 그래프를 그릴 수 있다. all 이면 모든 브랜치. */
+  async log(ref?: string, all = false) {
     if (!(await this.hasHead())) return [];
-    const target = ref === undefined ? [] : [BranchName.parse(ref).value];
-    return parseLog(await this.git(['log', `-n${LOG_LIMIT}`, `--format=${LOG_FORMAT}`, ...target, '--']));
+    const target = all ? ['--all'] : ref === undefined ? [] : [BranchName.parse(ref).value];
+    return parseLog(await this.git(['log', '--topo-order', '--no-color', '--no-show-signature', `-n${LOG_LIMIT}`, `--format=${LOG_FORMAT}`, ...target, '--']));
   }
 
   async commitDiff(hash: string): Promise<FileDiffView[]> {

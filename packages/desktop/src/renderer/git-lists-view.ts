@@ -7,6 +7,8 @@ import { ago } from './git-format.js';
 import { gitIcon } from './git-icons.js';
 import { openNewBranchDialog, trackBadgeEl } from './git-branch-ui.js';
 import { sortBranchesRecent } from '../shared/git-lists.js';
+import { graphCell, graphCols } from './git-graph-view.js';
+import { layoutGraph } from '../shared/git-graph.js';
 import { ConflictText } from '../shared/conflict-text.js';
 
 const NL = String.fromCharCode(10);
@@ -81,13 +83,30 @@ export function buildBranches(ctx: GitCtx) {
   return { root, refresh };
 }
 
-/** 히스토리 탭: 최근 200개 커밋과 그 커밋의 diff */
+/** Blame 등 다른 화면이 "이 커밋을 히스토리에서 열어 줘"라고 부탁하는 쪽지. 히스토리 탭이 다음에 그릴 때 읽는다. */
+let wantedCommit = '';
+export function requestHistoryCommit(hash: string): void {
+  wantedCommit = hash;
+}
+
+/** 히스토리 탭: 최근 500개 커밋을 브랜치 선(그래프)과 함께 보이고, 고른 커밋의 diff를 오른쪽에 보인다 */
 export function buildHistory(ctx: GitCtx) {
   const root = el('div', 'gsplit');
   const side = el('div', 'gside');
   const main = el('div', 'gmain');
   root.append(side, main);
   let selected = '';
+  let allBranches = false;
+  const opts = el('label', 'gall');
+  const allBox = el('input');
+  allBox.type = 'checkbox';
+  opts.append(allBox, el('span', undefined, 'All branches'));
+  allBox.addEventListener('change', () => {
+    allBranches = allBox.checked;
+    void refresh();
+  });
+  let listBox = el('div', 'gfiles');
+  side.append(opts, listBox);
   async function show(row: LogRow): Promise<void> {
     selected = row.hash;
     main.replaceChildren(el('div', 'dim pad', 'Loading…'));
@@ -96,6 +115,7 @@ export function buildHistory(ctx: GitCtx) {
     main.replaceChildren();
     const head = el('div', 'gmh');
     head.append(el('b', undefined, row.subject), el('span', 'dim mono', row.short), el('span', 'dim', `${row.author} · ${files.length} file(s)`));
+    if (row.parents.length > 1) head.append(el('span', 'chip purple', `Merge of ${row.parents.length} parents`));
     main.appendChild(head);
     for (const f of files) {
       main.appendChild(el('div', 'gh', f.path));
@@ -103,15 +123,30 @@ export function buildHistory(ctx: GitCtx) {
     }
   }
   async function refresh(): Promise<void> {
-    const rows = (await ctx.call('log', {})) ?? [];
-    side.replaceChildren();
+    const rows = (await ctx.call('log', allBranches ? { all: true } : {})) ?? [];
+    const lanes = layoutGraph(rows);
+    const cols = graphCols(lanes);
+    if (wantedCommit !== '') {
+      const hit = rows.find((r) => r.hash === wantedCommit || r.hash.startsWith(wantedCommit));
+      if (hit === undefined && !allBranches) {
+        // 이 브랜치에 없는 커밋이면 모든 브랜치로 넓혀 다시 찾는다
+        allBranches = true;
+        allBox.checked = true;
+        return refresh();
+      }
+      wantedCommit = '';
+      if (hit !== undefined) void show(hit);
+    }
     const list = el('div', 'gfiles');
     const now = Math.floor(Date.now() / 1000);
-    for (const r of rows) {
+    rows.forEach((r, i) => {
       const row = el('div', `gf row-item gcm${r.hash === selected ? ' on' : ''}`);
+      const lane = lanes[i];
+      if (lane !== undefined) row.appendChild(graphCell(lane, cols));
       const info = el('span', 'gname');
       info.append(el('b', undefined, r.subject), el('div', 'dim', `${r.author} · ${ago(r.at, now)} · ${r.short}`));
       row.appendChild(info);
+      if (r.parents.length > 1) row.appendChild(el('span', 'chip', 'Merge'));
       for (const ref of r.refs.filter((x) => !x.startsWith('tag:'))) row.appendChild(el('span', ref.includes('rauha/job-') ? 'chip purple' : 'chip', ref.replace('HEAD -> ', '')));
       row.addEventListener('click', () => {
         list.querySelectorAll('.on').forEach((n) => n.classList.remove('on'));
@@ -119,9 +154,10 @@ export function buildHistory(ctx: GitCtx) {
         void show(r);
       });
       list.appendChild(row);
-    }
+    });
     if (rows.length === 0) list.appendChild(el('div', 'dim pad', 'No commits yet.'));
-    side.appendChild(list);
+    listBox.replaceWith(list);
+    listBox = list;
     if (rows[0] !== undefined && selected === '') void show(rows[0]);
   }
   return { root, refresh };
