@@ -8,6 +8,11 @@ describe('WorkspaceState', () => {
     expect(() => WorkspaceState.of(null).assertReady(true)).toThrow(/git 저장소/);
   });
 
+  it('git 저장소가 아니면 어떻게 하면 되는지(git init, 비밀 파일 제외)까지 알려 준다', () => {
+    expect(() => WorkspaceState.of(null).assertReady(false)).toThrow(/git init/);
+    expect(() => WorkspaceState.of(null).assertReady(false)).toThrow(/.gitignore/);
+  });
+
   it('커밋하지 않은 변경이 있으면 시작하지 않는다', () => {
     expect(() => WorkspaceState.of(['src/a.ts']).assertReady(true)).toThrow(/src\/a\.ts/);
   });

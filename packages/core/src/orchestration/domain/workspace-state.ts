@@ -42,7 +42,7 @@ export class WorkspaceState {
 
   assertReady(requireClean: boolean): void {
     if (this.dirty === null) {
-      throw new DomainError('NOT_A_REPO', 'git 저장소에서만 실행할 수 있습니다. 바뀐 파일을 git으로 추적하기 때문입니다.');
+      throw new DomainError('NOT_A_REPO', 'git 저장소에서만 실행할 수 있습니다. 바뀐 파일을 git으로 추적하기 때문입니다. 이 폴더에서 git init을 한 번 하고(비밀 파일과 node_modules는 .gitignore에 먼저 넣어 두세요) 첫 커밋을 만든 뒤 다시 맡겨 주세요.');
     }
     if (!requireClean) return;
     const edited = this.dirty.filter((p) => this.carried.has(p) && this.carried.get(p) !== this.current.get(p));
