@@ -1,0 +1,92 @@
+/* API 탭 (배치와 이 탭만의 모양. 버튼·칩·입력칸·탭 모양은 ui.css) */
+.api { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; position: relative; }
+.api .rhead { flex-wrap: wrap; }
+.api-head .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.api-toggle { display: none; }
+.app[data-tier=s] .api-toggle, .app[data-tier=xs] .api-toggle { display: inline-flex; }
+.app[data-tier=xs] .api-head .hint { display: none; }
+.api-env-bar { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.api-env-select { max-width: 180px; min-width: 0; }
+
+/* 몸: 왼쪽 목록 + 가운데 */
+.api-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--s3); position: relative; }
+.app[data-tier=xl] .api-body { grid-template-columns: 300px minmax(0, 1fr); }
+.app[data-tier=s] .api-body, .app[data-tier=xs] .api-body { grid-template-columns: minmax(0, 1fr); }
+.api-side { min-height: 0; overflow: hidden; }
+.app[data-tier=s] .api-side, .app[data-tier=xs] .api-side { display: none; position: absolute; z-index: 5; left: 0; top: 0; bottom: 0; width: min(320px, 92%); flex: none; background: var(--bg); box-shadow: 6px 0 24px #000a; }
+.app[data-tier=s] .api.list-open .api-side, .app[data-tier=xs] .api.list-open .api-side { display: flex; }
+.api-side-tools { padding: var(--s2) var(--s3); border-bottom: 1px solid var(--border); }
+.api-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: var(--s1) 0; }
+
+/* 목록 줄 */
+.api-row { cursor: pointer; padding-left: calc(var(--s3) + var(--depth, 0) * var(--s4)); padding-right: var(--s1); gap: var(--s2); min-width: 0; }
+.api-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.api-chev { width: 12px; flex: none; color: var(--muted); }
+.api-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.api-count { flex: none; font-size: var(--fs-xs); }
+.api-more { flex: none; color: var(--muted); }
+.api-hist { align-items: center; padding-top: var(--s1); padding-bottom: var(--s1); }
+.api-hist-text { display: flex; flex-direction: column; min-width: 0; }
+.api-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
+.api-empty, .api-res-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s5) var(--s3); text-align: center; }
+.api-empty b, .api-res-empty b { color: var(--bright); font-size: var(--fs-lg); }
+.api-res-empty { flex: 1; overflow-wrap: anywhere; }
+.api-res-empty.failed b { color: var(--red); }
+
+/* 메서드 이름표 */
+.api-method { flex: none; min-width: 34px; font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700; color: var(--muted); }
+.api-method.m-get { color: var(--green); }
+.api-method.m-post { color: var(--yellow); }
+.api-method.m-put { color: var(--accentfg); }
+.api-method.m-patch { color: var(--purple); }
+.api-method.m-delete { color: var(--red); }
+
+/* 가운데: 요청 줄·편집기·응답 */
+.api-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.api-req { flex: 0 1 auto; min-height: 0; max-height: 55%; overflow-y: auto; padding: var(--s2) var(--s3); gap: var(--s2); }
+.api-res { flex: 1 1 0; min-height: 160px; overflow: hidden; }
+.api-name-bar, .api-url-bar { flex-wrap: nowrap; }
+.api-name-input { flex: 1; min-width: 0; }
+.api-url-input { flex: 1; min-width: 0; font-family: var(--mono); }
+.api-method-select { flex: none; width: 104px; }
+.api-send { min-width: 76px; }
+.api-editor { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.api-panel { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.api-fields { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.api-field { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.api-field > .lbl { flex: 0 0 88px; }
+.api-field > input, .api-field > select { flex: 1; min-width: 0; }
+.api-body-text { width: 100%; min-height: 140px; resize: vertical; font-size: var(--fs-sm); }
+.api-ask { width: min(560px, calc(100vw - 32px)); max-width: none; }
+.api-ask > input, .api-ask > textarea { width: 100%; }
+.api-ask-text { min-height: 180px; resize: vertical; font-family: var(--mono); font-size: var(--fs-sm); }
+
+/* 이름-값 표 */
+.api-kv { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.api-kv-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) minmax(0, 2fr) 24px; gap: var(--s2); align-items: center; min-width: 0; }
+.api-kv-row > input.sm { width: 100%; min-width: 0; font-family: var(--mono); }
+
+/* 응답 */
+.api-response { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.api-res-head { padding: var(--s2) var(--s3); border-bottom: 1px solid var(--border); }
+.api-res-notes { padding: var(--s1) var(--s3); }
+.api-res-content { flex: 1; min-height: 0; overflow: auto; }
+.api-res-body { min-width: 0; }
+.api-code { margin: 0; padding: var(--s2) var(--s3); white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-sm); line-height: 1.5; color: var(--text); }
+.api-code .j-key { color: var(--accentfg); }
+.api-code .j-string { color: var(--green); }
+.api-code .j-number { color: var(--yellow); }
+.api-code .j-bool { color: var(--purple); }
+.api-code .j-null { color: var(--dim); }
+.api-code .j-punct { color: var(--muted); }
+.api-hk { color: var(--accentfg); white-space: nowrap; vertical-align: top; }
+.api-hv { overflow-wrap: anywhere; }
+.api-mask { display: inline-flex; align-items: center; gap: var(--s1); color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
+
+/* 환경 창 */
+.api-env { width: min(680px, calc(100vw - 32px)); max-width: none; max-height: 85vh; overflow-y: auto; }
+.api-vars { display: flex; flex-direction: column; gap: var(--s1); }
+.api-var { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto 24px; gap: var(--s2); align-items: center; min-width: 0; }
+.api-var > input.sm { width: 100%; min-width: 0; font-family: var(--mono); }
+.app[data-tier=xs] .api-var { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px; }
+.app[data-tier=xs] .api-var > .api-mask { grid-column: 1 / -1; }
