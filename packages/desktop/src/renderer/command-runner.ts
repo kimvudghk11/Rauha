@@ -102,7 +102,7 @@ export function createRunner(deps: RunnerDeps) {
           deps.say(`/${r.name} is not a command. Type / to see the list. To send it as plain text, add another / in front.`);
           return null;
         case 'off':
-          deps.say(`/${r.command.name} is turned off. Turn it on in the Commands tab.`);
+          deps.say(`/${r.command.name} is turned off. Turn it on in the Slash tab.`);
           return null;
         case 'usage':
           deps.say(`Missing: ${r.missing.join(', ')}. Usage: ${r.command.usage()}`);
@@ -132,7 +132,7 @@ function helpBox(book: CommandBook): HTMLElement {
     row.append(el('b', undefined, c.usage()), el('span', undefined, c.description));
     box.appendChild(row);
   }
-  box.appendChild(el('div', 'dim', 'Add your own commands in the Commands tab.'));
+  box.appendChild(el('div', 'dim', 'Add your own commands in the Slash tab.'));
   return box;
 }
 

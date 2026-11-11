@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { resolveTab, TABS } from './tabs.js';
 
 describe('TABS', () => {
-  it('탭 순서는 Chat·Repo·Todo·Records·Git·Commands·Rules이고 (레포 탭은 Repo 탭에 합쳐졌다) Settings는 맨 아래다', () => {
-    expect(TABS.filter((t) => !t.bottom).map((t) => t.label)).toEqual(['Chat', 'Repo', 'Todo', 'Records', 'Git', 'Commands', 'Rules']);
+  it('탭 순서는 Chat·Repo·Todo·Records·Git·Slash·Rules이고 (레포 탭은 Repo 탭에 합쳐졌다) Settings는 맨 아래다', () => {
+    expect(TABS.filter((t) => !t.bottom).map((t) => t.label)).toEqual(['Chat', 'Repo', 'Todo', 'Records', 'Git', 'Slash', 'Rules']);
     expect(TABS.filter((t) => t.bottom).map((t) => t.label)).toEqual(['Settings']);
   });
 

@@ -1,5 +1,5 @@
 /**
- * Commands 탭의 규칙. 입력창에 `/`로 시작하는 글을 치면 이 명령 모음이 읽는다.
+ * Slash 탭의 규칙. 입력창에 `/`로 시작하는 글을 치면 이 명령 모음이 읽는다.
  * 터미널판 rauha의 슬래시 명령(/review·/design·/repo·/learn·/routine·/update·/clear …)을 앱 명령으로 옮긴 "기본 명령"과,
  * 사용자가 더한 "내 명령"(이름 + 프롬프트 템플릿 + 인자 {{x}})을 한 모음으로 다룬다. 값은 불변이고, 바꾸면 새 모음을 돌려준다.
  */
@@ -30,7 +30,7 @@ export interface CommandProps {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  /** 무엇을 하는지 자세히(Commands 탭에서 펼쳐 보인다) */
+  /** 무엇을 하는지 자세히(Slash 탭에서 펼쳐 보인다) */
   readonly detail: string;
   readonly group: CommandGroup;
   readonly action: CommandAction;
@@ -140,7 +140,7 @@ const app = (action: AppAction, tab?: string): CommandAction => ({ kind: 'app', 
 
 type BuiltinDef = Omit<CommandProps, 'id' | 'builtin'>;
 
-/** 터미널판에서 옮겨 온 기본 명령. 순서는 입력창 자동완성과 Commands 탭의 순서다. */
+/** 터미널판에서 옮겨 온 기본 명령. 순서는 입력창 자동완성과 Slash 탭의 순서다. */
 const BUILTIN_DEFS: readonly BuiltinDef[] = [
   {
     name: 'review', group: 'Work', action: prompt('내 변경을 리뷰어 관점으로 검토해줘. 검토 범위: {{브랜치|커밋하지 않은 변경 전체}} (브랜치 이름이면 그 브랜치와 갈라진 뒤의 변경). 파일은 고치지 말고, 문제와 제안만 알려줘.'),

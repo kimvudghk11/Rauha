@@ -135,8 +135,8 @@
 .srow .lbl { flex: 1; color: var(--text); }
 .srow select, .srow input[type=number], .srow input:not([type]) { min-width: 120px; }
 .limits { display: flex; flex-direction: column; gap: 6px; padding: 4px 12px; }
-.limit { display: flex; align-items: center; gap: 8px; }
-.limit .lbl { width: 108px; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
+.limit { display: flex; align-items: center; gap: 12px; }
+.limit .lbl { width: 108px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
 .limit .bar { flex: 0 0 120px; height: 6px; border-radius: var(--r-sm); background: var(--border2); overflow: hidden; display: inline-block; }
 .limits > .pad { padding: 0; }
 .limit .bar i { display: block; height: 100%; background: var(--green); }

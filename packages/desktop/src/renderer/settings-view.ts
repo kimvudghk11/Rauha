@@ -104,7 +104,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     account.addEventListener('change', () => void api.update({ account: account.value === '' ? null : account.value }).then(render));
     const limits = el('div', 'limits');
     const paintLimits = (view: UsageView | null, readAt: number | null): void => {
-      limits.replaceChildren(limitBar('Current session (5h)', view?.session ?? null), limitBar('This week', view?.weekly ?? null), el('div', 'hint pad', usageTooltip(view === null ? null : { session: view.session, weekly: view.weekly, readAt })));
+      limits.replaceChildren(limitBar('Session (5h)', view?.session ?? null), limitBar('This week', view?.weekly ?? null), el('div', 'hint pad', usageTooltip(view === null ? null : { session: view.session, weekly: view.weekly, readAt })));
     };
     paintLimits(usage, api.usageFeed?.current()?.readAt ?? null);
     if (api.usageFeed !== undefined) {

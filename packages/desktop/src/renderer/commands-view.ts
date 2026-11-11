@@ -23,7 +23,7 @@ export const commandsApi = (api: { getCommands(): Promise<CommandBookJson>; save
 export function buildCommands(api: CommandsApi) {
   const root = el('section', 'commands');
   const head = el('div', 'rhead');
-  head.append(el('b', undefined, 'Commands'), el('span', 'hint', 'Type / in the chat box to autocomplete these commands.'));
+  head.append(el('b', undefined, 'Slash commands'), el('span', 'hint', 'Type / in the chat box to autocomplete these commands.'));
 
   let book = CommandBook.initial();
   let editing: string | null = null;
