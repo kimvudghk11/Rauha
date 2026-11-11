@@ -28,6 +28,8 @@ jobs:
       - run: yarn install --immutable
       - run: yarn typecheck
       - run: yarn test
+        # 평소 3분 안팎. 멈추면 작업 전체(40분)를 다 쓰지 않고 일찍 실패한다.
+        timeout-minutes: 15
       - run: yarn build
       - run: yarn dist
         env:
