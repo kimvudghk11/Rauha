@@ -330,11 +330,10 @@ describe('ChatSession — 설계 대화', () => {
     expect(designer.inputs).toHaveLength(1);
   });
 
-  it('여러 저장소에 걸친 기능 요청은 하지 않고 알린다', async () => {
+  it('다른 저장소가 읽기 전용 참고로만 넘어온 기능 요청은 이 저장소의 설계 대화로 간다', async () => {
     const loops = new FakeLoops();
-    const turn = await withDesigner({ team: new FakeTeam({ router: [route('feature')] }), loops }, designerThat(approved()).port).handle('둘 다 만들어줘', [{ name: 'web', root: 'E:/w/web', knowledge: null }]);
-    expect(turn.kind).toBe('notice');
-    expect(loops.runs).toEqual([]);
+    const turn = await withDesigner({ team: new FakeTeam({ router: [route('feature')] }), loops }, designerThat(approved()).port).handle('web처럼 만들어줘', [{ name: 'web', root: 'E:/w/web', knowledge: null }]);
+    expect(turn.kind).toBe('design');
   });
 
   it('설계 팀원이 쓴 호출과 비용이 사용량에 더해진다', async () => {
@@ -396,12 +395,22 @@ describe('ChatSession — 여러 저장소', () => {
     expect(team.calls.find((c) => c.role === 'answerer')!.dirs).toBeUndefined();
   });
 
-  it('여러 저장소를 고치는 작업은 하지 않고 알린다', async () => {
+  it('읽기 전용으로만 넘어온 다른 저장소가 있어도 이 저장소의 작업은 멈추지 않고 하며, 다른 저장소는 참고로 넘긴다', async () => {
     const loops = new FakeLoops();
     const team = new FakeTeam({ router: [route('work')] });
-    const turn = await ChatSession.start({ ...sessionDeps({ team, loops }), repoName: 'shop-api' }).handle('둘 다 고쳐줘', also);
-    expect(turn.kind).toBe('notice');
-    expect(loops.runs).toEqual([]);
+    const turn = await ChatSession.start({ ...sessionDeps({ team, loops }), repoName: 'shop-api' }).handle('shop-web처럼 shop-api에 할인 추가해줘', also);
+    expect(turn.kind).toBe('work');
+    expect(loops.runs).toHaveLength(1);
+    const references = loops.runs[0]!.context.references ?? '';
+    expect(references).toContain('shop-web');
+    expect(references).toContain('<repo_knowledge repo="shop-web"');
+    expect(references).toContain('읽기 전용');
+  });
+
+  it('다른 저장소가 없으면 참고 블록도 없다', async () => {
+    const loops = new FakeLoops();
+    await ChatSession.start({ ...sessionDeps({ team: new FakeTeam({ router: [route('work')] }), loops }), repoName: 'shop-api' }).handle('할인 추가해줘');
+    expect(loops.runs[0]!.context.references ?? null).toBeNull();
   });
 
   it('코드가 아닌 결과물(커밋을 모은 포트폴리오 .md 등)은 크기와 상관없이 받아서 문서 팀원이 만든다', async () => {

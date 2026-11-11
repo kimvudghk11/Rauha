@@ -145,6 +145,37 @@ describe('RunScope.threePass', () => {
     order.recordReview('changes');
     order.recordGreen(green);
     order.recordReview('changes');
-    expect(three.decide(order)).toEqual({ kind: 'stop', reason: 'halted' });
+    expect(three.decide(order)).toEqual({ kind: 'stop', reason: 'review-loop' });
+  });
+
+  it('올바른 Red를 네 번 못 만들어 멈추면 그 이유(invalid-tests)로 알린다', () => {
+    const order = openAtRed();
+    for (let i = 0; i < 4; i += 1) order.recordRed(invalid);
+    expect(three.decide(order)).toEqual({ kind: 'stop', reason: 'invalid-tests' });
+  });
+
+  it('구현 사다리를 다 올라도 실패하면 그 이유(escalation-exhausted)로 알린다', () => {
+    const order = openAtRed();
+    order.recordRed(red);
+    while (!order.isFinished()) {
+      if (order.pendingSupport !== null) order.resolveSupport();
+      else order.recordGreen(fail);
+    }
+    expect(three.decide(order)).toEqual({ kind: 'stop', reason: 'escalation-exhausted' });
+  });
+
+  it('지원 팀(디버깅·자문)이 아직 없어서 지원 요청이 쌓이면 지원 없이 다시 시도하게 한다', () => {
+    const order = openAtRed();
+    order.recordRed(red);
+    order.recordGreen(fail);
+    order.recordGreen(fail);
+    order.recordGreen(fail);
+    expect(order.pendingSupport).toBe('debugger');
+    expect(three.retriesWithoutSupport(order)).toBe(true);
+    expect(RunScope.ladder().retriesWithoutSupport(order)).toBe(false);
+  });
+
+  it('지원 요청이 없으면 지원 없이 다시 시도할 것도 없다', () => {
+    expect(three.retriesWithoutSupport(openAtRed())).toBe(false);
   });
 });

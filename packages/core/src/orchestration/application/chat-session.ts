@@ -103,6 +103,19 @@ export interface AlsoRepo {
   readonly read?: (path: string) => Promise<string | null>;
 }
 
+/** 요청이 함께 가리킨 다른 저장소를 접수 팀장에게 알리는 블록. 읽기 전용 참고이고 고치는 곳은 이 저장소뿐이다. */
+function referenceBlock(others: readonly AlsoKnown[]): string {
+  const lines = others.map((o) => `- ${o.name} (${o.root})`);
+  const knowledge = others.map((o) => o.known?.block ?? '').filter((b) => b !== '');
+  return [
+    '<other_repos>',
+    '요청이 함께 가리킨 다른 저장소입니다. 읽기 전용 참고예요: 그 저장소 파일은 고치지 않고, 업무 범위와 수용 기준은 이 저장소 안에서만 정하세요. 사용자가 그쪽도 고치길 원하면 저장소마다 따로 요청해 달라고 알려 주세요.',
+    ...lines,
+    ...knowledge,
+    '</other_repos>',
+  ].join('\n');
+}
+
 /** 함께 읽을 저장소와 그 지식(없으면 null) */
 interface AlsoKnown {
   readonly name: string;
@@ -258,11 +271,13 @@ export class ChatSession {
     if (route.mode === 'ideate') return this.desk.analyze('planner', '기획', input, conversation, started, 'planning');
     if (route.mode === 'risk') return this.analysis('riskchecker', '위험 점검', route, input, conversation, also, started);
     const changesCode = route.mode === 'work' || route.mode === 'feature';
-    if (changesCode && also.length > 0) return this.manyRepos(input, conversation, also, await this.knowledgeOf(), await this.othersKnown(also, 'deep'), started);
+    // 고칠 수 있는 저장소가 함께 넘어오면 저장소별로 나눠 맡고, 읽기 전용 참고뿐이면 이 저장소만 고치며 참고로 넘긴다.
+    if (changesCode && also.length > 0 && also.some((a) => a.work !== undefined)) return this.manyRepos(input, conversation, also, await this.knowledgeOf(), await this.othersKnown(also, 'deep'), started);
+    const references = changesCode && also.length > 0 ? referenceBlock(await this.othersKnown(also, 'deep')) : null;
     const past = route.refersToPast ? await this.pickPast(route.pastQuery ?? input, route.mode) : null;
     // 기능 요청은 설계 대화부터. 사용자와 주고받을 화면이 없으면(-p) 작업으로 바로 진행한다.
     if (route.mode === 'feature' && past === null && this.canDesign()) return this.designs!.run(input, conversation, started);
-    if (changesCode) return this.work(input, conversation, past);
+    if (changesCode) return this.work(input, conversation, past, null, references);
     const depth = answerDepthOf(route.depth, input);
     const known = await this.knowledgeFor(depth);
     const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth));
@@ -310,8 +325,8 @@ export class ChatSession {
 
   // ── 작업 ──────────────────────────────────────────────────
 
-  private async work(input: string, conversation: string | null, past: Recall | null, design: string | null = null): Promise<TurnOutcome> {
-    const outcome = await this.deps.newLoop(new Map(this.carried)).run(input, { conversation, pastWork: past === null ? null : recallBlock([past], MEMORY_CHARS), design });
+  private async work(input: string, conversation: string | null, past: Recall | null, design: string | null = null, references: string | null = null): Promise<TurnOutcome> {
+    const outcome = await this.deps.newLoop(new Map(this.carried)).run(input, { conversation, pastWork: past === null ? null : recallBlock([past], MEMORY_CHARS), design, references });
     this.costUsd += outcome.costUsd;
     for (const tier of Object.keys(this.calls) as ModelTier[]) this.calls[tier] += outcome.usage[tier].calls;
 

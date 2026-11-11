@@ -130,6 +130,14 @@ describe('ReadingGuideDto — 근거와 추측', () => {
     expect(ReadingGuideDto.create(base).stopMessage()).toBeNull();
   });
 
+  it('멈춘 이유마다 다음에 무엇을 하면 되는지 알려 준다', () => {
+    const msg = (stopReason: 'invalid-tests' | 'review-loop' | 'escalation-exhausted') => ReadingGuideDto.create({ ...base, status: 'stopped', stopReason }).stopMessage() ?? '';
+    expect(msg('invalid-tests')).toContain('한 줄을 덧붙여');
+    expect(msg('review-loop')).toContain('확인이 필요한 것');
+    expect(msg('escalation-exhausted')).toContain('더 작게 나눠');
+    expect(msg('escalation-exhausted')).not.toContain('다음 단계에서 붙입니다');
+  });
+
   it('팀원이 한도·거절로 멈췄으면 그 이유를 멈춘 이유 뒤에 이어 보인다', () => {
     const stopped = { ...base, status: 'stopped' as const, stopReason: 'needs-support' as const, memberStop: '일을 30턴 하다가 턴 한도에 닿아 멈췄어요.' };
     expect(ReadingGuideDto.create(stopped).stopMessage()).toContain('구현 시니어(sonnet)까지 실패했습니다.');

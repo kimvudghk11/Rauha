@@ -83,6 +83,8 @@ export interface RunContextBlocks {
   readonly pastWork: string | null;
   /** 사용자가 승인한 설계에서 온 작업이면 그 설계 블록(`<design>`). 없으면 null이나 없음 */
   readonly design?: string | null;
+  /** 요청이 함께 가리킨 다른 저장소(읽기 전용 참고). 없으면 null이나 없음 */
+  readonly references?: string | null;
 }
 
 const NO_CONTEXT: RunContextBlocks = { conversation: null, pastWork: null };
@@ -271,6 +273,10 @@ export class MinimalLoopService {
     let explanation: ExplanationDto | null = null;
 
     for (let step = 0; step < MAX_STEPS; step += 1) {
+      if (scope.retriesWithoutSupport(order)) {
+        order.resolveSupport();
+        progress.step('앞 시도가 모두 실패했어요. 실패 원인부터 다시 짚어서 시니어가 한 번 더 시도합니다');
+      }
       const decision = scope.decide(order);
       if (decision.kind === 'complete') {
         return this.finish({ tally, started, start: current.start, lockedTests: current.lockedTests, title: order.title, status: 'complete', stopReason: null, verdict, explanation, assumptions, facts: review.summary() });
@@ -493,6 +499,7 @@ export class MinimalLoopService {
           ? `<past_work>\n사용자가 이어서 고치려고 고른 지난 작업입니다. 바꾼 파일·결정·정한 해석을 존중하세요.\n${context.pastWork}\n</past_work>`
           : '',
         context.design ?? '',
+        context.references ?? '',
         `<request>\n${request}\n</request>`,
         known === null ? `<project_files>\n${files.join('\n')}\n</project_files>` : '',
         clarifications.length > 0

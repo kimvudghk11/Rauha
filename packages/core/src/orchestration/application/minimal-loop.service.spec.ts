@@ -427,6 +427,17 @@ describe('MinimalLoopService', () => {
     expect(outcome).toMatchObject({ status: 'stopped', stopReason: 'needs-support', escalated: true });
   });
 
+  it('3단 범위는 시니어가 처음 실패해도 멈추지 않고 지원 요청을 건너뛰고 다시 시도하다 사다리를 다 오르면 멈춘다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implementWrong] });
+    const steps: string[] = [];
+    const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog(), new FakeUser(false), { step: (m: string) => steps.push(m) }, true).run('Money에 할인 추가');
+    const tiers = team.log.filter((c) => c.role === 'implementer').map((c) => c.tier);
+    expect(tiers).toEqual(['haiku', 'haiku', 'sonnet', 'sonnet', 'sonnet']);
+    expect(outcome).toMatchObject({ status: 'stopped', stopReason: 'escalation-exhausted' });
+    expect(steps.some((m) => m.includes('원인부터'))).toBe(true);
+  });
+
   it('시니어 시도에서 잠긴 테스트를 고치면 쓰기 거부로 실패 처리한다', async () => {
     const ws = new FakeWorkspace();
     const touchLocked: Script = (_c, w) => {
