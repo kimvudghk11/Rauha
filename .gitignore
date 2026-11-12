@@ -46,6 +46,8 @@ rauha-bench/
 
 # 공개하면 안 되는 것: 키·인증서·계정 설정·개인 설정
 *.pem
+# 예외: AWS 가 클라이언트에 넣어 쓰라고 공개한 RDS CA 번들(공개 인증서만, 개인 키 없음)
+!packages/desktop/src/main/db/certs/aws-rds-global-bundle.pem
 *.key
 *.p12
 *.pfx
