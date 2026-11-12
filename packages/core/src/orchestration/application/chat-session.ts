@@ -17,9 +17,10 @@ import type { ChatSnapshot } from './dto/chat-snapshot.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import { RouteDto, type Route } from './dto/route.dto.js';
-import { ANSWER_SCHEMA, OPS_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
+import { ANSWER_SCHEMA, OPS_SCHEMA, PUBLISH_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
 import { OpsReportDto } from './dto/ops-report.dto.js';
+import { PublishReportDto } from './dto/publish-report.dto.js';
 import type { RunContextBlocks, RunOutcome } from './minimal-loop.service.js';
 import type { SessionBudget } from '../domain/session-budget.js';
 import { ToolKits } from '../domain/tool-kit.js';
@@ -266,6 +267,7 @@ export class ChatSession {
     }
     if (route.mode === 'task') return this.documents.write(input, conversation, also, started);
     if (route.mode === 'ops') return this.ops(input, conversation, started);
+    if (route.mode === 'publish') return this.publish(input, conversation, started);
     if (route.mode === 'debug') return this.analysis('debugger', '디버깅', route, input, conversation, also, started);
     if (route.mode === 'company') return (route.member === null ? this.hold(input, route) : null) ?? this.desk.company(input, conversation, route, started);
     if (route.mode === 'launch') return this.hold(input, route) ?? this.desk.launch(input, conversation, started);
@@ -471,6 +473,20 @@ export class ChatSession {
     this.answered.clear();
     const answer = stoppedMember(result)?.report(result.partial ?? null) ?? OpsReportDto.read(result.output).toAnswer();
     return this.settle('운영', input, answer, answer, started, costBefore, [], result.usage.tools);
+  }
+
+  // ── git 일(커밋·push·PR) ────────────────────────────────
+
+  /**
+   * 코드는 바꾸지 않고 커밋·push·PR만 하라는 요청. 테스트·구현 팀원 없이 git 팀원 한 명이 한다.
+   * 원문 요청을 함께 넘겨 도구 검사가 시킨 git 일은 묻지 않게 한다(시키지 않은 것과 강제 push는 묻는다).
+   */
+  private async publish(input: string, conversation: string | null, started: number): Promise<TurnOutcome> {
+    const costBefore = this.costUsd;
+    const result = await this.member('publisher', [conversationBlock(conversation), `<today>${this.deps.today()}</today>`, `<request>\n${input}\n</request>`], PUBLISH_SCHEMA, { request: input });
+    if (result.blocked) return { kind: 'blocked', ...result.blocked };
+    const answer = stoppedMember(result)?.report(result.partial ?? null) ?? PublishReportDto.read(result.output).toAnswer();
+    return this.settle('커밋·PR', input, answer, answer, started, costBefore, [], result.usage.tools);
   }
 
   // ── 회사 부서(CompanyDesk)·문서(DocumentDesk)가 쓰는 것 ───────────────────────

@@ -5,9 +5,10 @@ import { Department, type DepartmentId, type DepartmentMemberRole } from '../../
 export interface Route {
   /**
    * task: 코드가 아닌 결과물(문서·보고서). TDD 없이 문서 팀원이 만든다. feature: 설계 대화부터 하는 기능 요청.
+   * publish: 코드 수정 없이 커밋·push·PR 같은 git 일만. 테스트·구현 팀원 없이 git 팀원 한 명이 한다.
    * company: 마케팅·BM·디자인·보안·릴리스처럼 회사 부서가 맡는 일(department 필수). launch: 앱·웹을 기획해 오픈하기까지 여러 부서가 이어 쓰는 계획.
    */
-  readonly mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch';
+  readonly mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'publish' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch';
   readonly refersToPast: boolean;
   readonly pastQuery: string | null;
   /** company일 때 맡을 부서. 그 밖에는 null */
@@ -20,7 +21,7 @@ export interface Route {
   readonly reach: ReachValue | null;
 }
 
-const MODES: readonly Route['mode'][] = ['work', 'question', 'task', 'feature', 'ops', 'debug', 'risk', 'ideate', 'company', 'launch'];
+const MODES: readonly Route['mode'][] = ['work', 'question', 'task', 'feature', 'ops', 'publish', 'debug', 'risk', 'ideate', 'company', 'launch'];
 const REACHES: readonly ReachValue[] = ['investigate', 'compare', 'plan'];
 const FALLBACK: Route = { mode: 'work', refersToPast: false, pastQuery: null, department: null, member: null, depth: 'deep', reach: null };
 

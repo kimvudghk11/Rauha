@@ -1,4 +1,4 @@
-/** 고를 수 있는 캐릭터 10종(역할에 기본 배정되지 않는다). 키는 shared/character-ids.ts의 EXTRA_CHARACTER_IDS와 같다.
+/** 고를 수 있는 캐릭터 9종(역할에 기본 배정되지 않는다). 갈매기는 git 팀원(publisher)의 기본 캐릭터로 옮겼다. 키는 shared/character-ids.ts의 EXTRA_CHARACTER_IDS와 같다.
  * 형식은 characters-data.ts와 같다. 프레임 순서: 0 기본, 1 눈 감음, 2 기쁨, 3 걱정, 4 잠. */
 import type { PixelCharacter } from './characters-data.js';
 
@@ -37,18 +37,6 @@ export const EXTRA_CHARACTERS: Readonly<Record<string, PixelCharacter>> = {
       ['..S........S..', '...S......S...', '...SBBBBBBS...', '..SBBBBBBBBS..', '..BBEEBBEEBB..', '..BBBBBBBBBB..', '..BPBMMMMBPB..', '..SBBBLLBBBS..', '...SBLLLLBS...', '....SBLLBS....', '...HSSBBSSH...', '..HHH.SS.HHH..'],
       ['..S........S..', '...S......S...', '...SBBBBBBS...', '..SBBBBBBBBS..', '..BBBEBBEBBB..', '..BBEBBBBEBB..', '..BPBBMMBBPB..', '..SBBBLLBBBS..', '...SBLLLLBS...', '....SBLLBS....', '...HSSBBSSH...', '..HHH.SS.HHH..'],
       ['..S........S..', '...S......S...', '...SBBBBBBS...', '..SBBBBBBBBS..', '..BBBBBBBBBB..', '..BBEEBBEEBB..', '..BPBBMBBBPB..', '..SBBBLLBBBS..', '...SBLLLLBS...', '....SBLLBS....', '...HSSBBSSH...', '..HHH.SS.HHH..'],
-    ],
-  },
-  seagull: {
-    name: "갈매",
-    animal: "갈매기",
-    colors: {"E":"#1D2B3A","W":"#FFFFFF","P":"#F7A9C2","M":"#1D2B3A","D":"#1D2B3A","B":"#F4F8FC","S":"#A3B3CB","H":"#FFFFFF","X":"#7F93AE","Y":"#FFA94D"},
-    frames: [
-      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBWEBBBBWEBS.', '.SBEEBBBBEEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMMBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
-      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '.SBEEBBBBEEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMMBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
-      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBEEBBBBEEBS.', '.SBBBBBBBBBBS.', '.SBPBBYYBBPBS.', 'XXSBBMMMMBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
-      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBBEBBBBEBBS.', '.SBEBBBBBBEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMMBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
-      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '.SBEEBBBBEEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMBBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
     ],
   },
   frog: {

@@ -5,6 +5,7 @@ import type { UpdateView } from '../shared/update-record.js';
 import type { LoginView } from '../shared/claude-login.js';
 import { API_IPC } from '../shared/api-ipc.js';
 import { DB_IPC } from '../shared/db-api.js';
+import { CONNECTOR_IPC, type ConnectorListView } from '../shared/connector-api.js';
 import { DOCKER_IPC, type DockerLogEvent } from '../shared/docker-api.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
@@ -120,6 +121,20 @@ const api: RauhaApi = {
       ipcRenderer.on(TERM_IPC.event, (_e, event: TermEvent) => listener(event));
     },
   },
+  connectors: {
+    list: () => ipcRenderer.invoke(CONNECTOR_IPC.list),
+    refresh: () => ipcRenderer.invoke(CONNECTOR_IPC.refresh),
+    addPreset: (id) => ipcRenderer.invoke(CONNECTOR_IPC.addPreset, id),
+    addCustom: (input) => ipcRenderer.invoke(CONNECTOR_IPC.addCustom, input),
+    connect: (id) => ipcRenderer.invoke(CONNECTOR_IPC.connect, id),
+    cancel: (id) => ipcRenderer.invoke(CONNECTOR_IPC.cancel, id),
+    remove: (id) => ipcRenderer.invoke(CONNECTOR_IPC.remove, id),
+    onChange: (listener) => {
+      const handler = (_e: unknown, view: ConnectorListView) => listener(view);
+      ipcRenderer.on(CONNECTOR_IPC.changed, handler);
+      return () => void ipcRenderer.removeListener(CONNECTOR_IPC.changed, handler);
+    },
+  },
   db: {
     list: () => ipcRenderer.invoke(DB_IPC.list),
     addPath: (req) => ipcRenderer.invoke(DB_IPC.addPath, req),
@@ -177,6 +192,10 @@ const api: RauhaApi = {
     },
     import: (req) => ipcRenderer.invoke(API_IPC.import, req),
     export: (req, save) => ipcRenderer.invoke(API_IPC.export, req, save === true),
+    projects: {
+      list: () => ipcRenderer.invoke(API_IPC.projectsList),
+      sync: (req) => ipcRenderer.invoke(API_IPC.projectsSync, req),
+    },
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

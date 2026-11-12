@@ -1,6 +1,7 @@
 import { ApiCollections } from '../shared/api-collections.js';
 import { CollectionsDto, type CollectionsJson, type EnvironmentsView, type HistoryJson } from '../shared/api-dto.js';
-import type { ApiApi, CollectionResult, SendResult } from '../shared/api-ipc.js';
+import type { ApiSource } from '../shared/api-extract.js';
+import type { ApiApi, CollectionResult, ProjectList, ProjectRow, SendResult } from '../shared/api-ipc.js';
 import { API_METHODS, ApiRequest, type ApiMethod, type ApiRequestProps } from '../shared/api-request.js';
 import type { HistoryEntry } from '../shared/api-response.js';
 import { el, isEnterKey } from './dom.js';
@@ -76,7 +77,16 @@ export function buildApi(deps: ApiViewDeps) {
     });
     sideTabs.append(b);
   }
-  sidePane.append(sideTabs, sideTools, listHost);
+  // 프로젝트 고르기: 작업 폴더의 레포 하나를 골라 그 프로젝트의 API로 컬렉션을 만든다(전부 미리 읽지 않는다)
+  let projectList: ProjectList = { selected: null, items: [] };
+  let syncingProject = false;
+  const projectHost = el('div', 'bar api-project-bar');
+  const refreshBtn = button('↻', 'btn sm icon api-project-refresh', () => {
+    if (projectList.selected !== null) void syncProject(projectList.selected, true);
+  });
+  refreshBtn.title = 'Read the project again';
+  refreshBtn.setAttribute('aria-label', 'Read the project again');
+  sidePane.append(projectHost, sideTabs, sideTools, listHost);
 
   // ── 가운데: 요청 줄 · 편집기 · 응답 ──
   const methodSel = select(API_METHODS.map((m) => [m, m] as const), 'GET', (m) => edit({ method: m as ApiMethod }), 'api-method-select');
@@ -341,6 +351,62 @@ export function buildApi(deps: ApiViewDeps) {
     await deps.api.cancel(draft.id);
   }
 
+  function paintProjects(): void {
+    projectHost.replaceChildren();
+    const label = (p: ProjectRow): string => `${p.name}${p.source === 'frontend' ? ' (frontend)' : ''}`;
+    const opts: (readonly [string, string])[] = [['', projectList.items.length === 0 ? 'No projects in the work folder' : 'Choose a project…'], ...projectList.items.map((p) => [p.root, label(p)] as const)];
+    const sel = select(opts, projectList.selected ?? '', (root) => {
+      if (root === '') return;
+      void syncProject(root, false);
+    }, 'api-project-select');
+    sel.setAttribute('aria-label', 'Project');
+    sel.title = 'Make requests from this project\'s API (OpenAPI file or controllers)';
+    sel.disabled = syncingProject;
+    refreshBtn.disabled = syncingProject || projectList.selected === null;
+    refreshBtn.textContent = syncingProject ? '…' : '↻';
+    projectHost.append(sel, refreshBtn);
+  }
+
+  const SOURCE_LABEL: Record<ApiSource, string> = { openapi: 'OpenAPI file', nest: 'NestJS', spring: 'Spring', express: 'Express routes', next: 'Next.js API routes' };
+
+  /** 고른 프로젝트를 읽어 합친다. 지문이 같으면 main이 다시 읽지 않는다 */
+  async function syncProject(root: string, force: boolean, quiet = false): Promise<void> {
+    if (syncingProject) return;
+    syncingProject = true;
+    projectList = { ...projectList, selected: root };
+    paintProjects();
+    const name = projectList.items.find((p) => p.root === root)?.name ?? 'This project';
+    if (!quiet) say(`Reading ${name}…`);
+    try {
+      const r = await deps.api.projects.sync({ root, force });
+      if (!r.ok) return say(r.error);
+      collections = CollectionsDto.from(r.collections).toEntity();
+      if (r.envs !== null) envs = r.envs;
+      if (r.focusId !== null && r.status === 'synced') {
+        open.add(r.focusId);
+        try {
+          localStorage.setItem(OPEN_KEY, JSON.stringify([...open]));
+        } catch {
+          /* 접힘 기억은 없어도 된다 */
+        }
+      }
+      const big = r.truncated ? ' The project is large, so only part of it was scanned.' : '';
+      if (r.status === 'frontend') say(`${name} looks like a frontend repo, so no API list is made for it.`);
+      else if (r.status === 'empty') say(`No API found in ${name}. Rauha reads OpenAPI JSON files and NestJS, Spring, Express and Next.js routes.${big}`);
+      else if (r.status === 'synced' && r.report !== null) {
+        const rp = r.report;
+        const extra = [rp.added > 0 ? `${rp.added} new` : '', rp.updated > 0 ? `${rp.updated} updated` : '', rp.gone > 0 ? `${rp.gone} removed in code` : '', rp.kept > 0 ? `${rp.kept} kept with your edits` : ''].filter((x) => x !== '');
+        say(`${name}: ${rp.groups} ${rp.groups === 1 ? 'group' : 'groups'}, ${rp.total} requests from ${r.source === null ? 'the code' : SOURCE_LABEL[r.source]}.${extra.length > 0 ? ` ${extra.join(', ')}.` : ''}${big}`);
+      } else if (!quiet) say(r.status === 'busy' ? `Still reading ${name}…` : `${name} is up to date.`);
+      projectList = await deps.api.projects.list();
+      paintEnv();
+      paintSide();
+    } finally {
+      syncingProject = false;
+      paintProjects();
+    }
+  }
+
   async function importDialog(): Promise<void> {
     let format: 'curl' | 'http' | 'openapi' = 'curl';
     const hints = { curl: 'Paste a curl command (one line or several lines).', http: 'Paste the contents of a .http file (VS Code REST Client format).', openapi: 'Paste an OpenAPI 3.x JSON document. Paths become requests and the server URL becomes {{base_url}}.' };
@@ -390,14 +456,19 @@ export function buildApi(deps: ApiViewDeps) {
   // ── 시작 ──
   paintEnv();
   paintSide();
+  paintProjects();
   loadDraft(draft, false);
   void (async () => {
-    const [c, e, h] = await Promise.all([deps.api.collections.get(), deps.api.env.get(), deps.api.history.get()]);
+    const [c, e, h, p] = await Promise.all([deps.api.collections.get(), deps.api.env.get(), deps.api.history.get(), deps.api.projects.list()]);
     collections = CollectionsDto.from(c satisfies CollectionsJson).toEntity();
     envs = e;
     history = h;
+    projectList = p;
     paintEnv();
     paintSide();
+    paintProjects();
+    // 탭을 열 때 마지막에 고른 프로젝트가 바뀌었으면 다시 읽어 합친다(그대로면 main이 바로 답한다)
+    if (p.selected !== null) await syncProject(p.selected, false, true);
   })();
 
   return { root };

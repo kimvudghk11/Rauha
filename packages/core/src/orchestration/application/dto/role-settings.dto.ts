@@ -100,6 +100,8 @@ export class RoleSettingsDto {
       securitychecker: { tier: 'sonnet', effort: 'medium', maxTurns: 60, maxBudgetUsd: 1, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 릴리스 노트를 쓰려고 git 기록을 읽는다.
       releaser: { tier: 'sonnet', effort: 'low', maxTurns: 50, maxBudgetUsd: 1, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      // 커밋·push·PR만 한다. git log로 메시지 관례를 읽고 git·gh 명령을 실행할 뿐 파일은 고치지 않는다. 판단이 작아 가장 싼 모델로.
+      publisher: { tier: 'haiku', effort: 'low', maxTurns: 30, maxBudgetUsd: 0.3, tools: ['Read', 'Grep', 'Glob', 'Bash'], readsProject: true },
     });
   }
 

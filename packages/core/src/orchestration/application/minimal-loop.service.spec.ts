@@ -267,6 +267,44 @@ describe('MinimalLoopService', () => {
     expect(implementer?.request).toBe('Money에 할인 추가하고 커밋해줘');
   });
 
+  it('코드 변경과 커밋·PR을 함께 시키면 작업이 통과한 뒤 마지막에 git 팀원이 바뀐 파일만 커밋한다', async () => {
+    const ws = new FakeWorkspace();
+    const publisher = (call: MemberCall) => ({ answer: `커밋했어요. ${call.userMessage.includes('src/money.ts') ? '파일 목록 받음' : ''}`, commands: ['git commit -m x -- src/money.ts src/money.spec.ts'], finished: true });
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement], publisher: [publisher] });
+    const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog()).run('Money에 할인 추가하고 커밋까지 해줘');
+    expect(outcome.status).toBe('complete');
+    expect(team.calls).toEqual(['intake', 'tester', 'implementer', 'publisher']);
+    expect(outcome.publish).toMatchObject({ finished: true });
+    expect(outcome.publish!.text).toContain('파일 목록 받음');
+    expect(team.log.find((l) => l.role === 'publisher')?.request).toBe('Money에 할인 추가하고 커밋까지 해줘');
+    const guide = outcome.guide.toMarkdown();
+    expect(guide).toContain('커밋·PR');
+    expect(guide).not.toContain('커밋은 직접 하세요');
+  });
+
+  it('커밋을 시켰어도 작업이 멈추면 커밋하지 않고 그 이유를 안내서에 남긴다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implementWrong], publisher: [() => ({ answer: 'x', commands: [], finished: true })] });
+    const run = team.run.bind(team);
+    team.run = async (call) => {
+      const result = await run(call);
+      return call.role !== 'implementer' ? result : { ...result, output: null, usage: { ...result.usage, turns: 30, endReason: 'error_max_turns' } };
+    };
+    const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog()).run('Money에 할인 추가하고 커밋해줘');
+    expect(outcome.status).toBe('stopped');
+    expect(team.calls).not.toContain('publisher');
+    expect(outcome.publish).toMatchObject({ finished: false });
+    expect(outcome.guide.toMarkdown()).toContain('커밋하지 않았어요');
+  });
+
+  it('커밋을 시키지 않았으면 git 팀원을 부르지 않는다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const outcome = await service(ws, team, new FakeChecks(ws), new FakeLog()).run('Money에 할인 추가');
+    expect(team.calls).not.toContain('publisher');
+    expect(outcome.publish ?? null).toBeNull();
+  });
+
   it('Red가 유효하면 구현 팀원을 부르고 검증이 통과하면 완료', async () => {
     const ws = new FakeWorkspace();
     const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });

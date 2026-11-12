@@ -86,6 +86,9 @@ export { ProfileConfigDto } from './profile/application/dto/profile-config.dto.j
 // infrastructure (CLI가 조립한다)
 export { AgentSdkTeamMember, withTeamInstruction, type AgentSdkTeamMemberOptions } from './orchestration/infrastructure/agent-sdk-team-member.js';
 export { PromptLibrary } from './orchestration/infrastructure/prompt-library.js';
+export { Connector, ConnectorBook, ConnectorPreset, ConnectorTool, type ConnectorAccess, type ConnectorFields } from './orchestration/domain/connector.js';
+export { ConnectorBookDto, type ConnectorBookFile } from './orchestration/application/dto/connector-book.dto.js';
+export { connectorServers, type ConnectorServers } from './orchestration/infrastructure/connector-servers.js';
 export { GitWorkspace } from './orchestration/infrastructure/git-workspace.js';
 export { readPlanUsage } from './orchestration/infrastructure/agent-sdk-plan-usage.js';
 export { NodeChecks, NodeProject, type PackageManager } from './orchestration/infrastructure/node-checks.js';

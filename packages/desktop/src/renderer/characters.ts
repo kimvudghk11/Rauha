@@ -11,7 +11,7 @@ import { EXTRA_CHARACTERS } from './characters-extra.js';
  */
 export const CHARACTER_ROLES = [
   'intake', 'tester', 'implementer', 'reviewer', 'router', 'answerer', 'surveyor', 'writer', 'designer', 'operator',
-  'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'splitter',
+  'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'splitter', 'publisher',
 ] as const;
 export type CharacterRole = (typeof CHARACTER_ROLES)[number];
 
@@ -40,7 +40,7 @@ export function useLooks(next: Looks): void {
   looks = next;
 }
 
-/** 캐릭터 고르기 목록: base는 기본 22마리(역할 id), extra는 역할에 배정되지 않고 고를 수만 있는 새 캐릭터 */
+/** 캐릭터 고르기 목록: base는 기본 23마리(역할 id), extra는 역할에 배정되지 않고 고를 수만 있는 새 캐릭터 */
 export const CHARACTER_CHOICES = { base: [...CHARACTER_ROLES] as readonly string[], extra: [...EXTRA_CHARACTER_IDS] as readonly string[] };
 
 let currentSet: CharacterSet = DEFAULT_SET;
@@ -52,7 +52,7 @@ export function useCharacterSet(id: string): void {
 const toSprite = (c: PixelCharacter): Sprite => ({ name: c.name, animal: c.animal, palette: c.colors, frames: c.frames });
 const own = (table: Readonly<Record<string, PixelCharacter>>, id: string): PixelCharacter | undefined => (Object.hasOwn(table, id) ? table[id] : undefined);
 
-/** 알려진 캐릭터 id(기본 22마리의 역할 id 또는 새 캐릭터 id)인지 */
+/** 알려진 캐릭터 id(기본 23마리의 역할 id 또는 새 캐릭터 id)인지 */
 export const isCharacterId = (id: string): boolean => own(PIXEL_CHARACTERS, id) !== undefined || own(EXTRA_CHARACTERS, id) !== undefined;
 
 /** id로 캐릭터를 얻는다. 모르는 id면 오류(먼저 isCharacterId로 확인). */

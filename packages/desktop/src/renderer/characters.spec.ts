@@ -6,9 +6,9 @@ import { EXTRA_CHARACTERS } from './characters-extra.js';
 import { EXTRA_CHARACTER_IDS } from '../shared/character-ids.js';
 
 describe('spriteFor', () => {
-  it('팀원 역할마다 캐릭터가 하나씩 있다(22종)', () => {
+  it('팀원 역할마다 캐릭터가 하나씩 있다(23종)', () => {
     expect([...CHARACTER_ROLES].sort()).toEqual([...MEMBER_ROLES].sort());
-    expect(CHARACTER_ROLES.length).toBe(22);
+    expect(CHARACTER_ROLES.length).toBe(23);
   });
 
   it.each(CHARACTER_ROLES)('%s: 프레임이 다섯(기본·눈감음·기쁨·걱정·잠)이다', (role) => {
@@ -37,6 +37,10 @@ describe('spriteFor', () => {
 
   it('사업 모델 팀원(bm)은 해달 달이다', () => {
     expect(spriteFor('bm')).toMatchObject({ name: '달이', animal: '해달' });
+  });
+
+  it('git 팀원(publisher)은 갈매기 갈매다(고를 수 있던 캐릭터에서 옮겨 왔다)', () => {
+    expect(spriteFor('publisher')).toMatchObject({ name: '갈매', animal: '갈매기' });
   });
 
   it('화면에 쓰는 메인의 이름은 팀장 캐릭터의 이름에서 읽는다', () => {
@@ -70,8 +74,8 @@ describe('고를 수 있는 캐릭터(역할에 기본 배정되지 않는 새 �
   const ids = [...EXTRA_CHARACTER_IDS];
   const base = Object.values(PIXEL_CHARACTERS);
 
-  it('새 캐릭터는 열 마리이고 id 목록과 그림 데이터의 키가 같다', () => {
-    expect(ids.length).toBe(10);
+  it('새 캐릭터는 아홉 마리이고 id 목록과 그림 데이터의 키가 같다', () => {
+    expect(ids.length).toBe(9);
     expect(Object.keys(EXTRA_CHARACTERS).sort()).toEqual([...ids].sort());
   });
 
@@ -85,7 +89,7 @@ describe('고를 수 있는 캐릭터(역할에 기본 배정되지 않는 새 �
     expect(c.animal.trim()).not.toBe('');
   });
 
-  it('새 캐릭터의 이름·동물은 기존 22마리와도 서로와도 겹치지 않는다', () => {
+  it('새 캐릭터의 이름·동물은 기존 23마리와도 서로와도 겹치지 않는다', () => {
     const all = [...base, ...ids.map((id) => EXTRA_CHARACTERS[id]!)];
     expect(new Set(all.map((c) => c.name)).size).toBe(all.length);
     expect(new Set(all.map((c) => c.animal)).size).toBe(all.length);
@@ -122,7 +126,7 @@ describe('고를 수 있는 캐릭터(역할에 기본 배정되지 않는 새 �
     useLooks({ names: {}, characters: {} });
   });
 
-  it('고르기 목록은 기본 22마리와 새 캐릭터를 나눠 보여 준다', () => {
+  it('고르기 목록은 기본 23마리와 새 캐릭터를 나눠 보여 준다', () => {
     expect(CHARACTER_CHOICES.base).toEqual([...CHARACTER_ROLES]);
     expect(CHARACTER_CHOICES.extra).toEqual(ids);
   });

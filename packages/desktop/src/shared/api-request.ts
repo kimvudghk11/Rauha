@@ -146,6 +146,18 @@ export class ApiRequest {
     return new ApiRequest({ ...this.props, name: n });
   }
 
+  /** 내용 지문(id 빼고). 자동 생성한 요청을 사용자가 손댔는지 알아볼 때 쓴다 */
+  contentHash(): string {
+    const { id: _id, ...rest } = this.props;
+    const text = JSON.stringify(rest);
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return `${h.toString(16).padStart(8, '0')}${text.length.toString(16)}`;
+  }
+
   /** 요청에 쓰인 모든 변수 이름 */
   variableNames(): string[] {
     const p = this.props;

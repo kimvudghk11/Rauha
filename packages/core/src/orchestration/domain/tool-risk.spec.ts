@@ -49,6 +49,14 @@ describe('ToolRisk', () => {
     expect(bash('git mv a b && git reset --hard')).toBe('ask');
   });
 
+  it('새 브랜치를 만들어 옮기기만 하는 명령(git switch -c, git checkout -b)은 아무것도 버리지 않아서 묻지 않는다', () => {
+    expect(bash('git switch -c fix/login')).toBe('allow');
+    expect(bash('git checkout -b fix/login origin/main')).toBe('allow');
+    expect(bash('git switch -C fix/login')).toBe('ask');
+    expect(bash('git checkout -b x -- src/a.ts')).toBe('ask');
+    expect(bash('git switch -c x --discard-changes')).toBe('ask');
+  });
+
   it('git 읽기 명령은 허용한다', () => {
     for (const cmd of ['git status', 'git diff --stat', 'git log -3', 'git show HEAD', 'git branch']) {
       expect(bash(cmd), cmd).toBe('allow');

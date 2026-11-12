@@ -1,4 +1,4 @@
-import { ApiCollections, type CollectionNode } from './api-collections.js';
+import { ApiCollections, type CollectionNode, type NodeOrigin } from './api-collections.js';
 import { ApiEnvironment, ApiEnvironments, ENV_LIMITS, type EnvVar, type EnvVarEdit, type EnvVarView } from './api-env.js';
 import { ApiHistory, type HistoryEntry, type ResponseSummaryProps } from './api-response.js';
 import { API_METHODS, ApiError, ApiRequest, type ApiAuth, type ApiBody, type ApiMethod, type ApiRequestProps, type KeyValue } from './api-request.js';
@@ -142,8 +142,19 @@ export const safeRequestJson = (r: ApiRequest): ApiRequestProps => r.withSecrets
 
 export interface CollectionsJson {
   readonly version: 1;
-  readonly nodes: readonly ({ readonly kind: 'folder'; readonly id: string; readonly parentId: string | null; readonly name: string } | { readonly kind: 'request'; readonly id: string; readonly parentId: string | null; readonly request: ApiRequestProps })[];
+  readonly nodes: readonly ({ readonly kind: 'folder'; readonly id: string; readonly parentId: string | null; readonly name: string; readonly origin?: NodeOrigin } | { readonly kind: 'request'; readonly id: string; readonly parentId: string | null; readonly request: ApiRequestProps; readonly origin?: NodeOrigin })[];
 }
+
+/** 자동 생성 표시(없거나 모양이 틀리면 사용자가 만든 항목으로 본다) */
+function originOf(v: unknown): { origin: NodeOrigin } | Record<string, never> {
+  if (!isObj(v)) return {};
+  const { project, key, base, gone } = v;
+  if (typeof project !== 'string' || typeof key !== 'string' || typeof base !== 'string') return {};
+  if (project === '' || project.length > 1000 || key.length > 1200 || base.length > 64) return {};
+  return { origin: { project, key, base, gone: gone === true } };
+}
+
+const withOrigin = (o: NodeOrigin | undefined): { origin: NodeOrigin } | Record<string, never> => (o === undefined ? {} : { origin: o });
 
 export class CollectionsDto {
   private constructor(
@@ -161,8 +172,8 @@ export class CollectionsDto {
         assertPlain(n);
         const o = obj(n, 'item');
         const parentId = o['parentId'] === null || o['parentId'] === undefined ? null : idOf(o['parentId'], 'parentId');
-        if (o['kind'] === 'folder') nodes.push({ kind: 'folder', id: idOf(o['id']), parentId, name: text(o['name'], 'name', DTO_LIMITS.name) });
-        else if (o['kind'] === 'request') nodes.push({ kind: 'request', id: idOf(o['id']), parentId, request: ApiRequestDto.from(o['request']).json });
+        if (o['kind'] === 'folder') nodes.push({ kind: 'folder', id: idOf(o['id']), parentId, name: text(o['name'], 'name', DTO_LIMITS.name), ...originOf(o['origin']) });
+        else if (o['kind'] === 'request') nodes.push({ kind: 'request', id: idOf(o['id']), parentId, request: ApiRequestDto.from(o['request']).json, ...originOf(o['origin']) });
         else throw new ApiError('Unknown item.');
       } catch {
         skipped++;
@@ -178,14 +189,14 @@ export class CollectionsDto {
     return new CollectionsDto(
       {
         version: 1,
-        nodes: c.nodes.map((n) => (n.kind === 'folder' ? { kind: 'folder', id: n.id, parentId: n.parentId, name: n.name } : { kind: 'request', id: n.id, parentId: n.parentId, request: n.request.props })),
+        nodes: c.nodes.map((n) => (n.kind === 'folder' ? { kind: 'folder', id: n.id, parentId: n.parentId, name: n.name, ...withOrigin(n.origin) } : { kind: 'request', id: n.id, parentId: n.parentId, request: n.request.props, ...withOrigin(n.origin) })),
       },
       0,
     );
   }
 
   toEntity(): ApiCollections {
-    const nodes: CollectionNode[] = this.json.nodes.map((n) => (n.kind === 'folder' ? n : { kind: 'request', id: n.id, parentId: n.parentId, request: ApiRequest.create(n.request) }));
+    const nodes: CollectionNode[] = this.json.nodes.map((n) => (n.kind === 'folder' ? n : { kind: 'request', id: n.id, parentId: n.parentId, request: ApiRequest.create(n.request), ...withOrigin(n.origin) }));
     try {
       return ApiCollections.of(nodes);
     } catch {

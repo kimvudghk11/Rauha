@@ -261,3 +261,26 @@ describe('createToolGuard 비밀 파일 심볼릭 링크', () => {
     }
   });
 });
+
+describe('createToolGuard 커넥터(노션·컨플루언스) 도구', () => {
+  it('연결한 커넥터의 읽기 도구는 묻지 않는다', async () => {
+    const { guard, asked } = guardWith([], { connectors: ['notion'] });
+    expect(decision(await guard(input('mcp__notion__notion-search', { query: '회의록' }), 't1', opts))).toBeUndefined();
+    expect(asked).toEqual([]);
+  });
+
+  it('연결한 커넥터의 쓰기 도구는 허락 카드로 묻고, 거절하면 막는다', async () => {
+    const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { connectors: ['notion'] });
+    expect(decision(await guard(input('mcp__notion__notion-create-pages', { pages: [{ properties: { title: '주간 보고' } }] }), 't1', opts))).toBe('deny');
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.tool).toBe('mcp__notion__notion-create-pages');
+    expect(asked[0]!.reason).toContain('주간 보고');
+  });
+
+  it('이번 실행 동안 계속 허락하면 같은 쓰기 도구는 다시 묻지 않는다', async () => {
+    const { guard, asked } = guardWith([{ kind: 'allow-always' }], { connectors: ['atlassian'] });
+    expect(decision(await guard(input('mcp__atlassian__createConfluencePage', { title: 'A' }), 't1', opts))).toBe('allow');
+    expect(decision(await guard(input('mcp__atlassian__createConfluencePage', { title: 'B' }), 't1', opts))).toBe('allow');
+    expect(asked).toHaveLength(1);
+  });
+});

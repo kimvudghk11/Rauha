@@ -7,10 +7,10 @@ import { TeamSettings } from '../shared/team-settings.js';
 import { applyTeamOp, memberInfos, TeamSettingsStore } from './team-settings-store.js';
 
 describe('memberInfos', () => {
-  it('팀원 22명의 기본값(코어의 역할 설정)과 끌 수 있는지를 담는다', () => {
+  it('팀원 23명의 기본값(코어의 역할 설정)과 끌 수 있는지를 담는다', () => {
     const infos = memberInfos();
     expect(infos.map((i) => i.role)).toEqual([...MEMBER_ROLES]);
-    expect(infos).toHaveLength(22);
+    expect(infos).toHaveLength(23);
     expect(infos.find((i) => i.role === 'reviewer')).toMatchObject({ title: '리뷰어', required: true, defaults: { tier: 'sonnet', effort: 'medium' } });
     expect(infos.find((i) => i.role === 'reviewer')!.defaults.tools).not.toContain('Write');
     expect(infos.find((i) => i.role === 'marketer')!.required).toBe(false);

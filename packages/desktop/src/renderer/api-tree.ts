@@ -36,13 +36,15 @@ export function paintCollections(host: HTMLElement, c: ApiCollections, open: Set
   const tree = c.tree();
   if (tree.length === 0) {
     const empty = el('div', 'api-empty');
-    empty.append(el('b', undefined, 'No requests yet'), el('span', 'dim', 'Create a request, or import a cURL command, a .http file or an OpenAPI document.'));
+    empty.append(el('b', undefined, 'No requests yet'), el('span', 'dim', 'Choose a project above to list its API, create a request, or import a cURL command, a .http file or an OpenAPI document.'));
     host.append(empty);
     return;
   }
   const walk = (items: readonly TreeItem[], depth: number): void => {
     for (const item of items) {
-      const row = el('div', `row-item api-row${item.kind === 'request' && item.id === currentId ? ' on' : ''}`);
+      const row = el('div', `row-item api-row${item.kind === 'request' && item.id === currentId ? ' on' : ''}${item.gone ? ' gone' : ''}${item.auto ? ' auto' : ''}`);
+      if (item.gone) row.title = 'This endpoint is no longer in the project code. Delete it if you do not need it.';
+      else if (item.auto) row.title = 'Made from the project code. Your edits are kept when the project is read again.';
       row.style.setProperty('--depth', String(depth));
       row.tabIndex = 0;
       row.dataset['id'] = item.id;
@@ -75,6 +77,7 @@ export function paintCollections(host: HTMLElement, c: ApiCollections, open: Set
         if (isOpen) walk(item.children, depth + 1);
       } else {
         row.append(methodBadge(item.method), el('span', 'api-name grow', item.name));
+        if (item.gone) row.append(el('span', 'chip api-gone', 'Removed in code'));
         const menuItems = (): MenuItem[] => [
           { label: 'Rename', pick: () => actions.rename(item.id, item.name) },
           { label: 'Duplicate', pick: () => actions.duplicate(item.id) },

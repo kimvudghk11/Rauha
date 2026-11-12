@@ -1,6 +1,7 @@
 import { ApiCollections } from '../../shared/api-collections.js';
 import { CollectionsDto, EnvironmentsDto, HistoryDto } from '../../shared/api-dto.js';
 import { ApiEnvironments } from '../../shared/api-env.js';
+import { ApiProjects, ApiProjectsDto } from '../../shared/api-project.js';
 import { ApiHistory } from '../../shared/api-response.js';
 import { JsonFile } from '../data/json-file.js';
 
@@ -51,6 +52,22 @@ export class EnvironmentsStore implements ApiStorePort<ApiEnvironments> {
   }
   save(e: ApiEnvironments): Promise<void> {
     return this.json.write(EnvironmentsDto.fromEntity(e).toJSON());
+  }
+}
+
+/** 고른 프로젝트와 프로젝트별 마지막 동기화 기록: api-projects.json */
+export class ApiProjectsStore implements ApiStorePort<ApiProjects> {
+  private readonly json: JsonFile;
+  constructor(file: string) {
+    this.json = new JsonFile(file);
+  }
+  async load(): Promise<ApiProjects> {
+    const read = await this.json.read();
+    if (read.kind !== 'ok') return ApiProjects.empty();
+    return ApiProjectsDto.from(read.value).toEntity();
+  }
+  save(p: ApiProjects): Promise<void> {
+    return this.json.write(ApiProjectsDto.fromEntity(p).toJSON());
   }
 }
 

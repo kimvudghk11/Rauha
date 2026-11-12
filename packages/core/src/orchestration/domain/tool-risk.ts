@@ -151,6 +151,13 @@ function assessAws(args: readonly string[]): ToolVerdict {
   return ask(`AWS 변경 (aws ${service} ${operation})`);
 }
 
+/** `git switch -c <이름> [시작점]`, `git checkout -b <이름> [시작점]`: 새 브랜치를 만들어 옮길 뿐 작업 트리의 변경을 버리지 않는다. */
+function createsBranchOnly(sub: string, after: readonly string[]): boolean {
+  const flags = sub === 'switch' ? ['-c', '--create'] : sub === 'checkout' ? ['-b'] : [];
+  const [flag, name, start, ...rest] = after;
+  return flag !== undefined && flags.includes(flag) && name !== undefined && !name.startsWith('-') && (start === undefined || !start.startsWith('-')) && rest.length === 0;
+}
+
 /** gh pr create / gh pr merge: 사용자가 시켰을 때만 한다. */
 function assessGh(args: readonly string[], intent: GitPublishIntent): ToolVerdict {
   const words: string[] = [];
@@ -215,6 +222,7 @@ function assessSegment(words: readonly string[], intent: GitPublishIntent): Tool
       const own: ToolVerdict = GIT_WRITES.has(sub) ? ask(`git 쓰기 (git ${sub})`) : ALLOW;
       return worst([own, ...nested]);
     }
+    if (createsBranchOnly(sub, args.slice(args.indexOf(sub) + 1))) return ALLOW;
     if (GIT_WRITES.has(sub)) return ask(`git 쓰기 (git ${sub})`);
     if (sub === 'branch' && args.some((a) => /^-(d|D|-delete)$/.test(a))) return ask('git 쓰기 (브랜치 삭제)');
     return ALLOW;

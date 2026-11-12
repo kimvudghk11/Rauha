@@ -173,7 +173,7 @@ export const ROUTE_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
   required: ['mode', 'refersToPast', 'pastQuery', 'department', 'member', 'depth', 'reach'],
   properties: {
-    mode: { enum: ['work', 'question', 'task', 'feature', 'ops', 'debug', 'risk', 'ideate', 'company', 'launch'], description: 'company: 마케팅·사업 모델·디자인·보안·릴리스처럼 회사 부서가 맡는 일(department 필수), launch: 앱·웹을 기획해 오픈하기까지 여러 부서가 이어 쓰는 런칭 계획, ideate: 사업·제품 아이디어를 내거나 무엇을 만들지 구상해 달라는 요청(아직 만들라는 말이 아님), debug: 에러·실패·이상 동작의 원인을 찾아 달라는 요청(고치라는 말이 없음), risk: 바꾸기 전에 영향 범위·깨질 곳·위험을 점검해 달라는 요청, ops: aws·terraform·kubectl 같은 명령으로 클라우드·인프라를 조회하거나 바꾸는 요청(코드 수정 아님), work: 범위가 분명한 작은 코드 수정, feature: 새 기능이나 동작 변경(해석이 갈리거나 여러 파일에 걸침), question: 코드를 바꾸지 않는 질문, task: 코드가 아닌 결과물(문서·보고서·정리 파일)을 만드는 요청' },
+    mode: { enum: ['work', 'question', 'task', 'feature', 'ops', 'publish', 'debug', 'risk', 'ideate', 'company', 'launch'], description: 'company: 마케팅·사업 모델·디자인·보안·릴리스처럼 회사 부서가 맡는 일(department 필수), launch: 앱·웹을 기획해 오픈하기까지 여러 부서가 이어 쓰는 런칭 계획, ideate: 사업·제품 아이디어를 내거나 무엇을 만들지 구상해 달라는 요청(아직 만들라는 말이 아님), debug: 에러·실패·이상 동작의 원인을 찾아 달라는 요청(고치라는 말이 없음), risk: 바꾸기 전에 영향 범위·깨질 곳·위험을 점검해 달라는 요청, ops: aws·terraform·kubectl 같은 명령으로 클라우드·인프라를 조회하거나 바꾸는 요청(코드 수정 아님), publish: 코드는 바꾸지 않고 커밋·push·PR·브랜치 정리 같은 git 일만 하라는 요청(고치고 커밋까지처럼 코드 수정이 섞이면 work·feature), work: 범위가 분명한 작은 코드 수정, feature: 새 기능이나 동작 변경(해석이 갈리거나 여러 파일에 걸침), question: 코드를 바꾸지 않는 질문, task: 코드가 아닌 결과물(문서·보고서·정리 파일)을 만드는 요청' },
     depth: { enum: ['light', 'deep'], description: 'mode가 question일 때만 의미가 있다. light: 파일을 열지 않아도 답할 수 있는 가벼운 질문(산수, 인사, 일반 상식, 짧은 용어 뜻). deep: 이 저장소의 코드·구조·설정을 읽어야 하는 질문. 그 밖의 mode는 deep' },
     reach: { enum: ['investigate', 'compare', 'plan', null], description: 'mode가 debug나 risk일 때만 의미가 있다. investigate: 원인이나 위험만 알고 싶다, compare: 어떻게 고칠지 방향을 비교해 달라, plan: 분석한 뒤 고치는 설계와 단계별 계획까지 달라. 그 밖의 mode는 null' },
     refersToPast: { type: 'boolean', description: '이름 없이 지난 작업을 가리키는지("아까 그 기능", "방금 거")' },
@@ -232,6 +232,17 @@ export const OPS_SCHEMA: Record<string, unknown> = {
   properties: {
     answer: { ...str, description: '무엇을 확인하거나 바꿨는지, 이번에 명령이 출력한 것만으로 쓴 보고' },
     commands: { ...strList, description: '이번에 실행한 명령을 실행한 순서대로, 비밀 값은 지운 채' },
+  },
+};
+
+export const PUBLISH_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['answer', 'commands', 'finished'],
+  properties: {
+    answer: { ...str, description: '무엇을 커밋·push했고 PR이 어디 열렸는지, 막혔으면 무엇에 막혔고 사용자가 할 일이 무엇인지. 이번에 명령이 출력한 것만으로 쓴 보고' },
+    commands: { ...strList, description: '이번에 실행한 명령을 실행한 순서대로, 비밀 값은 지운 채' },
+    finished: { type: 'boolean', description: '시킨 커밋·push·PR을 모두 마쳤으면 true, 막혔거나 일부만 했으면 false' },
   },
 };
 

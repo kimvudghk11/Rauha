@@ -1,4 +1,7 @@
+import type { SyncReport } from './api-collections.js';
 import type { CollectionsJson, EnvironmentsView, HistoryJson } from './api-dto.js';
+import type { ApiSource } from './api-extract.js';
+import type { ProjectRecord } from './api-project.js';
 import type { ResponseSummaryProps } from './api-response.js';
 
 /** API 탭이 main과 이야기하는 좁은 채널들. 인자는 모두 main이 DTO로 다시 검사한다. */
@@ -14,6 +17,8 @@ export const API_IPC = {
   historyClear: 'api:history:clear',
   import: 'api:import',
   export: 'api:export',
+  projectsList: 'api:projects:list',
+  projectsSync: 'api:projects:sync',
 } as const;
 
 export type SendFail = 'invalid' | 'missing' | 'blocked' | 'busy' | 'timeout' | 'cancelled' | 'network';
@@ -34,6 +39,33 @@ export type ApiOpResult<T> = ({ readonly ok: true; readonly envs: EnvironmentsVi
 export type CollectionResult = ApiOpResult<{ readonly collections: CollectionsJson; /** 새로 생긴 항목(복제·가져오기·새 요청) */ readonly focusId: string | null }>;
 export type EnvResult = { readonly ok: true; readonly envs: EnvironmentsView } | { readonly ok: false; readonly error: string };
 export type ExportResult = { readonly ok: true; readonly text: string; readonly fileName: string; readonly saved: string | null } | { readonly ok: false; readonly error: string };
+
+/** API 탭의 프로젝트 고르기 목록 한 줄 */
+export interface ProjectRow {
+  readonly root: string;
+  readonly name: string;
+  readonly relative: string;
+  /** 마지막으로 읽은 결과(아직 안 읽었으면 null) */
+  readonly source: ProjectRecord['source'] | null;
+  readonly endpoints: number;
+}
+export interface ProjectList {
+  readonly selected: string | null;
+  readonly items: readonly ProjectRow[];
+}
+
+/** synced: 읽어서 합침, unchanged: 지문이 같아 그대로, frontend: 프론트엔드 레포라 만들지 않음, empty: API를 못 찾음, busy: 이미 읽는 중 */
+export type ProjectSyncStatus = 'synced' | 'unchanged' | 'frontend' | 'empty' | 'busy';
+export type ProjectSyncResult = ApiOpResult<{
+  readonly status: ProjectSyncStatus;
+  readonly source: ApiSource | null;
+  readonly report: SyncReport | null;
+  readonly collections: CollectionsJson;
+  /** 프로젝트 폴더 id */
+  readonly focusId: string | null;
+  /** 파일이 너무 많아 일부만 훑었다 */
+  readonly truncated: boolean;
+}>;
 
 export interface ApiApi {
   /** 요청 하나를 보낸다. 같은 key가 이미 가는 중이면 다시 보내지 않고 busy로 답한다 */
@@ -56,4 +88,10 @@ export interface ApiApi {
   import(req: unknown): Promise<CollectionResult>;
   /** 요청을 cURL로, 요청이나 폴더를 .http로 내보낸다(save가 true면 저장 위치를 묻고 파일로 쓴다) */
   export(req: unknown, save?: boolean): Promise<ExportResult>;
+  /** 작업 폴더의 프로젝트에서 API 컬렉션을 만든다(고른 프로젝트 하나만 읽는다) */
+  projects: {
+    list(): Promise<ProjectList>;
+    /** { root, force? } */
+    sync(req: unknown): Promise<ProjectSyncResult>;
+  };
 }

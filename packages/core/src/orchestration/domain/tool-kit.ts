@@ -4,7 +4,11 @@ import type { MemberRole } from './member-role.js';
  * 요청에 따라 팀원에게 더 붙이는 도구 묶음(MCP 서버).
  * browser: 웹페이지를 열어 읽는 브라우저. aws: AWS 공식 문서·리전별 제공 여부·AWS 스킬(계정 없이 쓰는 공개 서버).
  */
-export type ToolKit = 'browser' | 'aws';
+export type ToolKit = 'browser' | 'aws' | 'connectors';
+
+/** 사용자가 설정에서 연결한 업무 도구(노션·컨플루언스·지라 …)를 읽고 쓰는 역할. 지금은 답변 팀원만. */
+const CONNECTOR_ROLES: ReadonlySet<MemberRole> = new Set(['answerer']);
+const CONNECTOR_WORDS = /노션|notion|컨플루언스|confluence|컨플|위키|wiki|지라|jira|아틀라시안|atlassian|구글\s?(독스|문서|시트|드라이브)|google\s?(docs?|sheets?|drive)|스프레드\s?시트|spreadsheet|시트에|커넥터|connector/i;
 
 /** 브라우저로 페이지를 열어 볼 수 있는 역할. 답을 찾거나(답변·디버깅) 화면을 다루는(UX) 팀원만. */
 const BROWSER_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'debugger', 'uxdesigner']);
@@ -32,6 +36,7 @@ export class ToolKits {
     const kits: ToolKit[] = [];
     if (BROWSER_ROLES.has(role) && (ADDRESS.test(request) || WEB_WORDS.test(request) || OPENED_PAGE.test(request))) kits.push('browser');
     if (AWS_ROLES.has(role) && (AWS_SHORT.test(request) || AWS_WORDS.test(request))) kits.push('aws');
+    if (CONNECTOR_ROLES.has(role) && CONNECTOR_WORDS.test(request)) kits.push('connectors');
     return kits;
   }
 }

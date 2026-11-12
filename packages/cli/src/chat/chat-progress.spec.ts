@@ -75,6 +75,25 @@ describe('chatProgress', () => {
     }
   });
 
+  it('git 일은 "커밋·PR" 단계만 보이고 테스트·구현 단계는 나오지 않는다', () => {
+    const store = new ChatStore();
+    const progress = chatProgress(store, null, () => 0);
+    progress.step('x', 'publisher');
+    expect(store.working?.text).toBe('커밋·PR 중…');
+    progress.finish();
+    const last = store.lines.at(-1) ?? '';
+    expect(JSON.stringify(last)).toContain('커밋·PR');
+    expect(JSON.stringify(last)).not.toMatch(/테스트|구현/);
+  });
+
+  it('코드 작업 뒤 커밋까지 시키면 마지막에 "커밋·PR" 단계가 붙는다', () => {
+    const store = new ChatStore();
+    const progress = chatProgress(store, null, () => 0);
+    for (const role of ['intake', 'tester', 'implementer', 'reviewer', 'publisher'] as const) progress.step('x', role);
+    progress.finish();
+    expect(JSON.stringify(store.lines.at(-1))).toContain('리뷰 > 커밋·PR');
+  });
+
   it('끝나면 지나온 단계와 전체 걸린 시간을 한 줄로 남긴다', () => {
     const store = new ChatStore();
     let now = 0;

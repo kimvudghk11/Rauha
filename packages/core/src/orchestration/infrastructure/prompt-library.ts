@@ -35,7 +35,7 @@ export class PromptLibrary {
       }
     };
     const common = await read('_common.md');
-    const kits = { browser: await read('_kit-browser.md'), aws: await read('_kit-aws.md') };
+    const kits = { browser: await read('_kit-browser.md'), aws: await read('_kit-aws.md'), connectors: await read('_kit-connectors.md') };
     // 동시에 읽되, 없는 파일은 역할 순서상 첫 번째 것을 알려 준다(어느 읽기가 먼저 끝나는지에 따라 메시지가 바뀌지 않게).
     const settled = await Promise.allSettled(MEMBER_ROLES.map((role) => read(`${role}.md`)));
     const missing = settled.find((s): s is PromiseRejectedResult => s.status === 'rejected');

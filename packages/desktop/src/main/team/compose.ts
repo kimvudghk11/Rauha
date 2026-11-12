@@ -33,6 +33,7 @@ import {
   projectLockFile,
   projectMemoryFile,
   realAskTimer,
+  type ConnectorServers,
   type MemberCall,
   type MemberResult,
   type PlanUsage,
@@ -109,6 +110,8 @@ export interface ComposeOptions {
   readonly models?: (() => Readonly<Partial<Record<ModelTier, string>>>) | undefined;
   /** 모델을 쓸 수 없어 다른 모델로 대신 실행했을 때의 한 줄 안내(결과 글 끝에 붙인다). 진행 표시에는 항상 보인다. */
   readonly onFallback?: ((line: string) => void) | undefined;
+  /** 설정에서 연결한 커넥터(노션·컨플루언스 …). 부를 때마다 최신 목록. 없으면 붙이지 않는다. */
+  readonly connectors?: (() => ConnectorServers) | undefined;
 }
 
 /** 작업 공간(rauha가 여는 폴더)과 그 안의 레포들, 그리고 이번 요청이 가리킨 다른 레포들(읽기만) */
@@ -150,6 +153,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     secretFiles: () => listSecretFiles(root, secrets),
     ...(options.claudeExecutable !== undefined ? { claudeExecutable: options.claudeExecutable } : {}),
     ...((options.readRoots?.length ?? 0) > 0 ? { readRoots: options.readRoots! } : {}),
+    ...(options.connectors !== undefined ? { connectors: options.connectors } : {}),
     ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
   });
   const team = stoppable(new ModelRoutingTeam(inner, () => ModelSettingsDto.from(options.models?.()).toEntity(), (line) => {

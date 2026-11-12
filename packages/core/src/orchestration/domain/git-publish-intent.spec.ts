@@ -64,6 +64,22 @@ describe('GitPublishIntent', () => {
     }
   });
 
+  it('코드 작업 뒤 커밋·PR 단계는 작업이 끝까지 통과했을 때만 붙고, 멈췄으면 하지 않는다', () => {
+    const asked = of('고치고 커밋까지 해줘');
+    expect(asked.afterRun('complete')).toBe('publish');
+    expect(asked.afterRun('stopped')).toBe('skip');
+    expect(of('고쳐줘').afterRun('complete')).toBe('none');
+    expect(of('고쳐줘').afterRun('stopped')).toBe('none');
+  });
+
+  it('시킨 git 일을 사람이 읽는 말로 적는다(PR은 커밋·push를 품는다)', () => {
+    expect(of('커밋해줘').label()).toBe('커밋');
+    expect(of('푸시까지 해줘').label()).toBe('커밋·push');
+    expect(of('PR 올려줘').label()).toBe('커밋·push·PR');
+    expect(of('PR 만들고 머지까지').label()).toBe('커밋·push·PR·머지');
+    expect(GitPublishIntent.none().label()).toBe('');
+  });
+
   it('다른 뜻의 올려/언급은 push로 보지 않는다', () => {
     expect(of('버튼 크기를 올려줘').allowsPush()).toBe(false);
     expect(of('이미지 파일을 올려서 보여줘').allowsPush()).toBe(false);

@@ -90,6 +90,20 @@ export class GitPublishIntent {
     return this.pr && this.merge;
   }
 
+  /**
+   * 코드 작업이 끝난 뒤 커밋·PR 단계를 붙일지. 시키지 않았으면 none,
+   * 시켰어도 작업이 끝까지 통과하지 못했으면(멈춤) 검증 안 된 변경을 올리지 않게 skip.
+   */
+  afterRun(status: 'complete' | 'stopped'): 'publish' | 'skip' | 'none' {
+    if (!this.allowsCommit()) return 'none';
+    return status === 'complete' ? 'publish' : 'skip';
+  }
+
+  /** 시킨 git 일을 사람이 읽는 말로("커밋·push·PR"). 시키지 않았으면 빈 글. */
+  label(): string {
+    return [this.allowsCommit() && '커밋', this.allowsPush() && 'push', this.allowsPullRequest() && 'PR', this.allowsMerge() && '머지'].filter((w): w is string => w !== false).join('·');
+  }
+
   equals(other: GitPublishIntent): boolean {
     return this.commit === other.commit && this.push === other.push && this.pr === other.pr && this.merge === other.merge;
   }

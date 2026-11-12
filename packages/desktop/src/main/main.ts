@@ -67,6 +67,8 @@ import { registerApiIpc } from './api/api-ipc.js';
 import { registerDockerIpc } from './docker/docker-ipc.js';
 import { registerDbIpc } from './db/db-ipc.js';
 import { registerBlogIpc } from './blog/blog-ipc.js';
+import { registerConnectorIpc } from './connectors/connector-ipc.js';
+import type { ConnectorService } from './connectors/connector-service.js';
 import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
@@ -318,7 +320,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir] }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] } }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               return await session.handle(withAttachments(mentioned, staged?.paths ?? [], target.text), depth);
             } finally {
@@ -376,6 +378,8 @@ const usageOverSeen = new Set<string>();
 
 /** 할 일·기록(앱 데이터 폴더의 JSON 파일). 기록은 이 PC에만 둔다. 확인용으로 RAUHA_DATA_DIR로 폴더를 바꿀 수 있다. */
 const dataDir = process.env['RAUHA_DATA_DIR'] ?? join(homedir(), '.rauha', 'desktop');
+/** 설정 → 커넥터(노션·컨플루언스 …). 앱이 뜬 뒤 등록된다. */
+let connectorService: ConnectorService | null = null;
 /** 채팅에 붙인 이미지의 임시 자리(앱 데이터 폴더). 작업 폴더·저장소에는 두지 않고, 일이 끝나면 지운다. */
 const attachments = new AttachmentStore(join(dataDir, 'attachments'));
 const jobImages = new Map<string, StagedImages>();
@@ -860,8 +864,22 @@ void app.whenReady().then(async () => {
       return result.filePath;
     },
   });
+  connectorService = registerConnectorIpc(ipcMain, {
+    file: join(dataDir, 'connectors.json'),
+    env: async () => {
+      const profile = (await profileResolver(home, settings.account))(currentWorkDir());
+      const agentEnv = profile.agentEnv(home);
+      if (agentEnv['CLAUDE_CONFIG_DIR'] !== undefined) mkdirSync(agentEnv['CLAUDE_CONFIG_DIR'], { recursive: true });
+      return { ...(process.env as Record<string, string>), ...agentEnv };
+    },
+    executable: () => claudeExecutable(),
+    openExternal: (url) => openSafe(url),
+    send: (channel, view) => window?.webContents.send(channel, view),
+  });
   registerApiIpc(ipcMain, {
     dataDir,
+    // 문서 폴더는 빼고, 작업 폴더에서 찾은 레포·폴더만(API 탭은 이 경로만 읽는다)
+    listProjects: async () => (await scanWorkFolder(currentWorkDir())).filter((e) => e.kind !== 'docs').map((e) => ({ root: e.root, name: e.name, relative: e.relative })),
     saveFile: async (fileName, text) => {
       const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
       const result = await dialog.showSaveDialog(window ?? undefined!, { title: 'Save requests', defaultPath: join(startIn, fileName), filters: [{ name: 'HTTP requests', extensions: ['http', 'sh'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });

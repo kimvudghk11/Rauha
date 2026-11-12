@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, modelOf, readDirs, toolCountHook, withTeamInstruction } from './agent-sdk-team-member.js';
+import { addUsage, modelOf, readDirs, toolCountHook, withConnectors, withTeamInstruction } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -66,5 +66,21 @@ describe('이어서 부른 호출의 사용량 합치기', () => {
   it('시간·턴·토큰은 더하고 종료 이유는 마지막 호출의 것을 쓴다', () => {
     const sum = addUsage(usage({ endReason: 'error_max_turns', denials: ['Bash: x'] }), usage({ turns: 7, denials: ['Edit: y'] }));
     expect(sum).toMatchObject({ durationMs: 20, turns: 10, inputTokens: 200, outputTokens: 100, cacheReadTokens: 10, endReason: 'success', denials: ['Bash: x', 'Edit: y'] });
+  });
+});
+
+describe('withConnectors', () => {
+  const connectors = { servers: { notion: { type: 'http' as const, url: 'https://mcp.notion.com/mcp' } }, tools: ['mcp__notion'], names: ['notion'] };
+
+  it('커넥터 묶음을 고른 호출에는 연결한 서버와 서버 단위 허락을 더한다', () => {
+    const kits = withConnectors({ servers: { aws: { type: 'http', url: 'https://knowledge-mcp.global.api.aws' } }, tools: ['mcp__aws__x'] }, connectors);
+    expect(Object.keys(kits.servers)).toEqual(['aws', 'notion']);
+    expect(kits.tools).toEqual(['mcp__aws__x', 'mcp__notion']);
+    expect(kits.connectorNames).toEqual(['notion']);
+  });
+
+  it('고르지 않았거나 연결이 없으면 아무것도 더하지 않는다', () => {
+    expect(withConnectors({ servers: {}, tools: [] }, undefined)).toEqual({ servers: {}, tools: [], connectorNames: [] });
+    expect(withConnectors({ servers: {}, tools: [] }, { servers: {}, tools: [], names: [] }).connectorNames).toEqual([]);
   });
 });

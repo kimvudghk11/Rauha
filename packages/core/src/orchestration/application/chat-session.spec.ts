@@ -48,7 +48,7 @@ class FakeMemory implements MemoryPort {
 type Script = (call: MemberCall) => unknown;
 
 class FakeTeam implements TeamMemberPort {
-  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string }[] = [];
+  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; request?: string | undefined }[] = [];
   readonly prepared: MemberRole[] = [];
   /** 라우터가 이 약속이 풀릴 때까지 답하지 않게 한다(동시에 도는지 보려고). */
   routerGate: Promise<void> = Promise.resolve();
@@ -63,7 +63,7 @@ class FakeTeam implements TeamMemberPort {
     this.prepared.push(call.role);
   }
   async run(call: MemberCall): Promise<MemberResult> {
-    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier });
+    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier, request: call.request });
     if (call.role === 'router') await this.routerGate;
     if (call.role === this.limitOn) {
       const limited = "You've hit your session limit · resets 9:40pm";
@@ -142,7 +142,7 @@ class FakeLoops {
   });
 }
 
-const route = (mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch', refersToPast = false, pastQuery: string | null = null, extra: { department?: string; member?: string | null; depth?: 'light' | 'deep'; reach?: 'investigate' | 'compare' | 'plan' } = {}) => () => ({ mode, refersToPast, pastQuery, ...extra });
+const route = (mode: 'work' | 'question' | 'task' | 'feature' | 'ops' | 'publish' | 'debug' | 'risk' | 'ideate' | 'company' | 'launch', refersToPast = false, pastQuery: string | null = null, extra: { department?: string; member?: string | null; depth?: 'light' | 'deep'; reach?: 'investigate' | 'compare' | 'plan' } = {}) => () => ({ mode, refersToPast, pastQuery, ...extra });
 
 type SessionParts = { team: FakeTeam; loops?: FakeLoops; memory?: FakeMemory; user?: UserPort; files?: Record<string, string>; steps?: string[]; changes?: FileChange[]; budget?: SessionBudget; company?: CompanyBookPort; learning?: LearningPort };
 
@@ -832,6 +832,32 @@ describe('ChatSession — 운영 요청', () => {
   it('사용 한도에 걸리면 막힘으로 알린다', async () => {
     const team = new FakeTeam({ router: [route('ops')] }, 'operator');
     expect(await session({ team }).handle('버킷 목록')).toMatchObject({ kind: 'blocked', reason: 'usage-limit' });
+  });
+});
+
+describe('ChatSession — git 일(커밋·push·PR)', () => {
+  const publish = (answer: string, commands: string[] = [], finished = true) => () => ({ answer, commands, finished });
+
+  it('publish로 가려진 요청은 git 팀원 한 명이 처리하고 테스트·구현 팀원은 부르지 않는다', async () => {
+    const loops = new FakeLoops();
+    const team = new FakeTeam({ router: [route('publish')], publisher: [publish('커밋하고 PR을 열었어요.', ['git commit -m x -- a.ts', 'gh pr create --fill'])] });
+    const turn = await session({ team, loops }).handle('커밋하고 PR 올려줘');
+    expect(turn).toMatchObject({ kind: 'answer', answer: '커밋하고 PR을 열었어요.\n\n■ 실행한 명령\n- git commit -m x -- a.ts\n- gh pr create --fill' });
+    expect(loops.runs).toEqual([]);
+    expect(team.calls.some((c) => c.role === 'tester' || c.role === 'implementer' || c.role === 'intake')).toBe(false);
+  });
+
+  it('git 팀원에게는 사용자 원문 요청이 가서, 시킨 커밋·push·PR은 허락 카드 없이 한다', async () => {
+    const team = new FakeTeam({ router: [route('publish')], publisher: [publish('커밋했어요.')] });
+    await session({ team }).handle('커밋하고 PR 올려줘');
+    const call = team.calls.find((c) => c.role === 'publisher')!;
+    expect(call.request).toBe('커밋하고 PR 올려줘');
+    expect(call.message).toContain('커밋하고 PR 올려줘');
+  });
+
+  it('사용 한도에 걸리면 막힘으로 알린다', async () => {
+    const team = new FakeTeam({ router: [route('publish')] }, 'publisher');
+    expect(await session({ team }).handle('push 해줘')).toMatchObject({ kind: 'blocked', reason: 'usage-limit' });
   });
 });
 

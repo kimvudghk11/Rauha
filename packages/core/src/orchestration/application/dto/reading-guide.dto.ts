@@ -28,6 +28,14 @@ export interface ReadingGuideProps {
   readonly facts?: FactsSummary;
   /** 마지막 팀원 호출이 한도·도구 거절로 멈춘 이유 문장(MemberStop.sentence). 멈춘 작업에만 보인다. */
   readonly memberStop?: string | null;
+  /** 사용자가 커밋·push·PR까지 시켰을 때 그 단계의 결과. 시키지 않았으면 없음. */
+  readonly publish?: PublishNote | null;
+}
+
+/** 코드 작업 뒤 붙은 커밋·PR 단계의 결과. finished: 시킨 git 일을 모두 마쳤는지 */
+export interface PublishNote {
+  readonly finished: boolean;
+  readonly text: string;
 }
 
 /** 사실 점검 결과. 3단 작업이 아니면(--quick) 비어 있다. */
@@ -146,7 +154,7 @@ export class ReadingGuideDto {
     const state = p.status === 'complete' ? (reviewed ? `완료(리뷰 ${facts.reviewRounds}회)` : '완료(리뷰 전)') : '멈춤';
     const lines: string[] = [
       `${p.badge} ${p.title} · ${state} · ${formatDuration(p.durationMs)} · ${tiers}`,
-      ...(p.basis ? [`작업 기준: ${p.basis} · 고친 곳: 작업 트리(커밋 안 함)`] : []),
+      ...(p.basis ? [`작업 기준: ${p.basis} · 고친 곳: ${p.publish?.finished === true ? '작업 트리(커밋함)' : '작업 트리(커밋 안 함)'}`] : []),
     ];
 
     // 가정은 맨 위에: 해석이 다르면 코드를 읽기 전에 알아야 한다.
@@ -201,8 +209,14 @@ export class ReadingGuideDto {
       for (const c of p.verdict.checks) lines.push(...checkLine(c));
     }
 
+    const published = p.publish ?? null;
+    if (published !== null) {
+      lines.push('', '커밋·PR');
+      for (const line of published.text.split('\n')) lines.push(line === '' ? '' : `  ${line}`);
+    }
+
     if (p.changes.length > 0) {
-      lines.push('', '바뀐 파일 (커밋은 직접 하세요)');
+      lines.push('', p.publish?.finished === true ? '바뀐 파일' : '바뀐 파일 (커밋은 직접 하세요)');
       for (const c of p.changes) lines.push(`  ${c.kind === 'added' ? '+' : c.kind === 'deleted' ? '-' : '~'} ${link(c.path, c.path)}`);
       if (p.status === 'stopped') {
         lines.push('', '되돌리려면');

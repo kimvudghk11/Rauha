@@ -1,4 +1,4 @@
-/** 캐릭터 22종 픽셀 데이터(시안 characters.html의 RAUHA_CHARACTERS에서 옮김). 역할 id → 이름·동물·색·프레임.
+/** 캐릭터 23종 픽셀 데이터(시안 characters.html의 RAUHA_CHARACTERS에서 옮김). 역할 id → 이름·동물·색·프레임.
  * 프레임 순서: 0 기본, 1 눈 감음, 2 기쁨, 3 걱정, 4 잠. 격자 한 글자 = 픽셀 하나, '.'은 빈칸. */
 export interface PixelCharacter {
   readonly name: string;
@@ -270,6 +270,18 @@ export const PIXEL_CHARACTERS: Readonly<Record<string, PixelCharacter>> = {
       ['......SS......', '.....HBBS.....', '...HHBBBBHS...', '..HEBBBBBBES..', '..EBEBBBBEBE..', '.SPPBBBBBBPPS.', 'S.HBLMMMMLBS.S', 'S.SLLLMMLLLS.S', '...LLLLLLLL...', '.....HXXS.....', '.....XXXX.....', '......XX......'],
       ['......SS......', '.....HBBS.....', '...HHBBBBHS...', '..HEBBBBBBES..', '..HBEBBBBEBS..', '.SBBBBBBBBBBS.', 'S.HBLLMMLLBS.S', 'S.SLLMLLMLLS.S', '...LLLLLLLL...', '.....HXXS.....', '.....XXXX.....', '......XX......'],
       ['......SS......', '.....HBBS.....', '...HHBBBBHS...', '..HBBBBBBBBS..', '..HEEBBBBEES..', '.SPPBBBBBBPPS.', 'S.HBLLMMLLBS.S', 'S.SLLLLLLLLS.S', '...LLLLLLLL...', '.....HXXS.....', '.....XXXX.....', '......XX......'],
+    ],
+  },
+  publisher: {
+    name: "갈매",
+    animal: "갈매기",
+    colors: {"E":"#1D2B3A","W":"#FFFFFF","P":"#F7A9C2","M":"#1D2B3A","D":"#1D2B3A","B":"#F4F8FC","S":"#A3B3CB","H":"#FFFFFF","X":"#7F93AE","Y":"#FFA94D"},
+    frames: [
+      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBWEBBBBWEBS.', '.SBEEBBBBEEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMMBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
+      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '.SBEEBBBBEEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMMBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
+      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBEEBBBBEEBS.', '.SBBBBBBBBBBS.', '.SBPBBYYBBPBS.', 'XXSBBMMMMBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
+      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBBEBBBBEBBS.', '.SBEBBBBBBEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMMBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
+      ['....SSSSSS....', '..SSBBBBBBSS..', '.SBBBBBBBBBBS.', '.SBBBBBBBBBBS.', '.SBEEBBBBEEBS.', '.SBPBBYYBBPBS.', 'XXSBBBMBBBBSXX', 'XXXSBBBBBBSXXX', '.XXSBBBBBBSXX.', '..SSBBBBBBSS..', '....SSSSSS....', '...YY....YY...'],
     ],
   },
 };

@@ -16,6 +16,10 @@ describe('ROLE_INFO', () => {
     expect(special).toEqual(['tester', 'implementer', 'reviewer', 'writer']);
   });
 
+  it('git 팀원은 진행 줄에 "커밋·PR" 단계로 보이고 파일은 쓰지 않는다', () => {
+    expect(ROLE_INFO.publisher).toMatchObject({ name: 'git 팀원', stage: '커밋·PR', writeRole: 'lead' });
+  });
+
   it('접수는 화면에는 "팀장", 시작 알림에는 "팀장 접수"로 보인다', () => {
     expect(ROLE_INFO.intake).toMatchObject({ name: '팀장', stepName: '팀장 접수' });
   });

@@ -16,6 +16,11 @@
 .app[data-tier=s] .api-side, .app[data-tier=xs] .api-side { display: none; position: absolute; z-index: 5; left: 0; top: 0; bottom: 0; width: min(320px, 92%); flex: none; background: var(--bg); box-shadow: 6px 0 24px #000a; }
 .app[data-tier=s] .api.list-open .api-side, .app[data-tier=xs] .api.list-open .api-side { display: flex; }
 .api-side-tools { padding: var(--s2) var(--s3); border-bottom: 1px solid var(--border); }
+.api-project-bar { padding: var(--s2) var(--s3) 0; flex-wrap: nowrap; }
+.api-project-select { flex: 1; min-width: 0; }
+.api-project-refresh { flex: none; }
+.api-row.gone .api-name { color: var(--muted); text-decoration: line-through; }
+.api-gone { flex: none; font-size: var(--fs-xs); }
 .api-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: var(--s1) 0; }
 
 /* 목록 줄 */

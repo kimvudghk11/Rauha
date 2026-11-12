@@ -3,7 +3,8 @@ import type { SecretPolicy } from '../domain/secret-policy.js';
 import { MODEL_ID } from '../domain/team.js';
 import type { AccountBlock, MemberCall, MemberResult, MemberUsage, PreparedCall, TeamMemberPort } from '../application/ports.js';
 import type { PromptLibrary } from './prompt-library.js';
-import { kitServers } from './tool-kits.js';
+import { kitServers, type KitServers } from './tool-kits.js';
+import type { ConnectorServers } from './connector-servers.js';
 import { createFetchLog } from './fetch-log.js';
 import { createToolGuard, type PermissionAsker } from './tool-guard.js';
 import { ToolTally } from '../domain/tool-tally.js';
@@ -30,6 +31,8 @@ export interface AgentSdkTeamMemberOptions {
   readonly alwaysRules?: () => string;
   /** 작업 폴더 밖에서 읽기만 허락할 폴더들(예: 사용자가 채팅에 붙인 이미지가 있는 임시 폴더). 쓰기는 늘어나지 않는다. */
   readonly readRoots?: readonly string[];
+  /** 사용자가 연결한 커넥터(노션·컨플루언스 …). 'connectors' 도구 묶음을 고른 호출에만 붙인다. 부를 때마다 최신 목록. */
+  readonly connectors?: () => ConnectorServers;
 }
 
 /** 호출 하나가 쓰는 것들. 미리 띄운 프로세스는 띄울 때 이것까지 정해진다. */
@@ -213,7 +216,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
   }
 
   private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session): Options {
-    const kits = kitServers(call.kits ?? [], this.options.env);
+    const kits = withConnectors(kitServers(call.kits ?? [], this.options.env), (call.kits ?? []).includes('connectors') ? this.options.connectors?.() : undefined);
     return {
       model: modelOf(call),
       abortController: session.controller,
@@ -232,7 +235,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       maxTurns: call.setting.maxTurns,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
-        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
+        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
         PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally)] }],
       },
       stderr: (data) => {
@@ -241,6 +244,12 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       },
     };
   }
+}
+
+/** 도구 묶음에 연결한 커넥터 서버를 더한다. 커넥터 묶음을 고르지 않았거나 연결이 없으면 그대로. */
+export function withConnectors(kits: KitServers, connectors: ConnectorServers | undefined): KitServers & { readonly connectorNames: readonly string[] } {
+  if (connectors === undefined || connectors.names.length === 0) return { ...kits, connectorNames: [] };
+  return { servers: { ...kits.servers, ...connectors.servers }, tools: [...kits.tools, ...connectors.tools], connectorNames: connectors.names };
 }
 
 /** 호출이 더 읽을 폴더 + 항상 읽을 폴더(중복 없이) */

@@ -13,13 +13,15 @@ import { MemberReportDto, type ExplanationDto } from './dto/explanation.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { IntakeDto, type SettledAssumptionChoice } from './dto/intake.dto.js';
 import { stoppedMember } from './member-stop-note.js';
-import { ReadingGuideDto, type FactsSummary, type RunStopReason, type SettledAssumption } from './dto/reading-guide.dto.js';
+import { ReadingGuideDto, type FactsSummary, type PublishNote, type RunStopReason, type SettledAssumption } from './dto/reading-guide.dto.js';
+import { PublishReportDto } from './dto/publish-report.dto.js';
+import { GitPublishIntent } from '../domain/git-publish-intent.js';
 
 export type { FactsSummary };
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import type { MemberRole, RoleSettingsDto } from './dto/role-settings.dto.js';
 import { ToolKits } from '../domain/tool-kit.js';
-import { IMPLEMENTER_REPORT_SCHEMA, INTAKE_SCHEMA, REVIEWER_REPORT_SCHEMA, TESTER_REPORT_SCHEMA } from './dto/schemas.js';
+import { IMPLEMENTER_REPORT_SCHEMA, INTAKE_SCHEMA, PUBLISH_SCHEMA, REVIEWER_REPORT_SCHEMA, TESTER_REPORT_SCHEMA } from './dto/schemas.js';
 import type {
   AccountBlock,
   ChecksPort,
@@ -77,6 +79,8 @@ export interface RunOutcome {
   readonly testless?: boolean;
   /** 업무 지시서의 범위를 넘어 고친 파일(막지는 않고 알린다) */
   readonly outOfScope?: readonly string[];
+  /** 사용자가 커밋·push·PR까지 시켰을 때 그 단계의 결과(멈춘 작업이면 하지 않은 이유). 시키지 않았으면 null이나 없음. */
+  readonly publish?: PublishNote | null;
 }
 
 /** 대화 세션이 접수 팀장에게 함께 넘기는 맥락 */
@@ -182,7 +186,7 @@ class RunTally {
   calls = 0;
   /** 마지막 팀원 호출이 멈춘 이유 문장(잘 끝났으면 null) */
   memberStop: string | null = null;
-  readonly attempts: Record<MemberRole, number> = { intake: 0, tester: 0, implementer: 0, reviewer: 0, router: 0, answerer: 0, surveyor: 0, writer: 0, designer: 0, operator: 0, debugger: 0, riskchecker: 0, planner: 0, chief: 0, bm: 0, marketer: 0, growth: 0, uxdesigner: 0, brand: 0, securitychecker: 0, releaser: 0, splitter: 0 };
+  readonly attempts: Record<MemberRole, number> = { intake: 0, tester: 0, implementer: 0, reviewer: 0, router: 0, answerer: 0, surveyor: 0, writer: 0, designer: 0, operator: 0, debugger: 0, riskchecker: 0, planner: 0, chief: 0, bm: 0, marketer: 0, growth: 0, uxdesigner: 0, brand: 0, securitychecker: 0, releaser: 0, splitter: 0, publisher: 0 };
   readonly implementerTiers: ModelTier[] = [];
   /** 승격된 업무에서 구현 팀원을 부른 적이 있는지(모델 고정 실험과 구분하려고 모델 이름이 아니라 업무 상태로 센다) */
   escalated = false;
@@ -676,6 +680,7 @@ export class MinimalLoopService {
     // 방금 rauha가 바꾼 파일을 지식에 바로 알린다(모델 없이 심볼·기준만). 실패해도 결과는 그대로.
     if (changedInRun.length > 0) await this.deps.knowledge?.noteChanged(changedInRun.map((c) => c.path)).catch(() => undefined);
     const { tally } = props;
+    const publish = await this.publishStep(props.status, props.title, changedInRun, tally);
     const durationMs = this.deps.now() - props.started;
     const guideProps = {
       badge: this.deps.badge,
@@ -692,6 +697,7 @@ export class MinimalLoopService {
       facts,
       basis: this.basis,
       memberStop: props.status === 'stopped' ? tally.memberStop : null,
+      publish,
     };
     const summary = {
       title: props.title,
@@ -731,6 +737,36 @@ export class MinimalLoopService {
       outOfScope: [...this.outOfScope],
       userFiles: this.startState.userFiles(),
       mixedFiles: this.startState.mixedWith(changedInRun.map((c) => c.path)),
+      publish,
     };
+  }
+
+  /**
+   * 사용자가 커밋·push·PR까지 시켰으면 작업이 통과한 뒤 git 팀원이 이번에 바뀐 파일만 올린다.
+   * 멈춘 작업은 검증되지 않은 변경이라 올리지 않고 이유만 남긴다(GitPublishIntent.afterRun).
+   */
+  private async publishStep(status: 'complete' | 'stopped', title: string, changes: readonly FileChange[], tally: RunTally): Promise<PublishNote | null> {
+    const intent = GitPublishIntent.from(tally.request);
+    const next = intent.afterRun(status);
+    if (next === 'none') return null;
+    if (next === 'skip') {
+      const note = `커밋하지 않았어요(시킨 일: ${intent.label()}). 작업이 테스트·리뷰를 끝까지 통과하지 못해서 검증되지 않은 변경은 올리지 않아요. 고친 뒤 다시 시키거나 직접 커밋해 주세요.`;
+      this.deps.progress.step(note);
+      return { finished: false, text: note };
+    }
+    const files = changes.map((c) => `${c.kind} ${c.path}`).join('\n');
+    const message = [
+      `<today>${this.deps.today()}</today>`,
+      `<request>\n${tally.request}\n</request>`,
+      `<work>\nrauha 팀이 방금 끝낸 작업: ${title}\n테스트·검사·리뷰를 통과했습니다. 이제 요청에서 시킨 일(${intent.label()})만 하세요.\n</work>`,
+      `<changed_files>\n이번 작업에서 바뀐 파일입니다. 커밋은 이 파일만 이름을 지정해서 하세요.\n${files}\n</changed_files>`,
+    ].join('\n\n');
+    try {
+      const report = PublishReportDto.read(await this.call('publisher', message, PUBLISH_SCHEMA, null, tally));
+      return { finished: report.finished, text: report.toAnswer() };
+    } catch (error) {
+      if (!(error instanceof AccountBlocked)) throw error;
+      return { finished: false, text: `커밋·PR 단계에서 멈췄어요: ${error.block.message}` };
+    }
   }
 }

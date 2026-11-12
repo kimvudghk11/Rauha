@@ -35,6 +35,8 @@ export interface SettingsApi {
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown>; install(): Promise<unknown> };
   /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
   team?: { build(): HTMLElement };
+  /** 커넥터(노션·컨플루언스 …). 없으면 그 구역을 그리지 않는다. */
+  connectors?: { build(): HTMLElement };
   /** 캐릭터 테마가 바뀌었을 때(화면의 캐릭터에 바로 반영) */
   onCharacterSet?: (id: string) => void;
   /** 진단 정보 복사(없으면 도움말 구역을 그리지 않는다) */
@@ -241,6 +243,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     }
     root.appendChild(section('Character theme', sets, el('div', 'hint pad', 'Click to change all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.')));
 
+    if (api.connectors !== undefined) root.appendChild(section('Connectors', api.connectors.build()));
     if (api.team !== undefined) root.appendChild(section('Team settings', api.team.build()));
     root.appendChild(section('Data storage', el('div', 'dim pad', 'Records are stored only on this computer for now (Records tab). Sending summaries to your AWS (S3) will open later.')));
     if (api.diagnostics !== undefined) {

@@ -16,6 +16,12 @@ describe('RouteDto', () => {
   });
 });
 
+describe('RouteDto — git 일', () => {
+  it('커밋·push·PR만 하는 요청은 publish로 읽는다(테스트·구현 팀원을 부르지 않는다)', () => {
+    expect(RouteDto.read({ mode: 'publish', refersToPast: false, pastQuery: null, depth: 'light' }, '커밋하고 PR 올려줘')).toEqual({ mode: 'publish', refersToPast: false, pastQuery: null, department: null, member: null, depth: 'deep', reach: null });
+  });
+});
+
 describe('RouteDto — 디버깅·위험 점검', () => {
   it('debug와 risk도 입력 종류로 읽는다', () => {
     expect(RouteDto.read({ mode: 'debug', refersToPast: false, pastQuery: null }).mode).toBe('debug');

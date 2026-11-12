@@ -8,8 +8,11 @@ import { parseOpenApi } from '../../shared/api-openapi.js';
 import { ApiError, ApiRequest } from '../../shared/api-request.js';
 import { ApiHistory, ResponseSummary, type HistoryEntry } from '../../shared/api-response.js';
 import { checkTarget } from '../../shared/api-guard.js';
+import { ApiProjects, ProjectApiSpec, ProjectStack, ProjectSyncRequestDto, StackFactsDto } from '../../shared/api-project.js';
+import type { ProjectList, ProjectSyncResult } from '../../shared/api-ipc.js';
 import type { SendOutcome } from './api-sender.js';
 import type { ApiStorePort } from './api-store.js';
+import type { ProjectReaderPort } from './project-reader.js';
 
 export interface ApiServiceDeps {
   readonly collections: ApiStorePort<ApiCollections>;
@@ -20,6 +23,11 @@ export interface ApiServiceDeps {
   readonly now: () => Date;
   /** 저장 위치를 물어 파일로 쓴다. 취소하면 null */
   readonly saveFile: (fileName: string, text: string) => Promise<string | null>;
+  /** 프로젝트에서 컬렉션 만들기(없으면 그 기능만 꺼진다) */
+  readonly projects?: ApiStorePort<ApiProjects>;
+  readonly reader?: ProjectReaderPort;
+  /** 작업 폴더에서 찾은 프로젝트들. 이 목록에 있는 경로만 읽는다 */
+  readonly listProjects?: () => Promise<readonly { readonly root: string; readonly name: string; readonly relative: string }[]>;
 }
 
 const message = (e: unknown): string => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Something went wrong.');
@@ -31,6 +39,8 @@ const SECRET_VAR_RE = /^(token|api_?key|password|passwd|secret|.*_(token|key|sec
  */
 export class ApiService {
   private readonly inflight = new Map<string, AbortController>();
+  /** 지금 읽는 중인 프로젝트 루트 */
+  private readonly syncing = new Set<string>();
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly deps: ApiServiceDeps) {}
@@ -304,6 +314,107 @@ export class ApiService {
         return { ok: false, error: message(e) };
       }
     });
+  }
+
+  // ── 프로젝트에서 컬렉션 만들기 ──
+
+  private projectDeps() {
+    const { projects, reader, listProjects } = this.deps;
+    if (projects === undefined || reader === undefined || listProjects === undefined) throw new ApiError('Project collections are not available.');
+    return { projects, reader, listProjects };
+  }
+
+  async listProjects(): Promise<ProjectList> {
+    try {
+      const { projects, listProjects } = this.projectDeps();
+      const [rows, p] = await Promise.all([listProjects(), projects.load()]);
+      const items = rows.map((r) => {
+        const rec = p.record(r.root);
+        return { root: r.root, name: r.name, relative: r.relative, source: rec?.source ?? null, endpoints: rec?.endpoints ?? 0 };
+      });
+      return { selected: items.some((i) => i.root === p.selected) ? p.selected : null, items };
+    } catch {
+      return { selected: null, items: [] };
+    }
+  }
+
+  /**
+   * 고른 프로젝트 하나를 읽어 컬렉션에 합친다: 훑기(지문) → 그대로면 끝 → 프론트엔드면 끝 →
+   * OpenAPI 파일 먼저, 없으면 코드에서 추출 → 합치기 → 저장. 파일 읽기는 저장 줄 밖에서 한다.
+   */
+  async syncProject(raw: unknown): Promise<ProjectSyncResult> {
+    let root: string | null = null;
+    try {
+      const { projects, reader, listProjects } = this.projectDeps();
+      const req = ProjectSyncRequestDto.from(raw);
+      const row = (await listProjects()).find((r) => r.root === req.root);
+      if (row === undefined) throw new ApiError('That folder is not in the work folder.');
+      if (this.syncing.has(row.root)) return { ok: true, status: 'busy', source: null, report: null, collections: await this.getCollections(), focusId: null, truncated: false, envs: null };
+      root = row.root;
+      this.syncing.add(root);
+      const survey = await reader.survey(root);
+      const stack = ProjectStack.judge(StackFactsDto.from(survey));
+      const fingerprint = survey.fingerprint;
+      const unchanged = await this.serial(async () => {
+        const p = await projects.load();
+        const c = await this.deps.collections.load();
+        await projects.save(p.select(row.root));
+        return req.force || p.needsSync(row.root, fingerprint, c.hasProject(row.root)) ? null : { c, rec: p.record(row.root) };
+      });
+      const done = (status: 'unchanged' | 'frontend' | 'empty', c: ApiCollections, source: ApiProjects['records'][number]['source'] | null): ProjectSyncResult => ({
+        ok: true,
+        status,
+        source: source === 'frontend' || source === 'none' ? null : source,
+        report: null,
+        collections: this.safeJson(c),
+        focusId: c.nodes.find((n) => n.kind === 'folder' && n.origin?.project === row.root && n.origin.key === 'root')?.id ?? null,
+        truncated: survey.truncated,
+        envs: null,
+      });
+      if (unchanged !== null) return done(ApiProjects.outcomeOf(unchanged.rec), unchanged.c, unchanged.rec?.source ?? null);
+      const record = (source: 'frontend' | 'none', status: 'frontend' | 'empty') =>
+        this.serial(async () => {
+          const p = await projects.load();
+          await projects.save(p.recordSync(row.root, fingerprint, this.deps.now(), source, 0, [...p.knownKeys(row.root)]));
+          return done(status, await this.deps.collections.load(), source);
+        });
+      if (!stack.makesApi()) return await record('frontend', 'frontend');
+
+      let spec: ProjectApiSpec | null = null;
+      for (const path of stack.openApiPaths(survey.paths).slice(0, 3)) {
+        const [file] = await reader.read(root, [path]);
+        if (file === undefined) continue;
+        try {
+          spec = ProjectApiSpec.fromOpenApi(root, row.name, file.text);
+          if (!spec.isEmpty()) break;
+        } catch {
+          /* 읽지 못하는 문서(YAML·Swagger 2 등)는 건너뛰고 코드에서 읽는다 */
+        }
+        spec = null;
+      }
+      const sources = stack.sourcePaths(survey.paths);
+      if (spec === null && sources.length > 0) {
+        const api = stack.extract(await reader.read(root, sources));
+        if (api !== null) spec = ProjectApiSpec.fromExtracted(root, row.name, api);
+      }
+      if (spec === null || spec.isEmpty()) return await record('none', 'empty');
+      const found = spec;
+
+      return await this.serial(async () => {
+        const p = await projects.load();
+        const merged = (await this.deps.collections.load()).syncProject(found, p.knownKeys(row.root), this.deps.newId);
+        const before = await this.deps.envs.load();
+        const envs = before.withSecrets(found.variables.filter((v) => !v.secret), this.deps.newId, false).withSecrets(found.variables.filter((v) => v.secret), this.deps.newId, true);
+        if (envs !== before) await this.deps.envs.save(envs);
+        await this.deps.collections.save(merged.collections);
+        await projects.save(p.recordSync(row.root, fingerprint, this.deps.now(), found.source, found.requestCount(), merged.known));
+        return { ok: true, status: 'synced', source: found.source, report: merged.report, collections: this.safeJson(merged.collections), focusId: merged.rootId, truncated: survey.truncated, envs: envs !== before ? EnvironmentsDto.view(envs) : null };
+      });
+    } catch (e) {
+      return { ok: false, error: message(e) };
+    } finally {
+      if (root !== null) this.syncing.delete(root);
+    }
   }
 
   /** 폴더 아래 항목들(폴더 자신은 맨 위로 올려서) */

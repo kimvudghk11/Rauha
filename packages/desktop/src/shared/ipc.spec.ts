@@ -69,6 +69,17 @@ describe('stepsOf', () => {
     expect(stepsOf(job().start().noted('router', 'a', AT))).toEqual([]);
   });
 
+  it('역할에 맞는 단계만 보인다: git 일은 "커밋·PR"만, 문서·운영 일에는 테스트·구현이 없다', () => {
+    expect(stepsOf(job().start().noted('router', 'a', AT).noted('publisher', 'b', AT)).map((s) => s.label)).toEqual(['커밋·PR']);
+    expect(stepsOf(job().start().noted('router', 'a', AT).noted('writer', 'b', AT)).map((s) => s.label)).toEqual(['문서']);
+    expect(stepsOf(job().start().noted('router', 'a', AT).noted('operator', 'b', AT)).map((s) => s.label)).toEqual(['운영']);
+  });
+
+  it('코드 작업 뒤 커밋까지 시키면 리뷰 다음에 "커밋·PR" 단계가 붙는다', () => {
+    const j = job().start().noted('intake', 'a', AT).noted('tester', 'b', AT).noted('implementer', 'c', AT).noted('reviewer', 'd', AT).noted('publisher', 'e', AT);
+    expect(stepsOf(j).map((s) => s.label)).toEqual(['접수', '테스트', '구현', '리뷰', '커밋·PR']);
+  });
+
   it('끝난 작업은 모든 단계가 done이다', () => {
     const done = job().start().noted('tester', 'a', AT).finish(AT);
     expect(stepsOf(done).every((s) => s.state === 'done')).toBe(true);

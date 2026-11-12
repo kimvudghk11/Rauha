@@ -59,3 +59,18 @@ describe('ToolKits AWS', () => {
     expect(ToolKits.for('answerer', 'localhost:3000에서 S3 업로드가 왜 실패해?')).toEqual(['browser', 'aws']);
   });
 });
+
+describe('ToolKits 커넥터', () => {
+  it('노션·컨플루언스·지라·구글 문서를 가리키는 요청이면 답변 팀원에게 커넥터를 붙인다', () => {
+    expect(ToolKits.for('answerer', '이 내용 노션에 정리해줘')).toContain('connectors');
+    expect(ToolKits.for('answerer', '컨플루언스 온보딩 페이지 읽어줘')).toContain('connectors');
+    expect(ToolKits.for('answerer', 'JIRA 이슈 PROJ-12 요약해줘')).toContain('connectors');
+    expect(ToolKits.for('answerer', '구글 시트에 적어줘')).toContain('connectors');
+    expect(ToolKits.for('answerer', 'Notion page 찾아줘')).toContain('connectors');
+  });
+
+  it('상관없는 요청과 다른 역할에는 붙이지 않는다', () => {
+    expect(ToolKits.for('answerer', '이 함수 뭐 해?')).not.toContain('connectors');
+    expect(ToolKits.for('implementer', '노션에 정리해줘')).not.toContain('connectors');
+  });
+});

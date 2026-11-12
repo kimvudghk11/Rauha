@@ -1,15 +1,50 @@
+import type { GeneratedProject } from './api-project.js';
 import { ApiError, ApiRequest } from './api-request.js';
 
 export const COLLECTION_LIMITS = { nodes: 2000, depth: 6, name: 120 } as const;
 
+/**
+ * 프로젝트 코드에서 자동으로 만든 항목의 표시. 사용자가 만든 항목(복제본 포함)에는 없다.
+ * key: 'root' | 'group:<묶음 키>' | 'req:<메서드 경로>', base: 만들 때 요청 내용 지문(다르면 사용자가 손댄 것)
+ */
+export interface NodeOrigin {
+  readonly project: string;
+  readonly key: string;
+  readonly base: string;
+  /** 코드에서 사라졌다(지우지 않고 표시만) */
+  readonly gone: boolean;
+}
+
 export type CollectionNode =
-  | { readonly kind: 'folder'; readonly id: string; readonly parentId: string | null; readonly name: string }
-  | { readonly kind: 'request'; readonly id: string; readonly parentId: string | null; readonly request: ApiRequest };
+  | { readonly kind: 'folder'; readonly id: string; readonly parentId: string | null; readonly name: string; readonly origin?: NodeOrigin }
+  | { readonly kind: 'request'; readonly id: string; readonly parentId: string | null; readonly request: ApiRequest; readonly origin?: NodeOrigin };
 
 /** 화면용 나무 */
 export type TreeItem =
-  | { readonly kind: 'folder'; readonly id: string; readonly name: string; readonly children: readonly TreeItem[] }
-  | { readonly kind: 'request'; readonly id: string; readonly name: string; readonly method: string };
+  | { readonly kind: 'folder'; readonly id: string; readonly name: string; readonly children: readonly TreeItem[]; readonly auto: boolean; readonly gone: boolean }
+  | { readonly kind: 'request'; readonly id: string; readonly name: string; readonly method: string; readonly auto: boolean; readonly gone: boolean };
+
+export interface SyncReport {
+  /** 새로 만든 요청 */
+  readonly added: number;
+  /** 손대지 않은 자동 요청 중 코드가 바뀌어 새 모양으로 바꾼 것 */
+  readonly updated: number;
+  /** 사용자가 손대서 그대로 둔 자동 요청 */
+  readonly kept: number;
+  /** 이번에 코드에서 사라짐 표시를 한 요청 */
+  readonly gone: number;
+  /** 코드에 있는 요청 수 */
+  readonly total: number;
+  /** 묶음(컨트롤러·태그) 수 */
+  readonly groups: number;
+}
+
+export interface SyncResult {
+  readonly collections: ApiCollections;
+  readonly known: readonly string[];
+  readonly report: SyncReport;
+  readonly rootId: string;
+}
 
 /** 가져오기 결과: 이름 붙은 묶음(폴더)들과 환경에 넣을 변수 */
 export interface ImportedCollection {
@@ -104,7 +139,98 @@ export class ApiCollections {
     const cur = this.mustFind(request.id);
     if (cur.kind !== 'request') throw new ApiError('That item is a folder.');
     const named = request.withName(this.uniqueName(cleanName(request.name), cur.parentId, cur.id));
-    return ApiCollections.of(this.nodes.map((n) => (n.id === cur.id ? { kind: 'request', id: n.id, parentId: n.parentId, request: named } : n)));
+    return ApiCollections.of(this.nodes.map((n) => (n.id === cur.id ? { ...cur, request: named } : n)));
+  }
+
+  /**
+   * 프로젝트에서 읽은 요청 목록을 합친다.
+   * - 처음이면 프로젝트 폴더 → 묶음(컨트롤러) 폴더 → 요청을 만든다.
+   * - 새 엔드포인트는 더하고, 코드에서 사라진 것은 지우지 않고 gone 표시만 한다.
+   * - 사용자가 손댄 자동 요청(내용 지문이 만들 때와 다름)은 덮어쓰지 않는다. 손대지 않은 것은 새 모양으로 바꾼다.
+   * - 한 번 만든 적 있는데(known) 지금 없는 요청은 사용자가 지운 것이라 다시 만들지 않는다.
+   * - 프로젝트 폴더가 통째로 없으면 known을 비우고 처음부터 만든다.
+   */
+  syncProject(gen: GeneratedProject, known: ReadonlySet<string>, newId: () => string): SyncResult {
+    const nodes: CollectionNode[] = [...this.nodes];
+    const mine = (n: CollectionNode): n is CollectionNode & { origin: NodeOrigin } => n.origin !== undefined && n.origin.project === gen.project;
+    const origin = (key: string, base = ''): NodeOrigin => ({ project: gen.project, key, base, gone: false });
+    const nameOf = (n: CollectionNode): string => (n.kind === 'folder' ? n.name : n.request.name);
+    const unique = (name: string, parentId: string | null, exceptId: string | null): string => {
+      const clean = cleanName(name.slice(0, COLLECTION_LIMITS.name));
+      const taken = new Set(nodes.filter((n) => n.parentId === parentId && n.id !== exceptId).map((n) => nameOf(n).toLowerCase()));
+      if (!taken.has(clean.toLowerCase())) return clean;
+      for (let i = 2; ; i++) if (!taken.has(`${clean} ${i}`.toLowerCase())) return `${clean} ${i}`;
+    };
+
+    let root = nodes.find((n) => n.kind === 'folder' && mine(n) && n.origin.key === 'root');
+    let knownNow = new Set(known);
+    if (root === undefined) {
+      knownNow = new Set();
+      root = { kind: 'folder', id: newId(), parentId: null, name: unique(gen.name, null, null), origin: origin('root') };
+      nodes.push(root);
+    }
+    const rootId = root.id;
+    const folders = new Map<string, string>();
+    const requests = new Map<string, number>();
+    nodes.forEach((n, i) => {
+      if (!mine(n)) return;
+      if (n.kind === 'folder' && n.origin.key.startsWith('group:')) folders.set(n.origin.key, n.id);
+      if (n.kind === 'request' && n.origin.key.startsWith('req:')) requests.set(n.origin.key, i);
+    });
+
+    let added = 0;
+    let updated = 0;
+    let kept = 0;
+    let gone = 0;
+    const live = new Set<string>();
+    for (const g of gen.groups) {
+      const groupKey = `group:${g.key}`;
+      live.add(groupKey);
+      for (const r of g.requests) {
+        const key = `req:${r.key}`;
+        live.add(key);
+        const at = requests.get(key);
+        const cur = at === undefined ? undefined : nodes[at];
+        if (at !== undefined && cur !== undefined && cur.kind === 'request' && cur.origin !== undefined) {
+          if (cur.request.contentHash() !== cur.origin.base) {
+            kept++;
+            nodes[at] = { ...cur, origin: { ...cur.origin, gone: false } };
+          } else {
+            const fresh = ApiRequest.create({ ...r.request, id: cur.id });
+            const named = fresh.withName(unique(fresh.name, cur.parentId, cur.id));
+            if (named.contentHash() !== cur.request.contentHash()) updated++;
+            nodes[at] = { ...cur, request: named, origin: { ...cur.origin, base: named.contentHash(), gone: false } };
+          }
+          continue;
+        }
+        if (knownNow.has(r.key)) continue;
+        let folderId = folders.get(groupKey);
+        if (folderId === undefined) {
+          folderId = newId();
+          nodes.push({ kind: 'folder', id: folderId, parentId: rootId, name: unique(g.name, rootId, null), origin: origin(groupKey) });
+          folders.set(groupKey, folderId);
+        }
+        const id = newId();
+        const fresh = ApiRequest.create({ ...r.request, id });
+        const named = fresh.withName(unique(fresh.name, folderId, null));
+        nodes.push({ kind: 'request', id, parentId: folderId, request: named, origin: origin(key, named.contentHash()) });
+        added++;
+      }
+    }
+    nodes.forEach((n, i) => {
+      if (!mine(n) || n.origin.key === 'root') return;
+      const isGone = !live.has(n.origin.key);
+      if (isGone && !n.origin.gone && n.kind === 'request') gone++;
+      if (isGone !== n.origin.gone) nodes[i] = { ...n, origin: { ...n.origin, gone: isGone } };
+    });
+    const total = gen.groups.reduce((s, g) => s + g.requests.length, 0);
+    const allKeys = new Set([...knownNow, ...gen.groups.flatMap((g) => g.requests.map((r) => r.key))]);
+    return { collections: ApiCollections.of(nodes), known: [...allKeys], report: { added, updated, kept, gone, total, groups: gen.groups.length }, rootId };
+  }
+
+  /** 이 프로젝트의 자동 생성 폴더가 남아 있나 */
+  hasProject(project: string): boolean {
+    return this.nodes.some((n) => n.kind === 'folder' && n.origin?.project === project && n.origin.key === 'root');
   }
 
   rename(id: string, name: string): ApiCollections {
@@ -183,6 +309,12 @@ export class ApiCollections {
     const kids = this.nodes.filter((n) => n.parentId === parentId);
     const label = (n: CollectionNode): string => (n.kind === 'folder' ? n.name : n.request.name);
     const sorted = [...kids].sort((a, b) => (a.kind === b.kind ? label(a).localeCompare(label(b)) : a.kind === 'folder' ? -1 : 1));
-    return sorted.map((n): TreeItem => (n.kind === 'folder' ? { kind: 'folder', id: n.id, name: n.name, children: this.tree(n.id) } : { kind: 'request', id: n.id, name: n.request.name, method: n.request.props.method }));
+    const auto = (n: CollectionNode): boolean => n.origin !== undefined;
+    const gone = (n: CollectionNode): boolean => n.origin?.gone === true;
+    return sorted.map((n): TreeItem =>
+      n.kind === 'folder'
+        ? { kind: 'folder', id: n.id, name: n.name, children: this.tree(n.id), auto: auto(n), gone: gone(n) }
+        : { kind: 'request', id: n.id, name: n.request.name, method: n.request.props.method, auto: auto(n), gone: gone(n) },
+    );
   }
 }

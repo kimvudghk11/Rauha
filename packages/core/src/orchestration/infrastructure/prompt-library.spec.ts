@@ -16,7 +16,7 @@ function folder(files: Record<string, string>): string {
   return dir;
 }
 
-const ALL = { '_common.md': 'C', '_kit-browser.md': 'KB', '_kit-aws.md': 'KA', 'intake.md': 'I', 'tester.md': 'T', 'implementer.md': 'M', 'reviewer.md': 'R', 'router.md': 'O', 'answerer.md': 'A', 'surveyor.md': 'S', 'writer.md': 'W', 'designer.md': 'D', 'operator.md': 'P', 'debugger.md': 'B', 'riskchecker.md': 'K', 'planner.md': 'N', 'chief.md': 'CHIEF', 'bm.md': 'BM', 'marketer.md': 'MARKETER', 'growth.md': 'GROWTH', 'uxdesigner.md': 'UXDESIGNER', 'brand.md': 'BRAND', 'securitychecker.md': 'SECURITYCHECKER', 'releaser.md': 'RELEASER', 'splitter.md': 'SPLITTER' };
+const ALL = { '_common.md': 'C', '_kit-browser.md': 'KB', '_kit-aws.md': 'KA', '_kit-connectors.md': 'KC', 'intake.md': 'I', 'tester.md': 'T', 'implementer.md': 'M', 'reviewer.md': 'R', 'router.md': 'O', 'answerer.md': 'A', 'surveyor.md': 'S', 'writer.md': 'W', 'designer.md': 'D', 'operator.md': 'P', 'debugger.md': 'B', 'riskchecker.md': 'K', 'planner.md': 'N', 'chief.md': 'CHIEF', 'bm.md': 'BM', 'marketer.md': 'MARKETER', 'growth.md': 'GROWTH', 'uxdesigner.md': 'UXDESIGNER', 'brand.md': 'BRAND', 'securitychecker.md': 'SECURITYCHECKER', 'releaser.md': 'RELEASER', 'splitter.md': 'SPLITTER', 'publisher.md': 'PUBLISHER' };
 
 describe('PromptLibrary', () => {
   it('공통 앞부분과 역할 프롬프트를 이어 붙인다', async () => {
@@ -55,7 +55,7 @@ describe('PromptLibrary', () => {
   });
 
   it('역할 프롬프트가 없으면 알려 준다', async () => {
-    await expect(PromptLibrary.load(folder({ '_common.md': 'C', '_kit-browser.md': 'KB', '_kit-aws.md': 'KA' }))).rejects.toThrow(/intake\.md/);
+    await expect(PromptLibrary.load(folder({ '_common.md': 'C', '_kit-browser.md': 'KB', '_kit-aws.md': 'KA', '_kit-connectors.md': 'KC' }))).rejects.toThrow(/intake\.md/);
   });
 
   it('저장소의 기본 프롬프트를 읽을 수 있다', async () => {

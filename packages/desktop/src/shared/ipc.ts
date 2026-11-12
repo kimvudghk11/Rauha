@@ -16,6 +16,7 @@ import type { CodeApi } from './code-api.js';
 import type { TerminalApi } from './terminal-api.js';
 import type { ApiApi } from './api-ipc.js';
 import type { DbApi } from './db-api.js';
+import type { ConnectorApi } from './connector-api.js';
 import type { DockerApi } from './docker-api.js';
 import type { LoginView } from './claude-login.js';
 import type { AccountCheck } from './account-state.js';
@@ -249,6 +250,8 @@ export interface RauhaApi {
   /** DB 탭: SQLite 파일을 열어 테이블·행·쿼리를 본다(main이 자식 프로세스에서 돌린다) */
   readonly db: DbApi;
   readonly auth: AuthApi;
+  /** 설정 → 커넥터: 노션·컨플루언스 같은 원격 MCP 를 연결한다(로그인은 시스템 브라우저, 토큰은 Claude Code 가 둔다) */
+  readonly connectors: ConnectorApi;
   /** 진단 정보(가린 마크다운)를 모아 클립보드에 복사한다. 문제가 생겼을 때 개발자에게 붙여 넣으려는 것 */
   copyDiagnostics(): Promise<DiagnosticsResult>;
 }
