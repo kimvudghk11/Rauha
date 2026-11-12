@@ -1,13 +1,15 @@
-import { DB_LIMIT_NOTE, type DbApi, type DbFailure, type DbResult, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../shared/db-api.js';
+import { DB_LIMIT_NOTE, type DbApi, type DbFailure, type DbResultSet, type DbTableDetail, type DbTableInfo } from '../shared/db-api.js';
 import type { DbConnectionView } from '../shared/db-connections.js';
 import { toCsv } from '../shared/db-csv.js';
+import type { DbSchemaGraph } from '../shared/db-diagram.js';
 import { QueryHistory } from '../shared/db-history.js';
 import { DbInputError } from '../shared/db-names.js';
 import type { DbKind } from '../shared/db-server.js';
 import { SqlStatement } from '../shared/db-sql.js';
 import { statementAt } from '../shared/db-sql-pick.js';
-import { cellClass, cellCopyText, cellDetail, filterTables, nextSort, pageCount, pageLabel, resultLine, rowsAsTsv, sqlPreview, truncationNote } from '../shared/db-view-text.js';
+import { browseSql, cellClass, cellCopyText, cellDetail, filterTables, resultLine, rowsAsTsv, sqlPreview, truncationNote, viaLine, viaShort } from '../shared/db-view-text.js';
 import { CodeEditor } from './code-editor.js';
+import { buildDiagram } from './db-diagram.js';
 import { buildServerForm } from './db-server-form.js';
 import { resultTable, type PickedCell } from './db-table.js';
 import { el, isEnterKey } from './dom.js';
@@ -20,11 +22,11 @@ export interface DbViewDeps {
   readonly copy?: (text: string) => Promise<boolean>;
 }
 
-type Sub = 'schema' | 'rows' | 'sql';
+/** 가운데 칸: SQL(편집기 + 결과) · Diagram(테이블 시각화) */
+type Sub = 'sql' | 'diagram';
 const SUBS: readonly (readonly [Sub, string])[] = [
-  ['rows', 'Rows'],
-  ['schema', 'Structure'],
   ['sql', 'SQL'],
+  ['diagram', 'Diagram'],
 ];
 const TIMEOUTS: readonly (readonly [string, string])[] = [
   ['10', '10 s limit'],
@@ -42,8 +44,6 @@ const SAMPLES: Readonly<Record<DbKind, string>> = {
 const KIND_LABEL: Readonly<Record<DbKind, string>> = { sqlite: 'SQLite', mysql: 'MySQL', postgres: 'PostgreSQL' };
 /** 연결 목록의 종류 표시(작은 글자 배지) */
 const KIND_BADGE: Readonly<Record<DbKind, string>> = { sqlite: 'SQ', mysql: 'My', postgres: 'Pg' };
-/** 이름을 SQL 에 끼울 때: MySQL 은 백틱, 나머지는 큰따옴표 */
-const quoteFor = (kind: DbKind, name: string): string => (kind === 'mysql' ? `\`${name.replace(/`/g, '``')}\`` : `"${name.replace(/"/g, '""')}"`);
 const INDENT = { unit: 'space', size: 2, tabWidth: 2, source: 'default' } as const;
 const IS_MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
 const RUN_KEY = IS_MAC ? '⌘↵' : 'Ctrl+Enter';
@@ -95,9 +95,17 @@ function loading(text: string): HTMLElement {
   return box;
 }
 
+/** 접속 중 안내: 주소가 여럿이면 몇 개를 차례로 시도하는지 */
+const connectingText = (c: DbConnectionView): string => {
+  if (c.server === null) return `Opening ${c.name}…`;
+  const n = c.server.addresses.length;
+  return n > 1 ? `Connecting… trying ${n} addresses in order` : `Connecting to ${c.server.addresses[0]?.host ?? c.name}…`;
+};
+
 /**
- * DB 탭: SQLite 파일이나 MySQL·PostgreSQL 서버를 열어 테이블·구조·행·SQL 결과를 본다. 화면은 그리기만 하고,
- * 어떤 SQL 이 쓰기인지·경로가 맞는지·상한은 shared 와 main 이 정한다(여기서 한 검사는 빠른 안내용일 뿐이다).
+ * DB 탭: SQLite 파일이나 MySQL·PostgreSQL 서버를 열어 SQL 을 돌리고 결과를 본다(가운데는 SQL 편집기 + 결과).
+ * 왼쪽 테이블을 누르면 SELECT * … LIMIT 100 을 넣고 바로 돌린다. ⓘ 는 그 테이블 구조, Diagram 탭은 테이블·FK 관계 그림.
+ * 화면은 그리기만 하고, 어떤 SQL 이 쓰기인지·경로가 맞는지·상한은 shared 와 main 이 정한다(여기서 한 검사는 빠른 안내용일 뿐이다).
  * 기본은 읽기 전용이고, 쓰기 문장은 Write mode 를 켜고 확인 창에서 허락해야 main 으로 간다.
  */
 export function buildDb(deps: DbViewDeps) {
@@ -108,15 +116,12 @@ export function buildDb(deps: DbViewDeps) {
   let current: DbConnectionView | null = null;
   /** 연결마다 마지막 상태(목록의 점): 열림 · 실패 · 여는 중 */
   const status = new Map<string, 'ok' | 'error' | 'busy'>();
+  let openFailure: DbFailure | null = null;
   let tables: readonly DbTableInfo[] = [];
   let tablesLoading = false;
   let filter = '';
   let table: string | null = null;
-  let detail: DbTableDetail | null = null;
-  let rowsPage: DbRowsPage | null = null;
-  let page = 0;
-  let sort: { column: string; dir: 'asc' | 'desc' } | null = null;
-  let sub: Sub = 'rows';
+  let sub: Sub = 'sql';
   let writeMode = false;
   let running: string | null = null;
   let runCount = 0;
@@ -125,10 +130,15 @@ export function buildDb(deps: DbViewDeps) {
   let seq = 0;
   let canSavePasswords = false;
   let history = readHistory();
+  /** Diagram 재료(연결마다 한 번 읽고, 구조를 바꾸면 버린다) */
+  let graph: DbSchemaGraph | null = null;
+  let graphLoading = false;
 
   // ── 머리줄 ──
   const modeChip = el('span');
   const fileHint = el('span', 'hint grow db-file-hint');
+  const viaText = el('span', 'db-via');
+  viaText.hidden = true;
   const writeBox = el('input');
   writeBox.type = 'checkbox';
   writeBox.setAttribute('aria-label', 'Write mode');
@@ -136,7 +146,7 @@ export function buildDb(deps: DbViewDeps) {
   writeLabel.append(writeBox, el('span', undefined, 'Write mode'));
   writeLabel.title = 'Allow INSERT, UPDATE, DELETE and schema changes. Each one still asks for confirmation.';
   const head = el('div', 'rhead db-head');
-  head.append(el('b', undefined, 'DB'), modeChip, fileHint, writeLabel);
+  head.append(el('b', undefined, 'DB'), modeChip, viaText, fileHint, writeLabel);
   const limit = el('div', 'hint', DB_LIMIT_NOTE);
   const notice = el('div', 'notice');
   notice.hidden = true;
@@ -150,6 +160,11 @@ export function buildDb(deps: DbViewDeps) {
     writeBox.disabled = current === null;
     fileHint.textContent = current === null ? 'No database open' : `${KIND_LABEL[current.kind]} · ${current.path}`;
     fileHint.title = current === null ? '' : current.path;
+    // 서버면 지금 붙어 있는 주소(여러 주소 중 몇 번째인지)
+    const via = current !== null && status.get(current.id) === 'ok' ? current.via : null;
+    viaText.hidden = via === null;
+    viaText.textContent = via === null ? '' : viaLine(via);
+    viaText.title = via === null ? '' : `${viaLine(via)}${via.total > 1 ? ` (tried in order; ${via.total} addresses saved)` : ''}`;
     say(writeMode ? 'Write mode is on. A statement that changes data asks you to confirm before it runs, and it cannot be undone.' : '');
   };
   writeBox.addEventListener('change', () => {
@@ -176,7 +191,7 @@ export function buildDb(deps: DbViewDeps) {
       paintTables();
     } else if (isEnterKey(e)) {
       const first = filterTables(tables, filter)[0];
-      if (first !== undefined) void pickTable(first.name);
+      if (first !== undefined) void browseTable(first.name);
     }
   });
   const tableList = el('div', 'db-tables');
@@ -196,7 +211,7 @@ export function buildDb(deps: DbViewDeps) {
   filterWrap.append(tableFilter);
   side.append(filesHead, fileList, tablesHead, filterWrap, tableList);
 
-  // ── 가운데: 탭 + 칸 ──
+  // ── 가운데: 탭(SQL · Diagram) ──
   const tabsRow = el('div', 'tabs');
   const tabButtons = new Map<Sub, HTMLButtonElement>();
   for (const [id, label] of SUBS) {
@@ -209,9 +224,8 @@ export function buildDb(deps: DbViewDeps) {
   const tableTitle = el('span', 'hint grow db-table-title');
   tabsRow.append(tableTitle);
 
-  const schemaPanel = el('div', 'db-panel');
-  const rowsPanel = el('div', 'db-panel');
   const sqlPanel = el('div', 'db-panel');
+  const diagramPanel = el('div', 'db-panel');
   const main = el('div', 'pane db-main');
   const form = buildServerForm({
     api,
@@ -228,7 +242,7 @@ export function buildDb(deps: DbViewDeps) {
       return null;
     },
   });
-  main.append(tabsRow, schemaPanel, rowsPanel, sqlPanel);
+  main.append(tabsRow, sqlPanel, diagramPanel);
   // 연결 폼은 가운데 모달(바깥을 누르거나 Esc 로 닫힌다)
   const formLayer = el('div', 'veil db-form-layer');
   formLayer.hidden = true;
@@ -241,55 +255,38 @@ export function buildDb(deps: DbViewDeps) {
   root.append(head, limit, notice, body, formLayer);
 
   // ── 칸 상세(고른 칸의 전체 값 · 복사) ──
-  function cellPane(): { readonly root: HTMLElement; show(p: PickedCell, columns: readonly string[]): void; hide(): void } {
-    const pane = el('div', 'db-detail');
-    pane.hidden = true;
-    const title = el('span', 'hint grow db-detail-title');
-    const pre = el('pre', 'db-detail-body mono');
-    let picked: { p: PickedCell; columns: readonly string[] } | null = null;
-    const copied = async (text: string, what: string): Promise<void> => say((await copy(text)) ? `Copied ${what}.` : 'Could not copy to the clipboard.');
-    const bar = el('div', 'bar db-detail-bar');
-    bar.append(
-      title,
-      button('Copy value', 'btn sm', () => {
-        if (picked !== null) void copied(cellCopyText(picked.p.cell), 'the value');
-      }),
-      button('Copy row', 'btn sm', () => {
-        if (picked !== null) void copied(rowsAsTsv(picked.columns, [picked.p.values], true), 'the row (tab-separated, with column names)');
-      }),
-      button('×', 'btn icon sm ghost', () => hide()),
-    );
-    pane.append(bar, pre);
-    function show(p: PickedCell, columns: readonly string[]): void {
-      picked = { p, columns };
-      const c = p.cell;
-      const kind = cellClass(c);
-      const size = typeof c === 'string' ? ` · ${c.length.toLocaleString('en-US')} chars` : typeof c === 'object' && c !== null ? ` · ${c.blob.toLocaleString('en-US')} bytes` : '';
-      title.textContent = `${p.column} · row ${p.row + 1} · ${kind === 'num' ? 'number' : kind === 'null' ? 'NULL' : kind === 'blob' ? 'BLOB' : 'text'}${size}`;
-      pre.textContent = cellDetail(c);
-      pre.classList.toggle('null', c === null);
-      pane.hidden = false;
-    }
-    function hide(): void {
-      pane.hidden = true;
-      picked = null;
-    }
-    return { root: pane, show, hide };
+  const cellPaneEl = el('div', 'db-detail');
+  cellPaneEl.hidden = true;
+  const cellTitle = el('span', 'hint grow db-detail-title');
+  const cellPre = el('pre', 'db-detail-body mono');
+  let picked: { p: PickedCell; columns: readonly string[] } | null = null;
+  const copied = async (text: string, what: string): Promise<void> => say((await copy(text)) ? `Copied ${what}.` : 'Could not copy to the clipboard.');
+  const cellBar = el('div', 'bar db-detail-bar');
+  cellBar.append(
+    cellTitle,
+    button('Copy value', 'btn sm', () => {
+      if (picked !== null) void copied(cellCopyText(picked.p.cell), 'the value');
+    }),
+    button('Copy row', 'btn sm', () => {
+      if (picked !== null) void copied(rowsAsTsv(picked.columns, [picked.p.values], true), 'the row (tab-separated, with column names)');
+    }),
+    button('×', 'btn icon sm ghost', () => hideCell()),
+  );
+  cellPaneEl.append(cellBar, cellPre);
+  function showCell(p: PickedCell, columns: readonly string[]): void {
+    picked = { p, columns };
+    const c = p.cell;
+    const kind = cellClass(c);
+    const size = typeof c === 'string' ? ` · ${c.length.toLocaleString('en-US')} chars` : typeof c === 'object' && c !== null ? ` · ${c.blob.toLocaleString('en-US')} bytes` : '';
+    cellTitle.textContent = `${p.column} · row ${p.row + 1} · ${kind === 'num' ? 'number' : kind === 'null' ? 'NULL' : kind === 'blob' ? 'BLOB' : 'text'}${size}`;
+    cellPre.textContent = cellDetail(c);
+    cellPre.classList.toggle('null', c === null);
+    cellPaneEl.hidden = false;
   }
-
-  // ── 행 칸 ──
-  const rowsBar = el('div', 'bar db-rowsbar');
-  const prevBtn = button('‹ Prev', 'btn sm', () => void goPage(page - 1));
-  const nextBtn = button('Next ›', 'btn sm', () => void goPage(page + 1));
-  const pageText = el('span', 'hint db-pagetext');
-  const rowsCsv = button('Export CSV', 'btn sm', () => void exportCsv(rowsPage?.result ?? null, table ?? 'rows'));
-  const rowsRefresh = button('Refresh', 'btn sm', () => void loadRows());
-  rowsBar.append(prevBtn, nextBtn, pageText, rowsCsv, rowsRefresh);
-  const rowsBody = el('div', 'db-result');
-  const rowsNote = el('div', 'hint db-trunc');
-  rowsNote.hidden = true;
-  const rowsCell = cellPane();
-  rowsPanel.append(rowsBar, rowsNote, rowsBody, rowsCell.root);
+  function hideCell(): void {
+    cellPaneEl.hidden = true;
+    picked = null;
+  }
 
   // ── SQL 칸 ──
   const editorHost = el('div', 'db-editor');
@@ -319,14 +316,29 @@ export function buildDb(deps: DbViewDeps) {
   const historyBtn = button('History', 'btn sm', () => openHistory());
   historyBtn.title = 'Recent queries on this connection';
   const sqlHint = el('span', 'hint grow db-sqlhint', `${RUN_KEY} runs the statement at the cursor (or the selection)`);
-  const sqlCsv = button('Export CSV', 'btn sm', () => void exportCsv(lastResult, 'result'));
+  const sqlCsv = button('Export CSV', 'btn sm', () => void exportCsv(lastResult, table ?? 'result'));
   sqlCsv.hidden = true;
   const sqlBar = el('div', 'bar db-sqlbar');
   sqlBar.append(runBtn, cancelBtn, timeoutSel, historyBtn, sqlHint, sqlCsv);
+  // 구조(ⓘ): 결과 위에 접히는 작은 칸
+  const structPane = el('div', 'db-struct');
+  structPane.hidden = true;
   const sqlStatus = el('div', 'bar db-status');
   const sqlBody = el('div', 'db-result');
-  const sqlCell = cellPane();
-  sqlPanel.append(editorHost, sqlBar, sqlStatus, sqlBody, sqlCell.root);
+  sqlPanel.append(editorHost, sqlBar, structPane, sqlStatus, sqlBody, cellPaneEl);
+
+  // ── Diagram 칸 ──
+  const diagram = buildDiagram({
+    onPick: (name) => {
+      table = name;
+      paintTables();
+      paintSub();
+      if (graph !== null) diagram.show(graph, name, false);
+    },
+    onOpen: (name) => void browseTable(name),
+  });
+  const diagramMsg = el('div', 'db-result');
+  diagramPanel.append(diagramMsg, diagram.root);
 
   // ── 그리기 ──
   function paintFiles(): void {
@@ -338,12 +350,13 @@ export function buildDb(deps: DbViewDeps) {
     for (const c of connections) {
       const row = el('div', c.id === current?.id ? 'row-item db-row db-conn on' : 'row-item db-row db-conn');
       row.tabIndex = 0;
-      row.title = `${KIND_LABEL[c.kind]} · ${c.path}`;
+      row.title = `${KIND_LABEL[c.kind]} · ${c.path}${c.via !== null ? `\n${viaLine(c.via)}` : ''}`;
       const badge = el('span', `db-badge ${c.kind}`, KIND_BADGE[c.kind]);
       badge.setAttribute('aria-label', KIND_LABEL[c.kind]);
       const text = el('span', 'db-conn-text');
-      const sub = c.server === null ? c.path : `${c.server.user}@${c.server.host}:${c.server.port}/${c.server.database}`;
-      text.append(el('span', 'db-name', c.name), el('span', 'db-conn-sub', sub));
+      // 붙은 적이 있으면 어느 주소로 붙었는지, 아니면 저장한 주소
+      const sub = c.via !== null && status.get(c.id) === 'ok' ? viaShort(c.via) : c.path;
+      text.append(el('span', 'db-name', c.name), el('span', c.via !== null && status.get(c.id) === 'ok' ? 'db-conn-sub via' : 'db-conn-sub', sub));
       const st = status.get(c.id);
       const dot = el('span', `db-state ${st ?? ''}`);
       dot.title = st === 'ok' ? 'Connected' : st === 'error' ? 'Last attempt failed' : st === 'busy' ? 'Connecting…' : 'Not opened yet';
@@ -385,22 +398,27 @@ export function buildDb(deps: DbViewDeps) {
     tablesReload.disabled = current === null || tablesLoading;
     filterWrap.hidden = tables.length === 0;
     if (current === null) return;
-    if (tablesLoading) return void tableList.append(loading(current.kind === 'sqlite' ? 'Reading tables…' : `Connecting to ${current.server?.host ?? current.name}…`));
+    if (tablesLoading) return void tableList.append(loading(current.kind === 'sqlite' ? 'Reading tables…' : connectingText(current)));
     if (status.get(current.id) === 'error' && tables.length === 0) return void tableList.append(el('div', 'hint db-pad', 'Could not open this database. See the message on the right.'));
     if (tables.length === 0) {
-      tableList.append(el('div', 'hint db-pad', current.kind === 'sqlite' ? 'This file has no tables.' : current.kind === 'postgres' ? 'No tables in the current schema (search_path). Other schemas: use the SQL tab.' : 'No tables in this database.'));
+      tableList.append(el('div', 'hint db-pad', current.kind === 'sqlite' ? 'This file has no tables.' : current.kind === 'postgres' ? 'No tables in the current schema (search_path). Other schemas: use SQL.' : 'No tables in this database.'));
       return;
     }
     if (shown.length === 0) return void tableList.append(el('div', 'hint db-pad', `No table matches “${filter.trim()}”.`));
     for (const t of shown) {
-      const row = el('div', t.name === table ? 'row-item db-row on' : 'row-item db-row');
+      const row = el('div', t.name === table ? 'row-item db-row db-trow on' : 'row-item db-row db-trow');
       row.tabIndex = 0;
-      row.title = t.name;
+      row.title = `${t.name} — click to run SELECT * … LIMIT 100`;
       row.append(el('span', `db-ticon ${t.kind}`, t.kind === 'view' ? '◇' : '▦'), el('span', 'db-name', t.name));
       if (t.kind === 'view') row.append(chipOf('view', 'blue'));
-      row.addEventListener('click', () => void pickTable(t.name));
+      const info = button('ⓘ', 'btn icon sm ghost db-tinfo', () => void showStructure(t.name));
+      info.title = `Columns of ${t.name}`;
+      info.setAttribute('aria-label', `Columns of ${t.name}`);
+      info.addEventListener('click', (e) => e.stopPropagation());
+      row.append(info);
+      row.addEventListener('click', () => void browseTable(t.name));
       row.addEventListener('keydown', (e) => {
-        if (isEnterKey(e)) void pickTable(t.name);
+        if (isEnterKey(e)) void browseTable(t.name);
       });
       tableList.append(row);
     }
@@ -412,104 +430,45 @@ export function buildDb(deps: DbViewDeps) {
   }
   function paintSub(): void {
     for (const [id, b] of tabButtons) b.classList.toggle('on', id === sub);
-    schemaPanel.hidden = sub !== 'schema';
-    rowsPanel.hidden = sub !== 'rows';
     sqlPanel.hidden = sub !== 'sql';
-    tableTitle.textContent = table === null ? '' : table;
+    diagramPanel.hidden = sub !== 'diagram';
+    tableTitle.textContent = table ?? '';
   }
-  function paintSchema(failure?: DbFailure): void {
-    schemaPanel.replaceChildren();
-    if (failure !== undefined) return void schemaPanel.append(problemCard(failure, () => void loadDetail()));
-    if (detail === null) return void schemaPanel.append(table === null ? empty('Pick a table', 'Choose a table on the left to see its columns.') : loading('Loading columns…'));
-    const bar = el('div', 'bar');
-    bar.append(chipOf(detail.kind === 'view' ? 'View' : 'Table', detail.kind === 'view' ? 'blue' : ''), el('span', 'hint grow', `${detail.columns.length} columns`));
-    bar.append(
-      button('Browse rows', 'btn sm', () => switchSub('rows')),
-      button('Query it', 'btn sm', () => {
-        editor.replace('sql', `SELECT * FROM ${quoteFor(current?.kind ?? 'sqlite', detail?.name ?? '')} LIMIT 100;`, 'sql', INDENT, false);
-        switchSub('sql');
-      }),
-    );
-    const grid = el('div', 'db-scroll');
-    const t = el('table', 'tbl db-table');
-    const thead = el('thead');
-    const hr = el('tr');
-    for (const h of ['Column', 'Type', 'Null', 'Default', 'Key']) hr.append(el('th', 'db-th', h));
-    thead.append(hr);
-    const tb = el('tbody');
-    for (const c of detail.columns) {
-      const tr = el('tr');
-      const key = el('td', 'db-cell text', c.primaryKey > 0 ? `PK ${c.primaryKey}` : '');
-      if (c.primaryKey > 0) key.classList.add('db-pk');
-      tr.append(el('td', 'db-cell text db-colname', c.hidden ? `${c.name} (hidden)` : c.name), el('td', 'db-cell text db-type', c.type === '' ? '—' : c.type), el('td', `db-cell text${c.notNull ? '' : ' null'}`, c.notNull ? 'NOT NULL' : 'NULL'), el('td', 'db-cell text', c.defaultValue ?? '—'), key);
-      tb.append(tr);
-    }
-    t.append(thead, tb);
-    grid.append(t);
-    schemaPanel.append(bar, grid);
-    if (detail.createSql !== null) {
-      const pre = el('pre', 'db-create mono');
-      pre.textContent = detail.createSql;
-      schemaPanel.append(pre);
-    }
-  }
-  function paintRows(failure?: DbFailure): void {
-    rowsBody.replaceChildren();
-    rowsNote.hidden = true;
-    rowsCell.hide();
-    const has = rowsPage !== null && failure === undefined;
-    prevBtn.disabled = !has || page <= 0;
-    nextBtn.disabled = !has || page + 1 >= pageCount(rowsPage!.total, rowsPage!.pageSize);
-    rowsCsv.disabled = !has;
-    rowsRefresh.disabled = table === null;
-    if (failure !== undefined) {
-      pageText.textContent = '';
-      return void rowsBody.append(problemCard(failure, () => void loadRows()));
-    }
-    if (rowsPage === null) {
-      pageText.textContent = '';
-      return void rowsBody.append(table === null ? empty('Pick a table', tables.length === 0 ? 'This database has no tables to browse. Use the SQL tab to run a query.' : 'Choose a table on the left to see its rows.') : loading(`Loading ${table}…`));
-    }
-    pageText.textContent = `${pageLabel(rowsPage.page, rowsPage.total, rowsPage.pageSize)} · ${rowsPage.result.elapsedMs.toLocaleString('en-US')} ms`;
-    const note = truncationNote(rowsPage.result);
-    rowsNote.hidden = note === null;
-    rowsNote.textContent = note ?? '';
-    const columns = rowsPage.result.columns;
-    rowsBody.append(resultTable(rowsPage.result, { sort, onSort: (col) => void sortBy(col), firstRowNumber: rowsPage.page * rowsPage.pageSize + 1, onPick: (p) => rowsCell.show(p, columns) }));
-  }
-  function paintMain(failure?: DbFailure): void {
-    paintSub();
-    if (current === null) {
-      const startButton = (): HTMLButtonElement => button('+ New connection', 'btn primary', () => openForm('new'));
-      schemaPanel.replaceChildren(empty('No database open', 'Connect to a MySQL or PostgreSQL server, or open a SQLite file.', startButton()));
-      rowsBody.replaceChildren(empty('No database open', 'Connect to a MySQL or PostgreSQL server, or open a SQLite file.', startButton()));
-      prevBtn.disabled = nextBtn.disabled = rowsCsv.disabled = rowsRefresh.disabled = true;
-      pageText.textContent = '';
-      return;
-    }
-    if (failure !== undefined) {
-      const c = current;
-      const retry = (): void => void openFile(c);
-      const card = (): HTMLElement => {
-        const box = problemCard(failure, retry);
+  /** 연결이 없거나·여는 중이거나·실패했을 때 결과 칸과 그림 칸에 보일 것. 열려 있으면 null */
+  function placeholder(): (() => HTMLElement) | null {
+    if (current === null) return () => empty('No database open', 'Connect to a MySQL or PostgreSQL server, or open a SQLite file.', button('+ New connection', 'btn primary', () => openForm('new')));
+    const c = current;
+    if (openFailure !== null) {
+      const f = openFailure;
+      return () => {
+        const box = problemCard(f, () => void openFile(c));
         if (c.server !== null) box.append(button('Edit connection…', 'btn sm', () => openForm('edit', c)));
         return box;
       };
-      schemaPanel.replaceChildren(card());
-      rowsBody.replaceChildren(card());
-      prevBtn.disabled = nextBtn.disabled = rowsCsv.disabled = rowsRefresh.disabled = true;
+    }
+    if (tablesLoading) return () => loading(connectingText(c));
+    return null;
+  }
+  function paintMain(): void {
+    paintSub();
+    const ph = placeholder();
+    runBtn.disabled = ph !== null || running !== null;
+    if (ph !== null) {
+      sqlStatus.replaceChildren();
+      sqlBody.replaceChildren(ph());
+      sqlCsv.hidden = true;
+      structPane.hidden = true;
+      hideCell();
+      diagram.clear();
+      diagram.root.hidden = true;
+      diagramMsg.hidden = false;
+      diagramMsg.replaceChildren(ph());
       return;
     }
-    if (tablesLoading) {
-      const text = current.kind === 'sqlite' ? `Opening ${current.name}…` : `Connecting to ${current.server?.host ?? current.name}…`;
-      schemaPanel.replaceChildren(loading(text));
-      rowsBody.replaceChildren(loading(text));
-      prevBtn.disabled = nextBtn.disabled = rowsCsv.disabled = rowsRefresh.disabled = true;
-      pageText.textContent = '';
-      return;
+    if (lastResult === null && running === null && sqlBody.childElementCount === 0) {
+      sqlBody.replaceChildren(empty('Run a query', tables.length === 0 ? `Type SQL above and press ${RUN_KEY}.` : `Click a table on the left to see its first 100 rows, or type SQL above and press ${RUN_KEY}.`));
     }
-    paintSchema();
-    paintRows();
+    if (sub === 'diagram') void loadGraph();
   }
 
   // ── 동작 ──
@@ -517,9 +476,7 @@ export function buildDb(deps: DbViewDeps) {
     sub = next;
     paintSub();
     if (next === 'sql') editor.focus();
-    if (current === null || table === null) return;
-    if (next === 'rows' && rowsPage === null) void loadRows();
-    if (next === 'schema' && detail === null) void loadDetail();
+    if (next === 'diagram') void loadGraph();
   }
 
   function openForm(kind: 'new' | 'edit' | 'copy', c?: DbConnectionView): void {
@@ -553,14 +510,26 @@ export function buildDb(deps: DbViewDeps) {
     else if (current !== null && !connections.some((c) => c.id === current?.id)) clearCurrent();
   }
 
+  /** 서버에 붙은 뒤: 목록을 다시 읽어 붙은 주소(via)를 머리줄·목록에 보인다 */
+  async function syncVia(id: string): Promise<void> {
+    const r = await api.list();
+    if (!r.ok) return;
+    connections = r.data.connections;
+    const fresh = connections.find((c) => c.id === id);
+    if (fresh !== undefined && current?.id === id) current = fresh;
+    paintFiles();
+    paintMode();
+  }
+
   function clearCurrent(): void {
     current = null;
     tables = [];
     table = null;
-    detail = null;
-    rowsPage = null;
     lastResult = null;
+    graph = null;
+    openFailure = null;
     writeMode = false;
+    sqlBody.replaceChildren();
     paintFiles();
     paintTables();
     paintMode();
@@ -573,17 +542,18 @@ export function buildDb(deps: DbViewDeps) {
     current = c;
     writeMode = false;
     table = null;
-    detail = null;
-    rowsPage = null;
-    sort = null;
-    page = 0;
     tables = [];
+    graph = null;
+    lastResult = null;
+    openFailure = null;
     tablesLoading = true;
     tableFilter.value = filter = '';
     status.set(c.id, 'busy');
     store.set(LAST_KEY, c.id);
     // 편집기가 아직 예시 그대로면 이 DB 의 예시로 바꾼다
     if (Object.values(SAMPLES).includes(editor.textOf('sql') ?? '')) editor.replace('sql', SAMPLES[c.kind], 'sql', INDENT, false);
+    sqlBody.replaceChildren();
+    structPane.hidden = true;
     paintFiles();
     paintTables();
     paintMode();
@@ -598,17 +568,14 @@ export function buildDb(deps: DbViewDeps) {
     }
     tablesLoading = false;
     status.set(c.id, r.ok ? 'ok' : 'error');
+    if (!r.ok) openFailure ??= r.failure;
+    else tables = r.data;
+    sqlBody.replaceChildren();
     paintFiles();
-    if (!r.ok) {
-      paintTables();
-      paintMain(r.failure);
-      return;
-    }
-    tables = r.data;
     paintTables();
-    const first = tables[0];
-    if (first !== undefined) await pickTable(first.name);
-    else paintMain();
+    paintMode();
+    paintMain();
+    if (r.ok && c.server !== null) await syncVia(c.id);
   }
 
   async function reloadTables(): Promise<void> {
@@ -621,61 +588,112 @@ export function buildDb(deps: DbViewDeps) {
     if (mine !== seq) return;
     tablesLoading = false;
     status.set(c.id, r.ok ? 'ok' : 'error');
-    if (r.ok) tables = r.data;
-    else say(`${r.failure.title}. ${r.failure.message}`);
+    if (r.ok) {
+      tables = r.data;
+      graph = null;
+      if (sub === 'diagram') void loadGraph();
+    } else say(`${r.failure.title}. ${r.failure.message}`);
     paintFiles();
     paintTables();
+    if (r.ok && c.server !== null) await syncVia(c.id);
   }
 
-  async function pickTable(name: string): Promise<void> {
+  /** 왼쪽 테이블을 누르면: 편집기에 SELECT * … LIMIT 100 을 넣고 바로 돌린다 */
+  async function browseTable(name: string): Promise<void> {
+    if (current === null) return;
     table = name;
-    detail = null;
-    rowsPage = null;
-    sort = null;
-    page = 0;
     paintTables();
-    paintMain();
-    await Promise.all([loadDetail(), sub === 'rows' ? loadRows() : Promise.resolve()]);
+    editor.replace('sql', browseSql(current.kind, name), 'sql', INDENT, false);
+    sub = 'sql';
+    paintSub();
+    if (!structPane.hidden && structPane.dataset['table'] !== name) structPane.hidden = true;
+    await run();
   }
 
-  async function loadDetail(): Promise<void> {
-    if (current === null || table === null) return;
+  /** ⓘ: 결과 위 작은 칸에 그 테이블의 열(형식 · NULL · 기본값 · 키)과 CREATE 문을 보인다 */
+  async function showStructure(name: string): Promise<void> {
+    if (current === null) return;
+    if (!structPane.hidden && structPane.dataset['table'] === name) {
+      structPane.hidden = true;
+      return;
+    }
+    sub = 'sql';
+    paintSub();
+    structPane.dataset['table'] = name;
+    structPane.hidden = false;
+    structPane.replaceChildren(loading(`Loading columns of ${name}…`));
     const mine = seq;
-    const name = table;
     const r = await api.detail({ id: current.id, table: name });
-    if (mine !== seq || name !== table) return;
-    if (r.ok) {
-      detail = r.data;
-      paintSchema();
-    } else paintSchema(r.failure);
+    if (mine !== seq || structPane.dataset['table'] !== name) return;
+    paintStructure(name, r.ok ? r.data : null, r.ok ? undefined : r.failure);
   }
-
-  async function loadRows(): Promise<void> {
-    if (current === null || table === null) return;
-    const mine = seq;
-    const name = table;
-    const want = page;
-    if (rowsPage === null) paintRows();
-    const r = await api.rows({ id: current.id, table: name, page: want, sort });
-    if (mine !== seq || name !== table) return;
-    if (r.ok) {
-      rowsPage = r.data;
-      paintRows();
-    } else {
-      rowsPage = null;
-      paintRows(r.failure);
+  function paintStructure(name: string, d: DbTableDetail | null, failure?: DbFailure): void {
+    structPane.replaceChildren();
+    const bar = el('div', 'bar db-struct-bar');
+    const close = button('×', 'btn icon sm ghost', () => (structPane.hidden = true));
+    close.setAttribute('aria-label', 'Close columns');
+    if (d === null) {
+      bar.append(el('b', 'grow', name), close);
+      structPane.append(bar, problemCard(failure!));
+      return;
+    }
+    bar.append(chipOf(d.kind === 'view' ? 'View' : 'Table', d.kind === 'view' ? 'blue' : ''), el('b', 'db-struct-name', d.name), el('span', 'hint grow', `${d.columns.length} columns`), close);
+    const grid = el('div', 'db-scroll db-struct-grid');
+    const t = el('table', 'tbl db-table');
+    const thead = el('thead');
+    const hr = el('tr');
+    for (const h of ['Column', 'Type', 'Null', 'Default', 'Key']) hr.append(el('th', 'db-th', h));
+    thead.append(hr);
+    const tb = el('tbody');
+    for (const c of d.columns) {
+      const tr = el('tr');
+      const key = el('td', 'db-cell text', c.primaryKey > 0 ? `PK ${c.primaryKey}` : '');
+      if (c.primaryKey > 0) key.classList.add('db-pk');
+      tr.append(el('td', 'db-cell text db-colname', c.hidden ? `${c.name} (hidden)` : c.name), el('td', 'db-cell text db-type', c.type === '' ? '—' : c.type), el('td', `db-cell text${c.notNull ? '' : ' null'}`, c.notNull ? 'NOT NULL' : 'NULL'), el('td', 'db-cell text', c.defaultValue ?? '—'), key);
+      tb.append(tr);
+    }
+    t.append(thead, tb);
+    grid.append(t);
+    structPane.append(bar, grid);
+    if (d.createSql !== null) {
+      const more = el('details', 'db-create-wrap');
+      const summary = el('summary', 'hint', 'CREATE statement');
+      const pre = el('pre', 'db-create mono');
+      pre.textContent = d.createSql;
+      more.append(summary, pre);
+      structPane.append(more);
     }
   }
 
-  async function goPage(next: number): Promise<void> {
-    if (next < 0) return;
-    page = next;
-    await loadRows();
-  }
-  async function sortBy(column: string): Promise<void> {
-    sort = nextSort(sort, column);
-    page = 0;
-    await loadRows();
+  async function loadGraph(): Promise<void> {
+    if (current === null || placeholder() !== null) return;
+    if (graph !== null) {
+      diagramMsg.hidden = true;
+      diagram.root.hidden = false;
+      return;
+    }
+    if (graphLoading) return;
+    const c = current;
+    const mine = seq;
+    graphLoading = true;
+    diagram.root.hidden = true;
+    diagramMsg.hidden = false;
+    diagramMsg.replaceChildren(loading('Reading tables and relations…'));
+    const r = await api.graph(c.id);
+    graphLoading = false;
+    if (mine !== seq) return;
+    if (!r.ok) {
+      diagramMsg.replaceChildren(problemCard(r.failure, () => void loadGraph()));
+      return;
+    }
+    graph = r.data;
+    if (graph.tables.length === 0) {
+      diagramMsg.replaceChildren(empty('Nothing to draw', 'This database has no tables yet.'));
+      return;
+    }
+    diagramMsg.hidden = true;
+    diagram.root.hidden = false;
+    diagram.show(graph, table);
   }
 
   /** 비밀번호 창. 접속이 되면 true. 비밀번호는 main 으로만 가고 화면에 남기지 않는다 */
@@ -688,7 +706,7 @@ export function buildDb(deps: DbViewDeps) {
       const r = await api.unlock({ id: c.id, password: answer.value, savePassword: c.savedPassword === true && canSavePasswords });
       if (r.ok) return true;
       if (r.failure.kind !== 'auth') {
-        paintMain(r.failure);
+        openFailure = r.failure;
         return false;
       }
       note = `${r.failure.title}. ${r.failure.help ?? ''}`.trim();
@@ -725,7 +743,7 @@ export function buildDb(deps: DbViewDeps) {
   function paintRun(status: string, failure?: DbFailure, result?: DbResultSet, ran?: string): void {
     sqlStatus.replaceChildren();
     sqlBody.replaceChildren();
-    sqlCell.hide();
+    hideCell();
     sqlCsv.hidden = result === undefined || result.columns.length === 0;
     if (failure !== undefined) {
       sqlBody.append(problemCard(failure));
@@ -747,7 +765,7 @@ export function buildDb(deps: DbViewDeps) {
       sqlBody.append(el('div', 'hint db-none', result.kind === 'read' ? 'The statement returned no columns.' : 'Done.'));
       return;
     }
-    sqlBody.append(resultTable(result, { onPick: (p) => sqlCell.show(p, result.columns) }));
+    sqlBody.append(resultTable(result, { onPick: (p) => showCell(p, result.columns) }));
   }
 
   async function run(): Promise<void> {
@@ -784,26 +802,23 @@ export function buildDb(deps: DbViewDeps) {
     running = null;
     runBtn.disabled = false;
     cancelBtn.hidden = true;
+    if (current?.id !== id) return;
     if (!r.ok) {
       lastResult = null;
       return paintRun('', r.failure);
     }
     lastResult = r.data;
     paintRun('', undefined, r.data, statement.text);
-    // 구조나 데이터를 바꿨으면 목록·행 보기를 새로 읽는다
-    if (r.data.kind !== 'read' && current?.id === id) {
-      const open = table;
+    // 주소가 여럿인 서버는 쿼리마다 다시 접속하니(1번이 돌아왔을 수 있다) 붙은 주소를 새로 읽는다
+    if (current.server !== null && current.server.addresses.length > 1) void syncVia(id);
+    // 구조를 바꿨으면 테이블 목록·그림을 새로 읽는다
+    if (r.data.kind === 'schema') {
+      graph = null;
       const list = await api.tables(id);
       if (list.ok && current?.id === id) {
         tables = list.data;
-        if (open !== null && !tables.some((t) => t.name === open)) {
-          table = null;
-          detail = null;
-        }
-        rowsPage = null;
-        detail = table === null ? null : detail;
+        if (table !== null && !tables.some((t) => t.name === table)) table = null;
         paintTables();
-        paintMain();
       }
     }
   }

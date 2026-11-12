@@ -94,3 +94,55 @@
 .api-var > input.sm { width: 100%; min-width: 0; font-family: var(--mono); }
 .app[data-tier=xs] .api-var { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px; }
 .app[data-tier=xs] .api-var > .api-mask { grid-column: 1 / -1; }
+
+/* 색 포인트: 응답 시간(빠르면 초록, 느리면 노랑), URL 변수(있으면 파랑 칩, 없으면 빨강 칩) */
+.api-ms { color: var(--muted); font-family: var(--mono); font-size: var(--fs-sm); white-space: nowrap; }
+.api-ms.fast { color: var(--green); }
+.api-ms.slow { color: var(--yellow); }
+.api-vars-line { display: flex; flex-wrap: wrap; gap: var(--s1); min-width: 0; }
+.api-var-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); }
+
+/* AI 시험 칸: 응답 칸 자리에 미리보기·리포트 */
+.api.testing .api-req { max-height: 34%; }
+.api-test { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.api-test-head { padding: 0 var(--s3); min-height: var(--h-head); border-bottom: 1px solid var(--border); flex-wrap: nowrap; }
+.api-test-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.api-test-wait { flex: 1; }
+.api-test-counts, .api-test-tools { padding: var(--s2) var(--s3) 0; flex-wrap: wrap; }
+.api-test-summary { padding: var(--s2) var(--s3) 0; color: var(--text); }
+.api-test-notes { padding: var(--s2) var(--s3); border-top: 1px solid var(--border); }
+.api-case-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s3) var(--s3); }
+
+/* 케이스 한 줄(미리보기): 왼쪽 선 색이 분류, 데이터를 바꾸면 노랑 */
+.api-case { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: var(--s2); align-items: start; padding: var(--s2); border: 1px solid var(--border); border-left: 3px solid var(--accentfg); border-radius: var(--r-md); cursor: pointer; }
+.api-case:hover { background: var(--row-hover); }
+.api-case.risky { border-left-color: var(--yellow); }
+.api-case-text { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.api-case-top, .api-case-req, .api-case-expect { display: flex; align-items: center; gap: var(--s2); min-width: 0; flex-wrap: wrap; }
+.api-case-title { color: var(--bright); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.api-case-url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); flex: 1; }
+.api-case-body { font-size: var(--fs-xs); color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 64px; overflow: hidden; }
+.api-case-note { min-width: 0; overflow-wrap: anywhere; }
+.api-case-evidence { font-size: var(--fs-xs); color: var(--purple); overflow-wrap: anywhere; }
+
+/* 리포트 */
+.api-meter { flex: 1 1 120px; min-width: 80px; height: 6px; display: flex; border-radius: var(--r-pill); overflow: hidden; background: var(--border); }
+.api-meter-part { flex: 1 1 0; }
+.api-meter-part.pass { background: var(--green); }
+.api-meter-part.fail { background: var(--red); }
+.api-meter-part.error { background: var(--yellow); }
+.api-result { border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: var(--r-md); min-width: 0; }
+.api-result.fail { border-left-color: var(--red); }
+.api-result.error { border-left-color: var(--yellow); }
+.api-result-line { display: flex; align-items: center; gap: var(--s2); width: 100%; min-width: 0; padding: var(--s2); border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; flex-wrap: wrap; }
+.api-result-line:hover { background: var(--row-hover); }
+.api-result-title { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; color: var(--bright); }
+.api-result-codes { display: inline-flex; align-items: center; gap: var(--s1); flex-wrap: wrap; }
+.api-result-detail { display: flex; flex-direction: column; gap: var(--s1); padding: 0 var(--s2) var(--s2) var(--s4); min-width: 0; }
+.api-result-detail[hidden] { display: none; }
+.api-result-reason { color: var(--text); }
+.api-result-sent { font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.api-result-body { max-height: 160px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); }
+.api-fix { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s2); border-radius: var(--r-sm); border: 1px solid var(--warn-border); background: var(--warn-bg); }
+.api-fix > b { color: var(--yellow); }
+.api-fix-where { color: var(--purple); font-size: var(--fs-xs); }

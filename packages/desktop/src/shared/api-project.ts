@@ -140,6 +140,14 @@ export class ProjectApiSpec implements GeneratedProject {
   static fromExtracted(project: string, name: string, api: ExtractedApi): ProjectApiSpec {
     const vars = [{ name: 'base_url', value: `http://localhost:${api.port ?? DEFAULT_PORT}`, secret: false }];
     if (api.groups.some((g) => g.endpoints.some((e) => e.bearer))) vars.push({ name: 'token', value: '', secret: true });
+    // 경로 변수는 환경 값으로 채운다: 처음 나온 예시 값을 쓴다(비밀 이름은 비워 둔다)
+    for (const g of api.groups)
+      for (const e of g.endpoints)
+        for (const m of e.path.matchAll(/:(\w+)/g)) {
+          const n = m[1] as string;
+          const v = e.examples?.[n];
+          if (v !== undefined && !SECRET_NAME_RE.test(n) && !vars.some((x) => x.name === n)) vars.push({ name: n, value: v, secret: false });
+        }
     const groups = api.groups.map(
       (g): GeneratedGroup => ({
         key: g.key,
@@ -150,7 +158,7 @@ export class ProjectApiSpec implements GeneratedProject {
             name: e.name.slice(0, 120).trim() || `${e.method} ${e.path}`,
             method: e.method,
             url: `{{base_url}}${e.path.replace(/:(\w+)/g, '{{$1}}')}`,
-            query: e.query.map((q) => ({ key: q, value: '', enabled: false })),
+            query: e.query.map((q) => ({ key: q, value: e.examples?.[q] ?? '', enabled: false })),
             headers: [],
             body: e.body === null || e.body === undefined ? { kind: 'none' } : { kind: 'json', text: JSON.stringify(e.body, null, 2) },
             auth: e.bearer ? { kind: 'bearer', token: '{{token}}' } : { kind: 'none' },

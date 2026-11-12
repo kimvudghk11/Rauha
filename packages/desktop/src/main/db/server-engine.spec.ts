@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { DbSchemaGraph } from '../../shared/db-diagram.js';
 import type { DbResultSet, DbRowsPage, DbTableDetail, DbTableInfo } from '../../shared/db-api.js';
 import { DbPassword, ServerTarget, type ServerKind } from '../../shared/db-server.js';
 import { CONNECT_TIMEOUT_MS, ServerEngine, type RowSink, type ServerDriver, type ServerSession } from './server-engine.js';
@@ -205,5 +206,75 @@ describe('서버 엔진: 테이블 · 스키마 · 행 보기', () => {
     const { engine, conn } = setup('postgres', (sql) => (sql === 'SELECT v' ? { columns: ['a', 'b', 'c', 'd', 'e', 'f'], rows: [[when, true, { k: 1 }, Buffer.from([0, 255]), 2n ** 70n, null]] } : {}));
     const r = done<DbResultSet>(await engine.run(conn, { op: 'query', sql: 'SELECT v', writable: false, kind: 'read', verb: 'SELECT' }, T));
     expect(r.rows[0]).toEqual(['2026-01-02T03:04:05.000Z', 'true', '{"k":1}', { blob: 2, preview: "x'00FF'" }, (2n ** 70n).toString(), null]);
+  });
+});
+
+describe('서버 엔진: 주소 여러 개(장애 넘김)', () => {
+  /** host 마다 접속 결과를 정하는 가짜 드라이버(붙으면 FakeDriver 로 넘긴다) */
+  const failing = (fails: Readonly<Record<string, string>>) => {
+    const inner = new FakeDriver(() => ({}));
+    const tried: { host: string; connectTimeoutMs: number; ssl: string; extraCa: string | null }[] = [];
+    const driver: ServerDriver = {
+      connect: async (o) => {
+        tried.push({ host: o.target.host, connectTimeoutMs: o.connectTimeoutMs, ssl: o.target.ssl, extraCa: o.target.extraCa() });
+        const why = fails[o.target.host];
+        if (why !== undefined) throw new Error(why);
+        return inner.connect(o);
+      },
+    };
+    return { tried, engine: new ServerEngine({ postgres: driver } as unknown as Record<ServerKind, ServerDriver>) };
+  };
+  const multi = (hosts: readonly string[], ssl = 'off') => ({ target: ServerTarget.parse({ kind: 'postgres', addresses: hosts.map((host, i) => ({ host, label: i === 0 ? 'Private' : 'Public' })), user: 'app', database: 'shop', ssl }), password: pw });
+
+  it('1번이 닿지 않으면 2번으로 붙고, 붙은 주소(via)를 함께 돌려준다', async () => {
+    const { tried, engine } = failing({ '10.0.0.5': 'connect ETIMEDOUT 10.0.0.5:5432' });
+    const out = await engine.run(multi(['10.0.0.5', '3.35.12.4']), { op: 'ping' }, T);
+    expect(done<boolean>(out)).toBe(true);
+    expect(out.via).toEqual({ index: 1, total: 2, label: 'Public', endpoint: '3.35.12.4:5432' });
+    expect(tried.map((t) => t.host)).toEqual(['10.0.0.5', '3.35.12.4']);
+  });
+
+  it('주소가 여럿이면 주소마다 접속 시간 제한을 4초로 줄인다', async () => {
+    const { tried, engine } = failing({});
+    await engine.run(multi(['10.0.0.5', '3.35.12.4']), { op: 'ping' }, T);
+    expect(tried).toHaveLength(1);
+    expect(tried[0]?.connectTimeoutMs).toBe(4_000);
+  });
+
+  it('비밀번호가 틀리면 2번으로 넘어가지 않고 바로 실패한다', async () => {
+    const { tried, engine } = failing({ '10.0.0.5': 'password authentication failed for user "app"' });
+    const out = await engine.run(multi(['10.0.0.5', '3.35.12.4']), { op: 'ping' }, T);
+    expect(errorText(out)).toMatch(/#1 Private 10\.0\.0\.5:5432: password authentication failed/);
+    expect(tried.map((t) => t.host)).toEqual(['10.0.0.5']);
+    expect(out.via).toBeUndefined();
+  });
+
+  it('모두 닿지 않으면 주소마다의 실패를 모아 알린다', async () => {
+    const { engine } = failing({ '10.0.0.5': 'connect ETIMEDOUT', '3.35.12.4': 'connect ECONNREFUSED' });
+    expect(errorText(await engine.run(multi(['10.0.0.5', '3.35.12.4']), { op: 'ping' }, T))).toBe('Tried 2 addresses and none answered.\n#1 Private 10.0.0.5:5432: connect ETIMEDOUT\n#2 Public 3.35.12.4:5432: connect ECONNREFUSED');
+  });
+
+  it('SSL 은 연결 하나의 설정을 주소마다 그대로 쓰고, RDS CA 는 RDS 주소에서만 더한다', async () => {
+    const { tried, engine } = failing({ '10.0.0.5': 'connect ETIMEDOUT' });
+    await engine.run(multi(['10.0.0.5', 'mydb.abc.ap-northeast-2.rds.amazonaws.com'], 'verify'), { op: 'ping' }, T);
+    expect(tried.map((t) => [t.ssl, t.extraCa])).toEqual([['verify', null], ['verify', 'aws-rds']]);
+  });
+});
+
+describe('서버 엔진: 테이블 시각화 재료', () => {
+  it('읽기 전용 트랜잭션 안에서 테이블·열·PK·FK 를 읽어 그림 재료로 묶는다', async () => {
+    const { driver, engine, conn } = setup('postgres', (sql) => {
+      if (/information_schema\.tables/.test(sql)) return { columns: ['n', 't'], rows: [['users', 'BASE TABLE'], ['orders', 'BASE TABLE'], ['v', 'VIEW']] };
+      if (/information_schema\.columns/.test(sql)) return { columns: ['t', 'c', 'y'], rows: [['users', 'id', 'integer'], ['orders', 'id', 'integer'], ['orders', 'user_id', 'integer']] };
+      if (/contype = 'p'/.test(sql)) return { columns: ['t', 'c', 'o'], rows: [['users', 'id', 1], ['orders', 'id', '1']] };
+      if (/contype = 'f'/.test(sql)) return { columns: ['n', 't', 'c', 'rt', 'rc'], rows: [['orders_user_fk', 'orders', 'user_id', 'users', 'id']] };
+      return {};
+    });
+    const g = done<DbSchemaGraph>(await engine.run(conn, { op: 'graph' }, T));
+    expect(g.tables.map((t) => [t.name, t.kind])).toEqual([['users', 'table'], ['orders', 'table'], ['v', 'view']]);
+    expect(g.tables[1]?.columns).toEqual([{ name: 'id', type: 'integer', pk: 1 }, { name: 'user_id', type: 'integer', pk: 0 }]);
+    expect(g.links).toEqual([{ from: 'orders', fromColumns: ['user_id'], to: 'users', toColumns: ['id'] }]);
+    expect(plain(driver.ran)[0]).toBe('BEGIN READ ONLY');
+    expect(plain(driver.ran).at(-1)).toBe('ROLLBACK');
   });
 });

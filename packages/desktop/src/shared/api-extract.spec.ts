@@ -91,9 +91,26 @@ describe('NestJS 추출', () => {
     expect(group.endpoints.map((e) => e.name)).toEqual(['플랜 결제', '목록', 'paused']);
   });
 
-  it('@Body() DTO 클래스는 필드 모양의 JSON 뼈대가 된다', () => {
-    expect(group.endpoints[0]!.body).toEqual({ planId: '', months: 0, autoRenew: false, tags: [''] });
-    expect(group.endpoints[2]!.body).toEqual({ reason: '' });
+  it('@Body() DTO 클래스는 필드 모양에 예시 값을 채운 JSON 이 된다(ApiProperty example·이름·타입)', () => {
+    expect(group.endpoints[0]!.body).toEqual({ planId: 'p1', months: 1, autoRenew: false, tags: ['sample'] });
+    expect(group.endpoints[2]!.body).toEqual({ reason: 'Sample text' });
+  });
+
+  it('class-validator 규칙과 enum 을 읽어 예시 값을 고른다', () => {
+    const v = extractNest([
+      { path: 'a.controller.ts', text: `@Controller('users')\nexport class UsersController {\n  @Post()\n  create(@Body() dto: CreateUserDto) {}\n}` },
+      { path: 'dto.ts', text: `export enum Role { Admin = 'admin', Member = 'member' }\nexport class CreateUserDto {\n  @IsEmail()\n  contact: string;\n  @IsInt() @Min(18) @Max(99)\n  age: number;\n  @IsEnum(Role)\n  role: Role;\n  @IsOptional() @Length(4, 10)\n  nick?: string;\n}` },
+    ]);
+    expect(v.groups[0]!.endpoints[0]!.body).toEqual({ contact: 'user@example.com', age: 30, role: 'admin', nick: 'sample' });
+  });
+
+  it('경로 변수·쿼리에 예시 값을 두고, 핸들러 이름·파일·줄을 남긴다', () => {
+    const e = group.endpoints[2]!;
+    expect(e.examples).toEqual({ id: '1' });
+    expect(e.handler).toBe('paused');
+    expect(e.file).toBe('src/payment/payment-plan.controller.ts');
+    expect(e.line).toBe(27);
+    expect(group.endpoints[1]!.examples).toEqual({ page: '1', keyword: 'sample', sort: 'createdAt' });
   });
 
   it('@Query() DTO 필드와 @Query(이름)은 쿼리 자리가 된다', () => {
@@ -155,7 +172,13 @@ public class UserController {
 
   it('@RequestParam은 쿼리 자리, @RequestBody 클래스 필드는 JSON 뼈대가 된다', () => {
     expect(group.endpoints[1]!.query).toEqual(['page', 'keyword']);
-    expect(group.endpoints[2]!.body).toEqual({ name: '', age: 0, roles: [''], admin: false });
+    expect(group.endpoints[2]!.body).toEqual({ name: 'kim', age: 30, roles: ['sample'], admin: false });
+  });
+
+  it('@PathVariable 타입과 @RequestParam 이름으로 예시 값을 두고 줄을 남긴다', () => {
+    expect(group.endpoints[0]!.examples).toEqual({ id: '1' });
+    expect(group.endpoints[1]!.examples).toEqual({ page: '1', keyword: 'sample' });
+    expect(group.endpoints[0]!.line).toBe(10);
   });
 
   it('server.port를 포트로 읽는다', () => {

@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { DbSchemaGraph } from '../../shared/db-diagram.js';
 import { DB_LIMITS, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
 import { loadSqlite, type EngineRequest, type EngineResponse, type EngineTestHooks } from './sqlite-engine.js';
 import { ProcessRunner, type RunOutcome } from './sqlite-runner.js';
@@ -51,6 +52,15 @@ describe.skipIf(!hasSqlite())('SQLite 엔진(자식 프로세스, 진짜 node:sq
       ['note', 'TEXT', false, null, 0],
     ]);
     expect(d.createSql).toMatch(/^CREATE TABLE users/);
+  });
+
+  it('테이블 시각화 재료: 테이블·열·PK·FK(열을 적지 않은 REFERENCES 포함)를 한 번에 읽는다', async () => {
+    const f = makeDb(join(kit.dir, 'fk.db'), 'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT); CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id), buyer INTEGER REFERENCES users); CREATE VIEW v AS SELECT name FROM users;');
+    const g = await ok<DbSchemaGraph>({ op: 'graph', file: f });
+    expect(g.tables.map((t) => [t.name, t.kind])).toEqual([['orders', 'table'], ['users', 'table'], ['v', 'view']]);
+    expect(g.tables.find((t) => t.name === 'users')?.columns).toEqual([{ name: 'id', type: 'INTEGER', pk: 1 }, { name: 'name', type: 'TEXT', pk: 0 }]);
+    expect(g.links).toContainEqual({ from: 'orders', fromColumns: ['user_id'], to: 'users', toColumns: ['id'] });
+    expect(g.links.find((l) => l.fromColumns[0] === 'buyer')?.to).toBe('users');
   });
 
   it('행 보기: 한 쪽 100행·전체 행 수·정렬(오름·내림), NULL 은 null', async () => {

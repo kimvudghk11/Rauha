@@ -4,6 +4,9 @@
 .db-head .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-write { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--fs-sm); color: var(--text); cursor: pointer; }
 .app[data-tier=xs] .db-file-hint { display: none; }
+/* 지금 붙어 있는 주소(여러 주소 중 몇 번째인지) */
+.db-via { flex: none; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-family: var(--mono); color: var(--green); }
+.app[data-tier=xs] .db-via { max-width: 100%; }
 
 /* 몸: 왼쪽 연결·테이블 + 가운데 */
 .db-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--s3); }
@@ -33,6 +36,7 @@
 .db-badge.mysql { color: var(--yellow); border-color: var(--warn-border); }
 .db-badge.sqlite { color: var(--purple); border-color: color-mix(in srgb, var(--purple) 40%, transparent); }
 .db-conn-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.db-conn-sub.via { color: var(--green); }
 .db-conn-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); font-family: var(--mono); }
 .db-state { flex: none; width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--border2); }
 .db-state.ok { background: var(--green); }
@@ -43,6 +47,9 @@
 .db-conn:hover .db-state, .db-conn:focus-within .db-state, .db-conn.on .db-state { display: none; }
 .db-ticon { flex: none; width: 14px; text-align: center; color: var(--muted); font-size: var(--fs-xs); }
 .db-ticon.view { color: var(--accentfg); }
+/* 테이블 줄의 ⓘ(구조): 올리거나 고른 줄에서만 */
+.db-tinfo { flex: none; visibility: hidden; }
+.db-trow:hover .db-tinfo, .db-trow:focus-within .db-tinfo, .db-trow.on .db-tinfo { visibility: visible; }
 
 /* 가운데 칸 */
 .db-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s3); overflow: hidden; }
@@ -69,11 +76,16 @@
 .db-pk { color: var(--yellow); }
 .db-more { margin: var(--s2) 0; align-self: flex-start; }
 .db-none { padding: var(--s3) 0; }
-.db-pagetext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-rowsbar, .db-sqlbar, .db-status { flex: none; }
+.db-sqlbar, .db-status { flex: none; }
 .db-sqlhint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-ran { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
 .db-trunc { flex: none; }
+/* 구조(ⓘ): 결과 위에 접히는 작은 칸 */
+.db-struct { flex: none; display: flex; flex-direction: column; gap: var(--s1); max-height: 40%; min-height: 0; border: 1px solid var(--border2); border-radius: var(--r-sm); padding: var(--s1) var(--s2); }
+.db-struct-name { color: var(--bright); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-struct-grid { flex: 1 1 auto; }
+.db-create-wrap { flex: none; min-height: 0; }
+.db-create-wrap > summary { cursor: pointer; padding: 2px 0; }
 .db-create { margin: 0; padding: var(--s2) var(--s3); background: var(--input); border-radius: var(--r-sm); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-xs); color: var(--text); flex: none; max-height: 40%; }
 
 /* 칸 상세(고른 칸의 전체 값) */
@@ -96,6 +108,33 @@
 .db-spin { flex: none; width: 12px; height: 12px; border-radius: var(--r-pill); border: 2px solid var(--border2); border-top-color: var(--accent); animation: db-spin 0.8s linear infinite; }
 @keyframes db-spin { to { transform: rotate(360deg); } }
 
+/* 테이블 시각화(ERD): 인라인 SVG, 끌어서 옮기고 휠로 확대 */
+.db-diagram { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.db-diagram[hidden] { display: none; }
+.db-dia-bar { flex: none; }
+.db-dia-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-dia-zoom { flex: none; min-width: 40px; text-align: center; font-family: var(--mono); }
+.db-dia-view { flex: 1; min-height: 0; overflow: hidden; position: relative; border: 1px solid var(--border2); border-radius: var(--r-sm); background: var(--well); cursor: grab; }
+.db-dia-view.drag { cursor: grabbing; }
+.db-dia-view:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.db-dia-svg { display: block; overflow: visible; user-select: none; }
+.db-dia-edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.db-dia-edge.hot { stroke: var(--accent); stroke-width: 2.5; }
+.db-dia-end { fill: var(--muted); }
+.db-dia-table { cursor: pointer; }
+.db-dia-box { fill: var(--card); stroke: var(--border2); stroke-width: 1; }
+.db-dia-head { fill: var(--input); }
+.db-dia-table:hover .db-dia-box { stroke: var(--accent); }
+.db-dia-table.on .db-dia-box { stroke: var(--accent); stroke-width: 2; }
+.db-dia-table.on .db-dia-head { fill: var(--sel); }
+.db-dia-title { fill: var(--bright); font-size: var(--fs-sm); font-weight: 600; font-family: var(--mono); }
+.db-dia-table.view .db-dia-title { fill: var(--accentfg); }
+.db-dia-col { fill: var(--text); font-size: var(--fs-xs); font-family: var(--mono); }
+.db-dia-type { fill: var(--muted); font-size: var(--fs-xs); font-family: var(--mono); }
+.db-dia-key { font-size: var(--fs-xs); font-weight: 600; font-family: var(--mono); fill: var(--dim); }
+.db-dia-key.pk { fill: var(--yellow); }
+.db-dia-key.fk { fill: var(--accentfg); }
+
 /* 서버 연결 폼(가운데 칸에 크게) */
 .db-form-layer[hidden] { display: none; }
 /* 새 연결·고치기 폼: 가운데 모달(바깥·Esc 로 닫힘) */
@@ -110,6 +149,15 @@
 .db-field-box > input, .db-field-box > select { width: 100%; box-sizing: border-box; }
 .db-hostport { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
 .db-hostport > input:first-child { flex: 1; min-width: 0; }
+/* 주소 여러 개: 번호 · 이름표 · 호스트 · 포트 · ↑↓× */
+.db-addrs { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.db-addr { display: flex; align-items: center; gap: var(--s1); min-width: 0; }
+.db-addr > input[aria-label^="Host"] { flex: 1; min-width: 0; }
+.db-addr-n { flex: none; width: 16px; text-align: center; font-size: var(--fs-xs); color: var(--muted); font-family: var(--mono); }
+.db-addr-label { flex: 0 0 76px; width: 76px; }
+.db-addr-foot { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s1); }
+.app[data-tier=xs] .db-addr-label { flex-basis: 56px; width: 56px; }
+.app[data-tier=xs] .db-addr > .hint { display: none; }
 .db-port { flex: 0 0 72px; width: 72px; font-family: var(--mono); }
 .db-form input { font-family: var(--mono); }
 .db-form-note { overflow-wrap: anywhere; }

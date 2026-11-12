@@ -1,6 +1,7 @@
 import { DB_LIMITS, type DbResultSet, type DbTableInfo } from './db-api.js';
 import type { DbCell } from './db-csv.js';
-import { ServerTarget, type SslMode } from './db-server.js';
+import { ServerTarget, type DbKind, type SslMode } from './db-server.js';
+import type { DbVia } from './db-failover.js';
 
 /** 칸 하나를 화면 글로. NULL 은 빈 글과 구별되게 NULL 로 쓴다. */
 export function cellText(cell: DbCell): string {
@@ -105,4 +106,23 @@ export function rowsAsTsv(columns: readonly string[], rows: readonly (readonly D
   const clean = (v: string): string => v.replace(/[\t\r\n]+/g, ' ');
   const lines = rows.map((r) => r.map((c) => clean(cellCopyText(c))).join('\t'));
   return (withHeader ? [columns.map(clean).join('\t'), ...lines] : lines).join('\n');
+}
+
+/** 이름을 SQL 에 끼울 때: MySQL 은 백틱, 나머지는 큰따옴표(안의 같은 글자는 두 번) */
+export function quoteName(kind: DbKind, name: string): string {
+  return kind === 'mysql' ? `\`${name.replace(/`/g, '``')}\`` : `"${name.replace(/"/g, '""')}"`;
+}
+
+/** 왼쪽 테이블을 누르면 편집기에 넣고 바로 돌릴 SQL */
+export function browseSql(kind: DbKind, table: string, limit = 100): string {
+  return `SELECT * FROM ${quoteName(kind, table)} LIMIT ${limit};`;
+}
+
+/** 붙은 주소 한 줄(머리줄): 주소가 여럿이면 "#2 Public · 3.35.12.4:5432", 하나면 주소만 */
+export function viaShort(v: DbVia): string {
+  if (v.total <= 1) return `via ${v.endpoint}`;
+  return `via #${v.index + 1}${v.label === null ? '' : ` ${v.label}`} · ${v.endpoint}`;
+}
+export function viaLine(v: DbVia): string {
+  return `Connected ${viaShort(v)}`;
 }

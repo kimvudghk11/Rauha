@@ -69,6 +69,16 @@ describe('생성할 요청 모양', () => {
     expect(spec.requestCount()).toBe(1);
   });
 
+  it('예시 값이 있으면 쿼리 값과 경로 변수의 환경 값에 미리 채운다(쿼리는 켜지 않는다)', () => {
+    const spec = ProjectApiSpec.fromExtracted('/w/api', 'api', {
+      source: 'nest',
+      port: 3000,
+      groups: [{ key: 'U', name: 'U', endpoints: [{ method: 'GET', path: '/users/:id', name: 'one', query: ['page'], body: null, bearer: false, examples: { id: '1', page: '2' } }] }],
+    });
+    expect(spec.groups[0]!.requests[0]!.request.query).toEqual([{ key: 'page', value: '2', enabled: false }]);
+    expect(spec.variables.find((v) => v.name === 'id')).toEqual({ name: 'id', value: '1', secret: false });
+  });
+
   it('OpenAPI 문서는 태그가 묶음, 메서드+경로가 키가 된다', () => {
     const doc = { openapi: '3.0.0', info: { title: 'Pets' }, servers: [{ url: 'http://localhost:4000' }], paths: { '/pets/{id}': { get: { tags: ['pets'], summary: 'Get pet' } } } };
     const spec = ProjectApiSpec.fromOpenApi('/w/p', 'p', JSON.stringify(doc));

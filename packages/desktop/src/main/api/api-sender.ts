@@ -19,6 +19,8 @@ export interface SendOptions {
    * 풀지 못하면(없는 이름 등) 막지 않고 보내기에서 나는 오류를 그대로 쓴다.
    */
   readonly resolve?: (hostname: string) => Promise<readonly string[]>;
+  /** 주면 보내기 직전(리다이렉트마다) 이 검사를 통과하는 주소로만 보낸다. AI 시험은 이 컴퓨터 주소만 허락한다 */
+  readonly stayOn?: (url: string) => boolean;
 }
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -100,6 +102,7 @@ export async function sendPrepared(request: PreparedRequest, options: SendOption
     for (let hop = 0; ; hop++) {
       const target = checkTarget(url);
       if (!target.ok) return fail('blocked', hop === 0 ? target.error : `Blocked a redirect: ${target.error}`);
+      if (options.stayOn !== undefined && !options.stayOn(target.url)) return fail('blocked', `${hop === 0 ? 'Blocked' : 'Blocked a redirect'}: AI tests only send requests to this computer (localhost, 127.0.0.1, ::1).`);
       const hostname = new URL(target.url).hostname;
       if (options.resolve !== undefined && !/^[d.]+$/.test(hostname) && !hostname.startsWith('[')) {
         const addresses = await options.resolve(hostname).catch(() => [] as readonly string[]);

@@ -2,13 +2,14 @@ import { ApiCollections } from '../shared/api-collections.js';
 import { CollectionsDto, type CollectionsJson, type EnvironmentsView, type HistoryJson } from '../shared/api-dto.js';
 import type { ApiSource } from '../shared/api-extract.js';
 import type { ApiApi, CollectionResult, ProjectList, ProjectRow, SendResult } from '../shared/api-ipc.js';
-import { API_METHODS, ApiRequest, type ApiMethod, type ApiRequestProps } from '../shared/api-request.js';
+import { API_METHODS, ApiRequest, variablesIn, type ApiMethod, type ApiRequestProps } from '../shared/api-request.js';
 import type { HistoryEntry } from '../shared/api-response.js';
 import { el, isEnterKey } from './dom.js';
 import { buildRequestEditor } from './api-editor.js';
 import { openEnvDialog } from './api-env-dialog.js';
 import { askText, METHOD_CLASS } from './api-parts.js';
 import { buildResponseView } from './api-response-view.js';
+import { buildTestPanel } from './api-test-view.js';
 import { paintCollections, paintHistory, type TreeActions } from './api-tree.js';
 import { button, confirmDialog, select } from './todo-parts.js';
 
@@ -16,6 +17,8 @@ export interface ApiViewDeps {
   readonly api: ApiApi;
   readonly copy: (text: string) => Promise<boolean>;
   readonly now?: () => number;
+  /** 채팅 입력칸에 글을 넣고 채팅 탭으로 간다(AI 시험의 "고쳐 달라고 맡기기") */
+  readonly toChat?: (text: string) => void;
 }
 
 type Side = 'collections' | 'history';
@@ -101,7 +104,7 @@ export function buildApi(deps: ApiViewDeps) {
   urlInput.placeholder = '{{base_url}}/users or https://api.example.com/users';
   urlInput.spellcheck = false;
   urlInput.setAttribute('aria-label', 'Request URL');
-  urlInput.addEventListener('input', () => edit({ url: urlInput.value }));
+  urlInput.addEventListener('input', () => (edit({ url: urlInput.value }), paintVars()));
   urlInput.addEventListener('keydown', (e) => {
     if (isEnterKey(e)) {
       e.preventDefault();
@@ -116,10 +119,28 @@ export function buildApi(deps: ApiViewDeps) {
   nameInput.spellcheck = false;
   nameInput.setAttribute('aria-label', 'Request name');
   nameInput.addEventListener('input', () => edit({ name: nameInput.value }));
+  // AI 시험: 고른 요청의 코드를 읽어 케이스를 만들고 로컬 서버로 돌려 본다
+  const testBtn = button('Test this API', 'btn run api-test-btn', () => startTest());
+  testBtn.title = 'AI reads the code behind this request, previews test cases, then runs them on your local server';
   const nameBar = el('div', 'bar api-name-bar');
-  nameBar.append(nameInput, saveBtn);
+  nameBar.append(nameInput, saveBtn, testBtn);
   const urlBar = el('div', 'bar api-url-bar');
   urlBar.append(methodSel, urlInput, sendBtn);
+  /** URL 의 {{변수}}가 지금 환경에 있는지 색으로(있으면 파랑, 없으면 빨강) */
+  const varsLine = el('div', 'api-vars-line');
+  function paintVars(): void {
+    const names = variablesIn(urlInput.value);
+    const env = envs.items.find((e) => e.id === envs.selectedId);
+    varsLine.replaceChildren();
+    varsLine.hidden = names.length === 0;
+    for (const n of names) {
+      const v = env?.vars.find((x) => x.name === n);
+      const has = v !== undefined && (v.secret ? v.has : v.value !== '');
+      const chip = el('span', `chip ${has ? 'blue' : 'red'} api-var-chip`, has ? (v?.secret === true ? `${n} = ••••` : `${n} = ${(v?.value ?? '').slice(0, 40)}`) : `${n} missing`);
+      chip.title = has ? `{{${n}}} comes from the ${env?.name ?? ''} environment` : `{{${n}}} is not in the selected environment. Add it in Manage.`;
+      varsLine.append(chip);
+    }
+  }
 
   const editor = buildRequestEditor(() => {
     draft = editor.read(draft);
@@ -128,9 +149,32 @@ export function buildApi(deps: ApiViewDeps) {
   const response = buildResponseView({ copy: deps.copy, say });
   response.empty();
   const requestPane = el('div', 'pane api-req');
-  requestPane.append(nameBar, urlBar, editor.root);
+  requestPane.append(nameBar, urlBar, varsLine, editor.root);
   const responsePane = el('div', 'pane api-res');
-  responsePane.append(response.root);
+  const testPanel = buildTestPanel({
+    api: deps.api.tests,
+    say,
+    ...(deps.toChat !== undefined ? { toChat: deps.toChat } : {}),
+    closed: () => {
+      testPanel.root.hidden = true;
+      response.root.hidden = false;
+      root.classList.remove('testing');
+    },
+  });
+  testPanel.root.hidden = true;
+  responsePane.append(response.root, testPanel.root);
+
+  function startTest(): void {
+    draft = editor.read({ ...draft, url: urlInput.value });
+    if (!saved || collections.node(draft.id)?.origin === undefined) {
+      say('AI tests read the code behind a request. Pick a request under a project folder on the left (choose the project first).');
+      return;
+    }
+    response.root.hidden = true;
+    testPanel.root.hidden = false;
+    root.classList.add('testing');
+    void testPanel.start(draft.id, draft);
+  }
   const mainCol = el('div', 'api-main');
   mainCol.append(notice, requestPane, responsePane);
 
@@ -159,6 +203,11 @@ export function buildApi(deps: ApiViewDeps) {
     urlInput.value = request.url;
     nameInput.value = request.name;
     editor.load(request);
+    paintVars();
+    // 다른 요청으로 옮기면 AI 시험 칸은 닫고 응답 칸으로 돌아간다
+    testPanel.root.hidden = true;
+    response.root.hidden = false;
+    root.classList.remove('testing');
     saveBtn.textContent = saved ? 'Save changes' : 'Save to collection';
     const r = lastResult.get(request.id);
     if (r === undefined) response.empty();
@@ -186,6 +235,7 @@ export function buildApi(deps: ApiViewDeps) {
     }, 'api-env-select');
     sel.setAttribute('aria-label', 'Environment');
     envHost.append(sel, button('Manage', 'btn', () => openEnvDialog({ envs: () => envs, apply: (op) => deps.api.env.apply(op), changed: (v) => ((envs = v), paintEnv()) }, envs.selectedId)));
+    paintVars();
   }
 
   function paintSide(): void {

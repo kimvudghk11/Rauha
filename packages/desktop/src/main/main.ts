@@ -64,6 +64,8 @@ import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
 import { registerApiIpc } from './api/api-ipc.js';
+import { FAKE_TEST_MODEL } from './api/api-test-fake.js';
+import { planTestCases, suggestFixes } from './api/api-test-model.js';
 import { registerDockerIpc } from './docker/docker-ipc.js';
 import { registerDbIpc } from './db/db-ipc.js';
 import type { DbService } from './db/db-service.js';
@@ -894,6 +896,20 @@ void app.whenReady().then(async () => {
     saveFile: async (fileName, text) => {
       const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
       const result = await dialog.showSaveDialog(window ?? undefined!, { title: 'Save requests', defaultPath: join(startIn, fileName), filters: [{ name: 'HTTP requests', extensions: ['http', 'sh'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });
+      if (result.canceled || !result.filePath) return null;
+      writeFileSync(result.filePath, text, 'utf8');
+      return result.filePath;
+    },
+    // AI API 시험: 케이스 만들기·수정 제안은 sonnet 단발 호출(도구 없음). 확인용 실행에서는 모델을 부르지 않는다
+    testModel: FAKE
+      ? FAKE_TEST_MODEL
+      : {
+          plan: async (prompt) => planTestCases(prompt, { model: settings.models.sonnet, env: await accountEnv(), claudeExecutable: claudeExecutable() }),
+          fixes: async (prompt) => suggestFixes(prompt, { model: settings.models.sonnet, env: await accountEnv(), claudeExecutable: claudeExecutable() }),
+        },
+    saveReport: async (fileName, text) => {
+      const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
+      const result = await dialog.showSaveDialog(window ?? undefined!, { title: 'Save test report', defaultPath: join(startIn, fileName), filters: [{ name: 'Markdown', extensions: ['md'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });
       if (result.canceled || !result.filePath) return null;
       writeFileSync(result.filePath, text, 'utf8');
       return result.filePath;

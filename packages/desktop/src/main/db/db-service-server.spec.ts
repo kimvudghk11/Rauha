@@ -3,14 +3,14 @@ import type { DbFailure, DbResult } from '../../shared/db-api.js';
 import { DbService } from './db-service.js';
 import { MemoryConnectionsStore } from './db-store.js';
 import type { SecretBox } from './server-passwords.js';
-import type { ServerConnection, ServerRequest, ServerRunner } from './server-engine.js';
-import type { EngineRunner, RunOutcome } from './sqlite-runner.js';
+import type { ServerConnection, ServerOutcome, ServerRequest, ServerRunner } from './server-engine.js';
+import type { EngineRunner } from './sqlite-runner.js';
 
 /** 가짜 서버: 비밀번호가 'right' 일 때만 들어가진다 */
 class FakeServers implements ServerRunner {
   readonly seen: { password: string; req: ServerRequest }[] = [];
-  answer: (req: ServerRequest) => RunOutcome = () => ({ kind: 'done', response: { ok: true, data: [] } });
-  async run(conn: ServerConnection, req: ServerRequest): Promise<RunOutcome> {
+  answer: (req: ServerRequest) => ServerOutcome = () => ({ kind: 'done', response: { ok: true, data: [] } });
+  async run(conn: ServerConnection, req: ServerRequest): Promise<ServerOutcome> {
     this.seen.push({ password: conn.password.reveal(), req });
     if (conn.password.reveal() !== 'right') return { kind: 'done', response: { ok: false, code: 'error', message: `password authentication failed for user "${conn.target.user}"` } };
     return this.answer(req);
@@ -201,5 +201,39 @@ describe('DB 서비스: 서버 연결 고치기·접속 시험', () => {
     const v = data(await service.addServer(form()));
     const later = newService(store, box(false));
     expect(bad(await later.service.editServer(form({ id: v.id, password: '', keepPassword: true }))).kind).toBe('need-password');
+  });
+});
+
+describe('DB 서비스: 붙은 주소(via)', () => {
+  const via = { index: 1, total: 2, label: 'Public', endpoint: '3.35.12.4:5432' };
+  const twoHosts = form({ host: undefined, addresses: [{ host: '10.0.0.5', label: 'Private' }, { host: '3.35.12.4', label: 'Public' }] });
+
+  it('서버를 열면 붙은 주소를 이번 실행 동안 기억해 연결 목록에 함께 보인다', async () => {
+    const servers = new FakeServers();
+    const { service } = newService(undefined, box(), servers);
+    servers.answer = () => ({ kind: 'done', response: { ok: true, data: [] }, via });
+    const v = data(await service.addServer(twoHosts));
+    expect(v.server?.addresses.map((a) => a.host)).toEqual(['10.0.0.5', '3.35.12.4']);
+    data(await service.tables(v.id));
+    expect(data(await service.list()).connections.find((c) => c.id === v.id)?.via).toEqual(via);
+  });
+
+  it('접속 시험도 어느 주소로 붙었는지 알려 준다', async () => {
+    const servers = new FakeServers();
+    const { service } = newService(undefined, box(), servers);
+    servers.answer = () => ({ kind: 'done', response: { ok: true, data: true }, via });
+    expect(data(await service.testServer(twoHosts)).via).toEqual(via);
+  });
+
+  it('목록에서 지우면 기억한 주소도 잊는다', async () => {
+    const servers = new FakeServers();
+    const { service } = newService(undefined, box(), servers);
+    servers.answer = () => ({ kind: 'done', response: { ok: true, data: [] }, via });
+    const v = data(await service.addServer(twoHosts));
+    data(await service.tables(v.id));
+    data(await service.remove(v.id));
+    const again = data(await service.addServer(twoHosts));
+    expect(data(await service.list()).connections.find((c) => c.id === again.id)?.via).toEqual(via);
+    expect(data(await service.list()).connections.find((c) => c.id === v.id)).toBeUndefined();
   });
 });

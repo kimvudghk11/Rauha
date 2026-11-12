@@ -1,5 +1,6 @@
 import { DB_LIMITS, type DbColumnInfo, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
 import type { DbCell } from '../../shared/db-csv.js';
+import { GRAPH_MAX_TABLES, SchemaGraph, type DbSchemaGraph } from '../../shared/db-diagram.js';
 import { quoteIdent } from '../../shared/db-names.js';
 import { BLOCKED_FUNCTIONS, isSafePragma, pragmaTakesArgument, SqlStatement, type SqlKind } from '../../shared/db-sql.js';
 
@@ -12,6 +13,7 @@ import { BLOCKED_FUNCTIONS, isSafePragma, pragmaTakesArgument, SqlStatement, typ
 export type EngineRequest =
   | { readonly op: 'tables'; readonly file: string }
   | { readonly op: 'detail'; readonly file: string; readonly table: string }
+  | { readonly op: 'graph'; readonly file: string }
   | { readonly op: 'rows'; readonly file: string; readonly table: string; readonly page: number; readonly sort: { readonly column: string; readonly dir: 'asc' | 'desc' } | null }
   | { readonly op: 'query'; readonly file: string; readonly sql: string; readonly writable: boolean; readonly kind: SqlKind; readonly verb: string; readonly hooks?: EngineTestHooks };
 
@@ -26,7 +28,7 @@ export interface EngineTestHooks {
 }
 
 export type EngineResponse =
-  | { readonly ok: true; readonly data: readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet | true }
+  | { readonly ok: true; readonly data: readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet | DbSchemaGraph | true }
   | { readonly ok: false; readonly code: 'no-engine' | 'error'; readonly message: string };
 
 // node:sqlite 의 타입(@types/node 22 에는 없는 부분이 있어 필요한 것만 직접 적는다)
@@ -216,6 +218,24 @@ export function runEngine(req: EngineRequest): EngineResponse {
         const entry = schemaEntry(db, req.table);
         installAuthorizer(db, sqlite, false);
         return { ok: true, data: { name: req.table, kind: entry.kind, columns: columnsOf(db, req.table), createSql: entry.sql } };
+      }
+      case 'graph': {
+        installAuthorizer(db, sqlite, false);
+        const tables = db.prepare(`SELECT name, type FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name LIMIT ${GRAPH_MAX_TABLES + 1}`).all() as { name: string; type: string }[];
+        const cols = db.prepare('SELECT name, type, pk FROM pragma_table_info(?)');
+        const fks = db.prepare('SELECT id, "table" AS ref, "from" AS col, "to" AS refcol FROM pragma_foreign_key_list(?) ORDER BY id, seq');
+        const columns: [string, string, string][] = [];
+        const keys: [string, string, number][] = [];
+        const links: [string, string, string, string, string][] = [];
+        for (const t of tables.slice(0, GRAPH_MAX_TABLES)) {
+          for (const c of cols.all(t.name) as { name: string; type: string; pk: number }[]) {
+            columns.push([t.name, c.name, c.type]);
+            if (c.pk > 0) keys.push([t.name, c.name, c.pk]);
+          }
+          if (t.type !== 'table') continue;
+          for (const f of fks.all(t.name) as { id: number; ref: string; col: string; refcol: string | null }[]) links.push([`fk${f.id}`, t.name, f.col, f.ref, f.refcol ?? '']);
+        }
+        return { ok: true, data: SchemaGraph.fromRows({ tables: tables.map((t) => [t.name, t.type] as const), columns, keys, links }).toJSON() };
       }
       case 'rows': {
         const started = performance.now();

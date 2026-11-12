@@ -158,6 +158,7 @@ const api: RauhaApi = {
     remove: (id) => ipcRenderer.invoke(DB_IPC.remove, id),
     tables: (id) => ipcRenderer.invoke(DB_IPC.tables, id),
     detail: (req) => ipcRenderer.invoke(DB_IPC.detail, req),
+    graph: (id) => ipcRenderer.invoke(DB_IPC.graph, id),
     rows: (req) => ipcRenderer.invoke(DB_IPC.rows, req),
     query: (req) => ipcRenderer.invoke(DB_IPC.query, req),
     cancel: (key) => ipcRenderer.invoke(DB_IPC.cancel, key),
@@ -209,6 +210,11 @@ const api: RauhaApi = {
     projects: {
       list: () => ipcRenderer.invoke(API_IPC.projectsList),
       sync: (req) => ipcRenderer.invoke(API_IPC.projectsSync, req),
+    },
+    tests: {
+      plan: (req) => ipcRenderer.invoke(API_IPC.testsPlan, req),
+      run: (req) => ipcRenderer.invoke(API_IPC.testsRun, req),
+      save: (planId) => ipcRenderer.invoke(API_IPC.testsSave, planId),
     },
   },
   update: {

@@ -1,4 +1,5 @@
 import type { ApiMethod } from './api-request.js';
+import { ExampleValue, indexEnums, parseRules, type EnumIndex, type FieldRule } from './api-sample.js';
 
 /**
  * 코드에서 API 엔드포인트를 읽는 정적 분석(모델 호출 없음). 정규식과 괄호 맞추기만 쓰므로
@@ -22,6 +23,13 @@ export interface ApiEndpoint {
   /** JSON 본문 뼈대(없으면 null) */
   readonly body: unknown;
   readonly bearer: boolean;
+  /** 경로 변수·쿼리 이름 → 예시 값(글자) */
+  readonly examples?: Readonly<Record<string, string>>;
+  /** 코드의 핸들러(메서드) 이름 */
+  readonly handler?: string;
+  /** 엔드포인트가 적힌 파일(프로젝트 상대 경로)과 줄(1부터) */
+  readonly file?: string;
+  readonly line?: number;
 }
 
 export interface EndpointGroup {
@@ -151,28 +159,61 @@ const HTTP: Record<string, ApiMethod> = { Get: 'GET', Post: 'POST', Put: 'PUT', 
 interface Field {
   readonly name: string;
   readonly type: string;
+  /** 필드에 붙은 검증 규칙(class-validator 데코레이터, Bean Validation 애너테이션) */
+  readonly rules: readonly FieldRule[];
+  readonly optional: boolean;
 }
 type ClassIndex = Map<string, readonly Field[]>;
 
-/** 타입 이름 하나에서 보기 좋은 예시 값 */
-function sampleOf(type: string, classes: ClassIndex, depth: number): unknown {
+/** 클래스 필드와 enum 값(예시 값을 고를 때 둘 다 본다) */
+interface Shapes {
+  readonly classes: ClassIndex;
+  readonly enums: EnumIndex;
+}
+
+const ARRAY_RULES = /^(Size|ArrayMinSize|ArrayMaxSize|IsArray|NotEmpty|ArrayNotEmpty)$/;
+
+/** 타입 이름 하나에서 보기 좋은 예시 값. 필드를 주면 이름·검증 규칙까지 본다 */
+function sampleOf(type: string, shapes: Shapes, depth: number, field?: Field): unknown {
   const t = type.trim().replace(/\s*\|\s*(null|undefined)\b/g, '').replace(/\?$/, '');
   const arr = /^(?:Array|List|Set|Collection|Iterable)<(.+)>$/.exec(t) ?? /^(.+)\[\]$/.exec(t);
-  if (arr !== null) return [sampleOf(arr[1] as string, classes, depth + 1)];
-  const lit = /^(['"])(.*?)\1/.exec(t);
-  if (lit !== null) return lit[2];
-  const base = t.split(/[<|&]/)[0]?.trim() ?? '';
-  const simple = base.replace(/^.*\./, '');
-  if (/^(string|String|char|Character|UUID|Date|LocalDate|LocalDateTime|LocalTime|ZonedDateTime|OffsetDateTime|Instant)$/.test(simple)) return '';
-  if (/^(number|bigint|int|Integer|long|Long|short|Short|double|Double|float|Float|BigDecimal|BigInteger|Int|byte|Byte)$/.test(simple)) return 0;
-  if (/^(boolean|Boolean)$/.test(simple)) return false;
-  const fields = classes.get(simple);
-  if (fields !== undefined && depth < SAMPLE_DEPTH) {
+  if (arr !== null) {
+    const inner = arr[1] as string;
+    return [sampleOf(inner, shapes, depth + 1, field === undefined ? undefined : { ...field, type: inner, rules: field.rules.filter((r) => !ARRAY_RULES.test(r.name)) })];
+  }
+  const simple = (t.split(/[<|&]/)[0]?.trim() ?? '').replace(/^.*\./, '');
+  const fields = shapes.classes.get(simple);
+  if (fields !== undefined && !shapes.enums.has(simple)) {
+    if (depth >= SAMPLE_DEPTH) return null;
     const out: Record<string, unknown> = {};
-    for (const f of fields.slice(0, MAX_FIELDS)) if (f.name !== '__proto__') out[f.name] = sampleOf(f.type, classes, depth + 1);
+    for (const f of fields.slice(0, MAX_FIELDS)) if (f.name !== '__proto__') out[f.name] = sampleOf(f.type, shapes, depth + 1, f);
     return out;
   }
-  return null;
+  if (field === undefined && /^(unknown|any|object|Object)?$/.test(simple)) return null;
+  const v = ExampleValue.forField(field ?? { name: '', type: t, rules: [], optional: false }, shapes.enums);
+  return v === undefined ? null : v;
+}
+
+/** 필드 선언 바로 앞의 데코레이터·애너테이션들(`@IsInt() @Min(1)\n age: number` 의 앞부분) */
+function rulesOf(rawBody: string, name: string, between: string): FieldRule[] {
+  const re = new RegExp(`((?:@(?:\\w+:)?\\w+(?:\\s*\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\))?\\s*)+)${between}\\b${name}\\b`);
+  const m = re.exec(rawBody);
+  return m === null ? [] : parseRules(m[1] as string);
+}
+
+/** 핸들러 이름이 적힌 줄(1부터). 클래스 선언 뒤에서 처음 나오는 `이름(` 자리 */
+function lineOf(text: string, handler: string, className: string): number | undefined {
+  const at = text.search(new RegExp(`\\bclass\\s+${className}\\b`));
+  const from = Math.max(0, at);
+  const m = new RegExp(`\\b${handler}\\s*(?:<[^>()]*>)?\\s*\\(`).exec(text.slice(from));
+  return m === null ? undefined : text.slice(0, from + m.index).split('\n').length;
+}
+
+/** 경로의 `:이름` 중 예시가 없는 것은 이름으로 짐작해 채운다 */
+function withPathExamples(path: string, examples: Readonly<Record<string, string>>): Record<string, string> {
+  const out: Record<string, string> = { ...examples };
+  for (const m of path.matchAll(/:(\w+)/g)) if (out[m[1] as string] === undefined) out[m[1] as string] = ExampleValue.forParam(m[1] as string, '');
+  return out;
 }
 
 /** TS 클래스들의 필드(extends와 PartialType(X) 같은 매핑 타입은 부모 필드를 앞에 붙인다) */
@@ -183,12 +224,14 @@ function indexTsClasses(files: readonly SourceFile[]): ClassIndex {
     for (let m = re.exec(f.text); m !== null; m = re.exec(f.text)) {
       const open = m.index + m[0].length - 1;
       const close = closeOf(f.text, open);
-      const body = topLevel(f.text.slice(open + 1, close)).replace(/@[\w.]+\s*(\(\))?/g, '');
+      const classBody = f.text.slice(open + 1, close);
+      const body = topLevel(classBody).replace(/@[\w.]+\s*(\(\))?/g, '');
       const fields: Field[] = [];
-      for (const p of body.matchAll(/^[ \t]*(?:(?:public|private|protected|readonly|declare)\s+)*(\w+)\s*[?!]?\s*:\s*([^;=\n]+)/gm)) {
+      for (const p of body.matchAll(/^[ \t]*(?:(?:public|private|protected|readonly|declare)\s+)*(\w+)\s*([?!])?\s*:\s*([^;=\n]+)/gm)) {
         const name = p[1] as string;
         if (name === 'constructor' || fields.some((x) => x.name === name)) continue;
-        fields.push({ name, type: (p[2] as string).trim() });
+        const rules = rulesOf(classBody, name, '(?:(?:public|private|protected|readonly|declare)\\s+)*');
+        fields.push({ name, type: (p[3] as string).trim(), rules, optional: p[2] === '?' || rules.some((r) => r.name === 'IsOptional' || r.name === 'ApiPropertyOptional') });
       }
       const parents = m[2] === undefined ? [] : [...m[2].matchAll(/\b([A-Z]\w*)\b/g)].map((x) => x[1] as string).filter((x) => !/^(PartialType|PickType|OmitType|IntersectionType)$/.test(x));
       if (!raw.has(m[1] as string)) raw.set(m[1] as string, { fields, parents });
@@ -314,7 +357,8 @@ export function extractNest(files: readonly SourceFile[]): ExtractedApi {
   const defaultVersion = versioning === null ? null : namedString(versioning[1] as string, 'defaultVersion');
   const listen = /\.listen\(([^;]*)\)/.exec(all);
   const port = listen === null ? null : portIn(listen[1] as string);
-  const classes = indexTsClasses(clean);
+  const shapes: Shapes = { classes: indexTsClasses(clean), enums: indexEnums(clean.map((f) => f.text)) };
+  const original = new Map(files.map((f) => [f.path, f.text]));
 
   const groups: EndpointGroup[] = [];
   for (const f of clean) {
@@ -342,14 +386,20 @@ export function extractNest(files: readonly SourceFile[]): ExtractedApi {
         const version = decoratorString(decorators, 'Version') ?? ctrlVersion ?? defaultVersion;
         const vSeg = uriVersion && version !== null && version !== '' ? `${versionPrefix}${version}` : '';
         const summary = decorators.find((d) => d.name === 'ApiOperation');
-        const { query, body: bodySample } = nestParams(params, classes);
+        const { query, body: bodySample, examples } = nestParams(params, shapes);
+        const path = joinPath(prefix, vSeg, ctrlPath, firstString(http.args) ?? '');
+        const line = lineOf(original.get(f.path) ?? '', name, className);
         endpoints.push({
           method: HTTP[http.name] as ApiMethod,
-          path: joinPath(prefix, vSeg, ctrlPath, firstString(http.args) ?? ''),
+          path,
           name: (summary === undefined ? null : namedString(summary.args, 'summary')) ?? name,
           query,
           body: bodySample,
           bearer: classBearer || decorators.some((d) => d.name === 'ApiBearerAuth'),
+          examples: withPathExamples(path, examples),
+          handler: name,
+          file: f.path,
+          ...(line !== undefined ? { line } : {}),
         });
       });
       if (endpoints.length > 0) groups.push({ key: className, name: tag ?? (className.replace(/Controller$/, '') || className), endpoints });
@@ -358,27 +408,46 @@ export function extractNest(files: readonly SourceFile[]): ExtractedApi {
   return { source: 'nest', groups, port };
 }
 
-function nestParams(params: string, classes: ClassIndex): { query: string[]; body: unknown } {
+const PARAM_ARGS = /\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/;
+const pipesIn = (args: string): string[] => [...args.matchAll(/\b(Parse\w*Pipe)\b/g)].map((m) => m[1] as string);
+const scalarText = (v: unknown): string => (v === null || typeof v === 'object' ? 'sample' : String(v));
+
+function nestParams(params: string, shapes: Shapes): { query: string[]; body: unknown; examples: Record<string, string> } {
   const query: string[] = [];
+  const examples: Record<string, string> = {};
   let body: unknown = null;
   for (const p of splitTop(params)) {
     const typeOf = (): string => /\)\s*\w+\s*[?!]?\s*:\s*([\w.<>[\]]+)/.exec(p)?.[1] ?? '';
-    const q = /@Query\s*\(\s*([^)]*)\)/.exec(p);
+    const q = new RegExp(`@Query\\s*${PARAM_ARGS.source}`).exec(p);
     if (q !== null) {
-      const named = firstString(q[1] as string);
-      if (named !== null) query.push(named);
-      else for (const f of classes.get(typeOf()) ?? []) query.push(f.name);
+      const args = q[1] as string;
+      const named = firstString(args);
+      if (named !== null) {
+        query.push(named);
+        examples[named] = ExampleValue.forParam(named, typeOf(), pipesIn(args), /new\s+DefaultValuePipe\(\s*['"]?([^'")]+)/.exec(args)?.[1]);
+      } else
+        for (const f of shapes.classes.get(typeOf()) ?? []) {
+          query.push(f.name);
+          examples[f.name] = scalarText(sampleOf(f.type, shapes, 1, f));
+        }
+      continue;
+    }
+    const pa = new RegExp(`@Param\\s*${PARAM_ARGS.source}`).exec(p);
+    if (pa !== null) {
+      const named = firstString(pa[1] as string);
+      if (named !== null) examples[named] = ExampleValue.forParam(named, typeOf(), pipesIn(pa[1] as string));
       continue;
     }
     const b = /@Body\s*\(\s*([^)]*)\)/.exec(p);
     if (b !== null) {
       const named = firstString(b[1] as string);
-      const sample = sampleOf(typeOf() || 'unknown', classes, 0);
+      const type = typeOf() || 'unknown';
+      const sample = sampleOf(type, shapes, 0, named === null ? undefined : { name: named, type, rules: [], optional: false });
       if (named !== null) body = { ...(typeof body === 'object' && body !== null ? body : {}), [named]: sample ?? '' };
       else body = sample ?? {};
     }
   }
-  return { query: [...new Set(query)], body };
+  return { query: [...new Set(query)], body, examples };
 }
 
 function portIn(text: string): number | null {
@@ -390,6 +459,9 @@ function portIn(text: string): number | null {
 
 const SPRING_MAPPING: Record<string, ApiMethod | null> = { GetMapping: 'GET', PostMapping: 'POST', PutMapping: 'PUT', PatchMapping: 'PATCH', DeleteMapping: 'DELETE', RequestMapping: null };
 
+/** Bean Validation 은 @NotNull·@NotBlank·@NotEmpty 가 없으면 비워도 되는 값이다 */
+const jvmField = (name: string, type: string, rules: readonly FieldRule[]): Field => ({ name, type, rules, optional: !rules.some((r) => /^(NotNull|NotBlank|NotEmpty)$/.test(r.name)) || /\?$/.test(type) });
+
 /** Java·Kotlin 클래스 필드(필드, record 구성 요소, data class 생성자 프로퍼티) */
 function indexJvmClasses(files: readonly SourceFile[]): ClassIndex {
   const raw = new Map<string, { fields: Field[]; parents: string[] }>();
@@ -397,7 +469,7 @@ function indexJvmClasses(files: readonly SourceFile[]): ClassIndex {
     for (const m of f.text.matchAll(/\brecord\s+(\w+)\s*(?:<[^>]*>)?\s*\(([^)]*)\)/g)) {
       const fields = splitTop(m[2] as string).flatMap((c): Field[] => {
         const x = /([\w.<>[\], ]+?)\s+(\w+)$/.exec(c.replace(/@\w+(\([^)]*\))?\s*/g, '').trim());
-        return x === null ? [] : [{ name: x[2] as string, type: (x[1] as string).trim() }];
+        return x === null ? [] : [jvmField(x[2] as string, (x[1] as string).trim(), parseRules(c))];
       });
       raw.set(m[1] as string, { fields, parents: [] });
     }
@@ -408,17 +480,19 @@ function indexJvmClasses(files: readonly SourceFile[]): ClassIndex {
       let after = m.index + m[0].length;
       if (m[2] === '(') {
         const end = closeOf(f.text, after - 1);
-        for (const p of f.text.slice(after, end).matchAll(/\b(?:val|var)\s+(\w+)\s*:\s*([\w.<>?]+)/g)) fields.push({ name: p[1] as string, type: p[2] as string });
+        const ctorText = f.text.slice(after, end);
+        for (const p of ctorText.matchAll(/\b(?:val|var)\s+(\w+)\s*:\s*([\w.<>?]+)/g)) fields.push(jvmField(p[1] as string, p[2] as string, rulesOf(ctorText, p[1] as string, '(?:(?:private|protected|public)\\s+)*(?:val|var)\\s+')));
         after = end + 1;
       }
       const ext = /^\s*(?:(?:extends|:)\s*([\w.]+))?[^{;]*\{/.exec(f.text.slice(after));
       if (ext !== null) {
         const open = after + ext[0].length - 1;
-        const body = topLevel(f.text.slice(open + 1, closeOf(f.text, open)));
+        const rawBody = f.text.slice(open + 1, closeOf(f.text, open));
+        const body = topLevel(rawBody);
         for (const p of body.matchAll(/(?:private|protected|public)\s+(?:final\s+)?([\w.<>[\], ?]+?)\s+(\w+)\s*(?:=[^;]*)?;/g)) {
-          if (!/\bstatic\b/.test(p[0])) fields.push({ name: p[2] as string, type: (p[1] as string).trim() });
+          if (!/\bstatic\b/.test(p[0])) fields.push(jvmField(p[2] as string, (p[1] as string).trim(), rulesOf(rawBody, p[2] as string, '(?:private|protected|public)\\s+(?:final\\s+)?[\\w.<>\\[\\], ?]+?\\s+')));
         }
-        for (const p of body.matchAll(/^\s*(?:(?:private|protected|public|lateinit)\s+)*(?:val|var)\s+(\w+)\s*:\s*([\w.<>?]+)/gm)) fields.push({ name: p[1] as string, type: p[2] as string });
+        for (const p of body.matchAll(/^\s*(?:(?:private|protected|public|lateinit)\s+)*(?:val|var)\s+(\w+)\s*:\s*([\w.<>?]+)/gm)) fields.push(jvmField(p[1] as string, p[2] as string, rulesOf(rawBody, p[1] as string, '(?:(?:private|protected|public|lateinit)\\s+)*(?:val|var)\\s+')));
       }
       if (!raw.has(name)) raw.set(name, { fields, parents: ext?.[1] === undefined ? [] : [(ext[1] as string).replace(/^.*\./, '')] });
     }
@@ -438,7 +512,8 @@ export function extractSpring(files: readonly SourceFile[]): ExtractedApi {
   const conf = props.map((p) => p.text).join('\n');
   const contextPath = /server\.servlet\.context-path\s*[=:]\s*(\S+)/.exec(conf)?.[1] ?? /^\s*context-path\s*:\s*['"]?([^\s'"]+)/m.exec(conf)?.[1] ?? '';
   const portText = /server\.port\s*[=:]\s*(\d+)/.exec(conf)?.[1] ?? /^\s*port\s*:\s*(\d+)/m.exec(conf)?.[1];
-  const classes = indexJvmClasses(code);
+  const shapes: Shapes = { classes: indexJvmClasses(code), enums: indexEnums(code.map((f) => f.text)) };
+  const original = new Map(files.map((f) => [f.path, f.text]));
 
   const groups: EndpointGroup[] = [];
   for (const f of code) {
@@ -490,14 +565,21 @@ export function extractSpring(files: readonly SourceFile[]): ExtractedApi {
         let method = SPRING_MAPPING[a[1] as string] ?? null;
         if (method === null) method = (/RequestMethod\.(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)/.exec(args)?.[1] as ApiMethod | undefined) ?? 'GET';
         const summary = /@Operation\s*\([^)]*summary\s*=\s*"([^"]*)"/.exec(window)?.[1] ?? /@ApiOperation\s*\(\s*(?:value\s*=\s*)?"([^"]*)"/.exec(window)?.[1];
-        const { query, body: bodySample } = springParams(body.slice(pOpen + 1, pEnd), classes);
+        const { query, body: bodySample, examples } = springParams(body.slice(pOpen + 1, pEnd), shapes);
+        const path = joinPath(contextPath, base, springMappingPath(args)).replace(/\{(\w+)(?::[^}]*)?\}/g, ':$1');
+        const handler = sig[1] as string;
+        const line = lineOf(original.get(f.path) ?? '', handler, className);
         endpoints.push({
           method,
-          path: joinPath(contextPath, base, springMappingPath(args)).replace(/\{(\w+)(?::[^}]*)?\}/g, ':$1'),
-          name: summary ?? (sig[1] as string),
+          path,
+          name: summary ?? handler,
           query,
           body: bodySample,
           bearer: false,
+          examples: withPathExamples(path, examples),
+          handler,
+          file: f.path,
+          ...(line !== undefined ? { line } : {}),
         });
       }
       if (endpoints.length > 0) groups.push({ key: className, name: tag ?? (className.replace(/Controller$/, '') || className), endpoints });
@@ -506,28 +588,39 @@ export function extractSpring(files: readonly SourceFile[]): ExtractedApi {
   return { source: 'spring', groups, port: portText === undefined ? 8080 : Number(portText) };
 }
 
-function springParams(params: string, classes: ClassIndex): { query: string[]; body: unknown } {
+/** `Long id`, `id: Long` 에서 타입 */
+const jvmParamType = (rest: string): string => /^\w+\s*:\s*([\w.<>?]+)/.exec(rest)?.[1] ?? /^([\w.<>[\], ]+?)\s+\w+$/.exec(rest)?.[1] ?? '';
+
+function springParams(params: string, shapes: Shapes): { query: string[]; body: unknown; examples: Record<string, string> } {
   const query: string[] = [];
+  const examples: Record<string, string> = {};
   let body: unknown = null;
   for (const p of splitTop(params)) {
-    const rp = /@RequestParam\b\s*(\(([^)]*)\))?/.exec(p);
+    const rp = /@(RequestParam|PathVariable)\b\s*(\(([^)]*)\))?/.exec(p);
     if (rp !== null) {
-      const args = rp[2] ?? '';
+      const args = rp[3] ?? '';
       const named = namedString(args, 'value') ?? namedString(args, 'name') ?? (/^\s*"/.test(args) ? firstString(args) : null);
-      const rest = p.slice(rp.index + rp[0].length).replace(/@\w+(\([^)]*\))?/g, '').trim();
+      const rest = p.slice(rp.index + rp[0].length).replace(/@\w+(\([^)]*\))?/g, '').replace(/\bfinal\s+/, '').trim();
       const varName = /^(\w+)\s*:/.exec(rest)?.[1] ?? /(\w+)\s*$/.exec(rest)?.[1];
       const name = named ?? varName;
-      if (name !== undefined) query.push(name);
+      if (name === undefined) continue;
+      examples[name] = ExampleValue.forParam(name, jvmParamType(rest), [], namedString(args, 'defaultValue') ?? undefined);
+      if (rp[1] === 'RequestParam') query.push(name);
       continue;
     }
     if (/@RequestBody\b/.test(p)) {
       const rest = p.replace(/@\w+(\([^)]*\))?/g, '').replace(/\bfinal\s+/, '').trim();
-      const type = /^\w+\s*:\s*([\w.<>?]+)/.exec(rest)?.[1] ?? /^([\w.<>[\], ]+?)\s+\w+$/.exec(rest)?.[1] ?? '';
-      body = sampleOf(type, classes, 0) ?? {};
+      body = sampleOf(jvmParamType(rest), shapes, 0) ?? {};
     }
   }
-  return { query: [...new Set(query)], body };
+  return { query: [...new Set(query)], body, examples };
 }
+
+/** 원래 글에서 그 조각이 처음 나오는 줄(1부터) */
+const lineAt = (text: string, piece: string): number | undefined => {
+  const at = text.indexOf(piece);
+  return at === -1 ? undefined : text.slice(0, at).split('\n').length;
+};
 
 // ── Express·Fastify·Koa ──
 
@@ -541,7 +634,8 @@ export function extractExpress(files: readonly SourceFile[]): ExtractedApi {
     for (const m of text.matchAll(ROUTER_RE)) {
       const method = (m[2] as string).toUpperCase() as ApiMethod;
       const path = joinPath(m[4] as string);
-      endpoints.push({ method, path, name: `${method} ${path}`, query: [], body: method === 'POST' || method === 'PUT' || method === 'PATCH' ? {} : null, bearer: false });
+      const line = lineAt(f.text, m[0]);
+      endpoints.push({ method, path, name: `${method} ${path}`, query: [], body: method === 'POST' || method === 'PUT' || method === 'PATCH' ? {} : null, bearer: false, examples: withPathExamples(path, {}), file: f.path, ...(line !== undefined ? { line } : {}) });
     }
     if (endpoints.length > 0) groups.push({ key: f.path, name: (f.path.split('/').pop() ?? f.path).replace(/\.(routes?|router|controller)?\.?[cm]?[jt]s$/, '').replace(/\.$/, '') || f.path, endpoints });
   }
@@ -558,10 +652,10 @@ const nextSegment = (s: string): string | null => {
 
 export function extractNext(files: readonly SourceFile[]): ExtractedApi {
   const byGroup = new Map<string, ApiEndpoint[]>();
-  const add = (segs: readonly string[], method: ApiMethod, name: string): void => {
+  const add = (segs: readonly string[], method: ApiMethod, name: string, file: string): void => {
     const path = joinPath(...segs);
     const group = segs[1] ?? 'api';
-    byGroup.set(group, [...(byGroup.get(group) ?? []), { method, path, name: name === '' ? `${method} ${path}` : name, query: [], body: method === 'POST' || method === 'PUT' || method === 'PATCH' ? {} : null, bearer: false }]);
+    byGroup.set(group, [...(byGroup.get(group) ?? []), { method, path, name: name === '' ? `${method} ${path}` : name, query: [], body: method === 'POST' || method === 'PUT' || method === 'PATCH' ? {} : null, bearer: false, examples: withPathExamples(path, {}), file }]);
   };
   for (const f of files) {
     const text = stripComments(f.text);
@@ -572,7 +666,7 @@ export function extractNext(files: readonly SourceFile[]): ExtractedApi {
       const segs = parts.slice(appAt + 1, -1).map(nextSegment).filter((s): s is string => s !== null);
       if (segs[0] !== 'api') continue;
       const methods = [...text.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g)].map((m) => m[1] as ApiMethod);
-      for (const m of new Set(methods)) add(segs, m, '');
+      for (const m of new Set(methods)) add(segs, m, '', f.path);
       continue;
     }
     const pagesAt = parts.lastIndexOf('pages');
@@ -581,7 +675,7 @@ export function extractNext(files: readonly SourceFile[]): ExtractedApi {
       if (segs[segs.length - 1] === 'index') segs.pop();
       const clean = segs.map(nextSegment).filter((s): s is string => s !== null);
       const methods = [...text.matchAll(/method\s*===?\s*['"](GET|POST|PUT|PATCH|DELETE)['"]/g)].map((m) => m[1] as ApiMethod);
-      for (const m of methods.length === 0 ? (['GET'] as ApiMethod[]) : [...new Set(methods)]) add(clean, m, '');
+      for (const m of methods.length === 0 ? (['GET'] as ApiMethod[]) : [...new Set(methods)]) add(clean, m, '', f.path);
     }
   }
   return { source: 'next', groups: [...byGroup].map(([key, endpoints]) => ({ key, name: key, endpoints })), port: 3000 };

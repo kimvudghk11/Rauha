@@ -1,6 +1,8 @@
 import { DB_LIMITS, type DbColumnInfo, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
 import type { DbCell } from '../../shared/db-csv.js';
-import type { DbPassword, ServerKind, ServerTarget } from '../../shared/db-server.js';
+import { AddressFailover, type DbVia } from '../../shared/db-failover.js';
+import { CONNECT_TIMEOUT_MS, type DbPassword, type ServerKind, type ServerTarget } from '../../shared/db-server.js';
+import { SchemaGraph, type DbSchemaGraph, type GraphRows } from '../../shared/db-diagram.js';
 import { SqlStatement, type SqlKind } from '../../shared/db-sql.js';
 import type { RunOutcome } from './sqlite-runner.js';
 
@@ -11,7 +13,7 @@ import type { RunOutcome } from './sqlite-runner.js';
  * 시간이 지나거나 취소하면 연결째 끊는다. 비밀번호는 드라이버에만 넘기고, 오류 글에 섞여 있으면 지운다.
  */
 
-export const CONNECT_TIMEOUT_MS = 10_000;
+export { CONNECT_TIMEOUT_MS };
 /** 목록·스키마처럼 안쪽에서 읽는 결과의 행 상한 */
 const CATALOG_MAX_ROWS = 20_000;
 
@@ -38,6 +40,7 @@ export type ServerRequest =
   | { readonly op: 'ping' }
   | { readonly op: 'tables' }
   | { readonly op: 'detail'; readonly table: string }
+  | { readonly op: 'graph' }
   | { readonly op: 'rows'; readonly table: string; readonly page: number; readonly sort: { readonly column: string; readonly dir: 'asc' | 'desc' } | null }
   | { readonly op: 'query'; readonly sql: string; readonly writable: boolean; readonly kind: SqlKind; readonly verb: string };
 
@@ -47,8 +50,11 @@ export interface ServerConnection {
 }
 
 /** 서비스가 쓰는 모양(시험에서는 가짜로 바꾼다) */
+/** 서버 실행 결과: 붙은 주소(via)도 함께 돌려준다(접속하지 못했으면 없다) */
+export type ServerOutcome = RunOutcome & { readonly via?: DbVia };
+
 export interface ServerRunner {
-  run(conn: ServerConnection, req: ServerRequest, o: { readonly timeoutMs: number; readonly key?: string | null }): Promise<RunOutcome>;
+  run(conn: ServerConnection, req: ServerRequest, o: { readonly timeoutMs: number; readonly key?: string | null }): Promise<ServerOutcome>;
   cancel(key: string): boolean;
   stopAll(): void;
 }
@@ -61,6 +67,8 @@ interface Dialect {
   param(n: number): string;
   readonly beginRead: readonly string[];
   tablesSql(oneTable: boolean): string;
+  /** ERD 재료: 이 DB(스키마)의 테이블·열·PK·FK 를 한 번에 */
+  readonly graphSql: { readonly columns: string; readonly keys: string; readonly links: string };
   detail(session: ServerSession, table: string, kind: 'table' | 'view'): Promise<{ readonly columns: DbColumnInfo[]; readonly createSql: string | null }>;
 }
 
@@ -69,6 +77,11 @@ const mysql: Dialect = {
   param: () => '?',
   beginRead: ['SET SESSION TRANSACTION READ ONLY', 'START TRANSACTION READ ONLY'],
   tablesSql: (one) => `SELECT TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()${one ? ' AND TABLE_NAME = ?' : ''} ORDER BY TABLE_TYPE, TABLE_NAME`,
+  graphSql: {
+    columns: 'SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION',
+    keys: "SELECT TABLE_NAME, COLUMN_NAME, SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME = 'PRIMARY'",
+    links: 'SELECT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL AND (REFERENCED_TABLE_SCHEMA IS NULL OR REFERENCED_TABLE_SCHEMA = DATABASE()) ORDER BY TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION',
+  },
   async detail(session, table) {
     const cols = await all(session, 'SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION', [table]);
     const keys = await all(session, "SELECT COLUMN_NAME, SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = 'PRIMARY'", [table]);
@@ -92,6 +105,11 @@ const postgres: Dialect = {
   param: (n) => `$${n}`,
   beginRead: ['BEGIN READ ONLY'],
   tablesSql: (one) => `SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = current_schema()${one ? ' AND table_name = $1' : ''} ORDER BY table_type, table_name`,
+  graphSql: {
+    columns: 'SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = current_schema() ORDER BY table_name, ordinal_position',
+    keys: "SELECT cl.relname, a.attname, k.ord FROM pg_constraint con JOIN pg_class cl ON cl.oid = con.conrelid JOIN pg_namespace n ON n.oid = cl.relnamespace CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum WHERE con.contype = 'p' AND n.nspname = current_schema()",
+    links: "SELECT con.conname, cl.relname, a.attname, fcl.relname, fa.attname FROM pg_constraint con JOIN pg_class cl ON cl.oid = con.conrelid JOIN pg_namespace n ON n.oid = cl.relnamespace JOIN pg_class fcl ON fcl.oid = con.confrelid CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(attnum, fattnum, ord) JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum JOIN pg_attribute fa ON fa.attrelid = con.confrelid AND fa.attnum = k.fattnum WHERE con.contype = 'f' AND n.nspname = current_schema() ORDER BY cl.relname, con.conname, k.ord",
+  },
   async detail(session, table, kind) {
     const cols = await all(
       session,
@@ -217,7 +235,7 @@ export class ServerEngine implements ServerRunner {
 
   constructor(private readonly drivers: Readonly<Record<ServerKind, ServerDriver>>) {}
 
-  async run(conn: ServerConnection, req: ServerRequest, o: { readonly timeoutMs: number; readonly key?: string | null }): Promise<RunOutcome> {
+  async run(conn: ServerConnection, req: ServerRequest, o: { readonly timeoutMs: number; readonly key?: string | null }): Promise<ServerOutcome> {
     const dialect = DIALECTS[conn.target.kind];
     const password = conn.password.reveal();
     const entry: Live = { session: null, cancelled: false, timedOut: false, dead: false };
@@ -225,10 +243,14 @@ export class ServerEngine implements ServerRunner {
     if (key !== null) this.live.set(key, entry);
     this.running.add(entry);
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let via: DbVia | undefined;
+    const withVia = (r: RunOutcome): ServerOutcome => (via === undefined ? r : { ...r, via });
     try {
       // 부모가 이미 검사했지만 엔진에서도 한 번 더(쓰기 허락 없이 온 쓰기 문장은 서버에 보내지 않는다)
       if (req.op === 'query') SqlStatement.parse(req.sql, conn.target.kind).assertAllowed({ writeMode: req.writable, confirm: true });
-      const session = await this.connect(conn.target, password, o.timeoutMs);
+      const opened = await this.connectAny(conn.target, password, o.timeoutMs, entry);
+      const session = opened.session;
+      via = opened.via;
       entry.session = session;
       if (entry.cancelled) {
         this.kill(entry);
@@ -249,14 +271,14 @@ export class ServerEngine implements ServerRunner {
         destroy: () => session.destroy(),
       };
       const data = await this.perform(tracked, dialect, req, entry);
-      if (entry.cancelled) return { kind: 'cancelled' };
-      if (entry.timedOut) return { kind: 'timeout' };
-      return { kind: 'done', response: { ok: true, data } };
+      if (entry.cancelled) return withVia({ kind: 'cancelled' });
+      if (entry.timedOut) return withVia({ kind: 'timeout' });
+      return withVia({ kind: 'done', response: { ok: true, data } });
     } catch (error) {
-      if (entry.cancelled) return { kind: 'cancelled' };
-      if (entry.timedOut) return { kind: 'timeout' };
+      if (entry.cancelled) return withVia({ kind: 'cancelled' });
+      if (entry.timedOut) return withVia({ kind: 'timeout' });
       const message = error instanceof Error ? error.message : String(error);
-      return { kind: 'done', response: { ok: false, code: 'error', message: scrub(message, password) } };
+      return withVia({ kind: 'done', response: { ok: false, code: 'error', message: scrub(message, password) } });
     } finally {
       if (timer !== null) clearTimeout(timer);
       if (key !== null && this.live.get(key) === entry) this.live.delete(key);
@@ -265,15 +287,33 @@ export class ServerEngine implements ServerRunner {
     }
   }
 
-  /** 접속: 드라이버에 10초 제한을 주고, 드라이버가 그래도 멈추면 조금 뒤에 포기한다(늦게 열린 연결은 닫는다) */
-  private connect(target: ServerTarget, password: string, timeoutMs: number): Promise<ServerSession> {
+  /**
+   * 주소를 1번부터 차례로 시도한다(다음으로 넘어갈지는 AddressFailover 가 정한다). 붙은 주소를 via 로 돌려준다.
+   * 끝내 못 붙으면 주소마다의 실패를 모은 글로 던진다. 취소되면 더 시도하지 않는다.
+   */
+  private async connectAny(target: ServerTarget, password: string, timeoutMs: number, entry: Live): Promise<{ readonly session: ServerSession; readonly via: DbVia }> {
+    const failover = AddressFailover.start(target.addresses);
+    const limit = target.addresses.connectTimeoutMs();
+    for (let i = failover.next(); i !== null && !entry.cancelled; i = failover.next()) {
+      try {
+        const session = await this.connect(target.via(i), password, timeoutMs, limit);
+        return { session, via: failover.connected(i) };
+      } catch (error) {
+        failover.failed(i, error instanceof Error ? error.message : String(error));
+      }
+    }
+    throw new Error(failover.failureMessage());
+  }
+
+  /** 주소 하나에 접속: 드라이버에 제한 시간을 주고, 드라이버가 그래도 멈추면 조금 뒤에 포기한다(늦게 열린 연결은 닫는다) */
+  private connect(target: ServerTarget, password: string, timeoutMs: number, connectTimeoutMs: number): Promise<ServerSession> {
     return new Promise<ServerSession>((resolve, reject) => {
       let settled = false;
       const giveUp = setTimeout(() => {
         settled = true;
-        reject(new Error(`Could not reach the server within ${CONNECT_TIMEOUT_MS / 1000} seconds.`));
-      }, CONNECT_TIMEOUT_MS + 2000);
-      this.drivers[target.kind].connect({ target, password, connectTimeoutMs: CONNECT_TIMEOUT_MS, statementTimeoutMs: timeoutMs }).then(
+        reject(new Error(`Could not reach the server within ${connectTimeoutMs / 1000} seconds.`));
+      }, connectTimeoutMs + 2000);
+      this.drivers[target.kind].connect({ target, password, connectTimeoutMs, statementTimeoutMs: timeoutMs }).then(
         (s) => {
           clearTimeout(giveUp);
           if (settled) s.destroy();
@@ -310,7 +350,7 @@ export class ServerEngine implements ServerRunner {
     return found[0][1] === 'VIEW' ? 'view' : 'table';
   }
 
-  private async perform(session: ServerSession, dialect: Dialect, req: ServerRequest, entry: Live): Promise<true | readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet> {
+  private async perform(session: ServerSession, dialect: Dialect, req: ServerRequest, entry: Live): Promise<true | readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet | DbSchemaGraph> {
     switch (req.op) {
       case 'ping':
         return this.readOnly(session, dialect, entry, async () => {
@@ -319,6 +359,17 @@ export class ServerEngine implements ServerRunner {
         });
       case 'tables':
         return this.readOnly(session, dialect, entry, async () => (await all(session, dialect.tablesSql(false), [])).map((r) => ({ name: String(r[0]), kind: r[1] === 'VIEW' ? ('view' as const) : ('table' as const) })));
+      case 'graph':
+        return this.readOnly(session, dialect, entry, async () => {
+          const s = (v: unknown): string => textOf(v);
+          const rows: GraphRows = {
+            tables: (await all(session, dialect.tablesSql(false), [])).map((r) => [s(r[0]), s(r[1])] as const),
+            columns: (await all(session, dialect.graphSql.columns, [])).map((r) => [s(r[0]), s(r[1]), s(r[2])] as const),
+            keys: (await all(session, dialect.graphSql.keys, [])).map((r) => [s(r[0]), s(r[1]), Number(r[2] ?? 1)] as const),
+            links: (await all(session, dialect.graphSql.links, [])).map((r) => [s(r[0]), s(r[1]), s(r[2]), s(r[3]), s(r[4])] as const),
+          };
+          return SchemaGraph.fromRows(rows).toJSON();
+        });
       case 'detail':
         return this.readOnly(session, dialect, entry, async () => {
           const kind = await this.tableKind(session, dialect, req.table);

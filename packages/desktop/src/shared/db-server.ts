@@ -66,23 +66,138 @@ function ssl(input: unknown): SslMode {
   throw new DbInputError('SSL must be off, require or verify.');
 }
 
-/** 서버 연결 대상(값 객체): 종류 · 호스트 · 포트 · 사용자 · 데이터베이스 · SSL. 비밀번호는 여기에 없다. */
+/** 주소 하나에 붙일 수 있는 이름표 길이(예: Private, Public, VPN) */
+const ADDRESS_LABEL_MAX = 24;
+/** 한 연결에 적을 수 있는 주소 수 */
+export const MAX_ADDRESSES = 6;
+/** 주소가 하나일 때의 접속 시간 제한 */
+export const CONNECT_TIMEOUT_MS = 10_000;
+/** 주소가 여럿일 때 주소마다의 접속 시간 제한(닿지 않는 주소에서 오래 기다리지 않고 다음으로) */
+export const FAILOVER_CONNECT_TIMEOUT_MS = 4_000;
+
+function addressLabel(input: unknown): string | null {
+  if (input === undefined || input === null) return null;
+  if (typeof input !== 'string') throw new DbInputError('The address label must be text.');
+  const v = input.trim();
+  if (v === '') return null;
+  if (v.length > ADDRESS_LABEL_MAX) throw new DbInputError(`The address label is too long (up to ${ADDRESS_LABEL_MAX} characters).`);
+  if (CONTROL.test(v)) throw new DbInputError('The address label has a control character.');
+  return v;
+}
+
+/** 서버 주소 하나(값 객체): 호스트 · 포트 · 이름표(선택) */
+export class ServerAddress {
+  private constructor(
+    readonly host: string,
+    readonly port: number,
+    readonly label: string | null,
+  ) {}
+
+  static parse(input: unknown, kind: ServerKind): ServerAddress {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) throw new DbInputError('The address is missing.');
+    const o = input as Readonly<Record<string, unknown>>;
+    return new ServerAddress(host(o['host']), port(o['port'], kind), addressLabel(o['label']));
+  }
+
+  /** host:port (IPv6 는 대괄호) */
+  endpoint(): string {
+    const h = this.host.includes(':') && !this.host.startsWith('[') ? `[${this.host}]` : this.host;
+    return `${h}:${this.port}`;
+  }
+
+  /** 같은 호스트(대소문자 무시)·포트인지 */
+  equals(other: ServerAddress): boolean {
+    return this.host.toLowerCase() === other.host.toLowerCase() && this.port === other.port;
+  }
+
+  toJSON(): { host: string; port: number; label: string | null } {
+    return { host: this.host, port: this.port, label: this.label };
+  }
+}
+
+/** 접속할 주소 목록(값 객체): 적은 순서대로 시도한다(1번이 안 되면 2번…). 1~6개, 같은 주소는 두 번 없다. */
+export class ServerAddresses {
+  private constructor(private readonly items: readonly ServerAddress[]) {}
+
+  static parse(input: unknown, kind: ServerKind): ServerAddresses {
+    if (!Array.isArray(input) || input.length === 0) throw new DbInputError('Add at least one host.');
+    if (input.length > MAX_ADDRESSES) throw new DbInputError(`You can add up to ${MAX_ADDRESSES} hosts.`);
+    const items: ServerAddress[] = [];
+    input.forEach((raw: unknown, i) => {
+      let a: ServerAddress;
+      try {
+        a = ServerAddress.parse(raw, kind);
+      } catch (e) {
+        if (e instanceof DbInputError && input.length > 1) throw new DbInputError(`Host #${i + 1}: ${e.message}`);
+        throw e;
+      }
+      const same = items.findIndex((x) => x.equals(a));
+      if (same !== -1) throw new DbInputError(`Host #${i + 1} is the same as #${same + 1}.`);
+      items.push(a);
+    });
+    return new ServerAddresses(items);
+  }
+
+  /** 주소 하나만 든 목록 */
+  static only(address: ServerAddress): ServerAddresses {
+    return new ServerAddresses([address]);
+  }
+
+  get size(): number {
+    return this.items.length;
+  }
+  list(): readonly ServerAddress[] {
+    return this.items;
+  }
+  primary(): ServerAddress {
+    return this.items[0]!;
+  }
+  at(index: number): ServerAddress {
+    const a = this.items[index];
+    if (a === undefined) throw new DbInputError('That host is not in this connection.');
+    return a;
+  }
+  /** 주소 하나라도 겹치는지 */
+  overlaps(other: ServerAddresses): boolean {
+    return this.items.some((a) => other.items.some((b) => a.equals(b)));
+  }
+  /** 주소마다의 접속 시간 제한: 하나면 넉넉히, 여럿이면 빨리 다음으로 */
+  connectTimeoutMs(): number {
+    return this.items.length > 1 ? FAILOVER_CONNECT_TIMEOUT_MS : CONNECT_TIMEOUT_MS;
+  }
+}
+
+/** 서버 연결 대상(값 객체): 종류 · 주소 목록 · 사용자 · 데이터베이스 · SSL. 비밀번호는 여기에 없다. SSL 은 주소마다가 아니라 연결 하나에. */
 export class ServerTarget {
   private constructor(
     readonly kind: ServerKind,
-    readonly host: string,
-    readonly port: number,
+    readonly addresses: ServerAddresses,
     readonly user: string,
     readonly database: string,
     readonly ssl: SslMode,
   ) {}
 
-  /** 화면·저장 파일에서 온 값을 검사한다(키: kind, host, port, user, database, ssl) */
+  /** 화면·저장 파일에서 온 값을 검사한다(키: kind, addresses[{host, port, label}], user, database, ssl). 예전 형식(host, port 하나)도 읽는다 */
   static parse(input: unknown): ServerTarget {
     if (typeof input !== 'object' || input === null || Array.isArray(input)) throw new DbInputError('The connection details are missing.');
     const o = input as Readonly<Record<string, unknown>>;
     const kind = parseServerKind(o['kind']);
-    return new ServerTarget(kind, host(o['host']), port(o['port'], kind), text(o['user'], 'user name'), text(o['database'], 'database name'), ssl(o['ssl']));
+    const addresses = o['addresses'] !== undefined ? ServerAddresses.parse(o['addresses'], kind) : ServerAddresses.parse([{ host: o['host'], port: o['port'] }], kind);
+    return new ServerTarget(kind, addresses, text(o['user'], 'user name'), text(o['database'], 'database name'), ssl(o['ssl']));
+  }
+
+  /** 첫(우선) 주소의 호스트 */
+  get host(): string {
+    return this.addresses.primary().host;
+  }
+  /** 첫(우선) 주소의 포트 */
+  get port(): number {
+    return this.addresses.primary().port;
+  }
+
+  /** 주소 하나로 좁힌 대상(드라이버는 이것으로 접속한다) */
+  via(index: number): ServerTarget {
+    return new ServerTarget(this.kind, ServerAddresses.only(this.addresses.at(index)), this.user, this.database, this.ssl);
   }
 
   /** 호스트가 Amazon RDS 엔드포인트인지 */
@@ -90,24 +205,24 @@ export class ServerTarget {
     return AWS_RDS_HOST.test(host.trim());
   }
 
-  /** 인증서를 확인할 때 함께 믿을 CA: RDS 호스트 + verify 면 Amazon RDS CA(RDS 인증서는 Node 기본 CA 에 없는 Amazon RDS 루트가 서명한다) */
+  /** 인증서를 확인할 때 함께 믿을 CA: (첫) 주소가 RDS 호스트 + verify 면 Amazon RDS CA. 주소별 판정은 via(i) 로 좁힌 대상에서 한다 */
   extraCa(): ExtraCa | null {
     return this.ssl === 'verify' && ServerTarget.isAwsRdsHost(this.host) ? 'aws-rds' : null;
   }
 
-  /** 화면에 보일 주소(비밀번호 없음): user@host:port/database */
+  /** 화면에 보일 주소(비밀번호 없음): user@host:port/database, 주소가 더 있으면 (+N more) */
   address(): string {
-    const h = this.host.includes(':') && !this.host.startsWith('[') ? `[${this.host}]` : this.host;
-    return `${this.user}@${h}:${this.port}/${this.database}`;
+    const more = this.addresses.size > 1 ? ` (+${this.addresses.size - 1} more)` : '';
+    return `${this.user}@${this.addresses.primary().endpoint()}/${this.database}${more}`;
   }
 
-  /** 같은 서버·사용자·DB 인지(호스트는 대소문자 무시) */
+  /** 같은 서버·사용자·DB 인지: 종류·사용자·DB 가 같고 주소가 하나라도 겹친다(호스트는 대소문자 무시) */
   sameServer(other: ServerTarget): boolean {
-    return this.kind === other.kind && this.host.toLowerCase() === other.host.toLowerCase() && this.port === other.port && this.user === other.user && this.database === other.database;
+    return this.kind === other.kind && this.user === other.user && this.database === other.database && this.addresses.overlaps(other.addresses);
   }
 
-  toJSON(): { kind: ServerKind; host: string; port: number; user: string; database: string; ssl: SslMode } {
-    return { kind: this.kind, host: this.host, port: this.port, user: this.user, database: this.database, ssl: this.ssl };
+  toJSON(): { kind: ServerKind; addresses: { host: string; port: number; label: string | null }[]; user: string; database: string; ssl: SslMode } {
+    return { kind: this.kind, addresses: this.addresses.list().map((a) => a.toJSON()), user: this.user, database: this.database, ssl: this.ssl };
   }
 }
 

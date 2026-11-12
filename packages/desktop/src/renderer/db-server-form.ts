@@ -1,7 +1,8 @@
 import type { DbApi, DbFailure, DbServerForm } from '../shared/db-api.js';
 import type { DbConnectionView } from '../shared/db-connections.js';
-import { defaultPort, ServerTarget, type ServerKind, type SslMode } from '../shared/db-server.js';
-import { sslHelp } from '../shared/db-view-text.js';
+import { defaultPort, FAILOVER_CONNECT_TIMEOUT_MS, MAX_ADDRESSES, ServerTarget, type ServerKind, type SslMode } from '../shared/db-server.js';
+import { ConnectionUrl } from '../shared/db-url.js';
+import { sslHelp, viaShort } from '../shared/db-view-text.js';
 import { el, isEnterKey } from './dom.js';
 import { button, select } from './todo-parts.js';
 
@@ -17,6 +18,8 @@ const SSL_MODES: readonly (readonly [SslMode, string])[] = [
   ['require', 'Require (encrypt, no certificate check)'],
   ['verify', 'Verify certificate'],
 ];
+/** 주소 줄 이름표 예시(1번 · 2번 · 그 뒤) */
+const LABEL_HINTS = ['Private', 'Public', 'VPN'];
 
 type Mode = { readonly kind: 'new' } | { readonly kind: 'edit'; readonly conn: DbConnectionView } | { readonly kind: 'copy'; readonly conn: DbConnectionView };
 
@@ -30,9 +33,18 @@ export interface ServerFormDeps {
   readonly addFile: (path?: string) => Promise<DbFailure | 'cancelled' | null>;
 }
 
+/** 주소 한 줄: 번호 · 이름표 · 호스트 · 포트 · 순서 바꾸기 · 지우기 */
+interface AddressRow {
+  readonly root: HTMLElement;
+  readonly label: HTMLInputElement;
+  readonly host: HTMLInputElement;
+  readonly port: HTMLInputElement;
+}
+
 /**
- * 서버 연결 폼(DBeaver·TablePlus 의 새 연결 창처럼 가운데 칸에 크게): 이름표가 붙은 칸, 종류에 맞는 기본 포트,
- * SSL 설명, "Test connection"(저장하지 않고 접속만), 오류는 단추 바로 아래.
+ * 서버 연결 폼(가운데 모달): 이름표가 붙은 칸, 주소 여러 개(1번이 안 되면 다음 번호로), 종류에 맞는 기본 포트,
+ * SSL 설명, "Test connection"(저장하지 않고 접속만, 붙은 주소를 보인다), 오류는 단추 바로 아래.
+ * 호스트 칸에 postgres://… · mysql://… 연결 문자열을 붙여 넣으면 칸을 채운다.
  * 고치기에서는 비밀번호 칸을 비워 두면 저장한 비밀번호를 그대로 쓴다(비밀번호는 화면으로 돌아오지 않는다).
  */
 export function buildServerForm(deps: ServerFormDeps) {
@@ -61,10 +73,6 @@ export function buildServerForm(deps: ServerFormDeps) {
     return i;
   };
   const name = input('Connection name', 'e.g. Prod read replica');
-  const host = input('Host', 'db.example.com or 127.0.0.1');
-  const port = input('Port');
-  port.inputMode = 'numeric';
-  port.classList.add('db-port');
   const user = input('User name', 'postgres');
   const pass = input('Password');
   pass.type = 'password';
@@ -90,15 +98,125 @@ export function buildServerForm(deps: ServerFormDeps) {
   saveLabel.append(save, el('span', undefined, 'Save password (encrypted with your system keychain)'));
   const passNote = el('div', 'hint db-form-note');
 
+  /** 칸 하나(이름표를 누르면 그 칸으로). 입력이 여럿인 칸(주소 목록)은 div 로 */
   const field = (label: string, ...parts: HTMLElement[]): HTMLElement => {
-    const row = el('label', 'db-field');
+    const row = el(parts.length === 1 && !(parts[0] instanceof HTMLDivElement) ? 'label' : 'div', 'db-field');
     const box = el('div', 'db-field-box');
     box.append(...parts);
     row.append(el('span', 'lbl', label), box);
     return row;
   };
-  const hostRow = el('div', 'db-hostport');
-  hostRow.append(host, el('span', 'hint', 'Port'), port);
+
+  // ── 주소 여러 개 ──
+  const addrList = el('div', 'db-addrs');
+  const rows: AddressRow[] = [];
+  const addBtn = button('+ Add address', 'btn sm', () => {
+    addRow({ host: '', port: '', label: '' }).host.focus();
+  });
+  addBtn.title = 'Add another host or IP for the same database (e.g. a public IP when the private one is not reachable)';
+  const addrNote = el('div', 'hint db-form-note');
+  const addrFoot = el('div', 'db-addr-foot');
+  addrFoot.append(addBtn, addrNote);
+
+  function addRow(v: { readonly host: string; readonly port: string; readonly label: string }): AddressRow {
+    const r = el('div', 'db-addr');
+    const label = input('Address label', 'Label');
+    label.classList.add('db-addr-label');
+    label.value = v.label;
+    const host = input('Host', 'db.example.com, 10.0.0.5 or paste postgres://…');
+    host.value = v.host;
+    const port = input('Port');
+    port.inputMode = 'numeric';
+    port.classList.add('db-port');
+    port.value = v.port === '' ? String(defaultPort(kind)) : v.port;
+    port.placeholder = String(defaultPort(kind));
+    const row: AddressRow = { root: r, label, host, port };
+    const num = el('span', 'db-addr-n');
+    const up = button('↑', 'btn icon sm ghost', () => move(row, -1));
+    const down = button('↓', 'btn icon sm ghost', () => move(row, 1));
+    const del = button('×', 'btn icon sm ghost', () => removeRow(row));
+    r.append(num, label, host, el('span', 'hint', 'Port'), port, up, down, del);
+    for (const i of [label, host, port]) wireEnter(i);
+    host.addEventListener('input', () => onHostInput(host));
+    rows.push(row);
+    addrList.append(r);
+    paintRows();
+    return row;
+  }
+  function move(row: AddressRow, by: number): void {
+    const at = rows.indexOf(row);
+    const to = at + by;
+    if (at === -1 || to < 0 || to >= rows.length) return;
+    rows.splice(at, 1);
+    rows.splice(to, 0, row);
+    addrList.replaceChildren(...rows.map((r) => r.root));
+    paintRows();
+    showResult(null);
+  }
+  function removeRow(row: AddressRow): void {
+    if (rows.length <= 1) return;
+    rows.splice(rows.indexOf(row), 1);
+    row.root.remove();
+    paintRows();
+    showResult(null);
+  }
+  function setRows(list: readonly { readonly host: string; readonly port: string; readonly label: string }[]): void {
+    rows.length = 0;
+    addrList.replaceChildren();
+    for (const v of list.length === 0 ? [{ host: '', port: '', label: '' }] : list.slice(0, MAX_ADDRESSES)) addRow(v);
+  }
+  /** 번호 · 이름 · 단추 켜기/끄기 · 안내 */
+  function paintRows(): void {
+    const many = rows.length > 1;
+    rows.forEach((r, i) => {
+      const [num, , , , , up, down, del] = [...r.root.children] as HTMLElement[];
+      num!.textContent = `${i + 1}`;
+      num!.title = i === 0 ? 'Tried first' : `Tried if #${i} does not answer`;
+      r.host.setAttribute('aria-label', i === 0 ? 'Host' : `Host #${i + 1}`);
+      r.port.setAttribute('aria-label', i === 0 ? 'Port' : `Port #${i + 1}`);
+      r.label.setAttribute('aria-label', `Label for host #${i + 1}`);
+      r.label.placeholder = LABEL_HINTS[i] ?? 'Label';
+      // 주소가 하나면 이름표·순서 단추는 숨긴다(필요할 때만 보인다)
+      r.label.hidden = !many;
+      for (const [b, t] of [[up, `Move host #${i + 1} up`], [down, `Move host #${i + 1} down`], [del, `Remove host #${i + 1}`]] as const) {
+        b!.title = t;
+        b!.setAttribute('aria-label', t);
+        b!.hidden = !many;
+      }
+      (up as HTMLButtonElement).disabled = i === 0;
+      (down as HTMLButtonElement).disabled = i === rows.length - 1;
+    });
+    addBtn.hidden = rows.length >= MAX_ADDRESSES;
+    addrNote.textContent = many ? `Tried in order. If a host does not answer within ${FAILOVER_CONNECT_TIMEOUT_MS / 1000} s, Rauha tries the next one. A wrong password stops right away.` : '';
+    addrNote.hidden = !many;
+  }
+  const hosts = (): string[] => rows.map((r) => r.host.value.trim());
+
+  /** 호스트 칸에 연결 문자열을 붙여 넣으면 칸을 채우고, RDS 엔드포인트면 SSL 을 권한다 */
+  function onHostInput(host: HTMLInputElement): void {
+    const parsed = ConnectionUrl.parse(host.value);
+    if (parsed !== null && parsed.addresses.length > 0) {
+      setKind(parsed.kind);
+      if (formKind !== parsed.kind) setFormKind(parsed.kind);
+      setRows(parsed.addresses);
+      if (parsed.user !== '') user.value = parsed.user;
+      if (parsed.password !== '' && pass.value === '') pass.value = parsed.password;
+      if (parsed.database !== '') database.value = parsed.database;
+      if (parsed.ssl !== null) {
+        ssl = parsed.ssl;
+        sslSel.value = ssl;
+        sslTouched = true;
+      }
+      showResult(null, 'Filled in from the connection string.');
+      result.className = 'db-form-result wait';
+    }
+    // RDS 엔드포인트를 붙여 넣으면 SSL 을 권한다(사용자가 SSL 을 직접 고르지 않았을 때만)
+    if (!sslTouched && ssl === 'off' && hosts().some((h) => ServerTarget.isAwsRdsHost(h))) {
+      ssl = 'verify';
+      sslSel.value = ssl;
+    }
+    paintSsl();
+  }
 
   const testBtn = button('Test connection', 'btn', () => void test());
   const saveBtn = button('Connect', 'btn primary', () => void submit());
@@ -109,12 +227,12 @@ export function buildServerForm(deps: ServerFormDeps) {
   result.setAttribute('aria-live', 'polite');
 
   const grid = el('div', 'db-form-grid');
-  const serverFields = [field('Name', name), field('Host', hostRow), field('User', user), field('Password', pass, passNote), field('Database', database), field('SSL', sslSel, sslNote), field('', saveLabel)];
+  const serverFields = [field('Name', name), field('Hosts', addrList, addrFoot), field('User', user), field('Password', pass, passNote), field('Database', database), field('SSL', sslSel, sslNote), field('', saveLabel)];
   const fileField = field('File', fileRow);
   grid.append(field('Type', kindSel), fileField, ...serverFields);
   root.append(top, grid, actions, result);
 
-  for (const i of [name, host, port, user, pass, database, filePath]) {
+  function wireEnter(i: HTMLInputElement): void {
     i.addEventListener('keydown', (e) => {
       if (isEnterKey(e)) {
         e.preventDefault();
@@ -123,19 +241,12 @@ export function buildServerForm(deps: ServerFormDeps) {
     });
     i.addEventListener('input', () => showResult(null));
   }
+  for (const i of [name, user, pass, database, filePath]) wireEnter(i);
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.stopPropagation();
       close();
     }
-  });
-  host.addEventListener('input', () => {
-    // RDS 엔드포인트를 붙여 넣으면 SSL 을 권한다(사용자가 SSL 을 직접 고르지 않았을 때만)
-    if (!sslTouched && ssl === 'off' && ServerTarget.isAwsRdsHost(host.value)) {
-      ssl = 'verify';
-      sslSel.value = ssl;
-    }
-    paintSsl();
   });
 
   /** 종류 고르기: SQLite 면 파일 칸만, 서버면 서버 칸만 보인다 */
@@ -175,13 +286,16 @@ export function buildServerForm(deps: ServerFormDeps) {
     kind = next;
     kindSel.value = next;
     // 포트를 손대지 않았으면(비었거나 이전 기본값) 새 기본값으로
-    if (port.value.trim() === '' || port.value.trim() === oldDefault) port.value = String(defaultPort(next));
-    port.placeholder = String(defaultPort(next));
+    for (const r of rows) {
+      if (r.port.value.trim() === '' || r.port.value.trim() === oldDefault) r.port.value = String(defaultPort(next));
+      r.port.placeholder = String(defaultPort(next));
+    }
     user.placeholder = next === 'postgres' ? 'postgres' : 'root';
     database.placeholder = next === 'postgres' ? 'postgres' : 'app';
   }
   function paintSsl(): void {
-    sslNote.textContent = sslHelp(ssl, host.value);
+    const hs = hosts();
+    sslNote.textContent = sslHelp(ssl, hs.find((h) => ServerTarget.isAwsRdsHost(h)) ?? hs[0] ?? '');
   }
   function paintSave(): void {
     const can = deps.canSavePasswords();
@@ -204,11 +318,22 @@ export function buildServerForm(deps: ServerFormDeps) {
   }
 
   const keeping = (): boolean => mode.kind === 'edit' && pass.value === '';
-  const form = (): DbServerForm => ({ name: name.value, kind, host: host.value, port: port.value, user: user.value, password: pass.value, database: database.value, ssl, savePassword: save.checked && deps.canSavePasswords() });
+  const form = (): DbServerForm => ({
+    name: name.value,
+    kind,
+    addresses: rows.map((r) => ({ host: r.host.value, port: r.port.value, label: rows.length > 1 ? r.label.value : '' })),
+    user: user.value,
+    password: pass.value,
+    database: database.value,
+    ssl,
+    savePassword: save.checked && deps.canSavePasswords(),
+  });
   const missing = (): string | null => {
-    const empty = [host.value.trim() === '' ? 'host' : null, user.value.trim() === '' ? 'user' : null, database.value.trim() === '' ? 'database' : null].filter((x) => x !== null);
+    const emptyHost = hosts().findIndex((h) => h === '');
+    const empty = [emptyHost === -1 ? null : rows.length > 1 ? `host #${emptyHost + 1}` : 'host', user.value.trim() === '' ? 'user' : null, database.value.trim() === '' ? 'database' : null].filter((x) => x !== null);
     return empty.length === 0 ? null : `Fill in the ${empty.join(', ')}.`;
   };
+  const connecting = (): string => (rows.length > 1 ? `Connecting… trying ${rows.length} hosts in order` : `Connecting to ${hosts()[0] ?? ''}…`);
   function setBusy(on: boolean, label?: string): void {
     busy = on;
     testBtn.disabled = saveBtn.disabled = chooseBtn.disabled = on;
@@ -220,10 +345,10 @@ export function buildServerForm(deps: ServerFormDeps) {
     if (busy) return;
     const m = missing();
     if (m !== null) return showResult({ kind: 'bad-input', title: 'Missing details', message: m, help: null });
-    setBusy(true, `Connecting to ${host.value.trim()}…`);
+    setBusy(true, connecting());
     const r = await deps.api.testServer(mode.kind === 'edit' ? { ...form(), id: mode.conn.id, keepPassword: keeping() } : form());
     setBusy(false);
-    if (r.ok) showResult(null, `Connected · ${r.data.elapsedMs.toLocaleString('en-US')} ms`);
+    if (r.ok) showResult(null, `Connected${r.data.via === null ? '' : ` ${viaShort(r.data.via)}`} · ${r.data.elapsedMs.toLocaleString('en-US')} ms`);
     else showResult(r.failure);
   }
 
@@ -232,7 +357,7 @@ export function buildServerForm(deps: ServerFormDeps) {
     if (formKind === 'sqlite') return submitFile();
     const m = missing();
     if (m !== null) return showResult({ kind: 'bad-input', title: 'Missing details', message: m, help: null });
-    setBusy(true, `Connecting to ${host.value.trim()}…`);
+    setBusy(true, connecting());
     const r = mode.kind === 'edit' ? await deps.api.editServer({ ...form(), id: mode.conn.id, keepPassword: keeping() }) : await deps.api.addServer(form());
     setBusy(false);
     if (!r.ok) return showResult(r.failure);
@@ -245,8 +370,7 @@ export function buildServerForm(deps: ServerFormDeps) {
     const s = c?.server ?? null;
     name.value = c === null ? '' : mode.kind === 'copy' ? `${c.name} copy` : c.name;
     setKind(s?.kind ?? 'postgres');
-    host.value = s?.host ?? '';
-    port.value = String(s?.port ?? defaultPort(kind));
+    setRows(s === null ? [] : s.addresses.map((a) => ({ host: a.host, port: String(a.port), label: a.label ?? '' })));
     user.value = s?.user ?? '';
     database.value = s?.database ?? '';
     ssl = s?.ssl ?? 'off';
@@ -273,7 +397,7 @@ export function buildServerForm(deps: ServerFormDeps) {
     passNote.hidden = passNote.textContent === '';
     saveBtn.textContent = next.kind === 'edit' ? 'Save' : 'Connect';
     root.hidden = false;
-    (next.kind !== 'new' ? name : formKind === 'sqlite' ? filePath : host).focus();
+    (next.kind !== 'new' ? name : formKind === 'sqlite' ? filePath : rows[0]!.host).focus();
   }
 
   function close(): void {

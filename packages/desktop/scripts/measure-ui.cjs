@@ -189,7 +189,49 @@ function sandbox() {
   git(e, 'commit', '-m', 'fix(ui): 가져올 둘째 커밋');
   git(e, 'push');
   git(d, 'fetch');
+  // API 탭 AI 시험 장면: 작은 Nest 프로젝트(코드만, 이름은 맨 뒤로 가게 zz-) + 이 스크립트가 띄우는 가짜 로컬 서버
+  if (TABS.includes('api')) {
+    const n = path.join(root, 'zz-api-nest');
+    fs.mkdirSync(path.join(n, 'src', 'users', 'dto'), { recursive: true });
+    w(n, 'package.json', JSON.stringify({ name: 'api-nest', dependencies: { '@nestjs/core': '11', '@nestjs/common': '11', 'class-validator': '0.14' } }));
+    w(n, 'src/main.ts', "async function bootstrap() {\n  const app = await NestFactory.create(AppModule);\n  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));\n  await app.listen(" + API_PORT + ");\n}\n");
+    w(n, 'src/users/users.controller.ts', "import { CreateUserDto } from './dto/create-user.dto';\nimport { UsersService } from './users.service';\n\n@ApiBearerAuth()\n@Controller('users')\nexport class UsersController {\n  constructor(private readonly users: UsersService) {}\n\n  @Post()\n  create(@Body() dto: CreateUserDto) {\n    return this.users.create(dto);\n  }\n\n  @Get(':id')\n  one(@Param('id', ParseIntPipe) id: number) {\n    return this.users.one(id);\n  }\n}\n");
+    w(n, 'src/users/dto/create-user.dto.ts', "export enum Role { Member = 'member', Admin = 'admin' }\nexport class CreateUserDto {\n  @IsEmail()\n  email: string;\n  @IsNotEmpty() @Length(2, 20)\n  name: string;\n  @IsOptional() @IsInt() @Min(14)\n  age?: number;\n  @IsOptional() @IsEnum(Role)\n  role?: Role;\n}\n");
+    w(n, 'src/users/users.service.ts', "export class UsersService {\n  create(dto) { return { id: 1, ...dto }; }\n  one(id) { return { id }; }\n}\n");
+    // 작업 폴더 훑기는 레포(.git)만 프로젝트로 본다
+    git(n, 'init', '-b', 'main');
+    git(n, 'add', '.');
+    git(n, 'commit', '-m', 'api');
+  }
   return root;
+}
+
+// AI 시험 장면이 부를 가짜 로컬 서버: 이메일이 틀리면 400, 토큰이 없어도 201(실패 장면), 같은 이메일 두 번이면 201(중복 검사 없음)
+const API_PORT = 37451;
+if (TABS.includes('api')) {
+  require('node:http')
+    .createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        let json = {};
+        try {
+          json = JSON.parse(body || '{}');
+        } catch {
+          res.statusCode = 400;
+          return res.end('{"message":"bad json"}');
+        }
+        res.setHeader('content-type', 'application/json');
+        if (req.method === 'POST' && req.url === '/users') {
+          if (!/^[^@\s]+@[^@\s]+$/.test(json.email || '') || !json.name) return (res.statusCode = 400), res.end(JSON.stringify({ statusCode: 400, message: ['email must be an email'] }));
+          res.statusCode = 201;
+          return res.end(JSON.stringify({ id: 7, ...json }));
+        }
+        res.statusCode = 404;
+        res.end('{"statusCode":404}');
+      });
+    })
+    .listen(API_PORT, '127.0.0.1');
 }
 
 const q = (sel) => `document.querySelector(${JSON.stringify(sel)})?.click()`;
@@ -225,6 +267,14 @@ const DLG_OK = "(async () => { for (let i = 0; i < 60 && !document.querySelector
 const DB_SEED = "(async () => { for (const f of ['big.db', 'shop.db']) await window.rauha.db.addPath({ path: '__WORK__/' + f }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 1500)); })() /* querySelector */";
 const dbSql = (text) => `(() => { const c = document.querySelector('.db-editor .cm-content'); c.focus(); c.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })); c.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })); document.execCommand('insertText', false, ${JSON.stringify(text)}); })() /* querySelector */`;
 const DB_RUN = q('.db-sqlbar .btn.run');
+// 서버 연결 장면: 가짜 PostgreSQL(scripts/fake-pg.cjs)을 띄우고, 1번 주소는 닫힌 포트(바로 거절)라 2번으로 붙는다 → 머리줄에 "Connected via #2 Public"
+const FAKE_PG_PORT = 54329;
+require('./fake-pg.cjs').startFakePg(FAKE_PG_PORT);
+const DB_SERVER_SEED = "(async () => { await window.rauha.db.addServer({ name: 'Shop (fake PG)', kind: 'postgres', addresses: [{ host: '127.0.0.1', port: '1', label: 'Private' }, { host: 'localhost', port: '" + FAKE_PG_PORT + "', label: 'Public' }], user: 'app', password: 'x', database: 'shop', ssl: 'off', savePassword: false }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 1500)); })() /* querySelector */";
+const dbAddAddress = (host, label) => "(() => { [...document.querySelectorAll('.db-form .btn')].find((b) => b.textContent.includes('Add address')).click(); const rows = document.querySelectorAll('.db-form .db-addr'); const r = rows[rows.length - 1]; const h = r.querySelector('input[aria-label^=\"Host\"]'); h.value = " + "'" + host + "'" + "; h.dispatchEvent(new Event('input', { bubbles: true })); const l = r.querySelector('.db-addr-label'); l.value = " + "'" + label + "'" + "; })() /* querySelector */";
+// API 탭: zz-api-nest 프로젝트를 고르고(코드에서 요청을 만든다) 폴더를 펼쳐 create 요청을 연다
+const API_PICK = "(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); let s = null; for (let i = 0; i < 60 && !(s = document.querySelector('.api-project-select')); i++) await w(100); const o = [...s.options].find((x) => x.text.startsWith('zz-api-nest')); if (!o) throw new Error('zz-api-nest 프로젝트가 목록에 없어요'); if (s.value !== o.value) { s.value = o.value; s.dispatchEvent(new Event('change')); } for (let i = 0; i < 60; i++) { const rows = [...document.querySelectorAll('.api-row')]; const req = rows.find((r) => r.querySelector('.api-name')?.textContent === 'create'); if (req) { req.click(); break; } for (const r of rows) if (r.querySelector('.api-chev')?.textContent === '▸') r.click(); await w(200); } await w(400); })() /* querySelector */";
+const API_WAIT = (sel) => `(async () => { for (let i = 0; i < 80 && !document.querySelector(${JSON.stringify(sel)}); i++) await new Promise((r) => setTimeout(r, 150)); await new Promise((r) => setTimeout(r, 300)); })() /* querySelector */`;
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
@@ -289,6 +339,11 @@ const SCENES = [
   ['docker-off', 'docker', [() => { process.env.FAKE_DOCKER_MODE = 'off'; }, byText('.dk-head .btn', 'Refresh')]],
   // API 탭: 빈 화면 · 안 열리는 주소로 보낸 실패 응답 · 왼쪽 목록 열기 · 환경 관리 창 · 가져오기 창
   ['api', 'api', []],
+  // AI 시험(가짜 모델): 프로젝트를 고르고 create 요청을 연 화면(예시 값·변수 칩) · 케이스 미리보기 · 데이터 바꾸는 케이스 확인 창 · 리포트
+  ['api-examples', 'api', [API_PICK]],
+  ['api-test-preview', 'api', [API_PICK, byText('.btn', 'Test this API'), API_WAIT('.api-case')]],
+  ['api-test-confirm', 'api', [API_PICK, byText('.btn', 'Test this API'), API_WAIT('.api-case'), q('.api-test-run'), DLG]],
+  ['api-test-report', 'api', [API_PICK, byText('.btn', 'Test this API'), API_WAIT('.api-case'), q('.api-test-run'), DLG_OK, API_WAIT('.api-result')]],
   ['api-failed', 'api', [typeInto('.api-url-input', 'http://127.0.0.1:9/none'), '.api-send']],
   ['api-list', 'api', ['.api-toggle']],
   ['api-env', 'api', [byText('.btn', 'Manage')]],
@@ -298,20 +353,26 @@ const SCENES = [
   ['records-picked', 'records', [`(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`]],
   // DB 탭(시험용 SQLite 파일): 빈 화면 · 행 보기 · 정렬 · 스키마 · SQL 편집기 · 결과 · 오류 · 쓰기 차단 · 쓰기 확인 창 · 5000행 상한 · 잘못된 경로
   ['db-empty', 'db', []],
-  ['db-rows', 'db', [DB_SEED, byText('.db-row', 'shop.db')]],
-  ['db-rows-sorted', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db-row', 'users'), byText('.db-th', 'age')]],
-  ['db-schema', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db-row', 'users'), byText('.db .tab', 'Structure')]],
+  ['db-open', 'db', [DB_SEED, byText('.db-row', 'shop.db')]],
+  // 왼쪽 테이블을 누르면 SELECT * … LIMIT 100 을 넣고 바로 돌린다 · ⓘ 는 결과 위 구조 칸 · Diagram 은 ERD
+  ['db-browse', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db-trow', 'users'), WAIT]],
+  ['db-structure', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db-trow', 'users'), WAIT, "(() => { [...document.querySelectorAll('.db-trow')].find((n) => n.textContent.includes('users'))?.querySelector('.db-tinfo')?.click(); })() /* querySelector */", WAIT]],
+  ['db-diagram', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'Diagram'), WAIT]],
+  ['db-via', 'db', [DB_SERVER_SEED, byText('.db-row', 'Shop (fake PG)'), WAIT, byText('.db-trow', 'customers'), WAIT]],
+  ['db-via-diagram', 'db', [DB_SERVER_SEED, byText('.db-row', 'Shop (fake PG)'), WAIT, byText('.db .tab', 'Diagram'), WAIT]],
   ['db-sql', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL')]],
   ['db-sql-result', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), dbSql('SELECT id, name, email, age FROM users ORDER BY age DESC'), DB_RUN, WAIT]],
   ['db-sql-error', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), dbSql('SELECT * FROM nope'), DB_RUN, WAIT]],
   ['db-sql-write-blocked', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), dbSql('DELETE FROM users WHERE id = 1'), DB_RUN, WAIT]],
   ['db-sql-write-ask', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), q('.db-write input'), dbSql('DELETE FROM users WHERE id = 1'), DB_RUN, DLG]],
   ['db-sql-blocked', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), dbSql("ATTACH DATABASE ':memory:' AS x"), DB_RUN, WAIT]],
-  ['db-big-rows', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db .tab', 'Rows'), byText('.db-rowsbar .btn', 'Next')]],
+  ['db-big-browse', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db-trow', 'events'), WAIT]],
   ['db-big-result', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db .tab', 'SQL'), dbSql('SELECT * FROM events'), DB_RUN, WAIT, WAIT]],
   ['db-server-form', 'db', [DB_SEED, byText('.db-side .ph .btn', 'New connection')]],
+  ['db-server-form-multi', 'db', [DB_SEED, byText('.db-side .ph .btn', 'New connection'), typeInto('.db-form input[aria-label="Host"]', '10.0.1.25'), dbAddAddress('3.35.12.4', 'Public'), "(() => { const l = document.querySelector('.db-form .db-addr-label'); l.value = 'Private'; })() /* querySelector */", typeInto('.db-form input[aria-label="User name"]', 'app'), typeInto('.db-form input[aria-label="Database name"]', 'shop')]],
+  ['db-server-form-url', 'db', [DB_SEED, byText('.db-side .ph .btn', 'New connection'), typeInto('.db-form input[aria-label="Host"]', 'postgres://app:secret@10.0.1.25,3.35.12.4:5432/shop?sslmode=require')]],
   ['db-server-form-rds', 'db', [DB_SEED, byText('.db-side .ph .btn', 'New connection'), typeInto('.db-form input[aria-label="Host"]', 'mydb.abc123.ap-northeast-2.rds.amazonaws.com'), typeInto('.db-form input[aria-label="User name"]', 'app'), typeInto('.db-form input[aria-label="Database name"]', 'shop'), byText('.db-form .btn', 'Test connection')]],
-  ['db-cell-detail', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db .tab', 'Rows'), "(() => { document.querySelectorAll('.db-panel:not([hidden]) tbody tr')[2]?.cells[3]?.click(); })() /* querySelector */"]],
+  ['db-cell-detail', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db-trow', 'events'), WAIT, "(() => { document.querySelectorAll('.db-panel:not([hidden]) tbody tr')[2]?.cells[3]?.click(); })() /* querySelector */"]],
   ['db-table-filter', 'db', [DB_SEED, byText('.db-row', 'shop.db'), typeInto('.db-filter', 'us')]],
   ['db-server-form-error', 'db', [DB_SEED, byText('.db-side .ph .btn', 'New connection'), typeInto('.db-form input[aria-label="Host"]', 'http://bad host'), typeInto('.db-form input[aria-label="User name"]', 'app'), typeInto('.db-form input[aria-label="Database name"]', 'shop'), byText('.db-form .btn', 'Connect'), WAIT]],
   ['db-bad-path', 'db', [byText('.db-side .ph .btn', 'New connection'), "(() => { const s = document.querySelector('.db-form select[aria-label=\"Database type\"]'); s.value = 'sqlite'; s.dispatchEvent(new Event('change', { bubbles: true })); })() /* querySelector */", typeInto('.db-form input[aria-label="Full path of a SQLite file"]', '//evil/share/x.db'), byText('.db-form .btn', 'Connect'), WAIT]],

@@ -113,6 +113,57 @@ describe('Amazon RDS 인증서', () => {
 describe('폼에 다시 채울 값', () => {
   it('연결 고치기·복제용 값에는 비밀번호가 없다', () => {
     const t = ServerTarget.parse({ ...base, port: 6543, ssl: 'verify' });
-    expect(t.toJSON()).toEqual({ kind: 'postgres', host: 'db.example.com', port: 6543, user: 'app', database: 'shop', ssl: 'verify' });
+    expect(t.toJSON()).toEqual({ kind: 'postgres', addresses: [{ host: 'db.example.com', port: 6543, label: null }], user: 'app', database: 'shop', ssl: 'verify' });
+  });
+});
+
+const multi = { ...base, host: undefined, addresses: [{ host: '10.0.0.5', label: 'Private' }, { host: '3.35.12.4', port: '6543', label: 'Public' }] };
+
+describe('주소 여러 개(값 객체)', () => {
+  it('주소는 적은 순서를 지키고, 포트를 비우면 종류의 기본 포트, 이름표는 비워도 된다', () => {
+    const t = ServerTarget.parse(multi);
+    expect(t.addresses.list().map((a) => [a.host, a.port, a.label])).toEqual([['10.0.0.5', 5432, 'Private'], ['3.35.12.4', 6543, 'Public']]);
+    expect(t.host).toBe('10.0.0.5');
+    expect(t.port).toBe(5432);
+    expect(ServerTarget.parse({ ...multi, addresses: [{ host: 'a.local', label: '  ' }] }).addresses.list()[0]?.label).toBeNull();
+  });
+
+  it('같은 호스트·포트를 두 번 적으면(대소문자 무시) 거절하고, 포트가 다르면 다른 주소다', () => {
+    expect(() => ServerTarget.parse({ ...multi, addresses: [{ host: 'DB.local' }, { host: 'db.local' }] })).toThrow(/same as #1/);
+    expect(ServerTarget.parse({ ...multi, addresses: [{ host: 'db.local' }, { host: 'db.local', port: 6000 }] }).addresses.size).toBe(2);
+  });
+
+  it('주소는 1~6개, 빈 목록·잘못된 호스트·긴 이름표는 몇 번째인지 알려 주며 거절한다', () => {
+    expect(() => ServerTarget.parse({ ...multi, addresses: [] })).toThrow(DbInputError);
+    expect(() => ServerTarget.parse({ ...multi, addresses: Array.from({ length: 7 }, (_, i) => ({ host: `h${i}.local` })) })).toThrow(/up to 6/);
+    expect(() => ServerTarget.parse({ ...multi, addresses: [{ host: 'ok.local' }, { host: 'http://x' }] })).toThrow(/#2/);
+    expect(() => ServerTarget.parse({ ...multi, addresses: [{ host: 'ok.local', label: 'x'.repeat(25) }] })).toThrow(DbInputError);
+  });
+
+  it('예전 저장 형식(host·port 하나)도 주소 하나로 읽고, 저장은 새 형식(addresses)으로 한다', () => {
+    const old = ServerTarget.parse({ ...base, port: 6543 });
+    expect(old.addresses.size).toBe(1);
+    expect(old.toJSON()).not.toHaveProperty('host');
+    expect(ServerTarget.parse(old.toJSON()).addresses.list()[0]?.endpoint()).toBe('db.example.com:6543');
+  });
+
+  it('보이는 주소는 첫 주소에 나머지 개수를 붙이고, 주소가 하나라도 겹치면 같은 서버로 본다', () => {
+    const t = ServerTarget.parse(multi);
+    expect(t.address()).toBe('app@10.0.0.5:5432/shop (+1 more)');
+    expect(t.sameServer(ServerTarget.parse({ ...base, host: '3.35.12.4', port: 6543 }))).toBe(true);
+    expect(t.sameServer(ServerTarget.parse({ ...base, host: '3.35.12.4' }))).toBe(false);
+  });
+
+  it('주소 하나로 좁힌 대상(via)은 그 주소만 갖고, RDS 판정도 그 주소로 한다(SSL 은 연결 하나에)', () => {
+    const t = ServerTarget.parse({ ...multi, ssl: 'verify', addresses: [{ host: '10.0.0.5' }, { host: 'mydb.abc.ap-northeast-2.rds.amazonaws.com' }] });
+    expect(t.via(0).extraCa()).toBeNull();
+    expect(t.via(1).extraCa()).toBe('aws-rds');
+    expect(t.via(1).host).toBe('mydb.abc.ap-northeast-2.rds.amazonaws.com');
+    expect(t.via(1).ssl).toBe('verify');
+  });
+
+  it('접속 시간 제한: 주소가 하나면 10초, 여럿이면 다음으로 빨리 넘어가게 주소마다 4초', () => {
+    expect(ServerTarget.parse(base).addresses.connectTimeoutMs()).toBe(10_000);
+    expect(ServerTarget.parse(multi).addresses.connectTimeoutMs()).toBe(4_000);
   });
 });

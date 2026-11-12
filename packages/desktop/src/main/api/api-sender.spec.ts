@@ -97,6 +97,12 @@ describe('요청 보내기(진짜 로컬 서버)', () => {
     expect(seen.find((s) => s.url === 'other/landed')?.auth).toBeUndefined();
     expect(seen.find((s) => s.url === '/to-other')?.auth).toBe(`Bearer ${FAKE}`);
   });
+  it('stayOn 을 주면 그 검사에 맞지 않는 곳으로 가는 리다이렉트는 따라가지 않는다(AI 시험은 이 컴퓨터로만)', async () => {
+    const r = await sendPrepared(prep('/to-other'), { signal: new AbortController().signal, stayOn: (url) => !url.startsWith(otherBase) });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.kind).toBe('blocked');
+    expect(seen.some((s) => s.url === 'other/landed' && seen.indexOf(s) === seen.length - 1)).toBe(false);
+  });
   it('file:·ftp: 주소는 아예 보내지 않는다', async () => {
     for (const url of ['file:///etc/passwd', 'ftp://x/y']) {
       const r = await send(prep('', { url }));

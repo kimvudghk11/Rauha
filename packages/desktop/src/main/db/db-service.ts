@@ -1,11 +1,13 @@
 import { basename } from 'node:path';
 import { DbRequest, NO_ENGINE, engineFailure, failure, inputFailure, serverFailure, type DbConnectionList, type DbCsvSaved, type DbFailure, type DbResult, type DbResultSet, type DbRowsPage, type DbServerTest, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
 import type { DbConnectionView, DbConnections } from '../../shared/db-connections.js';
+import type { DbSchemaGraph } from '../../shared/db-diagram.js';
+import type { DbVia } from '../../shared/db-failover.js';
 import type { DbPassword } from '../../shared/db-server.js';
 import { DbFilePath, DbInputError } from '../../shared/db-names.js';
 import type { FileCheck } from './db-file.js';
 import type { ConnectionsPort } from './db-store.js';
-import type { ServerConnection, ServerRequest, ServerRunner } from './server-engine.js';
+import type { ServerConnection, ServerOutcome, ServerRequest, ServerRunner } from './server-engine.js';
 import { ServerPasswords, type SecretBox } from './server-passwords.js';
 import type { EngineRequest } from './sqlite-engine.js';
 import type { EngineRunner, RunOutcome } from './sqlite-runner.js';
@@ -45,6 +47,8 @@ type Target = { readonly kind: 'file'; readonly real: string } | { readonly kind
  */
 export class DbService {
   private readonly passwords: ServerPasswords;
+  /** 연결마다 이번 실행에서 마지막으로 붙은 주소(화면에 "Connected via …"). 저장하지 않는다 */
+  private readonly vias = new Map<string, DbVia>();
 
   constructor(private readonly deps: DbServiceDeps) {
     this.passwords = new ServerPasswords(deps.secrets);
@@ -60,7 +64,20 @@ export class DbService {
   }
 
   async list(): Promise<DbResult<DbConnectionList>> {
-    return this.guarded(async () => ok({ connections: (await this.deps.store.load()).list(), canSavePasswords: this.passwords.canSave() }));
+    return this.guarded(async () => ok(this.listOf(await this.deps.store.load())));
+  }
+
+  /** 화면에 보낼 목록: 저장한 연결 + 이번 실행에서 붙은 주소 */
+  private listOf(connections: DbConnections): DbConnectionList {
+    return { connections: connections.list().map((v) => this.withVia(v)), canSavePasswords: this.passwords.canSave() };
+  }
+  private withVia(v: DbConnectionView): DbConnectionView {
+    return { ...v, via: this.vias.get(v.id) ?? null };
+  }
+  /** 서버 실행 결과에 붙은 주소가 있으면 그 연결의 것으로 기억한다 */
+  private noteVia(id: string, outcome: ServerOutcome): ServerOutcome {
+    if (outcome.via !== undefined && id !== '') this.vias.set(id, outcome.via);
+    return outcome;
   }
 
   private async register(rawPath: unknown): Promise<DbResult<DbConnectionView>> {
@@ -85,9 +102,11 @@ export class DbService {
     });
   }
 
-  /** 서버에 한 번 접속해 본다(되면 data 가 true) */
-  private async ping(conn: ServerConnection): Promise<DbResult<true>> {
-    return this.toResult<true>(await this.deps.servers.run(conn, { op: 'ping' }, { timeoutMs: PING_TIMEOUT_MS }), PING_TIMEOUT_MS, serverFailure);
+  /** 서버에 한 번 접속해 본다(되면 붙은 주소, 엔진이 알려 주지 않으면 null). id 가 있으면 그 연결의 붙은 주소로 기억한다 */
+  private async ping(conn: ServerConnection, id = ''): Promise<DbResult<DbVia | null>> {
+    const outcome = this.noteVia(id, await this.deps.servers.run(conn, { op: 'ping' }, { timeoutMs: PING_TIMEOUT_MS }));
+    const r = this.toResult<true>(outcome, PING_TIMEOUT_MS, serverFailure);
+    return r.ok ? ok(outcome.via ?? null) : r;
   }
 
   /** 서버 연결 추가: 먼저 접속해 보고, 되면 저장한다. 비밀번호는 암호문으로만 저장하고(못 하면 저장하지 않는다) 이번 실행 동안 메모리에 둔다. */
@@ -99,8 +118,9 @@ export class DbService {
       const connections = await this.deps.store.load();
       const view = connections.addServer(req.target, req.label, this.passwords.toSaved(req.password, req.savePassword), this.deps.newId(), this.deps.now());
       this.passwords.remember(view.id, req.password);
+      if (reached.data !== null) this.vias.set(view.id, reached.data);
       await this.deps.store.save(connections);
-      return ok(view);
+      return ok(this.withVia(view));
     });
   }
 
@@ -112,7 +132,7 @@ export class DbService {
       if (password === null) return fail(failure('need-password', 'Password needed', 'Type the password to test this connection.'));
       const started = this.deps.now();
       const reached = await this.ping({ target: req.target, password });
-      return reached.ok ? ok({ elapsedMs: Math.max(0, this.deps.now() - started) }) : reached;
+      return reached.ok ? ok({ elapsedMs: Math.max(0, this.deps.now() - started), via: reached.data }) : reached;
     });
   }
 
@@ -131,8 +151,11 @@ export class DbService {
       const connections = await this.deps.store.load();
       const view = connections.editServer(id, req.target, req.label, this.passwords.toSaved(password, req.savePassword), this.deps.now());
       this.passwords.remember(id, password);
+      // 주소가 바뀌었을 수 있으니 방금 붙은 주소로 바꾼다
+      this.vias.delete(id);
+      if (reached.data !== null) this.vias.set(id, reached.data);
       await this.deps.store.save(connections);
-      return ok(view);
+      return ok(this.withVia(view));
     });
   }
 
@@ -150,12 +173,12 @@ export class DbService {
       const connections = await this.deps.store.load();
       const found = connections.locate(req.id.value);
       if (found?.kind !== 'server') return fail(failure('bad-input', 'Unknown connection', 'That connection is not in your list. Add it again.'));
-      const reached = await this.ping({ target: found.target, password: req.password });
+      const reached = await this.ping({ target: found.target, password: req.password }, req.id.value);
       if (!reached.ok) return reached;
       this.passwords.remember(req.id.value, req.password);
       connections.rememberPassword(req.id.value, this.passwords.toSaved(req.password, req.savePassword));
       await this.deps.store.save(connections);
-      return ok(connections.find(req.id.value)!);
+      return ok(this.withVia(connections.find(req.id.value)!));
     });
   }
 
@@ -165,8 +188,9 @@ export class DbService {
       const connections = await this.deps.store.load();
       connections.remove(id);
       this.passwords.forget(id);
+      this.vias.delete(id);
       await this.deps.store.save(connections);
-      return ok({ connections: connections.list(), canSavePasswords: this.passwords.canSave() });
+      return ok(this.listOf(connections));
     });
   }
 
@@ -192,7 +216,7 @@ export class DbService {
     const found = await this.targetOf(rawId);
     if (!found.ok) return found;
     const target = found.data;
-    if (target.kind === 'server') return this.toResult<T>(await this.deps.servers.run(target.conn, build.server, { timeoutMs: o.timeoutMs, key: o.key ?? null }), o.timeoutMs, serverFailure);
+    if (target.kind === 'server') return this.toResult<T>(this.noteVia(DbRequest.connection(rawId).value, await this.deps.servers.run(target.conn, build.server, { timeoutMs: o.timeoutMs, key: o.key ?? null })), o.timeoutMs, serverFailure);
     const outcome = await this.deps.runner.run(build.sqlite(target.real), { timeoutMs: o.timeoutMs, key: o.key ?? null });
     if (o.writable === true && outcome.kind !== 'done') await this.recover(target.real);
     return this.toResult<T>(outcome, o.timeoutMs, engineFailure);
@@ -238,6 +262,11 @@ export class DbService {
       const req = DbRequest.detail(raw);
       return this.execute<DbTableDetail>(req.id.value, { sqlite: (file) => ({ op: 'detail', file, table: req.table.value }), server: { op: 'detail', table: req.table.value } }, { timeoutMs: BROWSE_TIMEOUT_MS });
     });
+  }
+
+  /** 테이블 시각화(ERD) 재료: 테이블·열·PK·FK 를 한 번에 읽는다 */
+  graph(rawId: unknown): Promise<DbResult<DbSchemaGraph>> {
+    return this.guarded(() => this.execute<DbSchemaGraph>(rawId, { sqlite: (file) => ({ op: 'graph', file }), server: { op: 'graph' } }, { timeoutMs: BROWSE_TIMEOUT_MS }));
   }
 
   rows(raw: unknown): Promise<DbResult<DbRowsPage>> {

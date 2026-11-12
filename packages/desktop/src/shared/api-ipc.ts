@@ -3,6 +3,7 @@ import type { CollectionsJson, EnvironmentsView, HistoryJson } from './api-dto.j
 import type { ApiSource } from './api-extract.js';
 import type { ProjectRecord } from './api-project.js';
 import type { ResponseSummaryProps } from './api-response.js';
+import type { PlanTestsResult, RunTestsResult, SaveReportResult } from './api-test-dto.js';
 
 /** API 탭이 main과 이야기하는 좁은 채널들. 인자는 모두 main이 DTO로 다시 검사한다. */
 export const API_IPC = {
@@ -19,6 +20,9 @@ export const API_IPC = {
   export: 'api:export',
   projectsList: 'api:projects:list',
   projectsSync: 'api:projects:sync',
+  testsPlan: 'api:tests:plan',
+  testsRun: 'api:tests:run',
+  testsSave: 'api:tests:save',
 } as const;
 
 export type SendFail = 'invalid' | 'missing' | 'blocked' | 'busy' | 'timeout' | 'cancelled' | 'network';
@@ -93,5 +97,14 @@ export interface ApiApi {
     list(): Promise<ProjectList>;
     /** { root, force? } */
     sync(req: unknown): Promise<ProjectSyncResult>;
+  };
+  /** AI API 시험: 케이스 만들기(모델 1번) → 미리보기 → 실행(이 컴퓨터로만) → 리포트 */
+  tests: {
+    /** { requestId, request } */
+    plan(req: unknown): Promise<PlanTestsResult>;
+    /** { planId, caseIds, confirmed } */
+    run(req: unknown): Promise<RunTestsResult>;
+    /** 마지막 리포트를 .md 로 저장(저장 위치를 묻는다) */
+    save(planId: string): Promise<SaveReportResult>;
   };
 }

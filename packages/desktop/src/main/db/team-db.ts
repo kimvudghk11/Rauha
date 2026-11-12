@@ -173,6 +173,6 @@ export async function linkRepoDatabase(root: string, source: TeamDbSource, readE
   if (at === undefined) return null;
   const dialect: DbDialect = at.kind === 'file' ? 'sqlite' : at.target.kind;
   const name = at.kind === 'file' ? at.path.fileName() : at.target.database;
-  const production = looksLikeProduction(view.name, at.kind === 'server' ? at.target.host : '');
+  const production = looksLikeProduction(view.name, ...(at.kind === 'server' ? at.target.addresses.list().map((a) => `${a.host} ${a.label ?? ''}`) : []));
   return TeamDatabase.of(source, { id: view.id, dialect, name, production });
 }

@@ -62,7 +62,7 @@ export function buildResponseView(deps: ResponseDeps): ResponseView {
     const r = ResponseSummary.create(current.response);
     const p = r.props;
     const head = el('div', 'bar api-res-head');
-    head.append(el('span', `chip ${STATUS_CHIP[r.statusClass()]}`, `${p.status} ${p.statusText}`.trim()), el('span', 'dim', `${p.ms} ms`), el('span', 'dim', ResponseSummary.sizeText(p.size)));
+    head.append(el('span', `chip ${STATUS_CHIP[r.statusClass()]}`, `${p.status} ${p.statusText}`.trim()), el('span', `api-ms${p.ms < 300 ? ' fast' : p.ms > 2000 ? ' slow' : ''}`, `${p.ms} ms`), el('span', 'dim', ResponseSummary.sizeText(p.size)));
     if (p.truncated) head.append(el('span', 'chip yellow', 'Truncated'));
     head.append(el('span', 'grow'));
 

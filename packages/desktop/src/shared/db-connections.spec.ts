@@ -57,7 +57,7 @@ describe('목록 JSON(DTO)', () => {
   });
   it('예전(version 1) SQLite 목록은 그대로 읽혀 SQLite 파일로 보인다', () => {
     const list = ConnectionsDto.from({ version: 1, items: [{ id: 'old1', path: 'C:\\data\\app.db', lastUsed: 5 }] }).toEntity().list();
-    expect(list).toEqual([{ id: 'old1', kind: 'sqlite', name: 'app.db', path: 'C:\\data\\app.db', lastUsed: 5, savedPassword: null, server: null }]);
+    expect(list).toEqual([{ id: 'old1', kind: 'sqlite', name: 'app.db', path: 'C:\\data\\app.db', lastUsed: 5, savedPassword: null, server: null, via: null }]);
   });
 });
 
@@ -68,7 +68,7 @@ describe('서버 연결 목록', () => {
   it('서버 연결을 더하면 종류·이름·비밀번호 없는 주소가 보인다', () => {
     const c = DbConnections.empty();
     const v = c.addServer(target(), ConnectionLabel.parse('Shop', target()), sealed('x'), 's1', 10);
-    expect(v).toEqual({ id: 's1', kind: 'mysql', name: 'Shop', path: 'app@db.local:3306/shop', lastUsed: 10, savedPassword: true, server: { kind: 'mysql', host: 'db.local', port: 3306, user: 'app', database: 'shop', ssl: 'off' } });
+    expect(v).toEqual({ id: 's1', kind: 'mysql', name: 'Shop', path: 'app@db.local:3306/shop', lastUsed: 10, savedPassword: true, server: { kind: 'mysql', addresses: [{ host: 'db.local', port: 3306, label: null }], user: 'app', database: 'shop', ssl: 'off' }, via: null });
     c.add(p('/a.db'), 'f1', 20);
     expect(c.list().map((x) => x.kind)).toEqual(['sqlite', 'mysql']);
   });
@@ -145,6 +145,23 @@ describe('서버 연결 JSON(DTO)', () => {
     expect(dto.toEntity().list().map((x) => x.id)).toEqual(['s1']);
     expect(dto.skipped).toBe(4);
   });
+  it('예전 저장(version 2, 호스트 하나)도 그대로 읽히고, 다시 저장하면 주소 목록 형식(version 3)이다', () => {
+    const old = { version: 2, items: [{ id: 's1', kind: 'postgres', name: 'A', host: 'db.local', port: 6543, user: 'u', database: 'd', ssl: 'off', lastUsed: 1 }] };
+    const c = ConnectionsDto.from(old).toEntity();
+    expect(c.find('s1')?.server?.addresses).toEqual([{ host: 'db.local', port: 6543, label: null }]);
+    const json = ConnectionsDto.fromEntity(c).toJSON() as { version: number; items: Record<string, unknown>[] };
+    expect(json.version).toBe(3);
+    expect(json.items[0]).toMatchObject({ addresses: [{ host: 'db.local', port: 6543, label: null }] });
+    expect(json.items[0]).not.toHaveProperty('host');
+  });
+  it('주소 여러 개와 이름표는 저장했다가 읽어도 순서 그대로다', () => {
+    const c = DbConnections.empty();
+    const t = target({ host: undefined, addresses: [{ host: '10.0.0.5', label: 'Private' }, { host: '3.35.12.4', label: 'Public' }] });
+    c.addServer(t, ConnectionLabel.parse('', t), SavedPassword.none(), 's1', 1);
+    const back = ConnectionsDto.from(JSON.parse(JSON.stringify(ConnectionsDto.fromEntity(c).toJSON()))).toEntity();
+    expect(back.find('s1')?.server?.addresses.map((a) => `${a.label} ${a.host}`)).toEqual(['Private 10.0.0.5', 'Public 3.35.12.4']);
+    expect(back.find('s1')?.path).toBe('app@10.0.0.5:3306/shop (+1 more)');
+  });
 });
 
 describe('서버 연결 고치기', () => {
@@ -154,7 +171,7 @@ describe('서버 연결 고치기', () => {
     const next = target({ host: 'db2.local', port: 3307, ssl: 'verify' });
     const v = c.editServer('s1', next, ConnectionLabel.parse('B', next), null, 5);
     expect(v).toMatchObject({ id: 's1', name: 'B', path: 'app@db2.local:3307/shop', savedPassword: true, lastUsed: 5 });
-    expect(v.server).toMatchObject({ host: 'db2.local', port: 3307, ssl: 'verify' });
+    expect(v.server).toMatchObject({ addresses: [{ host: 'db2.local', port: 3307, label: null }], ssl: 'verify' });
     expect(c.list()).toHaveLength(1);
   });
   it('새 비밀번호(저장 여부 포함)를 주면 그것으로 바꾼다', () => {

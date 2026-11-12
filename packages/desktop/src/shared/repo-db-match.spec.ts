@@ -47,6 +47,15 @@ describe('레포에 맞는 연결 고르기', () => {
     expect(RepoDbMatch.pick(c, env('DATABASE_URL=postgres://u:p@db.local:6543/shop'), '/repo')?.id).toBe('a');
   });
 
+  it('주소가 여럿인 연결은 .env 호스트·포트가 그중 하나와 맞으면 고른다', () => {
+    const c = DbConnections.empty();
+    const t = ServerTarget.parse({ kind: 'postgres', addresses: [{ host: '10.0.0.5', label: 'Private' }, { host: '3.35.12.4', port: 6543, label: 'Public' }], user: 'app', database: 'shop' });
+    c.addServer(t, ConnectionLabel.parse('', t), SavedPassword.none(), 'm', 1);
+    expect(RepoDbMatch.pick(c, env('DATABASE_URL=postgres://u:p@3.35.12.4:6543/shop'), '/repo')?.id).toBe('m');
+    expect(RepoDbMatch.pick(c, env('DATABASE_URL=postgres://u:p@10.0.0.5:5432/shop'), '/repo')?.id).toBe('m');
+    expect(RepoDbMatch.pick(c, env('DATABASE_URL=postgres://u:p@3.35.12.4:5432/shop'), '/repo')).toBeNull();
+  });
+
   it('localhost·127.0.0.1·::1 은 같은 호스트로 본다', () => {
     const c = DbConnections.empty();
     server(c, 'a', { kind: 'mysql', host: '127.0.0.1', database: 'shop' }, 1);

@@ -1,5 +1,6 @@
 import { ConnectionId, DbFilePath, DbInputError } from './db-names.js';
 import { ConnectionLabel, SavedPassword, ServerTarget, type DbKind, type ServerKind, type SslMode } from './db-server.js';
+import type { DbVia } from './db-failover.js';
 import type { SqlDialect } from './db-sql.js';
 
 export const MAX_CONNECTIONS = 30;
@@ -7,8 +8,8 @@ export const MAX_CONNECTIONS = 30;
 /** 서버 연결을 고치거나 복제할 때 폼에 다시 채울 값(비밀번호 없음) */
 export interface DbServerFields {
   readonly kind: ServerKind;
-  readonly host: string;
-  readonly port: number;
+  /** 접속할 주소(적은 순서대로 시도한다) */
+  readonly addresses: readonly { readonly host: string; readonly port: number; readonly label: string | null }[];
   readonly user: string;
   readonly database: string;
   readonly ssl: SslMode;
@@ -27,6 +28,8 @@ export interface DbConnectionView {
   readonly savedPassword: boolean | null;
   /** 서버 연결의 폼 값(고치기·복제용). 파일이면 null */
   readonly server: DbServerFields | null;
+  /** 이번 실행에서 마지막으로 붙은 주소(서버 연결만, 아직 열지 않았으면 null) */
+  readonly via: DbVia | null;
 }
 
 /** 연결 id 로 찾은 "어디에 연결할지" */
@@ -162,14 +165,14 @@ export class DbConnections {
 
 const view = (i: Item): DbConnectionView =>
   i.kind === 'file'
-    ? { id: i.id, kind: 'sqlite', name: i.path.fileName(), path: i.path.value, lastUsed: i.lastUsed, savedPassword: null, server: null }
-    : { id: i.id, kind: i.target.kind, name: i.label.value, path: i.target.address(), lastUsed: i.lastUsed, savedPassword: i.password.isSaved(), server: i.target.toJSON() };
+    ? { id: i.id, kind: 'sqlite', name: i.path.fileName(), path: i.path.value, lastUsed: i.lastUsed, savedPassword: null, server: null, via: null }
+    : { id: i.id, kind: i.target.kind, name: i.label.value, path: i.target.address(), lastUsed: i.lastUsed, savedPassword: i.password.isSaved(), server: i.target.toJSON(), via: null };
 
 type Obj = Readonly<Record<string, unknown>>;
 
 /**
  * 목록 파일(JSON) ↔ 엔티티. 깨진 항목은 건너뛰고 개수를 센다.
- * version 1(SQLite 파일만, kind 없음)도 그대로 읽는다. 쓸 때는 version 2.
+ * version 1(SQLite 파일만, kind 없음)·version 2(서버 주소 하나: host·port)도 그대로 읽는다. 쓸 때는 version 3(서버 주소 목록: addresses).
  * 서버 비밀번호는 safeStorage 암호문(sealedPassword)만 저장하고, 저장하지 않기로 했으면 키 자체가 없다.
  */
 export class ConnectionsDto {
@@ -227,7 +230,7 @@ export class ConnectionsDto {
 
   toJSON(): unknown {
     return {
-      version: 2,
+      version: 3,
       items: this.items.map((i) => {
         if (i.kind === 'file') return { id: i.id, kind: 'sqlite', path: i.path.value, lastUsed: i.lastUsed };
         const sealed = i.password.sealedText();

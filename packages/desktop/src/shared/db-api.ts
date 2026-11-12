@@ -2,6 +2,8 @@ import { redactSecrets } from './chat-redact.js';
 import { csvFileName } from './db-csv.js';
 import type { DbCell } from './db-csv.js';
 import type { DbConnectionView } from './db-connections.js';
+import type { DbSchemaGraph } from './db-diagram.js';
+import type { DbVia } from './db-failover.js';
 import { ConnectionId, DbFilePath, DbInputError, PageNumber, SortSpec, TableName } from './db-names.js';
 import { ConnectionLabel, DbPassword, ServerTarget } from './db-server.js';
 import { SqlStatement, type SqlDialect, type SqlKind } from './db-sql.js';
@@ -18,6 +20,7 @@ export const DB_IPC = {
   remove: 'db:remove',
   tables: 'db:tables',
   detail: 'db:detail',
+  graph: 'db:graph',
   rows: 'db:rows',
   query: 'db:query',
   cancel: 'db:cancel',
@@ -132,9 +135,8 @@ export interface DbConnectionList {
 export interface DbServerForm {
   readonly name: string;
   readonly kind: 'mysql' | 'postgres';
-  readonly host: string;
-  /** 비우면 기본 포트(3306 · 5432) */
-  readonly port: string;
+  /** 접속할 주소(적은 순서대로 시도). port 를 비우면 기본 포트(3306 · 5432), label 은 Private·Public 같은 이름표(선택) */
+  readonly addresses: readonly { readonly host: string; readonly port: string; readonly label: string }[];
   readonly user: string;
   readonly password: string;
   readonly database: string;
@@ -158,6 +160,8 @@ export interface DbServerTestForm extends DbServerForm {
 export interface DbServerTest {
   /** 접속해서 SELECT 1 까지 걸린 시간 */
   readonly elapsedMs: number;
+  /** 붙은 주소(주소가 여럿이면 몇 번째로 붙었는지) */
+  readonly via: DbVia | null;
 }
 
 export interface DbTableInfo {
@@ -227,6 +231,8 @@ export interface DbApi {
   remove(id: string): Promise<DbResult<DbConnectionList>>;
   tables(id: string): Promise<DbResult<readonly DbTableInfo[]>>;
   detail(req: { readonly id: string; readonly table: string }): Promise<DbResult<DbTableDetail>>;
+  /** 테이블 시각화(ERD) 재료: 테이블·열·PK·FK */
+  graph(id: string): Promise<DbResult<DbSchemaGraph>>;
   rows(req: { readonly id: string; readonly table: string; readonly page?: number; readonly sort?: { readonly column: string; readonly dir: 'asc' | 'desc' } | null }): Promise<DbResult<DbRowsPage>>;
   query(req: { readonly id: string; readonly sql: string; readonly writeMode: boolean; readonly confirm: boolean; readonly timeoutSec?: number; readonly key?: string }): Promise<DbResult<DbResultSet>>;
   cancel(key: string): Promise<boolean>;

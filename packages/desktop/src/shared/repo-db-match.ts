@@ -137,7 +137,9 @@ export class RepoDbMatch {
         continue;
       }
       const t = at.target;
-      const fits = hints.list().some((h) => h.database.toLowerCase() === t.database.toLowerCase() && (h.kind === null || h.kind === t.kind) && (h.host === null || sameHost(h.host, t.host)) && (h.port === null || h.port === t.port));
+      // 주소가 여럿이면(Private·Public 등) 설정의 호스트·포트가 그중 하나와 맞으면 된다
+      const reaches = (h: RepoDbHint): boolean => t.addresses.list().some((a) => (h.host === null || sameHost(h.host, a.host)) && (h.port === null || h.port === a.port));
+      const fits = hints.list().some((h) => h.database.toLowerCase() === t.database.toLowerCase() && (h.kind === null || h.kind === t.kind) && reaches(h));
       if (fits) return view;
     }
     return null;

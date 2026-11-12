@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DbResultSet } from './db-api.js';
-import { cellClass, cellCopyText, cellDetail, cellText, filterTables, formatBytes, nextSort, pageLabel, pageCount, resultLine, rowsAsTsv, sqlPreview, sslHelp, truncationNote } from './db-view-text.js';
+import { cellClass, cellCopyText, cellDetail, cellText, filterTables, formatBytes, nextSort, pageLabel, pageCount, resultLine, rowsAsTsv, sqlPreview, sslHelp, truncationNote, browseSql, viaLine, viaShort } from './db-view-text.js';
 
 const result = (o: Partial<DbResultSet> = {}): DbResultSet => ({ columns: ['a'], rows: [[1], [2], [3]], truncated: null, cellsTruncated: false, bytes: 120, elapsedMs: 12, changes: null, kind: 'read', verb: 'SELECT', ...o });
 
@@ -115,5 +115,23 @@ describe('행 복사', () => {
   it('고른 행을 탭으로 나눈 글로 만든다(엑셀·시트에 붙여 넣기)', () => {
     expect(rowsAsTsv(['a', 'b'], [[1, null], ['x\ty', 'z']], true)).toBe('a\tb\n1\tNULL\nx y\tz');
     expect(rowsAsTsv(['a'], [[1]], false)).toBe('1');
+  });
+});
+
+describe('테이블을 누르면 넣을 SQL', () => {
+  it('방언에 맞게 이름을 감싸 SELECT * … LIMIT 100 을 만든다', () => {
+    expect(browseSql('sqlite', 'users')).toBe('SELECT * FROM "users" LIMIT 100;');
+    expect(browseSql('postgres', 'Order "x"')).toBe('SELECT * FROM "Order ""x""" LIMIT 100;');
+    expect(browseSql('mysql', 'we`ird')).toBe('SELECT * FROM `we``ird` LIMIT 100;');
+    expect(browseSql('mysql', 'users', 20)).toBe('SELECT * FROM `users` LIMIT 20;');
+  });
+});
+
+describe('붙은 주소 표시', () => {
+  it('주소가 여럿이면 몇 번째·이름표·주소를, 하나면 주소만 보인다', () => {
+    expect(viaLine({ index: 1, total: 2, label: 'Public', endpoint: '3.35.12.4:5432' })).toBe('Connected via #2 Public · 3.35.12.4:5432');
+    expect(viaLine({ index: 0, total: 3, label: null, endpoint: '10.0.0.5:5432' })).toBe('Connected via #1 · 10.0.0.5:5432');
+    expect(viaLine({ index: 0, total: 1, label: null, endpoint: 'db.local:3306' })).toBe('Connected via db.local:3306');
+    expect(viaShort({ index: 1, total: 2, label: 'Public', endpoint: '3.35.12.4:5432' })).toBe('via #2 Public · 3.35.12.4:5432');
   });
 });
