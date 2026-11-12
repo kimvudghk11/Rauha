@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GitPublishIntent } from '../domain/git-publish-intent.js';
 import { SecretPolicy } from '../domain/secret-policy.js';
 import { createToolGuard, type PermissionAnswer, type PermissionRequest, type ToolGuardOptions } from './tool-guard.js';
 
@@ -117,10 +118,43 @@ describe('createToolGuard', () => {
     expect(second.asked).toHaveLength(1);
   });
 
-  it('git commit은 묻지 않고 거절한다', async () => {
+  it('시키지 않은 git commit은 허락 카드로 묻고, 허락하면 한다', async () => {
     const { guard, asked } = guardWith([{ kind: 'allow' }]);
-    expect(decision(await guard(input('Bash', { command: 'git commit -m x' }), 't', opts))).toBe('deny');
+    expect(decision(await guard(input('Bash', { command: 'git commit -m x' }), 't', opts))).toBe('allow');
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.reason).toContain('커밋');
+  });
+
+  it('사용자가 요청에서 커밋·PR을 시켰으면 묻지 않고 그대로 둔다', async () => {
+    const { guard, asked } = guardWith([], { publishIntent: () => GitPublishIntent.from('고치고 커밋하고 PR까지 해줘') });
+    expect(decision(await guard(input('Bash', { command: 'git commit -m x' }), 't', opts))).toBeUndefined();
+    expect(decision(await guard(input('Bash', { command: 'git push -u origin fix/login' }), 't', opts))).toBeUndefined();
+    expect(decision(await guard(input('Bash', { command: 'gh pr create --title x --body y' }), 't', opts))).toBeUndefined();
     expect(asked).toEqual([]);
+  });
+
+  it('요청은 호출 때마다 다시 읽는다(미리 띄운 팀원도 이번 요청을 따른다)', async () => {
+    let intent = GitPublishIntent.none();
+    const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { publishIntent: () => intent });
+    intent = GitPublishIntent.from('커밋해줘');
+    expect(decision(await guard(input('Bash', { command: 'git commit -m x' }), 't', opts))).toBeUndefined();
+    expect(asked).toEqual([]);
+  });
+
+  it('시킨 push여도 강제 push는 묻는다', async () => {
+    const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { publishIntent: () => GitPublishIntent.from('push 해줘') });
+    expect(decision(await guard(input('Bash', { command: 'git push --force origin fix' }), 't', opts))).toBe('deny');
+    expect(asked).toHaveLength(1);
+  });
+
+  it('시킨 push여도 꼭 허락받을 것 규칙(보호 브랜치)에 맞으면 묻는다', async () => {
+    const { guard, asked } = guardWith([{ kind: 'allow' }], {
+      publishIntent: () => GitPublishIntent.from('main에 push 해줘'),
+      rules: (_tool, detail) => (detail.includes('git push') && detail.includes('main') ? 'ask' : null),
+    });
+    expect(decision(await guard(input('Bash', { command: 'git push origin main' }), 't', opts))).toBe('allow');
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.reason).toContain('규칙');
   });
 
   it('안전한 호출은 결정을 내리지 않고 그대로 둔다', async () => {
@@ -164,6 +198,19 @@ describe('createToolGuard', () => {
       expect(asked).toEqual([]);
     });
 
+    it('묻지 않고 할 것 규칙(git push)으로도 강제 push는 풀리지 않고 사용자에게 묻는다', async () => {
+      const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { rules: (_tool, detail) => (detail.includes('git push') ? 'allow' : null) });
+      const out = await guard(input('Bash', { command: 'git push --force origin feature' }), 't1', opts);
+      expect(asked).toHaveLength(1);
+      expect(decision(out)).toBe('deny');
+    });
+
+    it('sudo로 감싼 강제 push도 묻지 않고 할 것 규칙으로 풀리지 않는다', async () => {
+      const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { rules: () => 'allow' });
+      await guard(input('Bash', { command: 'sudo git push -f origin feature' }), 't1', opts);
+      expect(asked).toHaveLength(1);
+    });
+
     it('꼭 허락받을 것 규칙에 맞으면 평소엔 묻지 않는 동작도 사용자에게 묻는다', async () => {
       const { guard, asked } = guardWith([{ kind: 'allow' }], { rules: (_tool, detail) => (detail.includes('yarn deploy') ? 'ask' : null) });
       const out = await guard(input('Bash', { command: 'yarn deploy' }), 't1', opts);
@@ -179,10 +226,9 @@ describe('createToolGuard', () => {
       expect(output(out)?.permissionDecisionReason).toContain('나중에');
     });
 
-    it('규칙이 allow여도 비밀 파일과 git push 거절은 그대로다', async () => {
+    it('규칙이 allow여도 비밀 파일 거절은 그대로다', async () => {
       const { guard, asked } = guardWith([], { rules: () => 'allow' });
       expect(decision(await guard(input('Read', { file_path: 'E:/work/app/.env' }), 't1', opts))).toBe('deny');
-      expect(decision(await guard(input('Bash', { command: 'git push origin main' }), 't1', opts))).toBe('deny');
       expect(asked).toEqual([]);
     });
 

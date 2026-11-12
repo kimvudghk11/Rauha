@@ -465,7 +465,7 @@ export class ChatSession {
    */
   private async ops(input: string, conversation: string | null, started: number): Promise<TurnOutcome> {
     const costBefore = this.costUsd;
-    const result = await this.member('operator', [conversationBlock(conversation), `<today>${this.deps.today()}</today>`, `<request>\n${input}\n</request>`], OPS_SCHEMA, {});
+    const result = await this.member('operator', [conversationBlock(conversation), `<today>${this.deps.today()}</today>`, `<request>\n${input}\n</request>`], OPS_SCHEMA, { request: input });
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     // 인프라가 바뀌었을 수 있어 앞의 같은 질문 답은 더 쓰지 않는다.
     this.answered.clear();
@@ -705,6 +705,7 @@ ${SINGLE_REPO_NOTE}
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
       ...(additionalDirectories.length > 0 ? { additionalDirectories } : {}),
       ...((options.kits?.length ?? 0) > 0 ? { kits: options.kits } : {}),
+      ...(options.request !== undefined ? { request: options.request } : {}),
     });
     this.costUsd += result.usage.costUsd;
     this.calls[call.setting.tier] += 1;

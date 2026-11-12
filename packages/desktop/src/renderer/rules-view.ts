@@ -15,12 +15,12 @@ const SCOPE_LABEL = (r: RuleView): string => (r.scope.kind === 'global' ? 'All' 
 
 /**
  * 규칙 탭: 칸 셋(항상 지킬 것 / 묻지 않고 할 것 / 꼭 허락받을 것)과 범위(전체·작업 폴더·폴더).
- * 묻지 않음·허락 규칙은 명령이나 경로에서 찾을 글로 판정한다. 비밀 파일·역할 권한·git push 거절은 규칙보다 앞서 늘 지켜진다.
+ * 묻지 않음·허락 규칙은 명령이나 경로에서 찾을 글로 판정한다. 비밀 파일·역할 권한 거절은 규칙보다 앞서 늘 지켜진다. commit·push·PR은 사용자가 요청에서 시켰을 때만 묻지 않는다.
  */
 export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]>; update?: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; defaults?: { list: () => Promise<readonly DefaultRuleView[]>; apply: (op: DefaultRuleOp) => Promise<DefaultRulesResult> } }) {
   const root = el('section', 'rules');
   const head = el('div', 'rhead');
-  head.append(el('b', undefined, 'Rules'), el('span', 'hint', 'Teammates follow the rules you write. Secret files and git push refusals are always enforced, whatever the rules say.'));
+  head.append(el('b', undefined, 'Rules'), el('span', 'hint', 'Teammates follow the rules you write. Secret files are always blocked, whatever the rules say. Commit, push and PR happen only when you ask for them.'));
 
   // 말로 적기: haiku 한 번으로 칸·범위·찾을 글을 정리해 아래 폼에 채워 준다. 사용자가 보고 "규칙 더하기"를 눌러야 들어간다.
   const talk = el('div', 'ruletalk pane');

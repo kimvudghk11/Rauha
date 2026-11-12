@@ -19,6 +19,8 @@ export interface MemberOptions {
   readonly quiet?: boolean;
   /** 더 붙일 도구 묶음(ToolKits가 요청을 보고 정한다) */
   readonly kits?: readonly ToolKit[];
+  /** 사용자 원문 요청. 가드가 커밋·push·PR을 시켰는지 볼 때만 쓴다(없으면 시키지 않은 것). */
+  readonly request?: string;
 }
 
 /**

@@ -1,16 +1,28 @@
 import { relativeToRoot } from '../../shared/path-pattern.js';
+import { GitPublishIntent } from './git-publish-intent.js';
 
 export type ToolDecision = 'allow' | 'ask' | 'deny';
 
 export interface ToolVerdict {
   readonly decision: ToolDecision;
   readonly reason: string | null;
+  /** true면 사용자 규칙('묻지 않고 할 것')으로도 풀리지 않고 늘 묻는다(강제 push처럼 되돌리기 어려운 동작) */
+  readonly firm?: true;
 }
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
 
-/** rauha는 커밋하지 않는다. 커밋은 언제나 사용자가 직접 한다. */
-const GIT_ALWAYS_DENY = new Set(['commit', 'push', 'send-pack', 'http-push']);
+/** 커밋·push는 사용자가 시켰을 때만 한다(GitPublishIntent). 시키지 않았으면 허락 카드로 묻는다. */
+const GIT_PUBLISH = new Set(['commit', 'push', 'send-pack', 'http-push']);
+/** push와 같은 일을 하는 하위 명령 */
+const GIT_PUSHES = new Set(['push', 'send-pack', 'http-push']);
+/**
+ * 시켰어도 늘 묻는 push: 강제(--force, -f(묶음 옵션 포함), --force-with-lease, --force-if-includes, +refspec)와
+ * 원격을 지우거나 통째로 맞추는 것(--delete, -d, :ref, --mirror, --prune).
+ */
+const FORCE_PUSH = /^(--force(-with-lease|-if-includes)?(=.*)?|--delete|--mirror|--prune|-[a-zA-Z]*[fd][a-zA-Z]*|\+\S.*|:\S+)$/;
+/** 값을 하나 받는 gh 전역 옵션 */
+const GH_VALUE_OPTIONS = new Set(['-R', '--repo', '--hostname']);
 /** 안에 다른 명령(git push 같은)을 품을 수 있는 git 하위 명령 */
 const GIT_NESTING = new Set(['submodule', 'rebase', 'bisect', 'filter-branch']);
 /** 만들어 두면 다음 git 실행 때 명령이 돌아가는 git 설정(별칭, ssh·pager·fsmonitor·hooks·자격 증명 도우미) */
@@ -139,11 +151,37 @@ function assessAws(args: readonly string[]): ToolVerdict {
   return ask(`AWS 변경 (aws ${service} ${operation})`);
 }
 
-function worst(verdicts: readonly ToolVerdict[]): ToolVerdict {
-  return verdicts.reduce((acc, next) => (RANK[next.decision] > RANK[acc.decision] ? next : acc), ALLOW);
+/** gh pr create / gh pr merge: 사용자가 시켰을 때만 한다. */
+function assessGh(args: readonly string[], intent: GitPublishIntent): ToolVerdict {
+  const words: string[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i] as string;
+    if (GH_VALUE_OPTIONS.has(arg)) {
+      i += 1;
+      continue;
+    }
+    if (!arg.startsWith('-')) words.push(arg);
+  }
+  const [group, action] = words;
+  if (group !== 'pr') return ALLOW;
+  if (action === 'create') return intent.allowsPullRequest() ? ALLOW : ask('PR 만들기 (gh pr create): 시키지 않은 PR이에요');
+  if (action === 'merge') return intent.allowsMerge() ? ALLOW : ask('PR 머지 (gh pr merge): 시키지 않은 머지예요');
+  return ALLOW;
 }
 
-function assessSegment(words: readonly string[]): ToolVerdict {
+/** git commit·push 판정. 시킨 일이면 허용, 아니면 묻는다. 강제 push는 시켜도 늘 묻는다. */
+function assessPublish(sub: string, args: readonly string[], intent: GitPublishIntent): ToolVerdict {
+  if (!GIT_PUSHES.has(sub)) return intent.allowsCommit() ? ALLOW : ask('git commit: 시키지 않은 커밋이에요');
+  if (args.slice(args.indexOf(sub) + 1).some((a) => FORCE_PUSH.test(a))) return { ...ask(`git ${sub}: 강제 push·원격 브랜치 지우기는 시킨 일이어도 확인해요`), firm: true };
+  return intent.allowsPush() ? ALLOW : ask(`git ${sub}: 시키지 않은 push예요`);
+}
+
+function worst(verdicts: readonly ToolVerdict[]): ToolVerdict {
+  // 같은 등급이면 firm 한 쪽을 남긴다(래퍼·sudo 안의 강제 push가 평범한 물음에 가려 규칙으로 풀리지 않게)
+  return verdicts.reduce((acc, next) => (RANK[next.decision] > RANK[acc.decision] || (RANK[next.decision] === RANK[acc.decision] && next.firm === true && acc.firm !== true) ? next : acc), ALLOW);
+}
+
+function assessSegment(words: readonly string[], intent: GitPublishIntent): ToolVerdict {
   const program = programName(words[0] as string);
   const args = words.slice(1);
 
@@ -151,14 +189,16 @@ function assessSegment(words: readonly string[]): ToolVerdict {
   // 옵션 값(timeout 30, nice -n 5)이 끼어 있어도 놓치지 않게 뒤쪽 어느 단어부터든 명령으로 읽어 본다.
   if (WRAPPERS.has(program) || program === 'sudo') {
     const rest = args.filter((a) => !/^[-/][A-Za-z]+$/.test(a));
-    const inner = rest.map((_, i) => assessSegment(rest.slice(i)));
+    // 옵션을 뺀 목록만 보면 안쪽 명령의 옵션(git push -f 의 -f)까지 사라지므로, 원래 목록에서도 한 번씩 읽는다
+    const gitInner = args.flatMap((w, i) => (programName(w) === 'git' ? [assessSegment(args.slice(i), intent)] : []));
+    const inner = [...rest.map((_, i) => assessSegment(rest.slice(i), intent)), ...gitInner];
     return worst(program === 'sudo' ? [ask('sudo 실행'), ...inner] : inner);
   }
   if (DELETE_COMMANDS.has(program)) return ask(`파일 지우기 (${program})`);
   if (program === 'find') {
     if (args.includes('-delete')) return ask('파일 지우기 (find -delete)');
     const exec = args.findIndex((a) => a === '-exec' || a === '-execdir');
-    if (exec >= 0 && args[exec + 1] !== undefined) return worst([assessSegment(args.slice(exec + 1))]);
+    if (exec >= 0 && args[exec + 1] !== undefined) return worst([assessSegment(args.slice(exec + 1), intent)]);
   }
 
   if (program === 'git') {
@@ -166,12 +206,12 @@ function assessSegment(words: readonly string[]): ToolVerdict {
     if (sub === undefined) return ALLOW;
     // 한 줄짜리 별칭(-c alias.p=push p, 또는 !명령)은 풀어서 다시 본다.
     const alias = aliasOf(args, sub);
-    if (alias !== null) return assessSegment(alias);
-    if (GIT_ALWAYS_DENY.has(sub)) return deny(`git ${sub}: 커밋과 push는 사용자가 직접 합니다`);
+    if (alias !== null) return assessSegment(alias, intent);
+    if (GIT_PUBLISH.has(sub)) return assessPublish(sub, args, intent);
     if (sub === 'config' && args.some((a) => GIT_EXEC_CONFIG.test(a))) return ask('git 설정: 다음 git 실행 때 명령이 돌아갈 수 있는 값이에요');
     if (GIT_NESTING.has(sub)) {
       const after = args.slice(args.indexOf(sub) + 1);
-      const nested = after.flatMap((w, i) => (programName(w) === 'git' ? [assessSegment(after.slice(i))] : []));
+      const nested = after.flatMap((w, i) => (programName(w) === 'git' ? [assessSegment(after.slice(i), intent)] : []));
       const own: ToolVerdict = GIT_WRITES.has(sub) ? ask(`git 쓰기 (git ${sub})`) : ALLOW;
       return worst([own, ...nested]);
     }
@@ -180,6 +220,7 @@ function assessSegment(words: readonly string[]): ToolVerdict {
     return ALLOW;
   }
 
+  if (program === 'gh') return assessGh(args, intent);
   if (program === 'aws') return assessAws(args);
   if (program === 'terraform' || program === 'tofu') return INFRA_WRITES.terraform!.has(firstWord(args)) ? ask(`인프라 변경 (${program} ${firstWord(args)})`) : ALLOW;
   if (program === 'kubectl') return KUBECTL_READS.has(firstWord(args)) || firstWord(args) === '' ? ALLOW : ask(`쿠버네티스 변경 (kubectl ${firstWord(args)})`);
@@ -197,11 +238,12 @@ const RANK: Readonly<Record<ToolDecision, number>> = { allow: 0, ask: 1, deny: 2
 /**
  * 팀원의 도구 호출 위험도. 기본은 허용하고, 정말 위험한 동작만 묻는다.
  * 역할별 쓰기 권한(WritePolicy)은 이것과 별개로 검사한다.
+ * intent: 사용자가 이번 요청에서 커밋·push·PR을 시켰는지. 시켰으면 허용, 아니면 묻는다(강제 push는 늘 묻는다).
  */
 export class ToolRisk {
   private constructor() {}
 
-  static assess(tool: string, input: Record<string, unknown>, root: string): ToolVerdict {
+  static assess(tool: string, input: Record<string, unknown>, root: string, intent: GitPublishIntent = GitPublishIntent.none()): ToolVerdict {
     if (WRITE_TOOLS.has(tool)) {
       const path = input['file_path'] ?? input['notebook_path'];
       if (typeof path === 'string' && path.split(/[\\/]/).some((part) => part.toLowerCase() === '.git')) return deny('.git 안쪽(hooks·설정)은 팀원이 쓰지 않아요. 다음 git 실행 때 명령이 돌아갈 수 있어요');
@@ -213,7 +255,7 @@ export class ToolRisk {
     if (tool === 'Bash' || tool === 'PowerShell') {
       const command = input['command'];
       if (typeof command !== 'string') return ALLOW;
-      return worst([GIT_INTERNALS.test(command) ? ask('.git 안쪽(hooks·설정)을 건드리는 명령') : ALLOW, ...segments(command).map(assessSegment)]);
+      return worst([GIT_INTERNALS.test(command) ? ask('.git 안쪽(hooks·설정)을 건드리는 명령') : ALLOW, ...segments(command).map((words) => assessSegment(words, intent))]);
     }
     return ALLOW;
   }

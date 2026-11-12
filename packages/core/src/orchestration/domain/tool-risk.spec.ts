@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GitPublishIntent } from './git-publish-intent.js';
 import { ToolRisk } from './tool-risk.js';
 
 const ROOT = 'E:/work/app';
@@ -6,11 +7,21 @@ const bash = (command: string) => ToolRisk.assess('Bash', { command }, ROOT).dec
 const write = (file_path: string) => ToolRisk.assess('Write', { file_path, content: 'x' }, ROOT).decision;
 
 describe('ToolRisk', () => {
-  it('git commit과 git push는 언제나 거절한다', () => {
-    expect(bash('git commit -m "x"')).toBe('deny');
-    expect(bash('npm test && git commit -am x')).toBe('deny');
-    expect(bash('git push origin main')).toBe('deny');
-    expect(bash('GIT_AUTHOR_NAME=a git commit -m x')).toBe('deny');
+  it('시키지 않은 git commit과 git push는 허락 카드로 묻는다', () => {
+    expect(bash('git commit -m "x"')).toBe('ask');
+    expect(bash('npm test && git commit -am x')).toBe('ask');
+    expect(bash('git push origin main')).toBe('ask');
+    expect(bash('GIT_AUTHOR_NAME=a git commit -m x')).toBe('ask');
+    expect(ToolRisk.assess('Bash', { command: 'git push' }, ROOT).reason).toMatch(/시키지 않은 push/);
+  });
+
+  it('push를 시켰어도 bash -c·sudo 로 감싼 강제 push는 묻고 규칙으로 풀 수 없다', () => {
+    const intent = GitPublishIntent.from('푸시해줘');
+    for (const command of ['bash -c "git push -f origin x"', 'sudo git push -f origin x', 'timeout 30 git push --force']) {
+      const verdict = ToolRisk.assess('Bash', { command }, ROOT, intent);
+      expect(verdict.decision, command).toBe('ask');
+      expect(verdict.firm, command).toBe(true);
+    }
   });
 
   it('git 쓰기 명령은 묻는다', () => {
@@ -34,7 +45,7 @@ describe('ToolRisk', () => {
   });
 
   it('git mv 뒤에 위험한 명령을 이으면 그 명령대로 판정한다', () => {
-    expect(bash('git mv a b && git push origin main')).toBe('deny');
+    expect(bash('git mv a b && git push origin main')).toBe('ask');
     expect(bash('git mv a b && git reset --hard')).toBe('ask');
   });
 
@@ -80,7 +91,7 @@ describe('ToolRisk', () => {
     expect(ToolRisk.assess('Edit', { file_path: 'C:/x.ts' }, ROOT).decision).toBe('ask');
   });
 
-  it('옵션·경로·하위 셸로 감싼 git commit도 거절한다', () => {
+  it('옵션·경로·하위 셸로 감싼 시키지 않은 git commit도 묻는다', () => {
     for (const cmd of [
       'git -C . commit -m x',
       'git -C .. commit -am wip',
@@ -95,7 +106,7 @@ describe('ToolRisk', () => {
       'echo $(git commit -m x)',
       'cmd /c git commit -m x',
     ]) {
-      expect(bash(cmd), cmd).toBe('deny');
+      expect(bash(cmd), cmd).toBe('ask');
     }
   });
 
@@ -177,9 +188,9 @@ describe('ToolRisk — 클라우드 명령', () => {
 });
 
 describe('ToolRisk 우회 시도', () => {
-  const denied = (command: string) => expect(bash(command), command).toBe('deny');
+  const denied = (command: string) => expect(bash(command), command).toBe('ask');
 
-  it('감싸는 프로그램(timeout, command, nice …)과 별칭(-c alias.)으로도 git push를 막는다', () => {
+  it('감싸는 프로그램(timeout, command, nice …)과 별칭(-c alias.)으로 감싼 git push도 묻는다', () => {
     denied('timeout 30 git push origin main');
     denied('command git push');
     denied('nice -n 5 git push');
@@ -189,14 +200,14 @@ describe('ToolRisk 우회 시도', () => {
     denied('git rebase -x "git push" main');
   });
 
-  it('공백이 든 따옴표 경로의 git.exe, PowerShell 호출 형태로도 git push를 막는다', () => {
+  it('공백이 든 따옴표 경로의 git.exe, PowerShell 호출 형태의 git push도 묻는다', () => {
     denied('& "C:\\Program Files\\Git\\cmd\\git.exe" push');
     denied('iex "git push"');
     denied('Invoke-Expression "git commit -m x"');
     denied('Start-Process git -ArgumentList "push"');
   });
 
-  it('git push와 같은 일을 하는 저수준 명령(send-pack, http-push)도 막는다', () => {
+  it('git push와 같은 일을 하는 저수준 명령(send-pack, http-push)도 묻는다', () => {
     denied('git send-pack origin main');
     denied('git http-push origin main');
   });
@@ -217,8 +228,71 @@ describe('ToolRisk .git 안쪽', () => {
     expect(bash('git status')).toBe('allow');
   });
 
-  it('sudo git push도 묻지 않고 거절한다', () => {
-    expect(bash('sudo git push')).toBe('deny');
+  it('sudo git push는 시켰어도 묻는다', () => {
+    expect(bash('sudo git push')).toBe('ask');
+    expect(ToolRisk.assess('Bash', { command: 'sudo git push' }, ROOT, GitPublishIntent.from('push 해줘')).decision).toBe('ask');
     expect(bash('sudo ls')).toBe('ask');
+  });
+});
+
+describe('ToolRisk 사용자가 시킨 커밋·push·PR', () => {
+  const asked = (request: string) => (command: string) => ToolRisk.assess('Bash', { command }, ROOT, GitPublishIntent.from(request)).decision;
+
+  it('커밋을 시켰으면 커밋은 묻지 않고, push·PR은 여전히 묻는다', () => {
+    const run = asked('고치고 커밋해줘');
+    expect(run('git commit -m "fix: login"')).toBe('allow');
+    expect(run('git add src/a.ts && git commit -m x')).toBe('allow');
+    expect(run('git push origin fix')).toBe('ask');
+    expect(run('gh pr create --fill')).toBe('ask');
+  });
+
+  it('push를 시켰으면 커밋과 push는 묻지 않는다', () => {
+    const run = asked('커밋하고 푸시까지 해줘');
+    expect(run('git commit -m x && git push -u origin fix/login')).toBe('allow');
+    expect(run('gh pr create --fill')).toBe('ask');
+  });
+
+  it('PR을 시켰으면 커밋·push·gh pr create를 묻지 않는다', () => {
+    const run = asked('커밋하고 PR까지 해줘');
+    expect(run('git commit -m x')).toBe('allow');
+    expect(run('git push -u origin fix/login')).toBe('allow');
+    expect(run('gh pr create --title x --body y')).toBe('allow');
+    expect(run('gh -R me/app pr create --fill')).toBe('allow');
+    expect(run('gh pr merge 12 --squash')).toBe('ask');
+  });
+
+  it('PR 머지까지 시켰을 때만 gh pr merge를 묻지 않는다', () => {
+    expect(asked('PR 만들고 머지까지 해줘')('gh pr merge 12 --squash')).toBe('allow');
+    expect(ToolRisk.assess('Bash', { command: 'gh pr merge 12' }, ROOT).decision).toBe('ask');
+  });
+
+  it('gh의 다른 명령(조회 등)은 그대로 허용한다', () => {
+    for (const command of ['gh pr list', 'gh pr view 3', 'gh pr checks', 'gh run list', 'gh issue list']) {
+      expect(ToolRisk.assess('Bash', { command }, ROOT).decision, command).toBe('allow');
+    }
+  });
+
+  it('강제 push와 원격 브랜치 지우기는 시켰어도 언제나 묻는다', () => {
+    const run = asked('PR까지 올려줘');
+    for (const command of ['git push --force', 'git push -f origin fix', 'git push -uf origin fix', 'git push --force-with-lease', 'git push --force-with-lease=fix:abc origin fix', 'git push origin +fix', 'git push origin +HEAD:fix', 'git push origin --delete fix', 'git push origin :fix', 'git push --mirror']) {
+      expect(run(command), command).toBe('ask');
+    }
+    expect(ToolRisk.assess('Bash', { command: 'git push -f' }, ROOT, GitPublishIntent.from('push 해')).reason).toMatch(/강제 push/);
+  });
+
+  it('시킨 push도 감싸기·별칭으로 숨긴 강제 push는 묻는다', () => {
+    const run = asked('push 해줘');
+    expect(run('bash -c "git push --force"')).toBe('ask');
+    expect(run('git -c alias.p=push p -f')).toBe('ask');
+    expect(run('timeout 30 git push origin fix')).toBe('allow');
+  });
+
+  it('하지 말라고 한 요청이면 시키지 않은 것과 같다', () => {
+    expect(asked('커밋은 내가 할게')('git commit -m x')).toBe('ask');
+    expect(asked("fix it but don't push")('git push')).toBe('ask');
+  });
+
+  it('시켰어도 .git 안쪽을 건드리는 명령은 묻는다', () => {
+    expect(asked('커밋해줘')('git commit -m x && echo x > .git/hooks/pre-commit')).toBe('ask');
   });
 });

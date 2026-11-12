@@ -9,6 +9,7 @@ import { createToolGuard, type PermissionAsker } from './tool-guard.js';
 import { ToolTally } from '../domain/tool-tally.js';
 import { accountBlock } from './usage-limit.js';
 import { MemberContinue } from '../domain/member-continue.js';
+import { GitPublishIntent } from '../domain/git-publish-intent.js';
 
 export interface AgentSdkTeamMemberOptions {
   /** 작업 폴더. 팀원은 이 안에서만 일한다. */
@@ -37,6 +38,8 @@ interface Session {
   readonly fetchLog: ReturnType<typeof createFetchLog>;
   readonly tally: ToolTally;
   readonly stderr: string[];
+  /** 사용자가 커밋·push·PR을 시켰는지. 미리 띄운 프로세스는 요청이 나중에 정해지므로 상자로 둔다. */
+  readonly intent: { current: GitPublishIntent };
 }
 
 /** 미리 띄워 둔 프로세스. 메시지만 보내면 바로 일을 시작한다. */
@@ -104,9 +107,12 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const started = Date.now();
     if (this.cancelled || call.signal?.aborted === true) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, 0), fetched: [], blocked: CANCELLED };
     const spare = this.takeSpare(call);
+    // 가드는 도구 호출 때마다 이 값을 읽는다. 미리 띄운 프로세스도 메시지를 보내기 전에 이번 요청으로 맞춘다.
+    const intent = GitPublishIntent.from(call.request ?? '');
+    if (spare !== null) spare.intent.current = intent;
     let opened: Session & { messages: AsyncIterable<SDKMessage> };
     try {
-      opened = (spare !== null ? await this.claim(spare, call.userMessage) : null) ?? this.open(call);
+      opened = (spare !== null ? await this.claim(spare, call.userMessage) : null) ?? this.open(call, intent);
     } catch (error) {
       return { output: null, error: (error as Error).message, usage: emptyUsage(model, Date.now() - started), fetched: [], blocked: accountBlock((error as Error).message) };
     }
@@ -188,8 +194,9 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     }
   }
 
-  private open(call: MemberCall): Session & { messages: AsyncIterable<SDKMessage> } {
+  private open(call: MemberCall, intent: GitPublishIntent): Session & { messages: AsyncIterable<SDKMessage> } {
     const session = newSession();
+    session.intent.current = intent;
     return { ...session, messages: query({ prompt: call.userMessage, options: this.sdkOptions(call, session) }) };
   }
 
@@ -225,7 +232,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       maxTurns: call.setting.maxTurns,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
-        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
+        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
         PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally)] }],
       },
       stderr: (data) => {
@@ -249,7 +256,7 @@ export function modelOf(call: Pick<PreparedCall, 'setting' | 'model'>): string {
 const CANCELLED: AccountBlock = { reason: 'cancelled', message: '사용자가 작업을 멈췄습니다.' };
 
 function newSession(): Session {
-  return { controller: new AbortController(), fetchLog: createFetchLog(), tally: ToolTally.empty(), stderr: [] };
+  return { controller: new AbortController(), fetchLog: createFetchLog(), tally: ToolTally.empty(), stderr: [], intent: { current: GitPublishIntent.none() } };
 }
 
 /** 미리 띄운 프로세스는 띄울 때의 설정이 고정되므로, 역할·설정·출력 형식이 모두 같을 때만 쓴다. */

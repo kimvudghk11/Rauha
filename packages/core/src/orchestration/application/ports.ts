@@ -26,10 +26,12 @@ export interface MemberCall {
   readonly additionalDirectories?: readonly string[];
   /** 더 붙일 도구 묶음(브라우저, AWS 지식). 요청이 그쪽을 가리킬 때만 ToolKits가 고른다. */
   readonly kits?: readonly ToolKit[];
+  /** 사용자가 이번에 한 원문 요청. 가드가 커밋·push·PR을 시켰는지 보는 데만 쓴다. */
+  readonly request?: string;
 }
 
 /** 미리 띄워 둘 호출. 보낼 메시지만 아직 모른다. */
-export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories' | 'kits'>;
+export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories' | 'kits' | 'request'>;
 
 export interface MemberUsage {
   readonly model: string;

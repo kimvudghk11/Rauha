@@ -82,7 +82,7 @@ type Script = (call: MemberCall, ws: FakeWorkspace) => unknown;
 
 class FakeTeam implements TeamMemberPort {
   readonly calls: MemberRole[] = [];
-  readonly log: { role: MemberRole; tier: string; message: string }[] = [];
+  readonly log: { role: MemberRole; tier: string; message: string; request?: string | undefined }[] = [];
   constructor(
     private readonly ws: FakeWorkspace,
     private readonly scripts: Partial<Record<MemberRole, Script[]>>,
@@ -92,7 +92,7 @@ class FakeTeam implements TeamMemberPort {
   ) {}
   async run(call: MemberCall): Promise<MemberResult> {
     this.calls.push(call.role);
-    this.log.push({ role: call.role, tier: call.setting.tier, message: call.userMessage });
+    this.log.push({ role: call.role, tier: call.setting.tier, message: call.userMessage, request: call.request });
     const queue = this.scripts[call.role] ?? [];
     const script = queue.length > 1 ? (queue.shift() as Script) : queue[0];
     const limited = call.role === this.limitOn ? "You've hit your session limit · resets 5:40pm" : null;
@@ -257,6 +257,14 @@ describe('MinimalLoopService', () => {
     expect(outcome.userFiles).toEqual(['README.md']);
     expect(outcome.mixedFiles).toEqual([]);
     expect(steps.some((m) => m.includes('커밋하지 않은 변경 1개'))).toBe(true);
+  });
+
+  it('팀원 호출에 사용자 원문 요청을 실어 보낸다(가드가 커밋·push·PR을 시켰는지 본다)', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    await service(ws, team, new FakeChecks(ws), new FakeLog()).run('Money에 할인 추가하고 커밋해줘');
+    const implementer = team.log.find((l) => l.role === 'implementer');
+    expect(implementer?.request).toBe('Money에 할인 추가하고 커밋해줘');
   });
 
   it('Red가 유효하면 구현 팀원을 부르고 검증이 통과하면 완료', async () => {

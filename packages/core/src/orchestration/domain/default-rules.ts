@@ -48,7 +48,7 @@ export const DEFAULT_RULES: readonly DefaultRuleProps[] = [
   {
     id: 'default:allow-git', bucket: 'allow', text: '기본 git 읽기·준비(status, diff, log, show, blame, add, fetch)는 묻지 않는다.',
     variants: ['git status', 'git diff', 'git log', 'git show', 'git blame', 'git add', 'git fetch'].map((c) => bash(c)),
-    note: 'commit과 push는 이 규칙과 상관없이 팀원이 하지 않아요.',
+    note: 'commit·push·PR은 요청에서 시켰을 때만 묻지 않고 해요. 시키지 않았으면 허락 카드로 물어요.',
   },
   {
     id: 'default:allow-aws-read', bucket: 'allow', text: 'aws 조회(describe-·list-·get-)와 aws configure list는 설정된 프로필로 바로 실행한다.',
@@ -67,7 +67,7 @@ export const DEFAULT_RULES: readonly DefaultRuleProps[] = [
   {
     id: 'default:ask-protected', bucket: 'ask', text: 'main·qa·release 보호 브랜치에 push하거나 merge하는 일은 꼭 허락받는다.',
     variants: PROTECTED.flatMap((b) => [bash('git push', b), bash('git merge', b)]),
-    note: '팀원의 git push는 이 규칙과 상관없이 늘 거절돼요. push는 git 탭에서 직접 허락해요.',
+    note: 'push를 시켰어도 이 브랜치들은 허락 카드로 한 번 더 물어요. 강제 push는 어느 브랜치든 늘 물어요.',
   },
   {
     id: 'default:ask-infra', bucket: 'ask', text: '운영 인프라를 바꾸거나 지우는 일, 비용이 느는 일(terraform apply·destroy, cdk deploy·destroy, kubectl apply·delete, aws 삭제·종료·생성·변경)은 꼭 허락받는다.',

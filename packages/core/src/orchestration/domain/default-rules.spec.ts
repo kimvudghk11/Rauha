@@ -64,7 +64,7 @@ describe('기본 규칙', () => {
     for (const command of ['terraform apply', 'terraform destroy', 'cdk deploy', 'kubectl delete pod x', 'aws ec2 terminate-instances', 'git merge main']) {
       expect(ToolRisk.assess('Bash', bash(command), ROOT).decision).not.toBe('allow');
     }
-    expect(ToolRisk.assess('Bash', bash('git push origin main'), ROOT).decision).toBe('deny');
+    expect(ToolRisk.assess('Bash', bash('git push origin main'), ROOT).decision).toBe('ask');
   });
 
   it('화면에 보이는 글에 달러 금액 표기를 쓰지 않는다(달러를 쓰지 말라는 규칙 글만 예외)', () => {

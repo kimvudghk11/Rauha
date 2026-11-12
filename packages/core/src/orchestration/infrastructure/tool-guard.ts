@@ -5,6 +5,7 @@ import { relativeToRoot } from '../../shared/path-pattern.js';
 import { InfraRiskDto, type InfraRisk } from '../application/dto/infra-risk.dto.js';
 import type { MemberRole } from '../application/dto/role-settings.dto.js';
 import type { SecretPolicy } from '../domain/secret-policy.js';
+import { GitPublishIntent } from '../domain/git-publish-intent.js';
 import { ToolRisk } from '../domain/tool-risk.js';
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
@@ -41,8 +42,10 @@ export interface ToolGuardOptions {
   readonly secretFiles: () => readonly string[];
   /** 작업 폴더 밖에서 함께 열어 준 폴더(다른 저장소, 작업 공간 폴더). 그 안의 쓰기는 묻지 않고 그 폴더 기준으로 역할 권한만 본다. */
   readonly extraRoots?: readonly string[];
-  /** 사용자 규칙 판정(규칙 탭). allow = 묻지 않고 진행, ask = 꼭 허락받기, null = 규칙에 안 맞음. 비밀 파일·역할 권한·git push 거절은 규칙보다 앞선다. */
+  /** 사용자 규칙 판정(규칙 탭). allow = 묻지 않고 진행, ask = 꼭 허락받기, null = 규칙에 안 맞음. 비밀 파일·역할 권한 거절은 규칙보다 앞선다. 규칙의 ask(보호 브랜치 push 등)는 시킨 일이어도 이긴다. */
   readonly rules?: (tool: string, detail: string) => 'allow' | 'ask' | null;
+  /** 사용자가 이번 요청에서 커밋·push·PR을 시켰는지. 호출 때마다 읽는다(미리 띄운 프로세스는 요청이 나중에 정해진다). 없으면 시키지 않은 것. */
+  readonly publishIntent?: () => GitPublishIntent;
 }
 
 /** 파일 경로를 받는 도구와 그 경로가 든 입력 이름 */
@@ -111,7 +114,8 @@ function decide(permissionDecision: 'allow' | 'deny', reason: string) {
  * 팀원의 모든 도구 호출 앞에서 도는 PreToolUse 훅.
  * 0) 비밀 파일은 읽기·쓰기·셸 모두 묻지 않고 거절한다.
  * 1) 역할 권한(잠긴 테스트, 범위 밖)은 묻지 않고 거절한다 — 판정의 공정성 문제라서.
- * 2) 위험 동작은 사용자에게 묻고, git commit·push는 언제나 거절한다.
+ * 2) 위험 동작은 사용자에게 묻는다. git commit·push·gh pr은 사용자가 요청에서 시켰으면 그냥 하고,
+ *    시키지 않았으면 묻는다(강제 push는 시켜도 묻는다).
  * 3) 나머지는 결정을 내리지 않고 SDK의 기본 흐름(allowedTools)에 맡긴다.
  */
 export function createToolGuard(options: ToolGuardOptions): HookCallback {
@@ -138,12 +142,13 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
       }
     }
 
-    const base = ToolRisk.assess(input.tool_name, toolInput, options.root);
+    const base = ToolRisk.assess(input.tool_name, toolInput, options.root, options.publishIntent?.() ?? GitPublishIntent.none());
     if (base.decision === 'deny') return decide('deny', base.reason ?? '거절된 동작입니다.');
     const detail = typeof toolInput['command'] === 'string' ? toolInput['command'] : String(toolInput['file_path'] ?? input.tool_name);
     const rule = options.rules?.(input.tool_name, detail) ?? null;
     // 여러 명령을 이은 글(a && b)은 "묻지 않음" 규칙으로 통째로 풀어 주지 않는다. 규칙에 맞는 한 조각 때문에 위험한 다른 조각이 묻지 않고 지나가면 안 된다.
-    if (rule === 'allow' && base.decision === 'ask' && !isChained(detail)) return decide('allow', '사용자 규칙(묻지 않고 할 것)에 맞는 동작입니다.');
+    // 강제 push처럼 firm 한 물음은 규칙으로 풀지 않는다(규칙 "git push 묻지 마"가 --force 까지 풀면 안 된다)
+    if (rule === 'allow' && base.decision === 'ask' && base.firm !== true && !isChained(detail)) return decide('allow', '사용자 규칙(묻지 않고 할 것)에 맞는 동작입니다.');
     const verdict = rule === 'ask' && base.decision !== 'ask' ? { decision: 'ask' as const, reason: '내 규칙(꼭 허락받을 것)에 걸린 동작입니다.' } : base;
     if (verdict.decision === 'ask') {
       const key = `${input.tool_name}\n${detail}`;
