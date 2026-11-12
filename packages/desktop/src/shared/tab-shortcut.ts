@@ -1,4 +1,12 @@
-import type { KeyLike } from './bug-shortcut.js';
+/** 키 이벤트에서 단축키 판정에 쓰는 부분. 한글 자판에서도 되도록 글자가 아니라 물리 키(code)로 본다. */
+export interface KeyLike {
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly shiftKey: boolean;
+  readonly altKey: boolean;
+  readonly isComposing?: boolean;
+}
 
 /** 맥은 Cmd, 그 밖에는 Ctrl이 "명령 키"다 */
 const modOf = (e: KeyLike, platform: string): boolean => (platform === 'darwin' ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey);

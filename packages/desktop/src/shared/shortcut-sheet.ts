@@ -1,4 +1,4 @@
-/** 단축키 안내창에 보일 내용. 앱이 실제로 듣는 키만 적는다(코드: renderer/app.ts · code-view.ts · chat-view.ts · bug-shortcut.ts). */
+/** 단축키 안내창에 보일 내용. 앱이 실제로 듣는 키만 적는다(코드: renderer/app.ts · code-view.ts · chat-view.ts · tab-shortcut.ts). */
 export interface ShortcutRow {
   readonly keys: string;
   readonly label: string;
@@ -21,7 +21,6 @@ export function shortcutSheet(platform: string): readonly ShortcutGroup[] {
     {
       title: 'Anywhere',
       rows: [
-        { keys: `${mod}${shift}B`, label: 'Write a report' },
         { keys: `${mod}${shift}/`, label: 'Show this list' },
       ],
     },

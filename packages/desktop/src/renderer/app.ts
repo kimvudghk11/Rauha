@@ -21,8 +21,6 @@ import { CommandBookDto } from '../shared/command-dto.js';
 import { buildSettings, limitBar } from './settings-view.js';
 import { createUsageFeed, usageTooltip } from './usage-feed.js';
 import { createChrome } from './chrome.js';
-import { openBugDialog, shortcutText } from './bug-view.js';
-import { isBugShortcut } from '../shared/bug-shortcut.js';
 import { isSettingsKey, isShortcutSheetKey, tabShortcutIndex } from '../shared/tab-shortcut.js';
 import { toggleShortcutSheet } from './shortcut-view.js';
 import { installClickGuard } from './click-guard.js';
@@ -143,13 +141,6 @@ function renderTabs(): void {
   };
   topTabs().forEach((t) => add(t, topBox));
   TABS.filter((t) => t.bottom).forEach((t) => add(t, bottomBox));
-  // 탭이 아닌 단추: 어느 탭에서나 답답한 점을 적는 창을 연다(단축키와 같다). 막대 맨 끝에 둬서 탭 순서를 건드리지 않는다.
-  const bug = el('button', 'bug-open');
-  bug.title = `Write a report (${shortcutText(platform)})`;
-  bug.setAttribute('aria-label', 'Write a report');
-  bug.append(icon('M12 8v5 M12 16.5v.5 M10.3 3.9L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'), el('span', undefined, 'Report'));
-  bug.addEventListener('click', openBug);
-  bottomBox.appendChild(bug);
   // 위/아래에 더 있으면 옅은 그라데이션으로 알리고, 지금 탭은 보이게 스크롤한다
   const edges = (): void => {
     scroller.classList.toggle('more-up', topBox.scrollTop > 1);
@@ -162,22 +153,7 @@ function renderTabs(): void {
 }
 
 
-/** 답답한 점 적기 창(어느 탭에서나) */
-function openBug(): void {
-  openBugDialog({
-    api: window.rauha.bugs,
-    platform,
-    screen: () => TABS.find((t) => t.id === current)?.label ?? current,
-    fillChat: (text) => (show('chat'), chat.fill(text)),
-    addTodo: (text) => addTodo(window.rauha.todo, TodoDto.draftFromChat(text)),
-  });
-}
 window.addEventListener('keydown', (e) => {
-  if (isBugShortcut(e)) {
-    e.preventDefault();
-    openBug();
-    return;
-  }
   if (isShortcutSheetKey(e, platform)) {
     e.preventDefault();
     toggleShortcutSheet(platform);

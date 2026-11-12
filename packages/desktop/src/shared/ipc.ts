@@ -12,7 +12,6 @@ import type { CommandBookJson } from './command-dto.js';
 import type { UpdateView } from './update-record.js';
 import type { RecordsApi, TodoApi } from './data-api.js';
 import type { BlogApi } from './blog-dto.js';
-import type { BugApi } from './bug-api.js';
 import type { CodeApi } from './code-api.js';
 import type { TerminalApi } from './terminal-api.js';
 import type { ApiApi } from './api-ipc.js';
@@ -239,8 +238,6 @@ export interface RauhaApi {
   readonly records: RecordsApi;
   /** 기록 탭의 블로그 글: 가림 이름 받기·초안 쓰기(모델 한 번)·.md 저장 */
   readonly blog: BlogApi;
-  /** 답답한 점 메모: 적기·해결·지우기(로컬), 가린 미리보기 후 내 AWS에 올리기, 받아오기 */
-  readonly bugs: BugApi;
   /** 코드 탭: 파일 탐색·읽기·저장(main이 한다) */
   readonly code: CodeApi;
   /** 코드 탭 아래 터미널 칸 */

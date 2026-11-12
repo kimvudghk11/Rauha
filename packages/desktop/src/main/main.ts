@@ -67,12 +67,6 @@ import { registerApiIpc } from './api/api-ipc.js';
 import { registerDockerIpc } from './docker/docker-ipc.js';
 import { registerDbIpc } from './db/db-ipc.js';
 import { registerBlogIpc } from './blog/blog-ipc.js';
-import { registerBugIpc } from './bugs/bug-ipc.js';
-import { BugStore } from './bugs/bug-store.js';
-import { connectAws } from './bugs/aws-s3.js';
-import { fakeAws } from './bugs/fake-aws.js';
-import { personalAwsPicker, personalAwsPort } from './bugs/personal-aws-pick.js';
-import { PERSONAL_AWS, PERSONAL_PROFILE_CANDIDATES } from '../shared/personal-aws.js';
 import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
@@ -833,20 +827,6 @@ void app.whenReady().then(async () => {
   ipcMain.handle(DATA_IPC.todoApply, (_e, op: unknown) => todoService.apply(op));
   ipcMain.handle(DATA_IPC.recordsGet, () => recordService.get());
   ipcMain.handle(DATA_IPC.recordsApply, (_e, op: unknown) => recordService.apply(op));
-  const fakeS3 = FAKE ? fakeAws() : null;
-  // 리포트는 늘 개인 AWS 계정 하나로(설정 칸 없음). 프로필은 후보 중 그 계정으로 로그인되는 것을 찾아 쓴다.
-  const pickPersonal = personalAwsPicker(connectAws);
-  registerBugIpc(ipcMain, {
-    store: new BugStore(join(dataDir, 'bugs.json')),
-    newId: () => randomUUID(),
-    appVersion: () => app.getVersion(),
-    aws: () => ({ profile: PERSONAL_PROFILE_CANDIDATES[0]!, bucket: PERSONAL_AWS.bucket, region: PERSONAL_AWS.region, account: PERSONAL_AWS.account }),
-    folderNames: () => folders().map((f) => f.name),
-    companyNames: () => settings.blogNames,
-    connect: () => fakeS3 ?? personalAwsPort(pickPersonal),
-    platform: process.platform,
-    onChange: () => undefined,
-  });
   registerBlogIpc(ipcMain, {
     folderNames: () => folders().map((f) => f.name),
     companyNames: () => settings.blogNames,
