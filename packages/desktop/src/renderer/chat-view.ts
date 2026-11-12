@@ -17,6 +17,7 @@ import { roomSplit } from '../shared/room-split.js';
 import { characterStateOf, elapsedText } from './room.js';
 import { askDialog } from './git-common.js';
 import { flash } from './record-parts.js';
+import { ChatScroll } from './chat-scroll.js';
 import { canRevise, composerHeight, replyWho, roomLogLine, stopReasonText } from '../shared/chat-text.js';
 import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { mountStage, paintOnce } from './stage.js';
@@ -116,6 +117,29 @@ export function buildChat(actions: ChatActions) {
   paintOnce(emptyFace, 'intake', 5);
   empty.append(emptyFace, el('div', undefined, 'What should the team do? You can send several in a row.'));
   msgs.appendChild(empty);
+  // 스크롤 자리 기억: 탭을 바꿨다 돌아와도 맨 위로 튀지 않게, 위로 올려 읽는 중이면 맨 아래로 가는 단추를 띄운다
+  const scroll = ChatScroll.start();
+  const msgsWrap = el('div', 'msgs-wrap');
+  const jump = el('button', 'jump-bottom', '↓');
+  jump.title = 'Jump to the latest message';
+  jump.setAttribute('aria-label', 'Jump to the latest message');
+  jump.hidden = true;
+  msgsWrap.append(msgs, jump);
+  const syncJump = (): void => {
+    jump.hidden = scroll.pinned;
+  };
+  msgs.addEventListener('scroll', () => {
+    // 떼어진 동안(다른 탭)의 scrollTop 0 은 사용자가 움직인 자리가 아니다
+    if (!msgs.isConnected) return;
+    scroll.observe({ top: msgs.scrollTop, client: msgs.clientHeight, height: msgs.scrollHeight });
+    syncJump();
+  });
+  function toBottom(): void {
+    msgs.scrollTop = msgs.scrollHeight;
+    scroll.observe({ top: msgs.scrollTop, client: msgs.clientHeight, height: msgs.scrollHeight });
+    syncJump();
+  }
+  jump.addEventListener('click', () => msgs.scrollTo({ top: msgs.scrollHeight, behavior: 'smooth' }));
   const composer = el('div', 'composer');
   const input = el('textarea');
   input.placeholder = 'Type a new task…  (@folder to pick a target, @file to attach one)';
@@ -128,7 +152,7 @@ export function buildChat(actions: ChatActions) {
   // 답을 기다리는 허락·질문 카드. 팀 상세를 열지 않아도 입력칸 바로 위에서 답할 수 있다(안 보여서 작업이 멈춘 듯 보이지 않게).
   const askTray = el('div', 'ask-tray');
   askTray.hidden = true;
-  mainPane.append(head, msgs, askTray, composer);
+  mainPane.append(head, msgsWrap, askTray, composer);
 
   // ── 아주 좁을 때 맨 위 띠 ──
   const strip = el('div', 'strip');
@@ -350,7 +374,7 @@ export function buildChat(actions: ChatActions) {
     reply.append(av, body);
     msgs.append(me, reply);
     cards.set(job.id, { dot, state, stop, line });
-    msgs.scrollTop = msgs.scrollHeight;
+    toBottom();
   }
 
   function updateCard(job: JobView): void {
@@ -406,7 +430,7 @@ export function buildChat(actions: ChatActions) {
     body.append(el('div', 'who', replyWho(leadName(), job.request)), card);
     m.append(av, body);
     msgs.appendChild(m);
-    msgs.scrollTop = msgs.scrollHeight;
+    toBottom();
   }
 
   // ── 팀 방 ──
@@ -742,6 +766,11 @@ export function buildChat(actions: ChatActions) {
   return {
     root,
     layoutButtons,
+    /** 다른 탭에서 돌아와 다시 붙었을 때: 떼어지며 0 으로 돌아간 스크롤을 기억한 자리(맨 아래였으면 새 맨 아래)로 되돌린다 */
+    onShow(): void {
+      msgs.scrollTop = scroll.restoreTop({ client: msgs.clientHeight, height: msgs.scrollHeight });
+      syncJump();
+    },
     /** 캐릭터 테마가 바뀌었을 때 메인 칸의 얼굴과 이름 안내를 새로 그린다(이미 쌓인 말풍선은 그대로) */
     repaintCharacters(): void {
       paintOnce(headFace, 'intake', 2);
@@ -763,7 +792,7 @@ export function buildChat(actions: ChatActions) {
       body.append(el('div', 'who', leadName()), tx);
       m.append(av, body);
       msgs.appendChild(m);
-      msgs.scrollTop = msgs.scrollHeight;
+      toBottom();
     },
     /** 채팅 화면을 비운다(돌고 있는 작업과 기록은 그대로) */
     clearScreen: clearVisibleChat,

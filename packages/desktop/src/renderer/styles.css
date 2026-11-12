@@ -42,6 +42,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ph { box-sizing: border-box; display: flex; align-items: center; gap: var(--s2); min-height: var(--h-head); padding: var(--s1) var(--s3); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); color: var(--muted); }
 .ph b { color: var(--bright); font-weight: 600; font-size: var(--fs-md); }
 .ph .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msgs-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.jump-bottom { position: absolute; right: var(--s3); bottom: var(--s3); width: var(--h-lg); height: var(--h-lg); border-radius: var(--r-pill); border: 1px solid var(--border2); background: var(--btn-bg); color: var(--bright); font-size: var(--fs-lg); line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.jump-bottom:hover { background: var(--btn-bg-hover); border-color: var(--delfi); }
+.jump-bottom[hidden] { display: none; }
 .msgs { flex: 1; min-height: 0; overflow: auto; padding: var(--s3); display: flex; flex-direction: column; gap: var(--s3); }
 .empty { margin: auto; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .m { display: flex; gap: 9px; align-items: flex-start; max-width: 92%; }

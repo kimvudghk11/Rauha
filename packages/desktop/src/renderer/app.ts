@@ -211,7 +211,7 @@ function show(id: TabId): void {
   current = id;
   renderTabs();
   const tab = TABS.find((t) => t.id === id)!;
-  if (id === 'chat') screen.replaceChildren(chat.root);
+  if (id === 'chat') (screen.replaceChildren(chat.root), chat.onShow());
   else if (id === 'code') (screen.replaceChildren(code.root), void code.onShow());
   else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
   else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), recent: { status: () => window.rauha.recentFolderStatus(), forget: (p) => window.rauha.forgetRecentFolder(p) }, auth: window.rauha.auth, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), onCharacterSet: applyCharacterSet, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root } }, pickLayout).root);
