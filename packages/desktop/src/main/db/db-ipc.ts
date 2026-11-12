@@ -49,6 +49,8 @@ export function registerDbIpc(ipc: Pick<IpcMain, 'handle'>, deps: DbIpcDeps): Db
   ipc.handle(DB_IPC.addPath, (_e, req: unknown) => service.addPath(req));
   ipc.handle(DB_IPC.pick, () => service.pick());
   ipc.handle(DB_IPC.addServer, (_e, req: unknown) => service.addServer(req));
+  ipc.handle(DB_IPC.editServer, (_e, req: unknown) => service.editServer(req));
+  ipc.handle(DB_IPC.testServer, (_e, req: unknown) => service.testServer(req));
   ipc.handle(DB_IPC.unlock, (_e, req: unknown) => service.unlock(req));
   ipc.handle(DB_IPC.remove, (_e, id: unknown) => service.remove(id));
   ipc.handle(DB_IPC.tables, (_e, id: unknown) => service.tables(id));

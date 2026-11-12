@@ -34,6 +34,8 @@ import {
   projectMemoryFile,
   realAskTimer,
   type ConnectorServers,
+  type PluginLoad,
+  type LinkedDatabase,
   type MemberCall,
   type MemberResult,
   type PlanUsage,
@@ -112,6 +114,10 @@ export interface ComposeOptions {
   readonly onFallback?: ((line: string) => void) | undefined;
   /** 설정에서 연결한 커넥터(노션·컨플루언스 …). 부를 때마다 최신 목록. 없으면 붙이지 않는다. */
   readonly connectors?: (() => ConnectorServers) | undefined;
+  /** 설정에서 켜 둔 플러그인·사용자 스킬 폴더. 부를 때마다 최신 목록. 없으면 붙이지 않는다. */
+  readonly plugins?: (() => readonly PluginLoad[]) | undefined;
+  /** 레포 폴더에 연결된 DB(DB 탭에 저장한 연결 중 레포 설정과 맞는 것). 코드 작업 팀원에게 읽기 전용 도구로 붙는다. 없으면 붙이지 않는다. */
+  readonly database?: ((repoRoot: string) => Promise<LinkedDatabase | null>) | undefined;
 }
 
 /** 작업 공간(rauha가 여는 폴더)과 그 안의 레포들, 그리고 이번 요청이 가리킨 다른 레포들(읽기만) */
@@ -154,6 +160,9 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     ...(options.claudeExecutable !== undefined ? { claudeExecutable: options.claudeExecutable } : {}),
     ...((options.readRoots?.length ?? 0) > 0 ? { readRoots: options.readRoots! } : {}),
     ...(options.connectors !== undefined ? { connectors: options.connectors } : {}),
+    ...(options.plugins !== undefined ? { plugins: options.plugins } : {}),
+    // .env 같은 레포 설정은 원래 레포(keyRoot)에 있다(worktree 에는 커밋 안 한 설정 파일이 없다)
+    ...(options.database !== undefined ? { database: () => options.database!(keyRoot) } : {}),
     ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
   });
   const team = stoppable(new ModelRoutingTeam(inner, () => ModelSettingsDto.from(options.models?.()).toEntity(), (line) => {

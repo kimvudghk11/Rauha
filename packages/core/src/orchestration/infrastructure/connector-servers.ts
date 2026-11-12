@@ -12,10 +12,14 @@ export interface ConnectorServers {
 /**
  * 연결 목록 → SDK mcpServers. 헤더·토큰은 넣지 않는다: Claude Code가 서버 이름+설정으로 자기 설정 폴더(CLAUDE_CONFIG_DIR)에
  * 저장한 OAuth 토큰을 찾아 쓴다. 그래서 로그인 때와 팀원 실행 때 이 함수 하나로 같은 설정을 만든다.
+ * oauth(공개 클라이언트 id·콜백 포트)는 Claude Code 의 MCP 설정이 받는 칸인데 SDK 타입에는 아직 없어 넓혀 넣는다.
  */
 export function connectorServers(book: ConnectorBook): ConnectorServers {
   const servers: Record<string, McpServerConfig> = {};
-  for (const c of book.list()) servers[c.serverName] = { type: 'http', url: c.url };
+  for (const c of book.list()) {
+    const oauth = c.oauth();
+    servers[c.serverName] = (oauth === null ? { type: 'http', url: c.url } : { type: 'http', url: c.url, oauth: { clientId: oauth.clientId, callbackPort: oauth.callbackPort } }) as McpServerConfig;
+  }
   const names = book.serverNames();
   return { servers, tools: names.map((n) => `mcp__${n}`), names };
 }

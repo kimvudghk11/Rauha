@@ -1,6 +1,5 @@
 /* API 탭 (배치와 이 탭만의 모양. 버튼·칩·입력칸·탭 모양은 ui.css) */
 .api { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; position: relative; }
-.api .rhead { flex-wrap: wrap; }
 .api-head .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .api-toggle { display: none; }
 .app[data-tier=s] .api-toggle, .app[data-tier=xs] .api-toggle { display: inline-flex; }
@@ -25,7 +24,6 @@
 
 /* 목록 줄 */
 .api-row { cursor: pointer; padding-left: calc(var(--s3) + var(--depth, 0) * var(--s4)); padding-right: var(--s1); gap: var(--s2); min-width: 0; }
-.api-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .api-chev { width: 12px; flex: none; color: var(--muted); }
 .api-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .api-count { flex: none; font-size: var(--fs-xs); }
@@ -33,18 +31,19 @@
 .api-hist { align-items: center; padding-top: var(--s1); padding-bottom: var(--s1); }
 .api-hist-text { display: flex; flex-direction: column; min-width: 0; }
 .api-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
-.api-empty, .api-res-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s5) var(--s3); text-align: center; }
-.api-empty b, .api-res-empty b { color: var(--bright); font-size: var(--fs-lg); }
-.api-res-empty { flex: 1; overflow-wrap: anywhere; }
-.api-res-empty.failed b { color: var(--red); }
+/* 빈 상태 모양은 ui.css .empty-state */
+.api-res-empty { flex: 1; }
 
 /* 메서드 이름표 */
-.api-method { flex: none; min-width: 34px; font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700; color: var(--muted); }
-.api-method.m-get { color: var(--green); }
-.api-method.m-post { color: var(--yellow); }
-.api-method.m-put { color: var(--accentfg); }
-.api-method.m-patch { color: var(--purple); }
-.api-method.m-delete { color: var(--red); }
+/* 메서드 배지: 색 글자 + 같은 색의 옅은 바탕(Postman 처럼 한눈에 구분) */
+.api-method { --m: var(--muted); flex: none; min-width: 38px; padding: 1px var(--s1); border-radius: var(--r-sm); text-align: center; font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700; color: var(--m); background: color-mix(in srgb, var(--m) 16%, transparent); }
+.m-get { --m: var(--green); }
+.m-post { --m: var(--yellow); }
+.m-put { --m: var(--accentfg); }
+.m-patch { --m: var(--purple); }
+.m-delete { --m: var(--red); }
+/* 요청 칸의 메서드 고르기도 같은 색 */
+.api-method-select[class*='m-'] { color: var(--m); font-weight: 700; border-color: color-mix(in srgb, var(--m) 45%, var(--border2)); }
 
 /* 가운데: 요청 줄·편집기·응답 */
 .api-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); }

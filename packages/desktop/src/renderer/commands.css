@@ -6,7 +6,7 @@
 .cmd-suggest .it .ds { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .cmd-suggest .it.on, .cmd-suggest .it:hover { background: var(--sel); }
 
-.cmd-help { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.cmd-help { display: flex; flex-direction: column; gap: var(--s1); align-items: flex-start; }
 .cmd-help .ttl { color: var(--bright); font-weight: 600; }
 .cmd-help .r { display: flex; gap: 10px; }
 .cmd-help .r b { flex: 0 0 150px; color: var(--accentfg); font-weight: 600; }
@@ -43,7 +43,7 @@
 .team { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
 .tlist { display: flex; flex-direction: column; gap: 5px; padding: 0 10px; }
 .tm { padding-top: var(--s1); padding-bottom: var(--s1); }
-.tmtop { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tmtop { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
 .tmtop .sp { flex: 0 0 auto; width: 32px; height: 28px; image-rendering: pixelated; }
 .tmtop b { color: var(--bright); flex: 0 0 auto; }
 .tmtop .ds { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -53,7 +53,7 @@
 .tmbody .tf { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .tmbody .tf .lbl { color: var(--muted); font-size: var(--fs-sm); }
 .tmbody .tools { display: flex; flex-wrap: wrap; gap: 4px 12px; }
-.tmbody .tool { display: flex; align-items: center; gap: 4px; }
+.tmbody .tool { display: flex; align-items: center; gap: var(--s1); }
 .tmbody .btn { align-self: flex-start; }
 .tfoot { display: flex; justify-content: flex-end; padding: 0 10px; }
 .app[data-tier=s] .tmtop, .app[data-tier=xs] .tmtop { flex-wrap: wrap; }

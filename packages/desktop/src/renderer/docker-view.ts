@@ -68,7 +68,7 @@ function headRow(cols: readonly (string | readonly [string, string])[]): HTMLTab
   return head;
 }
 function emptyState(title: string, body: string): HTMLElement {
-  const box = el('div', 'empty dk-empty');
+  const box = el('div', 'empty-state dk-empty');
   box.append(el('b', undefined, title), el('span', 'hint', body));
   return box;
 }
@@ -162,7 +162,7 @@ export function buildDocker(deps: DockerViewDeps) {
   execInput.spellcheck = false;
   execInput.setAttribute('aria-label', 'Command to run inside the container');
   execInput.title = DOCKER_EXEC_NOTE;
-  const execBtn = button('Run', 'btn sm', () => void runExec());
+  const execBtn = button('Run', 'btn sm run', () => void runExec());
   const execBar = el('div', 'bar dk-exec');
   execBar.append(execInput, execBtn);
   execInput.addEventListener('keydown', (e) => {
@@ -253,7 +253,7 @@ export function buildDocker(deps: DockerViewDeps) {
     const state = chipOf(STATE_LABEL[c.state], stateTone(c.state));
     state.title = c.status;
     const buttons: HTMLElement[] = [];
-    if (c.canStart) buttons.push(act('Start', 'btn sm', `start:${c.id}`, () => api.start(c.name)));
+    if (c.canStart) buttons.push(act('Start', 'btn sm run', `start:${c.id}`, () => api.start(c.name)));
     if (c.canStop) buttons.push(act('Stop', 'btn sm', `stop:${c.id}`, () => api.stop(c.name)), act('Restart', 'btn sm', `restart:${c.id}`, () => api.restart(c.name)));
     buttons.push(act('Remove', 'btn sm danger', `rm:${c.id}`, () => removeContainer(c)));
     tr.append(td(name), td(c.image, 'dk-opt2'), td(state), td(c.ports.join(', ') || '-', 'dk-opt dim'), td(agoLabel(c.createdAt, Math.floor(now() / 1000)), 'dk-opt dim'), actionsCell(buttons));
@@ -334,7 +334,7 @@ export function buildDocker(deps: DockerViewDeps) {
         const op = (label: string, cls: string, o: 'ps' | 'up' | 'down' | 'logs'): HTMLButtonElement => act(label, cls, `c:${o}:${f.path}`, () => runCompose(f, o));
         const name = el('div', 'dk-name');
         name.append(el('b', undefined, f.path), el('span', 'hint', f.folder));
-        tr.append(td(name), actionsCell([op('Status', 'btn sm', 'ps'), op('Up', 'btn sm', 'up'), op('Logs', 'btn sm', 'logs'), op('Down', 'btn sm danger', 'down')]));
+        tr.append(td(name), actionsCell([op('Status', 'btn sm', 'ps'), op('Up', 'btn sm run', 'up'), op('Logs', 'btn sm', 'logs'), op('Down', 'btn sm danger', 'down')]));
         tbody.append(tr);
       }
       table.append(tbody);

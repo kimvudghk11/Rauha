@@ -29,7 +29,7 @@ export function buildResponseView(deps: ResponseDeps): ResponseView {
 
   const paintEmpty = (title: string, note: string): void => {
     current = null;
-    root.replaceChildren(el('div', 'api-res-empty'));
+    root.replaceChildren(el('div', 'empty-state api-res-empty'));
     const box = root.firstElementChild as HTMLElement;
     box.append(el('b', undefined, title), el('span', 'dim', note));
   };

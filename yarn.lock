@@ -1362,6 +1362,7 @@ __metadata:
     smol-toml: "npm:1.9.1"
     typescript: "npm:^5.9.3"
     vitest: "npm:^3.2.7"
+    zod: "npm:^4.1.0"
   languageName: unknown
   linkType: soft
 
@@ -5374,5 +5375,12 @@ __metadata:
   version: 3.2.1
   resolution: "yoga-layout@npm:3.2.1"
   checksum: 10c0/9001e51be993c85e03757e5a04a2b61b8b30c9e5a7865d0156ca87a6431a3b717d51eb4990bfe588189fcfeac688dd9c3de707bbd50d1c344a84e63974cc54a8
+  languageName: node
+  linkType: hard
+
+"zod@npm:^4.1.0":
+  version: 4.6.7
+  resolution: "zod@npm:4.6.7"
+  checksum: 10c0/4ce2eb14034317b7254e347ca37b5ad591cf8333147030cf05b9b5d31692d45073f7f2747aa50cf8c6b29012194d2b22978cecc89969cf34a0d18e89d0ee7d7b
   languageName: node
   linkType: hard

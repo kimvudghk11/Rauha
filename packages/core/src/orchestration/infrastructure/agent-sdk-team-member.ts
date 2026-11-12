@@ -11,6 +11,12 @@ import { ToolTally } from '../domain/tool-tally.js';
 import { accountBlock } from './usage-limit.js';
 import { MemberContinue } from '../domain/member-continue.js';
 import { GitPublishIntent } from '../domain/git-publish-intent.js';
+import { ConnectorWriteIntent } from '../domain/connector.js';
+import { PluginReach } from '../domain/plugin.js';
+import type { MemberRole } from '../domain/member-role.js';
+import { DbToolAccess } from '../domain/db-tools.js';
+import type { LinkedDatabase } from '../application/linked-database.js';
+import { withDatabase } from './db-mcp.js';
 
 export interface AgentSdkTeamMemberOptions {
   /** 작업 폴더. 팀원은 이 안에서만 일한다. */
@@ -33,6 +39,15 @@ export interface AgentSdkTeamMemberOptions {
   readonly readRoots?: readonly string[];
   /** 사용자가 연결한 커넥터(노션·컨플루언스 …). 'connectors' 도구 묶음을 고른 호출에만 붙인다. 부를 때마다 최신 목록. */
   readonly connectors?: () => ConnectorServers;
+  /** 작업 레포에 연결된 DB(DB 탭에 저장한 연결 중 레포 설정과 맞는 것). 코드 작업 팀원 호출에만 읽기 전용 도구로 붙인다. 없으면 null. 실행마다 한 번만 찾는다. */
+  readonly database?: () => Promise<LinkedDatabase | null>;
+  /** 켜 둔 플러그인과 사용자 스킬 폴더(Claude Code 가 설치한 곳). 일하는 팀원(PluginReach)에게만 붙인다. 부를 때마다 최신 목록. */
+  readonly plugins?: () => readonly PluginLoad[];
+}
+
+/** 팀원 세션에 붙일 플러그인 폴더 하나 */
+export interface PluginLoad {
+  readonly path: string;
 }
 
 /** 호출 하나가 쓰는 것들. 미리 띄운 프로세스는 띄울 때 이것까지 정해진다. */
@@ -43,6 +58,8 @@ interface Session {
   readonly stderr: string[];
   /** 사용자가 커밋·push·PR을 시켰는지. 미리 띄운 프로세스는 요청이 나중에 정해지므로 상자로 둔다. */
   readonly intent: { current: GitPublishIntent };
+  /** 사용자가 업무 도구(노션·컨플루언스 …)에 쓰라고 시켰는지. 미리 띄운 프로세스는 요청이 나중에 정해지므로 상자로 둔다. */
+  readonly connectorIntent: { current: ConnectorWriteIntent };
 }
 
 /** 미리 띄워 둔 프로세스. 메시지만 보내면 바로 일을 시작한다. */
@@ -69,8 +86,18 @@ export class AgentSdkTeamMember implements TeamMemberPort {
   private readonly spares = new Map<string, Spare>();
   private cancelled = false;
   private closed = false;
+  /** 레포에 연결된 DB 를 찾은 결과(처음 필요할 때 한 번) */
+  private linked: Promise<LinkedDatabase | null> | null = null;
 
   constructor(private readonly options: AgentSdkTeamMemberOptions) {}
+
+  /** 이 역할이 DB 도구를 받는 역할일 때만 DB 를 찾는다. 찾다 실패하면 붙이지 않는다. */
+  private async databaseFor(call: MemberCall): Promise<LinkedDatabase | null> {
+    if (this.options.database === undefined || !DbToolAccess.wants(call.role)) return null;
+    this.linked ??= this.options.database().catch(() => null);
+    const db = await this.linked;
+    return DbToolAccess.attaches(call.role, db !== null) ? db : null;
+  }
 
   /** 돌고 있는 호출을 모두 멈추고, resume 전까지 새 호출도 바로 '멈춤'으로 돌려준다(서비스가 흐름을 끊는다). */
   cancel(): void {
@@ -109,13 +136,19 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const model = modelOf(call);
     const started = Date.now();
     if (this.cancelled || call.signal?.aborted === true) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, 0), fetched: [], blocked: CANCELLED };
-    const spare = this.takeSpare(call);
+    const db = await this.databaseFor(call);
+    // DB 도구를 붙이는 호출은 띄울 때의 설정이 달라 미리 띄운 프로세스를 쓰지 않는다(그 프로세스는 남겨 둔다)
+    const spare = db === null ? this.takeSpare(call) : null;
     // 가드는 도구 호출 때마다 이 값을 읽는다. 미리 띄운 프로세스도 메시지를 보내기 전에 이번 요청으로 맞춘다.
     const intent = GitPublishIntent.from(call.request ?? '');
-    if (spare !== null) spare.intent.current = intent;
+    const connectorIntent = ConnectorWriteIntent.from(call.request ?? '');
+    if (spare !== null) {
+      spare.intent.current = intent;
+      spare.connectorIntent.current = connectorIntent;
+    }
     let opened: Session & { messages: AsyncIterable<SDKMessage> };
     try {
-      opened = (spare !== null ? await this.claim(spare, call.userMessage) : null) ?? this.open(call, intent);
+      opened = (spare !== null ? await this.claim(spare, call.userMessage) : null) ?? this.open(call, intent, db);
     } catch (error) {
       return { output: null, error: (error as Error).message, usage: emptyUsage(model, Date.now() - started), fetched: [], blocked: accountBlock((error as Error).message) };
     }
@@ -147,7 +180,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
         const next = MemberContinue.after({ endReason: done.terminal_reason ?? done.subtype, hasOutput: done.subtype === 'success' && done.structured_output !== undefined, done: continued });
         if (next === null) break;
         spent = addUsage(spent, toUsage(model, done));
-        messages = query({ prompt: next.prompt, options: { ...this.sdkOptions(call, opened), resume: done.session_id } });
+        messages = query({ prompt: next.prompt, options: { ...this.sdkOptions(call, opened, db), resume: done.session_id } });
       }
     } catch (error) {
       const detail = stderr.join('').trim().split('\n').slice(-5).join('\n');
@@ -197,10 +230,11 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     }
   }
 
-  private open(call: MemberCall, intent: GitPublishIntent): Session & { messages: AsyncIterable<SDKMessage> } {
+  private open(call: MemberCall, intent: GitPublishIntent, db: LinkedDatabase | null): Session & { messages: AsyncIterable<SDKMessage> } {
     const session = newSession();
     session.intent.current = intent;
-    return { ...session, messages: query({ prompt: call.userMessage, options: this.sdkOptions(call, session) }) };
+    session.connectorIntent.current = ConnectorWriteIntent.from(call.request ?? '');
+    return { ...session, messages: query({ prompt: call.userMessage, options: this.sdkOptions(call, session, db) }) };
   }
 
   /** 한 호출 동안은 처음 읽은 목록을 다시 쓴다(도구 호출마다 git을 부르지 않게). */
@@ -215,18 +249,21 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     return rules === '' ? system : `${system}\n\n<user-rules>\n사용자가 항상 지키라고 정한 규칙입니다.\n${rules}\n</user-rules>`;
   }
 
-  private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session): Options {
-    const kits = withConnectors(kitServers(call.kits ?? [], this.options.env), (call.kits ?? []).includes('connectors') ? this.options.connectors?.() : undefined);
+  private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session, db: LinkedDatabase | null = null): Options {
+    const kits = withDatabase(withConnectors(kitServers(call.kits ?? [], this.options.env), (call.kits ?? []).includes('connectors') ? this.options.connectors?.() : undefined), db);
+    const system = this.options.prompts.system(call.role, call.kits ?? []);
+    const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? []);
     return {
+      ...pluginLoad,
       model: modelOf(call),
       abortController: session.controller,
       cwd: this.options.cwd,
       ...(readDirs(call.additionalDirectories, this.options.readRoots).length > 0 ? { additionalDirectories: readDirs(call.additionalDirectories, this.options.readRoots) } : {}),
       env: this.options.env,
       ...(this.options.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: this.options.claudeExecutable } : {}),
-      systemPrompt: withTeamInstruction(this.withAlwaysRules(this.options.prompts.system(call.role, call.kits ?? [])), call.setting.extraInstruction),
-      tools: [...call.setting.tools],
-      allowedTools: [...call.setting.tools, ...kits.tools],
+      systemPrompt: withTeamInstruction(this.withAlwaysRules(db === null ? system : withDbGuide(system, this.options.prompts.dbGuide(call.role))), call.setting.extraInstruction),
+      tools: [...call.setting.tools, ...pluginTools],
+      allowedTools: [...call.setting.tools, ...pluginTools, ...kits.tools],
       // 도구 묶음은 요청이 그쪽을 가리킬 때만 붙인다(도구 설명이 길어서).
       ...(kits.tools.length > 0 ? { mcpServers: kits.servers } : {}),
       permissionMode: 'dontAsk',
@@ -235,7 +272,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       maxTurns: call.setting.maxTurns,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
-        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, ...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
+        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
         PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally)] }],
       },
       stderr: (data) => {
@@ -246,10 +283,24 @@ export class AgentSdkTeamMember implements TeamMemberPort {
   }
 }
 
+/**
+ * 켜 둔 플러그인·사용자 스킬을 일하는 팀원 세션에 붙인다. settingSources 'user' 를 쓰면 사용자 설정(권한·훅·모델)까지 따라와서
+ * 플러그인 폴더만 SDK plugins 로 넘긴다. 플러그인의 MCP 서버는 붙이지 않는다(업무 도구는 커넥터 화면에서 연결하고 쓰기를 가드가 묻는다).
+ */
+export function pluginOptions(role: MemberRole, loads: readonly PluginLoad[]): Pick<Options, 'plugins' | 'skills'> & { readonly tools: readonly string[] } {
+  if (loads.length === 0 || !PluginReach.loads(role)) return { tools: [] };
+  return { plugins: loads.map((p) => ({ type: 'local' as const, path: p.path, skipMcpDiscovery: true })), skills: 'all', tools: ['Skill'] };
+}
+
 /** 도구 묶음에 연결한 커넥터 서버를 더한다. 커넥터 묶음을 고르지 않았거나 연결이 없으면 그대로. */
 export function withConnectors(kits: KitServers, connectors: ConnectorServers | undefined): KitServers & { readonly connectorNames: readonly string[] } {
   if (connectors === undefined || connectors.names.length === 0) return { ...kits, connectorNames: [] };
   return { servers: { ...kits.servers, ...connectors.servers }, tools: [...kits.tools, ...connectors.tools], connectorNames: connectors.names };
+}
+
+/** DB 도구를 붙인 호출에만 그 사용법을 시스템 프롬프트에 더한다 */
+export function withDbGuide(system: string, guide: string): string {
+  return guide === '' ? system : `${system}\n\n${guide}`;
 }
 
 /** 호출이 더 읽을 폴더 + 항상 읽을 폴더(중복 없이) */
@@ -265,7 +316,7 @@ export function modelOf(call: Pick<PreparedCall, 'setting' | 'model'>): string {
 const CANCELLED: AccountBlock = { reason: 'cancelled', message: '사용자가 작업을 멈췄습니다.' };
 
 function newSession(): Session {
-  return { controller: new AbortController(), fetchLog: createFetchLog(), tally: ToolTally.empty(), stderr: [], intent: { current: GitPublishIntent.none() } };
+  return { controller: new AbortController(), fetchLog: createFetchLog(), tally: ToolTally.empty(), stderr: [], intent: { current: GitPublishIntent.none() }, connectorIntent: { current: ConnectorWriteIntent.none() } };
 }
 
 /** 미리 띄운 프로세스는 띄울 때의 설정이 고정되므로, 역할·설정·출력 형식이 모두 같을 때만 쓴다. */

@@ -54,6 +54,23 @@ describe('PromptLibrary', () => {
     expect(lib.system('debugger', ['browser', 'aws'])).toBe('B\n\nKB\n\nKA');
   });
 
+  it('DB 도구 사용법은 모든 DB 역할에, 쿼리 점검 항목은 리뷰어에게만 준다', async () => {
+    const lib = await PromptLibrary.load(folder({ ...ALL, '_kit-db.md': 'DB', '_kit-db-review.md': 'DBR' }));
+    expect(lib.dbGuide('implementer')).toBe('DB');
+    expect(lib.dbGuide('reviewer')).toBe('DB\n\nDBR');
+    expect(lib.system('reviewer')).toBe('C\n\nR');
+  });
+
+  it('DB 사용법 파일이 없으면 빈 글이다', async () => {
+    expect((await PromptLibrary.load(folder(ALL))).dbGuide('reviewer')).toBe('');
+  });
+
+  it('저장소 기본 프롬프트에 DB 사용법과 리뷰 점검 항목이 있다', async () => {
+    const lib = await PromptLibrary.load(PromptLibrary.defaultDir());
+    expect(lib.dbGuide('implementer')).toContain('mcp__rauha_db__');
+    expect(lib.dbGuide('reviewer')).toMatch(/N\+1/);
+  });
+
   it('역할 프롬프트가 없으면 알려 준다', async () => {
     await expect(PromptLibrary.load(folder({ '_common.md': 'C', '_kit-browser.md': 'KB', '_kit-aws.md': 'KA', '_kit-connectors.md': 'KC' }))).rejects.toThrow(/intake\.md/);
   });

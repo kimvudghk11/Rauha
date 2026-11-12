@@ -26,3 +26,11 @@ describe('connectorServers', () => {
     expect(connectorServers(ConnectorBook.empty())).toEqual({ servers: {}, tools: [], names: [] });
   });
 });
+
+describe('connectorServers OAuth 클라이언트', () => {
+  it('OAuth 클라이언트를 정하지 않은 프리셋은 서버 설정에 oauth 칸이 없다(Claude Code 가 자동 등록한다)', () => {
+    const book = ConnectorBook.empty();
+    book.addPreset(ConnectorPreset.of('linear'));
+    expect(connectorServers(book).servers['linear']).toEqual({ type: 'http', url: 'https://mcp.linear.app/mcp' });
+  });
+});

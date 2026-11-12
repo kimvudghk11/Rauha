@@ -66,9 +66,13 @@ import { registerWorkbench } from './workbench-ipc.js';
 import { registerApiIpc } from './api/api-ipc.js';
 import { registerDockerIpc } from './docker/docker-ipc.js';
 import { registerDbIpc } from './db/db-ipc.js';
+import type { DbService } from './db/db-service.js';
+import { linkRepoDatabase } from './db/team-db.js';
 import { registerBlogIpc } from './blog/blog-ipc.js';
 import { registerConnectorIpc } from './connectors/connector-ipc.js';
 import type { ConnectorService } from './connectors/connector-service.js';
+import { registerPluginIpc } from './plugins/plugin-ipc.js';
+import type { PluginService } from './plugins/plugin-service.js';
 import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
@@ -320,7 +324,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] } }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               return await session.handle(withAttachments(mentioned, staged?.paths ?? [], target.text), depth);
             } finally {
@@ -380,6 +384,10 @@ const usageOverSeen = new Set<string>();
 const dataDir = process.env['RAUHA_DATA_DIR'] ?? join(homedir(), '.rauha', 'desktop');
 /** 설정 → 커넥터(노션·컨플루언스 …). 앱이 뜬 뒤 등록된다. */
 let connectorService: ConnectorService | null = null;
+/** 설정 → 플러그인·스킬. 앱이 뜬 뒤 등록된다. */
+let pluginService: PluginService | null = null;
+/** DB 탭의 저장한 연결. 팀원 DB 도구가 레포에 맞는 연결을 여기서 찾는다. 앱이 뜬 뒤 등록된다. */
+let dbService: DbService | null = null;
 /** 채팅에 붙인 이미지의 임시 자리(앱 데이터 폴더). 작업 폴더·저장소에는 두지 않고, 일이 끝나면 지운다. */
 const attachments = new AttachmentStore(join(dataDir, 'attachments'));
 const jobImages = new Map<string, StagedImages>();
@@ -847,7 +855,7 @@ void app.whenReady().then(async () => {
   });
   codeFiles = registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
   registerDockerIpc(ipcMain, { workDir: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
-  registerDbIpc(ipcMain, {
+  dbService = registerDbIpc(ipcMain, {
     dataDir,
     safeStorage,
     onQuit: (cleanup) => app.on('before-quit', cleanup),
@@ -864,18 +872,21 @@ void app.whenReady().then(async () => {
       return result.filePath;
     },
   });
+  // 커넥터·플러그인은 지금 계정의 Claude Code 설정 폴더(CLAUDE_CONFIG_DIR)에서 Claude Code 가 직접 다룬다(토큰은 rauha 가 읽지 않는다)
+  const accountEnv = async (): Promise<Record<string, string>> => {
+    const profile = (await profileResolver(home, settings.account))(currentWorkDir());
+    const agentEnv = profile.agentEnv(home);
+    if (agentEnv['CLAUDE_CONFIG_DIR'] !== undefined) mkdirSync(agentEnv['CLAUDE_CONFIG_DIR'], { recursive: true });
+    return { ...(process.env as Record<string, string>), ...agentEnv };
+  };
   connectorService = registerConnectorIpc(ipcMain, {
     file: join(dataDir, 'connectors.json'),
-    env: async () => {
-      const profile = (await profileResolver(home, settings.account))(currentWorkDir());
-      const agentEnv = profile.agentEnv(home);
-      if (agentEnv['CLAUDE_CONFIG_DIR'] !== undefined) mkdirSync(agentEnv['CLAUDE_CONFIG_DIR'], { recursive: true });
-      return { ...(process.env as Record<string, string>), ...agentEnv };
-    },
+    env: accountEnv,
     executable: () => claudeExecutable(),
     openExternal: (url) => openSafe(url),
     send: (channel, view) => window?.webContents.send(channel, view),
   });
+  pluginService = registerPluginIpc(ipcMain, { env: accountEnv, executable: () => claudeExecutable(), trash: (path) => shell.trashItem(path) });
   registerApiIpc(ipcMain, {
     dataDir,
     // 문서 폴더는 빼고, 작업 폴더에서 찾은 레포·폴더만(API 탭은 이 경로만 읽는다)

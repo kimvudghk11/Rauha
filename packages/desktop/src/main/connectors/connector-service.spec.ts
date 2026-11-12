@@ -49,14 +49,26 @@ function service(script: Record<string, SdkServerStatus[]>, authUrl?: string | n
 }
 
 describe('ConnectorService', () => {
-  it('프리셋 목록에 노션·컨플루언스는 연결 가능, Google 은 준비 중으로 보인다', async () => {
+  it('프리셋 목록에 노션·컨플루언스·Linear·Figma·Sentry 는 연결 가능, Slack·GitHub·Google 은 준비 중으로 보인다', async () => {
     const { svc } = service({});
     const view = await svc.list();
     expect(view.presets.map((p) => [p.id, p.unavailable === null])).toEqual([
       ['notion', true],
       ['atlassian', true],
+      ['linear', true],
+      ['slack', false],
+      ['figma', true],
+      ['sentry', true],
+      ['github', false],
       ['google', false],
     ]);
+  });
+
+  it('연결 안 된 프리셋에도 업무 설명과 예시 요청이 보인다', async () => {
+    const { svc } = service({});
+    const notion = (await svc.list()).presets.find((p) => p.id === 'notion')!;
+    expect(notion.summary).toMatch(/Notion/);
+    expect(notion.examples[0]).toMatch(/노션/);
   });
 
   it('노션을 더하면 로그인이 필요할 때 시스템 브라우저로 로그인 주소를 열고, 끝나면 연결됨이 된다', async () => {

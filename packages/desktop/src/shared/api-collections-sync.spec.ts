@@ -116,3 +116,29 @@ describe('프로젝트 API 합치기', () => {
     expect(b.collections.tree().map((t) => t.name)).toEqual(['api', 'other']);
   });
 });
+
+describe('고른 프로젝트만 보이기', () => {
+  const other = (g: GeneratedProject): GeneratedProject => ({ ...g, project: 'E:/work/web-api', name: 'web-api' });
+  const two = () => {
+    const a = ApiCollections.empty().syncProject(gen({ User: ['GET /users'] }), new Set(), ids()).collections;
+    const b = a.syncProject(other(gen({ Order: ['GET /orders'] })), new Set(), ids()).collections;
+    return b.addRequest(ApiRequest.create({ id: 'mine2', name: '내 요청' }), null);
+  };
+  const topNames = (c: ApiCollections) => c.tree().map((t) => t.name);
+
+  it('프로젝트를 고르면 그 프로젝트 폴더와 내가 만든 요청만 보이고 다른 프로젝트 폴더는 숨는다', () => {
+    expect(topNames(two().scopedTo(ROOT))).toEqual(expect.arrayContaining(['api', '내 요청']));
+    expect(topNames(two().scopedTo(ROOT))).not.toContain('web-api');
+    expect(topNames(two().scopedTo('E:/work/web-api'))).not.toContain('api');
+  });
+
+  it('프로젝트를 고르지 않으면 내가 만든 요청만 보인다', () => {
+    expect(topNames(two().scopedTo(null))).toEqual(['내 요청']);
+  });
+
+  it('숨겨도 지우지 않는다(다시 고르면 그대로 보인다)', () => {
+    const all = two();
+    all.scopedTo(ROOT);
+    expect(all.hasProject('E:/work/web-api')).toBe(true);
+  });
+});

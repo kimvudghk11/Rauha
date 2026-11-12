@@ -1,11 +1,12 @@
 import type { ServerDriver, ServerSession } from './server-engine.js';
+import { sslOptionsFor } from './server-tls.js';
 
 /**
  * 실제 드라이버(mysql2 · pg)를 ServerSession 모양으로 감싼다. 둘 다 순수 JS 라 main 번들(esbuild)에 함께 묶이고, 처음 쓸 때 불러온다.
  * - 비밀번호는 드라이버 설정에만 넘긴다(로그·오류 글로 내보내지 않는다).
  * - 접속은 10초(connectTimeoutMs)에 끊고, 결과는 행 단위 이벤트로 받아 상한에서 멈춘다(연결째 끊는다).
  * - 오류 이벤트를 늘 받아 둔다: 받는 곳이 없는 'error' 이벤트는 main 프로세스를 죽인다.
- * - SSL: off · require(암호화만, 인증서는 보지 않음) · verify(Node 기본 CA 로 인증서 확인)
+ * - SSL: off · require(암호화만, 인증서는 보지 않음) · verify(Node 기본 CA 로 인증서 확인, RDS 호스트면 Amazon RDS CA 도 믿는다: server-tls.ts)
  */
 
 type Sink = Parameters<ServerSession['run']>[2];
@@ -15,6 +16,7 @@ export const mysqlDriver: ServerDriver = {
   async connect(o) {
     const mysql = await import('mysql2');
     const t = o.target;
+    const ssl = sslOptionsFor(t);
     const conn = mysql.createConnection({
       host: t.host.replace(/^\[|\]$/g, ''),
       port: t.port,
@@ -22,7 +24,7 @@ export const mysqlDriver: ServerDriver = {
       password: o.password,
       database: t.database,
       connectTimeout: o.connectTimeoutMs,
-      ...(t.ssl === 'off' ? {} : { ssl: { rejectUnauthorized: t.ssl === 'verify' } }),
+      ...(ssl === null ? {} : { ssl: { rejectUnauthorized: ssl.rejectUnauthorized, ...(ssl.ca === undefined ? {} : { ca: [...ssl.ca] }) } }),
       // 날짜는 서버가 준 글 그대로, 큰 수는 글로(자릿수를 잃지 않게)
       dateStrings: true,
       supportBigNumbers: true,
@@ -101,13 +103,14 @@ export const postgresDriver: ServerDriver = {
   async connect(o) {
     const pg = (await import('pg')).default;
     const t = o.target;
+    const ssl = sslOptionsFor(t);
     const client = new pg.Client({
       host: t.host.replace(/^\[|\]$/g, ''),
       port: t.port,
       user: t.user,
       password: o.password,
       database: t.database,
-      ssl: t.ssl === 'off' ? false : { rejectUnauthorized: t.ssl === 'verify' },
+      ssl: ssl === null ? false : { rejectUnauthorized: ssl.rejectUnauthorized, ...(ssl.ca === undefined ? {} : { ca: [...ssl.ca] }) },
       connectionTimeoutMillis: o.connectTimeoutMs,
       // 서버에서도 문장을 시간 제한에 멈춘다
       statement_timeout: Math.max(1, Math.floor(o.statementTimeoutMs)),

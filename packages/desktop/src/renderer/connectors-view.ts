@@ -1,5 +1,6 @@
 import type { ConnectorApi, ConnectorListView, ConnectorReply, ConnectorStatus, ConnectorView } from '../shared/connector-api.js';
 import { el, isEnterKey } from './dom.js';
+import { exampleRow } from './example-chips.js';
 
 const STATUS_TEXT: Readonly<Record<ConnectorStatus, string>> = {
   unknown: 'Not checked',
@@ -19,7 +20,7 @@ export function connectorStatusText(row: Pick<ConnectorView, 'status' | 'note'>)
  * 설정 → 커넥터: 노션·컨플루언스 프리셋을 버튼 하나로 연결/해제하고, 원격 MCP 주소를 더한다.
  * 로그인은 시스템 브라우저에서 하고, 토큰은 Claude Code 가 이 계정 설정 폴더에 둔다(화면에는 오지 않는다).
  */
-export function buildConnectors(api: ConnectorApi) {
+export function buildConnectors(api: ConnectorApi, toChat?: (text: string) => void) {
   const root = el('div', 'connectors');
   const intro = el('div', 'hint pad', 'Connect work tools so teammates can read them in chat ("summarize the Confluence onboarding page", "write this up in Notion"). Reading needs no permission; every write asks you first. Sign-in opens in your browser and the tokens stay with Claude Code in this account\'s config folder — rauha never sees them.');
   const status = el('div', 'err pad');
@@ -67,6 +68,7 @@ export function buildConnectors(api: ConnectorApi) {
     view = next;
     presets.replaceChildren(
       ...next.presets.map((p) => {
+        const wrap = el('div');
         const row = el('div', 'srow');
         const label = el('span', 'lbl');
         label.append(el('b', undefined, p.label), el('span', 'dim', ` ${p.covers}`));
@@ -74,16 +76,15 @@ export function buildConnectors(api: ConnectorApi) {
         if (p.unavailable !== null) {
           row.appendChild(el('span', 'dim', 'Coming soon'));
           row.title = p.unavailable;
-          const why = el('div', 'hint pad', p.unavailable);
-          const wrap = el('div');
-          wrap.append(row, why);
+          wrap.append(row, el('div', 'hint pad', p.summary), el('div', 'hint pad', p.unavailable), exampleRow(p.examples, toChat));
           return wrap;
         }
         const button = el('button', 'btn primary', p.added ? 'Added' : 'Connect');
         button.disabled = p.added;
         button.addEventListener('click', () => void api.addPreset(p.id).then(take));
         row.appendChild(button);
-        return row;
+        wrap.append(row, el('div', 'hint pad', p.summary), exampleRow(p.examples, toChat));
+        return wrap;
       }),
     );
     mine.replaceChildren(...(next.connectors.length === 0 ? [el('div', 'dim pad', 'Nothing connected yet.')] : next.connectors.map(rowFor)));

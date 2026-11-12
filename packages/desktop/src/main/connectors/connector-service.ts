@@ -230,7 +230,7 @@ export class ConnectorService {
   private view(): ConnectorListView {
     const added = new Set(this.book.list().map((c) => c.preset));
     return {
-      presets: ConnectorPreset.all().map((p) => ({ id: p.id, label: p.label, covers: p.covers, added: added.has(p.id), unavailable: p.unavailableReason })),
+      presets: ConnectorPreset.all().map((p) => ({ id: p.id, label: p.label, covers: p.covers, summary: p.summary, examples: p.examples, added: added.has(p.id), unavailable: p.unavailableReason })),
       connectors: this.book.list().map((c) => ({ id: c.serverName, label: c.label, url: c.url, preset: c.preset, ...this.stateOf(c.serverName) })),
     };
   }

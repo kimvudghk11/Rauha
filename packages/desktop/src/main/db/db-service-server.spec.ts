@@ -167,3 +167,39 @@ describe('DB 서비스: 서버 연결', () => {
     expect(bad(await service.tables(v.id)).kind).toBe('bad-input');
   });
 });
+
+describe('DB 서비스: 서버 연결 고치기·접속 시험', () => {
+  it('접속 시험은 저장하지 않고 되는지만 알려 준다', async () => {
+    const { service } = newService();
+    expect(data(await service.testServer(form())).elapsedMs).toBeGreaterThanOrEqual(0);
+    expect(bad(await service.testServer(form({ password: 'wrong' }))).kind).toBe('auth');
+    expect(data(await service.list()).connections).toEqual([]);
+  });
+  it('고치는 중인 연결은 비밀번호를 비워도 저장한 비밀번호로 시험한다', async () => {
+    const { service, servers } = newService();
+    const v = data(await service.addServer(form()));
+    data(await service.testServer(form({ id: v.id, password: '', keepPassword: true, host: 'db2.local' })));
+    expect(servers.seen.at(-1)?.password).toBe('right');
+  });
+  it('고치면 같은 id 로 대상이 바뀌고, 비밀번호를 비우면 저장한 것을 그대로 쓴다', async () => {
+    const { service, store, servers } = newService();
+    const v = data(await service.addServer(form()));
+    const e = data(await service.editServer(form({ id: v.id, name: 'Shop 2', host: 'db2.local', port: '6543', password: '', keepPassword: true })));
+    expect(e).toMatchObject({ id: v.id, name: 'Shop 2', path: 'app@db2.local:6543/shop', savedPassword: true });
+    expect(servers.seen.at(-1)?.password).toBe('right');
+    expect((await store.load()).list()).toHaveLength(1);
+  });
+  it('고친 값으로 접속이 안 되면 바꾸지 않는다', async () => {
+    const { service, store } = newService();
+    const v = data(await service.addServer(form()));
+    expect(bad(await service.editServer(form({ id: v.id, host: 'db2.local', password: 'wrong', keepPassword: false }))).kind).toBe('auth');
+    expect((await store.load()).find(v.id)?.path).toBe('app@db.local:5432/shop');
+  });
+  it('기억한 비밀번호가 없는데 비밀번호를 비우면 비밀번호를 달라고 한다', async () => {
+    const store = new MemoryConnectionsStore();
+    const { service } = newService(store, box(false));
+    const v = data(await service.addServer(form()));
+    const later = newService(store, box(false));
+    expect(bad(await later.service.editServer(form({ id: v.id, password: '', keepPassword: true }))).kind).toBe('need-password');
+  });
+});

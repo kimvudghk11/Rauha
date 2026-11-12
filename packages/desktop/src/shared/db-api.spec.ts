@@ -134,3 +134,24 @@ describe('서버 연결 요청(DTO)', () => {
     expect(() => DbRequest.query({ id: 'a', sql: 'SHOW TABLES', writeMode: false, confirm: false })).toThrow(DbInputError);
   });
 });
+
+describe('서버 연결 고치기·접속 시험 요청(DTO)', () => {
+  const ok = { name: 'Prod', kind: 'postgres', host: 'db', port: 5432, user: 'app', password: '', database: 'shop', ssl: 'require', savePassword: true };
+  it('고치기 요청: keepPassword 면 저장한 비밀번호를 그대로 쓰고(null), 아니면 새 비밀번호를 받는다', () => {
+    const keep = DbRequest.editServer({ ...ok, id: 'c1', keepPassword: true });
+    expect([keep.id.value, keep.password, keep.label.value]).toEqual(['c1', null, 'Prod']);
+    const fresh = DbRequest.editServer({ ...ok, id: 'c1', password: 'pw2', keepPassword: false });
+    expect(fresh.password?.reveal()).toBe('pw2');
+    expect(() => DbRequest.editServer({ ...ok, id: '../x', keepPassword: true })).toThrow(DbInputError);
+  });
+  it('접속 시험 요청: 고치는 중인 연결 id 가 있으면 비밀번호를 비워 저장한 것을 쓸 수 있다', () => {
+    const t = DbRequest.testServer({ ...ok, id: 'c1', keepPassword: true });
+    expect([t.id?.value, t.password]).toEqual(['c1', null]);
+    const n = DbRequest.testServer({ ...ok, password: 'pw' });
+    expect([n.id, n.password?.reveal()]).toEqual([null, 'pw']);
+    expect(() => DbRequest.testServer({ ...ok, keepPassword: true })).toThrow(DbInputError);
+  });
+  it('인증서 오류 안내는 연결을 고쳐 다른 SSL 을 고르라고 한다', () => {
+    expect(serverFailure('self-signed certificate in certificate chain').help).toMatch(/Edit/);
+  });
+});

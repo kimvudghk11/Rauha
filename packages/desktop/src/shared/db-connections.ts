@@ -1,8 +1,18 @@
 import { ConnectionId, DbFilePath, DbInputError } from './db-names.js';
-import { ConnectionLabel, SavedPassword, ServerTarget, type DbKind } from './db-server.js';
+import { ConnectionLabel, SavedPassword, ServerTarget, type DbKind, type ServerKind, type SslMode } from './db-server.js';
 import type { SqlDialect } from './db-sql.js';
 
 export const MAX_CONNECTIONS = 30;
+
+/** 서버 연결을 고치거나 복제할 때 폼에 다시 채울 값(비밀번호 없음) */
+export interface DbServerFields {
+  readonly kind: ServerKind;
+  readonly host: string;
+  readonly port: number;
+  readonly user: string;
+  readonly database: string;
+  readonly ssl: SslMode;
+}
 
 /** 저장한 연결 하나(화면에 보이는 모양). 비밀번호는 평문이든 암호문이든 들어 있지 않다. */
 export interface DbConnectionView {
@@ -15,6 +25,8 @@ export interface DbConnectionView {
   readonly lastUsed: number;
   /** 서버 연결이 비밀번호를 암호화해 저장해 두었는지. 파일이면 null */
   readonly savedPassword: boolean | null;
+  /** 서버 연결의 폼 값(고치기·복제용). 파일이면 null */
+  readonly server: DbServerFields | null;
 }
 
 /** 연결 id 로 찾은 "어디에 연결할지" */
@@ -30,7 +42,7 @@ const sameKey = (path: string): string => path.replace(/\\/g, '/').toLowerCase()
 
 type Item =
   | { readonly kind: 'file'; readonly id: string; readonly path: DbFilePath; lastUsed: number }
-  | { readonly kind: 'server'; readonly id: string; label: ConnectionLabel; readonly target: ServerTarget; password: SavedPassword; lastUsed: number };
+  | { readonly kind: 'server'; readonly id: string; label: ConnectionLabel; target: ServerTarget; password: SavedPassword; lastUsed: number };
 
 /** 저장한 연결 목록(엔티티): SQLite 파일과 MySQL·PostgreSQL 서버. 화면은 경로·주소가 아니라 id 로 고른다. */
 export class DbConnections {
@@ -77,6 +89,21 @@ export class DbConnections {
     ConnectionId.parse(id);
     const item: Item = { kind: 'server', id, label, target, password, lastUsed: now };
     this.items.push(item);
+    return view(item);
+  }
+
+  /**
+   * 저장한 서버 연결을 고친다(같은 id). password 가 null 이면 저장한 비밀번호를 그대로 둔다.
+   * 고친 대상이 다른 저장 연결과 같은 서버면 거절한다(둘이 하나로 겹치지 않게). 파일 연결·모르는 id 도 거절한다.
+   */
+  editServer(id: string, target: ServerTarget, label: ConnectionLabel, password: SavedPassword | null, now: number): DbConnectionView {
+    const item = this.items.find((i) => i.id === id);
+    if (item?.kind !== 'server') throw new DbInputError('That server connection is not in your list. Add it again.');
+    if (this.items.some((i) => i.id !== id && i.kind === 'server' && i.target.sameServer(target))) throw new DbInputError('Another saved connection already points at this server, user and database.');
+    item.target = target;
+    item.label = label;
+    if (password !== null) item.password = password;
+    item.lastUsed = now;
     return view(item);
   }
 
@@ -135,8 +162,8 @@ export class DbConnections {
 
 const view = (i: Item): DbConnectionView =>
   i.kind === 'file'
-    ? { id: i.id, kind: 'sqlite', name: i.path.fileName(), path: i.path.value, lastUsed: i.lastUsed, savedPassword: null }
-    : { id: i.id, kind: i.target.kind, name: i.label.value, path: i.target.address(), lastUsed: i.lastUsed, savedPassword: i.password.isSaved() };
+    ? { id: i.id, kind: 'sqlite', name: i.path.fileName(), path: i.path.value, lastUsed: i.lastUsed, savedPassword: null, server: null }
+    : { id: i.id, kind: i.target.kind, name: i.label.value, path: i.target.address(), lastUsed: i.lastUsed, savedPassword: i.password.isSaved(), server: i.target.toJSON() };
 
 type Obj = Readonly<Record<string, unknown>>;
 

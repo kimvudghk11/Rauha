@@ -30,14 +30,13 @@
 .thid { display: flex; align-items: center; gap: var(--s2); border: 1px solid transparent; }
 .thid .tname { flex: 1; color: var(--text); }
 
-.tempty { margin: 40px auto; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
-.tempty b { color: var(--bright); font-size: var(--fs-lg); }
+.tempty { margin: auto; }
 .tnone { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 1px dashed var(--border2); border-radius: var(--r-md); color: var(--dim); font-size: var(--fs-sm); }
 
 /* 카드: 제목 + 값이 있는 속성 칩만 */
 .tcard { display: flex; flex-direction: column; gap: var(--s2); cursor: pointer; flex: none; }
 .tcard:hover { border-color: var(--border2); }
-.tcard:focus-visible { outline: 1px solid var(--accent); }
+.tcard:focus-visible { outline: 1px solid var(--focus); }
 .tcard.done .tt { color: var(--muted); text-decoration: line-through; }
 .tt { color: var(--bright); font-size: var(--fs-md); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; min-width: 0; }
 .tchips { display: flex; gap: var(--s1); flex-wrap: wrap; align-items: center; }
@@ -67,8 +66,7 @@
 .dfoot { flex: none; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; padding: var(--s2) var(--s5); border-top: 1px solid var(--border); }
 
 /* 머리와 도구줄: 같은 줄의 부품은 같은 높이(--h-md), 글자는 --fs-* 단계만 쓴다 */
-.todo .rhead { align-items: center; gap: var(--s3); flex-wrap: nowrap; }
-.todo .rhead b { font-size: var(--fs-lg); font-weight: 600; }
+.todo .rhead { flex-wrap: nowrap; }
 .todo .rhead .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .todo .ttools { gap: var(--s2); }
 .todo .ttools > .bar { flex: 0 1 auto; }

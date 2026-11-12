@@ -7,7 +7,7 @@ import type { HistoryEntry } from '../shared/api-response.js';
 import { el, isEnterKey } from './dom.js';
 import { buildRequestEditor } from './api-editor.js';
 import { openEnvDialog } from './api-env-dialog.js';
-import { askText } from './api-parts.js';
+import { askText, METHOD_CLASS } from './api-parts.js';
 import { buildResponseView } from './api-response-view.js';
 import { paintCollections, paintHistory, type TreeActions } from './api-tree.js';
 import { button, confirmDialog, select } from './todo-parts.js';
@@ -89,7 +89,14 @@ export function buildApi(deps: ApiViewDeps) {
   sidePane.append(projectHost, sideTabs, sideTools, listHost);
 
   // ── 가운데: 요청 줄 · 편집기 · 응답 ──
-  const methodSel = select(API_METHODS.map((m) => [m, m] as const), 'GET', (m) => edit({ method: m as ApiMethod }), 'api-method-select');
+  const methodSel = select(API_METHODS.map((m) => [m, m] as const), 'GET', (m) => (edit({ method: m as ApiMethod }), tintMethod()), 'api-method-select');
+  /** 메서드 고르기 상자를 지금 메서드 색으로(배지와 같은 색) */
+  const tintMethod = (): void => {
+    for (const c of Object.values(METHOD_CLASS)) methodSel.classList.remove(c);
+    const c = METHOD_CLASS[methodSel.value];
+    if (c !== undefined) methodSel.classList.add(c);
+  };
+  tintMethod();
   const urlInput = el('input', 'api-url-input');
   urlInput.placeholder = '{{base_url}}/users or https://api.example.com/users';
   urlInput.spellcheck = false;
@@ -101,7 +108,7 @@ export function buildApi(deps: ApiViewDeps) {
       void send();
     }
   });
-  const sendBtn = button('Send', 'btn primary api-send', () => (sending ? void cancel() : void send()));
+  const sendBtn = button('Send', 'btn run api-send', () => (sending ? void cancel() : void send()));
   sendBtn.setAttribute('data-repeat-ok', '');
   const saveBtn = button('Save', 'btn', () => void saveDraft());
   const nameInput = el('input', 'api-name-input');
@@ -148,6 +155,7 @@ export function buildApi(deps: ApiViewDeps) {
     saved = fromCollection;
     dirty = false;
     methodSel.value = request.method;
+    tintMethod();
     urlInput.value = request.url;
     nameInput.value = request.name;
     editor.load(request);
@@ -163,7 +171,7 @@ export function buildApi(deps: ApiViewDeps) {
   function setSending(on: boolean): void {
     sending = on;
     sendBtn.textContent = on ? 'Cancel' : 'Send';
-    sendBtn.classList.toggle('primary', !on);
+    sendBtn.classList.toggle('run', !on);
     sendBtn.classList.toggle('danger', on);
   }
 
@@ -185,7 +193,8 @@ export function buildApi(deps: ApiViewDeps) {
     sideTools.replaceChildren();
     if (side === 'collections') {
       sideTools.append(button('+ Request', 'btn sm', () => void actions.newRequest(null)), button('+ Folder', 'btn sm', () => void actions.newFolder(null)));
-      paintCollections(listHost, collections, open, saved ? draft.id : null, actions, (id) => {
+      // Git 탭처럼 고른 프로젝트의 API 만 보인다(다른 프로젝트 폴더는 숨길 뿐 지우지 않는다)
+      paintCollections(listHost, collections.scopedTo(projectList.selected), open, saved ? draft.id : null, actions, (id) => {
         if (open.has(id)) open.delete(id);
         else open.add(id);
         try {

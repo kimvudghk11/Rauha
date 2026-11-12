@@ -2,9 +2,9 @@
 .chat { flex: 1; display: grid; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; grid-template-areas: "main rooms"; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 .mainp { grid-area: main; }
 .strip { grid-area: strip; display: none; gap: 6px; padding: 2px; overflow-x: auto; }
-.rooms { grid-area: rooms; display: grid; gap: 8px; min-height: 0; min-width: 0; overflow: auto; align-content: start; grid-template-columns: minmax(0, 1fr); }
+.rooms { grid-area: rooms; display: grid; gap: var(--s2); min-height: 0; min-width: 0; overflow: auto; align-content: start; grid-template-columns: minmax(0, 1fr); }
 .rooms.none { display: none; }
-.detail { grid-area: detail; display: none; gap: 8px; min-height: 0; min-width: 0; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+.detail { grid-area: detail; display: none; gap: var(--s2); min-height: 0; min-width: 0; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
 .app[data-mode=xl] .chat { grid-template-columns: minmax(340px, 1fr) minmax(0, 1.7fr); }
 .app[data-mode=xl] .rooms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .app[data-mode=xl][data-detail="1"] .chat { grid-template-columns: minmax(320px, 1fr) minmax(0, .9fr) minmax(0, 1.3fr); grid-template-areas: "main rooms detail"; }
@@ -45,7 +45,7 @@
 .steps i { flex: 1; height: 4px; border-radius: 2px; background: var(--border2); }
 .steps i.d { background: var(--green); }
 .steps i.n { background: var(--accentfg); animation: blink 1.2s infinite; }
-.stepl { display: flex; justify-content: space-between; gap: 4px; font-size: var(--fs-xs); color: var(--dim); padding: var(--s1) var(--s3) 0; min-height: 14px; }
+.stepl { display: flex; justify-content: space-between; gap: var(--s1); font-size: var(--fs-xs); color: var(--dim); padding: var(--s1) var(--s3) 0; min-height: 14px; }
 .log { font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted); padding: var(--s1) var(--s3) var(--s3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dot.waiting { animation: blink 1.2s infinite; }
 
@@ -64,7 +64,7 @@
 .app[data-mode=xs][data-detail="1"] .detail { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
 .detail .ph b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .dtabs { padding: 0 var(--s2); }
-.dbody { flex: 1; min-height: 0; overflow: auto; padding: var(--s3); display: flex; flex-direction: column; gap: 8px; }
+.dbody { flex: 1; min-height: 0; overflow: auto; padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
 .dbody.term { font-family: var(--mono); font-size: var(--fs-sm); gap: 2px; }
 .dbody .c { color: var(--accentfg); }
 .dbody .dim, .dside .x { color: var(--dim); }
@@ -72,9 +72,9 @@
 .dbody .result { white-space: pre-wrap; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px; }
 .dbody .sub { color: var(--muted); font-size: var(--fs-sm); }
 .dbody ul { margin: 0; padding-left: 18px; }
-.dside { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.tl { padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: 8px; }
-.tl .s { display: flex; gap: 8px; align-items: center; }
+.dside { display: flex; flex-direction: column; gap: var(--s2); min-height: 0; }
+.tl { padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+.tl .s { display: flex; gap: var(--s2); align-items: center; }
 .tl .k { width: 9px; height: 9px; border-radius: 50%; background: var(--border2); flex: 0 0 9px; }
 .tl .s.d .k { background: var(--green); }
 .tl .s.n .k { background: var(--accentfg); animation: blink 1.2s infinite; }
@@ -95,7 +95,7 @@
 .approval summary { cursor: pointer; color: var(--muted); font-size: var(--fs-sm); }
 
 /* 알림 토스트 */
-.toasts { position: fixed; right: 14px; bottom: 34px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+.toasts { position: fixed; right: 14px; bottom: 34px; display: flex; flex-direction: column; gap: var(--s2); z-index: 10; }
 .toast { background: var(--card); border: 1px solid var(--warn-border); border-radius: var(--r-lg); padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s1); box-shadow: 0 6px 24px #0009; max-width: 300px; }
 .toast b { color: var(--yellow); }
 
@@ -116,8 +116,6 @@
 
 /* 규칙 탭 */
 .rules { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; overflow: auto; }
-.rhead { display: flex; align-items: center; gap: var(--s3); min-height: var(--h-md); }
-.rhead b { color: var(--bright); font-size: var(--fs-lg); font-weight: 600; }
 .ruleform { padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); flex: 0 0 auto; }
 .ruleform .row { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
 .ruleform .row:first-child input { flex: 1; }
@@ -134,12 +132,12 @@
 /* 설정·마법사·한도 막대 */
 .settings { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; overflow: auto; }
 .pane.sec { flex: 0 0 auto; padding-bottom: 8px; }
-.srow { display: flex; align-items: center; gap: 12px; padding: 5px 12px; }
+.srow { display: flex; align-items: center; gap: var(--s3); padding: 5px 12px; }
 .srow .lbl { flex: 1; color: var(--text); }
 .srow select, .srow input[type=number], .srow input:not([type]) { min-width: 120px; }
 .srow input.model-id { width: 260px; max-width: 100%; }
 .limits { display: flex; flex-direction: column; gap: 6px; padding: 4px 12px; }
-.limit { display: flex; align-items: center; gap: 12px; }
+.limit { display: flex; align-items: center; gap: var(--s3); }
 .limit .lbl { width: 108px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
 .limit .bar { flex: 0 0 120px; height: 6px; border-radius: var(--r-sm); background: var(--border2); overflow: hidden; display: inline-block; }
 .limits > .pad { padding: 0; }
@@ -169,7 +167,7 @@
 /* Claude 로그인 칸(설정·첫 실행·오류 카드) */
 .login { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 0 0 2px; }
 .settings .login { padding: 6px 12px; margin: 0; }
-.login-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.login-row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; min-width: 0; }
 .login-text { color: var(--muted); font-size: var(--fs-sm); overflow-wrap: anywhere; min-width: 0; }
 .login-text.err { color: var(--red); }
 .dialog .login { margin-top: 2px; }

@@ -515,7 +515,7 @@ export function buildBoard(ctx: TodoCtx): BoardView {
     }
     if (focusId !== null) view.focusCard(focusId);
     // 검색·필터로 모두 가려졌을 때 알려 준다
-    if (shown.length === 0 && board.items.length > 0) root.append(el('div', 'tempty', 'No cards match. Change the search or filters.'));
+    if (shown.length === 0 && board.items.length > 0) root.append(el('div', 'empty-state tempty', 'No cards match. Change the search or filters.'));
   }
 
   const view: BoardView = {

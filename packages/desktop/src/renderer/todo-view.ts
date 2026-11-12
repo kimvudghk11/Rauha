@@ -183,7 +183,7 @@ export function buildTodo(deps: TodoViewDeps) {
     renderTools();
     main.replaceChildren();
     if (!loaded) {
-      main.append(el('div', 'tempty', 'Loading…'));
+      main.append(el('div', 'empty-state tempty', 'Loading…'));
       return;
     }
     if (mode === 'board') {

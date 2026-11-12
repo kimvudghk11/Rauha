@@ -17,6 +17,10 @@
   /* 버튼 색 */
   --btn-bg: var(--input); --btn-bg-hover: #3a3a3a; --btn-border-hover: #4a4a4a;
   --accent-hover: #026ec1; --on-accent: #ffffff;
+  /* 실행(초록): 무언가를 돌리는 단추(Send · Run · Start · Up). 흰 글자와 대비 4.5 이상, --green(#89d185)과 같은 계열 */
+  --run: #238636; --run-hover: #1d7a30; --on-run: #ffffff;
+  /* 포커스 링: 키보드로 닿은 곳(하늘색 계열) */
+  --focus: var(--accentfg);
   --danger-bg: #3a1d1d; --danger-border: #5a2d2d;
   --warn-bg: #2f2a1e; --warn-border: #5b4d2e;
   --row-hover: #2a2d2e; --ghost-hover: #ffffff14; --well: #1b1b1b;
@@ -44,8 +48,10 @@
   font: inherit; font-size: var(--fs-sm); line-height: 1; font-weight: 400; text-align: center; white-space: nowrap; cursor: pointer; user-select: none;
 }
 .btn:hover:not(:disabled) { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
-.btn:focus-visible, .tab:focus-visible, .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-:where(input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn:focus-visible, .tab:focus-visible, .link:focus-visible, .chip:focus-visible, .seg > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:where(input, select, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+/* 목록 행(.row-item 과 탭마다의 줄 단추)은 칸 안쪽에 1px 링 */
+.row-item:focus-visible { outline: 1px solid var(--focus); outline-offset: -1px; }
 .btn:disabled { opacity: .45; cursor: default; }
 /* display를 가진 부품(.btn 등)도 hidden이면 사라진다. 없으면 숨긴 "멈추기"·"지금 업데이트"가 그대로 보인다. */
 [hidden] { display: none !important; }
@@ -56,6 +62,9 @@
 .btn.icon.lg { width: var(--h-lg); font-size: 18px; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+/* 실행: Send · Run · Start · Up 처럼 무언가를 돌리는 동작. 저장·확인(primary 파랑)·지우기(danger 빨강)와 섞지 않는다 */
+.btn.run { background: var(--run); border-color: var(--run); color: var(--on-run); }
+.btn.run:hover:not(:disabled) { background: var(--run-hover); border-color: var(--run-hover); }
 .btn.danger { background: transparent; border-color: var(--danger-border); color: var(--red); }
 .btn.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--red); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
@@ -122,6 +131,19 @@ button.chip:hover { border-color: var(--accentfg); }
 .bar .end { margin-left: auto; }
 .btns { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .btns.end { justify-content: flex-end; }
+
+/* ── 탭 머리(.rhead): 제목(b) · 설명(.hint, 남는 폭을 쓴다) · 오른쪽 동작(버튼·칩·select) ──
+   모든 탭이 같은 높이(28)·간격(12)·제목 크기(15)를 쓴다. 설명이 길면 다음 줄로 내려가 다 보인다(탭이 말줄임을 따로 정할 수 있다). */
+.rhead { display: flex; align-items: center; gap: var(--s2) var(--s3); min-height: var(--h-md); flex: none; flex-wrap: wrap; min-width: 0; }
+.rhead > b { flex: none; color: var(--bright); font-size: var(--fs-lg); font-weight: 600; white-space: nowrap; }
+.rhead > .hint { flex: 1 1 240px; min-width: 0; color: var(--muted); }
+
+/* ── 빈 상태·확인 중·문제(.empty-state): 칸 가운데 제목 + 한 줄 안내 (+ 단추) ──
+   .loading은 앞에 .spinner, .failed는 제목이 빨강 */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s5) var(--s3); color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+.empty-state > b { color: var(--bright); font-size: var(--fs-lg); font-weight: 600; }
+.empty-state.failed > b { color: var(--red); }
+.empty-state > .btn, .empty-state > .btns { margin-top: var(--s2); }
 
 /* 경고 줄 */
 .notice { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--yellow); border-radius: var(--r-sm); padding: var(--s1) var(--s3); }

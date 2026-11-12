@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DbResultSet } from './db-api.js';
-import { cellClass, cellText, formatBytes, nextSort, pageLabel, pageCount, resultLine, sqlPreview, truncationNote } from './db-view-text.js';
+import { cellClass, cellCopyText, cellDetail, cellText, filterTables, formatBytes, nextSort, pageLabel, pageCount, resultLine, rowsAsTsv, sqlPreview, sslHelp, truncationNote } from './db-view-text.js';
 
 const result = (o: Partial<DbResultSet> = {}): DbResultSet => ({ columns: ['a'], rows: [[1], [2], [3]], truncated: null, cellsTruncated: false, bytes: 120, elapsedMs: 12, changes: null, kind: 'read', verb: 'SELECT', ...o });
 
@@ -65,5 +65,55 @@ describe('확인 창 SQL 미리보기', () => {
     const long = sqlPreview('x'.repeat(2000));
     expect(long.length).toBeLessThan(700);
     expect(long.endsWith('…')).toBe(true);
+  });
+});
+
+describe('테이블 찾기', () => {
+  const list = [
+    { name: 'users', kind: 'table' as const },
+    { name: 'user_roles', kind: 'table' as const },
+    { name: 'Orders', kind: 'table' as const },
+    { name: 'active_users', kind: 'view' as const },
+  ];
+  it('대소문자를 무시하고 이름에 글이 들어간 것만, 이름 앞부분이 맞는 것을 먼저 보인다', () => {
+    expect(filterTables(list, 'USER').map((t) => t.name)).toEqual(['users', 'user_roles', 'active_users']);
+    expect(filterTables(list, 'ord').map((t) => t.name)).toEqual(['Orders']);
+  });
+  it('빈 글이면 그대로 둔다', () => {
+    expect(filterTables(list, '  ')).toEqual(list);
+  });
+});
+
+describe('SSL 설명', () => {
+  it('고른 SSL 마다 무엇을 하는지 한 줄로 알려 준다', () => {
+    expect(sslHelp('off', 'localhost')).toMatch(/not encrypted/i);
+    expect(sslHelp('require', 'db.example.com')).toMatch(/does not check/i);
+    expect(sslHelp('verify', 'db.example.com')).toMatch(/certificate/i);
+  });
+  it('RDS 호스트면 SSL 을 권하고, 인증서 확인을 고르면 Amazon RDS CA 를 믿는다고 알려 준다', () => {
+    expect(sslHelp('off', 'a.b.ap-northeast-2.rds.amazonaws.com')).toMatch(/RDS/);
+    expect(sslHelp('verify', 'a.b.ap-northeast-2.rds.amazonaws.com')).toMatch(/Amazon RDS/);
+  });
+});
+
+describe('칸 상세', () => {
+  it('JSON 글이면 보기 좋게 펼치고, 아니면 그대로 둔다', () => {
+    expect(cellDetail('{"a":1,"b":[1,2]}')).toBe('{\n  "a": 1,\n  "b": [\n    1,\n    2\n  ]\n}');
+    expect(cellDetail('plain text')).toBe('plain text');
+    expect(cellDetail('{broken')).toBe('{broken');
+    expect(cellDetail(null)).toBe('NULL');
+    expect(cellDetail(42)).toBe('42');
+  });
+  it('복사할 글: NULL 은 빈 글이 아니라 NULL, BLOB 은 미리보기', () => {
+    expect(cellCopyText(null)).toBe('NULL');
+    expect(cellCopyText({ blob: 3, preview: "x'010203'" })).toBe("x'010203'");
+    expect(cellCopyText('a')).toBe('a');
+  });
+});
+
+describe('행 복사', () => {
+  it('고른 행을 탭으로 나눈 글로 만든다(엑셀·시트에 붙여 넣기)', () => {
+    expect(rowsAsTsv(['a', 'b'], [[1, null], ['x\ty', 'z']], true)).toBe('a\tb\n1\tNULL\nx y\tz');
+    expect(rowsAsTsv(['a'], [[1]], false)).toBe('1');
   });
 });

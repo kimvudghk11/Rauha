@@ -224,7 +224,7 @@ const DLG = "(async () => { for (let i = 0; i < 60 && !document.querySelector('.
 const DLG_OK = "(async () => { for (let i = 0; i < 60 && !document.querySelector('.veil .dialog'); i++) await new Promise((r) => setTimeout(r, 200)); document.querySelector('.veil .dialog .btn.danger, .veil .dialog .btn.primary')?.click(); await new Promise((r) => setTimeout(r, 3000)); })() /* querySelector */";
 const DB_SEED = "(async () => { for (const f of ['big.db', 'shop.db']) await window.rauha.db.addPath({ path: '__WORK__/' + f }); document.querySelectorAll('#tabs button')[5].click(); await new Promise((r) => setTimeout(r, 1500)); })() /* querySelector */";
 const dbSql = (text) => `(() => { const c = document.querySelector('.db-editor .cm-content'); c.focus(); c.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })); c.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })); document.execCommand('insertText', false, ${JSON.stringify(text)}); })() /* querySelector */`;
-const DB_RUN = q('.db-sqlbar .btn.primary');
+const DB_RUN = q('.db-sqlbar .btn.run');
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
@@ -300,7 +300,7 @@ const SCENES = [
   ['db-empty', 'db', []],
   ['db-rows', 'db', [DB_SEED, byText('.db-row', 'shop.db')]],
   ['db-rows-sorted', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db-row', 'users'), byText('.db-th', 'age')]],
-  ['db-schema', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db-row', 'users'), byText('.db .tab', 'Schema')]],
+  ['db-schema', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db-row', 'users'), byText('.db .tab', 'Structure')]],
   ['db-sql', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL')]],
   ['db-sql-result', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), dbSql('SELECT id, name, email, age FROM users ORDER BY age DESC'), DB_RUN, WAIT]],
   ['db-sql-error', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), dbSql('SELECT * FROM nope'), DB_RUN, WAIT]],
@@ -309,6 +309,11 @@ const SCENES = [
   ['db-sql-blocked', 'db', [DB_SEED, byText('.db-row', 'shop.db'), byText('.db .tab', 'SQL'), dbSql("ATTACH DATABASE ':memory:' AS x"), DB_RUN, WAIT]],
   ['db-big-rows', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db .tab', 'Rows'), byText('.db-rowsbar .btn', 'Next')]],
   ['db-big-result', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db .tab', 'SQL'), dbSql('SELECT * FROM events'), DB_RUN, WAIT, WAIT]],
+  ['db-server-form', 'db', [DB_SEED, byText('.db-addbar .btn', 'Server')]],
+  ['db-server-form-rds', 'db', [DB_SEED, byText('.db-addbar .btn', 'Server'), typeInto('.db-form input[aria-label="Host"]', 'mydb.abc123.ap-northeast-2.rds.amazonaws.com'), typeInto('.db-form input[aria-label="User name"]', 'app'), typeInto('.db-form input[aria-label="Database name"]', 'shop'), byText('.db-form .btn', 'Test connection')]],
+  ['db-cell-detail', 'db', [DB_SEED, byText('.db-row', 'big.db'), byText('.db .tab', 'Rows'), "(() => { document.querySelectorAll('.db-panel:not([hidden]) tbody tr')[2]?.cells[3]?.click(); })() /* querySelector */"]],
+  ['db-table-filter', 'db', [DB_SEED, byText('.db-row', 'shop.db'), typeInto('.db-filter', 'us')]],
+  ['db-server-form-error', 'db', [DB_SEED, byText('.db-addbar .btn', 'Server'), typeInto('.db-form input[aria-label="Host"]', 'http://bad host'), typeInto('.db-form input[aria-label="User name"]', 'app'), typeInto('.db-form input[aria-label="Database name"]', 'shop'), byText('.db-form .btn', 'Connect'), WAIT]],
   ['db-bad-path', 'db', [typeInto('.db-path', '//evil/share/x.db'), byText('.db-addbar .btn', 'Add')]],
   ['records-picked-detail', 'records', ['.ri', `(() => { for (const b of [...document.querySelectorAll('.rpickrow input')].slice(0, 2)) b.click(); })()`]],
   ['records-delete-ask', 'records', ['.ri', byText('.rdbar .btn', 'Delete')]],

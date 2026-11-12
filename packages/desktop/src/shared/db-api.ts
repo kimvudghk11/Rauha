@@ -12,6 +12,8 @@ export const DB_IPC = {
   addPath: 'db:add-path',
   pick: 'db:pick',
   addServer: 'db:add-server',
+  editServer: 'db:edit-server',
+  testServer: 'db:test-server',
   unlock: 'db:unlock',
   remove: 'db:remove',
   tables: 'db:tables',
@@ -104,7 +106,7 @@ export function serverFailure(message: string): DbFailure {
   if (/password authentication failed|Access denied for user|no pg_hba\.conf entry|authentication failed|SASL/i.test(m)) return failure('auth', 'Sign-in failed', m, 'Check the user name and password.');
   if (/statement timeout|maximum statement execution time exceeded|Query execution was interrupted/i.test(m)) return failure('timeout', 'The query was stopped', m, 'Add a WHERE or LIMIT, or raise the time limit.');
   if (/read-only transaction|READ ONLY transaction/i.test(m)) return failure('write-mode', 'The database is open read-only', m, 'Turn on Write mode (top right) to change this database.');
-  if (/certificate|SSL connection|does not support SSL|SSL is not|SSL routines|TLS|EPROTO/i.test(m)) return failure('no-server', 'Secure connection failed', m, 'Try another SSL setting for this connection (remove it and add it again).');
+  if (/certificate|SSL connection|does not support SSL|SSL is not|SSL routines|TLS|EPROTO/i.test(m)) return failure('no-server', 'Secure connection failed', m, 'Edit the connection and try another SSL setting. For Amazon RDS, pick "SSL + verify certificate".');
   if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ECONNRESET|connection timeout|connect timeout|timeout expired|Connection terminated|Could not reach/i.test(m)) return failure('no-server', 'Cannot reach the server', m, 'Check the host and port, your VPN, and that the server accepts connections from this computer.');
   if (/database ".*" does not exist|Unknown database/i.test(m)) return failure('bad-input', 'Database not found', m, 'Check the database name.');
   if (/lock wait timeout|deadlock|could not obtain lock|lock timeout/i.test(m)) return failure('busy', 'The table is locked', m, 'Another session is changing it. Try again in a moment.');
@@ -138,6 +140,24 @@ export interface DbServerForm {
   readonly database: string;
   readonly ssl: 'off' | 'require' | 'verify';
   readonly savePassword: boolean;
+}
+
+/** 저장한 서버 연결 고치기 폼: keepPassword 면 비밀번호 칸을 비워 두고 저장한(이번 실행에 기억한) 비밀번호를 그대로 쓴다 */
+export interface DbServerEditForm extends DbServerForm {
+  readonly id: string;
+  readonly keepPassword: boolean;
+}
+
+/** 접속 시험 폼: 고치는 중이면 id 와 keepPassword 로 저장한 비밀번호를 쓸 수 있다 */
+export interface DbServerTestForm extends DbServerForm {
+  readonly id?: string;
+  readonly keepPassword?: boolean;
+}
+
+/** 접속 시험 결과 */
+export interface DbServerTest {
+  /** 접속해서 SELECT 1 까지 걸린 시간 */
+  readonly elapsedMs: number;
 }
 
 export interface DbTableInfo {
@@ -198,6 +218,10 @@ export interface DbApi {
   pick(): Promise<DbResult<DbConnectionView | null>>;
   /** 서버 연결을 더한다: main 이 먼저 접속해 보고 되면 저장한다. 비밀번호는 다시 돌아오지 않는다 */
   addServer(req: DbServerForm): Promise<DbResult<DbConnectionView>>;
+  /** 저장한 서버 연결을 고친다: 고친 값으로 먼저 접속해 보고 되면 같은 id 로 저장한다 */
+  editServer(req: DbServerEditForm): Promise<DbResult<DbConnectionView>>;
+  /** 저장하지 않고 접속만 해 본다 */
+  testServer(req: DbServerTestForm): Promise<DbResult<DbServerTest>>;
   /** 저장한 비밀번호가 없는 서버 연결에 비밀번호를 준다(이번 실행 동안 기억, savePassword 면 암호화해 저장) */
   unlock(req: { readonly id: string; readonly password: string; readonly savePassword: boolean }): Promise<DbResult<DbConnectionView>>;
   remove(id: string): Promise<DbResult<DbConnectionList>>;
@@ -253,6 +277,22 @@ export const DbRequest = {
     const o = obj(raw);
     const target = ServerTarget.parse(o);
     return { target, label: ConnectionLabel.parse(o['name'], target), password: DbPassword.parse(o['password']), savePassword: o['savePassword'] === true };
+  },
+  /** 서버 연결 고치기: keepPassword 가 true 면 password 는 null(저장한 것을 쓴다) */
+  editServer(raw: unknown): { readonly id: ConnectionId; readonly target: ServerTarget; readonly label: ConnectionLabel; readonly password: DbPassword | null; readonly savePassword: boolean } {
+    const o = obj(raw);
+    const target = ServerTarget.parse(o);
+    const keep = o['keepPassword'] === true;
+    return { id: ConnectionId.parse(o['id']), target, label: ConnectionLabel.parse(o['name'], target), password: keep ? null : DbPassword.parse(o['password']), savePassword: o['savePassword'] === true };
+  },
+  /** 접속 시험: 저장한 비밀번호를 쓰려면(keepPassword) 고치는 연결 id 가 있어야 한다 */
+  testServer(raw: unknown): { readonly id: ConnectionId | null; readonly target: ServerTarget; readonly password: DbPassword | null } {
+    const o = obj(raw);
+    const target = ServerTarget.parse(o);
+    const keep = o['keepPassword'] === true;
+    const id = o['id'] === undefined || o['id'] === null ? null : ConnectionId.parse(o['id']);
+    if (keep && id === null) throw new DbInputError('Type the password.');
+    return { id, target, password: keep ? null : DbPassword.parse(o['password']) };
   },
   unlock(raw: unknown): { readonly id: ConnectionId; readonly password: DbPassword; readonly savePassword: boolean } {
     const o = obj(raw);

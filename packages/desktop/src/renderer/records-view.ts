@@ -231,15 +231,15 @@ export function buildRecords(deps: RecordsViewDeps) {
     list.replaceChildren(el('div', 'ph', `Records ${shown.length}${shown.length !== book.entries.length ? ` / ${book.entries.length}` : ''}`));
     if (book.entries.length > 0) list.append(pickBar(shown, view));
     if (!loaded) {
-      const wait = el('div', 'rnone');
+      const wait = el('div', 'empty-state rnone');
       wait.append(el('span', 'spinner'), document.createTextNode('Loading…'));
       list.append(wait);
     } else if (book.entries.length === 0) {
-      const none = el('div', 'rnone');
+      const none = el('div', 'empty-state rnone');
       none.append(el('b', undefined, 'No records yet'), el('span', 'hint', 'When a team finishes a job, its summary appears here.'));
       list.append(none);
     } else if (shown.length === 0) {
-      const none = el('div', 'rnone');
+      const none = el('div', 'empty-state rnone');
       none.append(el('b', undefined, 'No records match'));
       if (filterKeys().length > 0) none.append(actionButton({ label: 'Clear filters', icon: 'close', small: true, onClick: clearFilters }));
       list.append(none);
@@ -507,7 +507,7 @@ export function buildRecords(deps: RecordsViewDeps) {
     }
     const e = selected === null ? null : book.get(selected);
     if (e === null || view !== 'detail') {
-      const empty = el('div', 'rnone');
+      const empty = el('div', 'empty-state rnone');
       if (book.entries.length > 0) empty.append(el('b', undefined, 'Pick a record'), el('span', 'hint', 'Click a record on the left to see details. Move with ↑↓ and open with Enter.'));
       detail.append(empty);
       return;

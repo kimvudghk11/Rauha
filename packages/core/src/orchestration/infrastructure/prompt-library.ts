@@ -19,6 +19,8 @@ export class PromptLibrary {
     /** 도구 묶음을 붙였을 때만 덧붙이는 사용법(_kit-<묶음>.md) */
     private readonly kits: Readonly<Record<ToolKit, string>>,
     readonly hash: string,
+    /** 레포에 연결된 DB 도구를 붙였을 때만 덧붙이는 사용법(_kit-db.md, 리뷰어는 _kit-db-review.md 도). 파일이 없으면 빈 글. */
+    private readonly db: { readonly all: string; readonly review: string } = { all: '', review: '' },
   ) {}
 
   /** 저장소의 기본 프롬프트 폴더. src와 dist가 같은 깊이라 둘 다에서 맞는다. */
@@ -45,11 +47,17 @@ export class PromptLibrary {
       return [role, WORK_ROLES.has(role) ? `${common}\n\n${own}` : own] as const;
     });
     const prompts = Object.fromEntries(entries) as Record<MemberRole, string>;
-    const hash = createHash('sha256').update(JSON.stringify([entries, kits])).digest('hex').slice(0, 8);
-    return new PromptLibrary(prompts, kits, hash);
+    const db = { all: await read('_kit-db.md').catch(() => ''), review: await read('_kit-db-review.md').catch(() => '') };
+    const hash = createHash('sha256').update(JSON.stringify([entries, kits, ...(db.all === '' && db.review === '' ? [] : [db])])).digest('hex').slice(0, 8);
+    return new PromptLibrary(prompts, kits, hash, db);
   }
 
   system(role: MemberRole, kits: readonly ToolKit[] = []): string {
     return [this.prompts[role], ...kits.map((kit) => this.kits[kit])].join('\n\n');
+  }
+
+  /** DB 도구를 붙인 호출의 시스템 프롬프트 끝에 더할 사용법. 리뷰어는 쿼리 점검 항목까지. */
+  dbGuide(role: MemberRole): string {
+    return [this.db.all, role === 'reviewer' ? this.db.review : ''].filter((t) => t !== '').join('\n\n');
   }
 }

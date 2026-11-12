@@ -1,9 +1,5 @@
 /* 할 일 탭 · 기록 탭 (4단계 폭: xl 1700 · m 1100 · s 720 · xs) */
 .todo, .records { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; overflow: auto; }
-.todo .rhead, .records .rhead { flex-wrap: wrap; }
-.records .rhead { align-items: center; gap: var(--s3); }
-.records .rhead b { font-size: var(--fs-lg); font-weight: 600; }
-.todo .rhead .hint, .records .rhead .hint { flex: 1; min-width: 0; color: var(--muted); }
 
 .todo textarea, .records textarea { width: 100%; }
 
@@ -37,11 +33,10 @@
 .rpickrow > input { flex: none; align-self: center; margin: 0 var(--s1) 0 var(--s2); }
 .ri { flex: 1; text-align: left; background: none; border: none; border-left: 2px solid transparent; padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s1); min-width: 0; color: inherit; font: inherit; cursor: pointer; }
 .ri.on { background: var(--sel); border-left-color: var(--accent); }
-.ri:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.ri:focus-visible { outline: 1px solid var(--focus); outline-offset: -1px; }
 .ri .rt { color: var(--bright); font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .ri .rm { color: var(--dim); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rnone { display: flex; flex-direction: column; align-items: center; gap: var(--s2); color: var(--muted); text-align: center; padding: var(--s5) var(--s3); margin: auto; }
-.rnone b { color: var(--bright); }
+.rnone { margin: auto; }
 .rnone[hidden] { display: none; }
 .rcdet { padding: 0 var(--s4) var(--s3); }
 .rdbar { position: sticky; top: 0; z-index: 2; flex: none; margin: 0 calc(-1 * var(--s4)); padding: var(--s2) var(--s4); background: var(--bg); border-bottom: 1px solid var(--border); }

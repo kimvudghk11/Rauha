@@ -7,7 +7,7 @@ import type { MemberRole } from '../application/dto/role-settings.dto.js';
 import type { SecretPolicy } from '../domain/secret-policy.js';
 import { GitPublishIntent } from '../domain/git-publish-intent.js';
 import { ToolRisk } from '../domain/tool-risk.js';
-import { ConnectorTool } from '../domain/connector.js';
+import { ConnectorTool, ConnectorWriteIntent } from '../domain/connector.js';
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
 
@@ -49,6 +49,8 @@ export interface ToolGuardOptions {
   readonly publishIntent?: () => GitPublishIntent;
   /** 이 호출에 붙인 커넥터(노션·컨플루언스 …) MCP 서버 이름. 그 서버의 읽기 도구는 그냥 쓰고, 쓰기 도구는 허락 카드로 묻는다. */
   readonly connectors?: readonly string[];
+  /** 사용자가 이번 요청에서 업무 도구에 쓰라고 시켰는지. 시켰으면 쓰기를 묻지 않는다(지우기·옮기기는 묻는다). 없으면 시키지 않은 것. */
+  readonly connectorIntent?: () => ConnectorWriteIntent;
 }
 
 /** 파일 경로를 받는 도구와 그 경로가 든 입력 이름 */
@@ -146,7 +148,7 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
     }
 
     const connector = ConnectorTool.parse(input.tool_name, options.connectors ?? []);
-    const base = connector !== null ? connector.verdict(toolInput) : ToolRisk.assess(input.tool_name, toolInput, options.root, options.publishIntent?.() ?? GitPublishIntent.none());
+    const base = connector !== null ? connector.verdict(toolInput, options.connectorIntent?.() ?? ConnectorWriteIntent.none()) : ToolRisk.assess(input.tool_name, toolInput, options.root, options.publishIntent?.() ?? GitPublishIntent.none());
     if (base.decision === 'deny') return decide('deny', base.reason ?? '거절된 동작입니다.');
     const detail = typeof toolInput['command'] === 'string' ? toolInput['command'] : String(toolInput['file_path'] ?? input.tool_name);
     const rule = options.rules?.(input.tool_name, detail) ?? null;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, modelOf, readDirs, toolCountHook, withConnectors, withTeamInstruction } from './agent-sdk-team-member.js';
+import { addUsage, modelOf, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -82,5 +82,25 @@ describe('withConnectors', () => {
   it('고르지 않았거나 연결이 없으면 아무것도 더하지 않는다', () => {
     expect(withConnectors({ servers: {}, tools: [] }, undefined)).toEqual({ servers: {}, tools: [], connectorNames: [] });
     expect(withConnectors({ servers: {}, tools: [] }, { servers: {}, tools: [], names: [] }).connectorNames).toEqual([]);
+  });
+});
+
+describe('pluginOptions', () => {
+  const loads = [{ path: 'C:/cfg/plugins/cache/x/superpowers/7.0.2' }, { path: 'C:/cfg' }];
+
+  it('일하는 팀원에게는 켜 둔 플러그인을 MCP 없이 붙이고 스킬 도구를 연다', () => {
+    expect(pluginOptions('implementer', loads)).toEqual({
+      plugins: [
+        { type: 'local', path: 'C:/cfg/plugins/cache/x/superpowers/7.0.2', skipMcpDiscovery: true },
+        { type: 'local', path: 'C:/cfg', skipMcpDiscovery: true },
+      ],
+      skills: 'all',
+      tools: ['Skill'],
+    });
+  });
+
+  it('짧은 판정 팀원이나 플러그인이 없으면 아무것도 붙이지 않는다', () => {
+    expect(pluginOptions('router', loads)).toEqual({ tools: [] });
+    expect(pluginOptions('implementer', [])).toEqual({ tools: [] });
   });
 });

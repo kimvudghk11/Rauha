@@ -559,7 +559,7 @@ ${SINGLE_REPO_NOTE}
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
       // light는 도구 묶음(브라우저·AWS 설명이 수천 자)을 붙이지 않는다.
-      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])] },
+      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])] },
     );
     const basis =
       others.length === 0

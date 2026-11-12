@@ -35,7 +35,7 @@ export function paintCollections(host: HTMLElement, c: ApiCollections, open: Set
   host.replaceChildren();
   const tree = c.tree();
   if (tree.length === 0) {
-    const empty = el('div', 'api-empty');
+    const empty = el('div', 'empty-state api-empty');
     empty.append(el('b', undefined, 'No requests yet'), el('span', 'dim', 'Choose a project above to list its API, create a request, or import a cURL command, a .http file or an OpenAPI document.'));
     host.append(empty);
     return;
@@ -110,7 +110,7 @@ const STATUS_COLOR = (s: number | null): string => (s === null ? 'red' : s >= 50
 export function paintHistory(host: HTMLElement, entries: readonly HistoryEntry[], now: number, actions: TreeActions): void {
   host.replaceChildren();
   if (entries.length === 0) {
-    const empty = el('div', 'api-empty');
+    const empty = el('div', 'empty-state api-empty');
     empty.append(el('b', undefined, 'No history yet'), el('span', 'dim', 'Requests you send show up here (the latest 100).'));
     host.append(empty);
     return;

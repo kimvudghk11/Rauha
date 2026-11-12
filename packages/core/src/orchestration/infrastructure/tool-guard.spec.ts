@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GitPublishIntent } from '../domain/git-publish-intent.js';
 import { SecretPolicy } from '../domain/secret-policy.js';
+import { ConnectorWriteIntent } from '../domain/connector.js';
 import { createToolGuard, type PermissionAnswer, type PermissionRequest, type ToolGuardOptions } from './tool-guard.js';
 
 const ROOT = 'E:/work/app';
@@ -281,6 +282,20 @@ describe('createToolGuard 커넥터(노션·컨플루언스) 도구', () => {
     const { guard, asked } = guardWith([{ kind: 'allow-always' }], { connectors: ['atlassian'] });
     expect(decision(await guard(input('mcp__atlassian__createConfluencePage', { title: 'A' }), 't1', opts))).toBe('allow');
     expect(decision(await guard(input('mcp__atlassian__createConfluencePage', { title: 'B' }), 't1', opts))).toBe('allow');
+    expect(asked).toHaveLength(1);
+  });
+});
+
+describe('createToolGuard 커넥터 시킨 쓰기', () => {
+  it('요청에서 업무 도구에 쓰라고 시켰으면 쓰기를 묻지 않는다', async () => {
+    const { guard, asked } = guardWith([], { connectors: ['notion'], connectorIntent: () => ConnectorWriteIntent.from('노션에 회의록 정리해줘') });
+    expect(decision(await guard(input('mcp__notion__notion-create-pages', { title: 'A' }), 't1', opts))).not.toBe('deny');
+    expect(asked).toEqual([]);
+  });
+
+  it('시켰어도 지우기는 묻는다', async () => {
+    const { guard, asked } = guardWith([{ kind: 'deny', note: null }], { connectors: ['notion'], connectorIntent: () => ConnectorWriteIntent.from('노션에 회의록 정리해줘') });
+    expect(decision(await guard(input('mcp__notion__notion-delete-page', { id: 'x' }), 't1', opts))).toBe('deny');
     expect(asked).toHaveLength(1);
   });
 });

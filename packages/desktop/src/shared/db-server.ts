@@ -21,6 +21,11 @@ const HOST_NAME = /^[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_])?$/;
 /** IPv6(대괄호는 있어도 없어도) */
 const HOST_V6 = /^\[?[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*\]?$/;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+/** Amazon RDS(·Aurora) 엔드포인트: <이름>.<id>.<지역>.rds.amazonaws.com(중국 지역은 .com.cn). 이름만 비슷한 다른 도메인은 맞지 않는다 */
+const AWS_RDS_HOST = /^(?:[a-z0-9-]+\.)+rds\.amazonaws\.com(?:\.cn)?$/i;
+
+/** 접속할 때 Node 기본 CA 에 더해 믿을 CA 묶음(앱에 넣어 둔 것) */
+export type ExtraCa = 'aws-rds';
 
 export function defaultPort(kind: ServerKind): number {
   return DEFAULT_PORT[kind];
@@ -78,6 +83,16 @@ export class ServerTarget {
     const o = input as Readonly<Record<string, unknown>>;
     const kind = parseServerKind(o['kind']);
     return new ServerTarget(kind, host(o['host']), port(o['port'], kind), text(o['user'], 'user name'), text(o['database'], 'database name'), ssl(o['ssl']));
+  }
+
+  /** 호스트가 Amazon RDS 엔드포인트인지 */
+  static isAwsRdsHost(host: string): boolean {
+    return AWS_RDS_HOST.test(host.trim());
+  }
+
+  /** 인증서를 확인할 때 함께 믿을 CA: RDS 호스트 + verify 면 Amazon RDS CA(RDS 인증서는 Node 기본 CA 에 없는 Amazon RDS 루트가 서명한다) */
+  extraCa(): ExtraCa | null {
+    return this.ssl === 'verify' && ServerTarget.isAwsRdsHost(this.host) ? 'aws-rds' : null;
   }
 
   /** 화면에 보일 주소(비밀번호 없음): user@host:port/database */

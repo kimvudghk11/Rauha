@@ -13,12 +13,14 @@
 | 테두리 | `--border` `--border2` | #2b2b2b #3c3c3c |
 | 글자 | `--text` `--bright` `--muted` `--dim` | #ccc #e7e7e7 #9d9d9d #6e7681 |
 | 강조(파랑) | `--accent` `--accent-hover` `--accentfg` `--sel` | #0078d4 #026ec1 #4daafc #04395e |
+| 실행(초록) | `--run` `--run-hover` `--on-run` | #238636 #1d7a30 #ffffff (흰 글자 대비 4.5 이상) |
+| 포커스 링 | `--focus` | `--accentfg` |
 | 상태 | `--green --yellow --red --purple` | #89d185 #e2c08d #f48771 #c586c0 |
 | 경고 줄 | `--warn-bg` `--warn-border` | #2f2a1e #5b4d2e |
 | 위험 | `--danger-bg` `--danger-border` | #3a1d1d #5a2d2d |
 | 눌렀을 때 | `--btn-bg-hover` `--row-hover` `--ghost-hover` | #3a3a3a #2a2d2e #ffffff14 |
 
-하늘색 `--delfi`는 Delfi 캐릭터 몸에만 쓴다(UI 강조색이 아니다).
+하늘색 `--delfi`는 Delfi 캐릭터 몸과 왼쪽 탭 막대의 선택 표시(왼쪽 2px 줄)에만 쓴다. 버튼·밑줄 강조색은 `--accent`다.
 
 | 단계 | 토큰 |
 |---|---|
@@ -37,7 +39,8 @@
 | 종류 | 클래스 | 언제 |
 |---|---|---|
 | 보조(기본) | `btn` | 대부분의 버튼. 회색 |
-| 강조 | `btn primary` | **한 화면(한 영역)에서 가장 중요한 한 동작만.** 파랑 |
+| 강조 | `btn primary` | **한 화면(한 영역)에서 가장 중요한 한 동작만.** 저장·확인·추가 같은 것. 파랑 |
+| 실행 | `btn run` | 무언가를 **돌리는** 동작: API Send, DB SQL Run, Docker Start·Up·exec Run, (생기면) 테스트·명령 실행. 초록. 돌리는 중 취소로 바뀌면 `danger`로 바꾼다 |
 | 위험 | `btn danger` | 지우기·거절·중단. 빨간 글자와 테두리 |
 | 테두리 없음 | `btn ghost` | 머리줄의 부가 동작(멈추기 같은) |
 | 크기 | `sm`(24) · 기본(28) · `lg`(32, 대화상자·한 칸 가득) | 카드·목록 행 안은 `sm`, 도구줄·폼은 기본 |
@@ -46,6 +49,18 @@
 
 `btn sec`는 쓰지 않는다(보조가 기본이다). 위치용 이름(`gfillbtn` 같은)은 붙여도 되지만 크기·색은 정하지 못한다.
 disabled는 모두 같은 `opacity .45`.
+
+### 탭 머리 `.rhead`
+
+모든 탭 맨 위 줄: `b`(제목 15) · `.hint`(설명, 남는 폭, 길면 다음 줄) · 오른쪽 동작(버튼·칩·select). 높이 28, 간격 12. 탭 CSS는 말줄임·줄바꿈 같은 배치만 덧붙인다.
+
+### 빈 상태 `.empty-state`
+
+목록·결과가 비었을 때, 확인 중일 때(앞에 `.spinner`), 실패했을 때(`.failed`, 제목 빨강) 같은 모양: 가운데 `b` 제목(15) + 안내 한 줄 + (단추). API·Docker·기록·할 일이 쓴다. DB 탭(`.db-empty`)도 같은 모양이다.
+
+### 포커스
+
+키보드 포커스 링은 `--focus` 하나: 버튼·탭·링크·칩·토글은 2px 바깥, 입력칸은 2px, 목록 행(`.row-item` 등)은 칸 안쪽 1px.
 
 ### 입력칸
 

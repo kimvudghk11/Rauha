@@ -1,6 +1,7 @@
 import { basename } from 'node:path';
-import { DbRequest, NO_ENGINE, engineFailure, failure, inputFailure, serverFailure, type DbConnectionList, type DbCsvSaved, type DbFailure, type DbResult, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
-import type { DbConnectionView } from '../../shared/db-connections.js';
+import { DbRequest, NO_ENGINE, engineFailure, failure, inputFailure, serverFailure, type DbConnectionList, type DbCsvSaved, type DbFailure, type DbResult, type DbResultSet, type DbRowsPage, type DbServerTest, type DbTableDetail, type DbTableInfo } from '../../shared/db-api.js';
+import type { DbConnectionView, DbConnections } from '../../shared/db-connections.js';
+import type { DbPassword } from '../../shared/db-server.js';
 import { DbFilePath, DbInputError } from '../../shared/db-names.js';
 import type { FileCheck } from './db-file.js';
 import type { ConnectionsPort } from './db-store.js';
@@ -101,6 +102,45 @@ export class DbService {
       await this.deps.store.save(connections);
       return ok(view);
     });
+  }
+
+  /** 저장하지 않고 접속만 해 본다. 고치는 중인 연결이면(keepPassword) 저장한·기억한 비밀번호를 쓴다. */
+  testServer(raw: unknown): Promise<DbResult<DbServerTest>> {
+    return this.guarded(async () => {
+      const req = DbRequest.testServer(raw);
+      const password = req.password ?? (await this.knownPassword(req.id?.value ?? ''));
+      if (password === null) return fail(failure('need-password', 'Password needed', 'Type the password to test this connection.'));
+      const started = this.deps.now();
+      const reached = await this.ping({ target: req.target, password });
+      return reached.ok ? ok({ elapsedMs: Math.max(0, this.deps.now() - started) }) : reached;
+    });
+  }
+
+  /**
+   * 저장한 서버 연결 고치기: 고친 값으로 먼저 접속해 보고, 되면 같은 id 로 바꾼다(안 되면 그대로 둔다).
+   * 비밀번호 칸을 비우면(keepPassword) 저장한·기억한 비밀번호를 쓰고, 저장 여부는 폼의 선택대로 다시 정한다.
+   */
+  editServer(raw: unknown): Promise<DbResult<DbConnectionView>> {
+    return this.guarded(async () => {
+      const req = DbRequest.editServer(raw);
+      const id = req.id.value;
+      const password = req.password ?? (await this.knownPassword(id));
+      if (password === null) return fail(failure('need-password', 'Password needed', 'Type the password for this connection.'));
+      const reached = await this.ping({ target: req.target, password });
+      if (!reached.ok) return reached;
+      const connections = await this.deps.store.load();
+      const view = connections.editServer(id, req.target, req.label, this.passwords.toSaved(password, req.savePassword), this.deps.now());
+      this.passwords.remember(id, password);
+      await this.deps.store.save(connections);
+      return ok(view);
+    });
+  }
+
+  /** 저장한 서버 연결의 비밀번호(이번 실행에 기억한 것 → 저장한 암호문). 없거나 서버 연결이 아니면 null */
+  private async knownPassword(id: string): Promise<DbPassword | null> {
+    if (id === '') return null;
+    const found = (await this.deps.store.load()).locate(id);
+    return found?.kind === 'server' ? this.passwords.resolve(id, found.password) : null;
   }
 
   /** 저장한 비밀번호가 없는(또는 못 푸는) 서버 연결에 비밀번호를 준다. 접속이 되어야 받아들인다. */
@@ -236,6 +276,18 @@ export class DbService {
       const saved = await this.deps.saveCsv(req.fileName, `﻿${req.csv}`);
       return ok({ saved: saved !== null, fileName: saved === null ? null : basename(saved) });
     });
+  }
+
+  /** 팀원 DB 도구용: 저장한 연결 목록(엔티티). 화면에는 쓰지 않는다. */
+  connections(): Promise<DbConnections> {
+    return this.deps.store.load();
+  }
+
+  /** 팀원 DB 도구용: 비밀번호를 묻지 않고 바로 열 수 있는지(파일이거나, 이번 실행에 받았거나, 저장한 암호문을 풀 수 있다) */
+  async canOpen(id: string): Promise<boolean> {
+    const found = (await this.deps.store.load()).locate(id);
+    if (found === undefined) return false;
+    return found.kind === 'file' || this.passwords.resolve(id, found.password) !== null;
   }
 
   stopAll(): void {

@@ -57,7 +57,7 @@ describe('목록 JSON(DTO)', () => {
   });
   it('예전(version 1) SQLite 목록은 그대로 읽혀 SQLite 파일로 보인다', () => {
     const list = ConnectionsDto.from({ version: 1, items: [{ id: 'old1', path: 'C:\\data\\app.db', lastUsed: 5 }] }).toEntity().list();
-    expect(list).toEqual([{ id: 'old1', kind: 'sqlite', name: 'app.db', path: 'C:\\data\\app.db', lastUsed: 5, savedPassword: null }]);
+    expect(list).toEqual([{ id: 'old1', kind: 'sqlite', name: 'app.db', path: 'C:\\data\\app.db', lastUsed: 5, savedPassword: null, server: null }]);
   });
 });
 
@@ -68,7 +68,7 @@ describe('서버 연결 목록', () => {
   it('서버 연결을 더하면 종류·이름·비밀번호 없는 주소가 보인다', () => {
     const c = DbConnections.empty();
     const v = c.addServer(target(), ConnectionLabel.parse('Shop', target()), sealed('x'), 's1', 10);
-    expect(v).toEqual({ id: 's1', kind: 'mysql', name: 'Shop', path: 'app@db.local:3306/shop', lastUsed: 10, savedPassword: true });
+    expect(v).toEqual({ id: 's1', kind: 'mysql', name: 'Shop', path: 'app@db.local:3306/shop', lastUsed: 10, savedPassword: true, server: { kind: 'mysql', host: 'db.local', port: 3306, user: 'app', database: 'shop', ssl: 'off' } });
     c.add(p('/a.db'), 'f1', 20);
     expect(c.list().map((x) => x.kind)).toEqual(['sqlite', 'mysql']);
   });
@@ -144,5 +144,39 @@ describe('서버 연결 JSON(DTO)', () => {
     const dto = ConnectionsDto.from({ version: 2, items: [ok, { ...ok, id: 's2', kind: 'oracle' }, { ...ok, id: 's3', host: 'x://y' }, { ...ok, id: 's4', database: 'e', sealedPassword: '!!' }, { ...ok, id: 's5' }] });
     expect(dto.toEntity().list().map((x) => x.id)).toEqual(['s1']);
     expect(dto.skipped).toBe(4);
+  });
+});
+
+describe('서버 연결 고치기', () => {
+  it('고치면 같은 id 로 대상·이름이 바뀌고, 새 비밀번호를 주지 않으면 저장한 것을 그대로 둔다', () => {
+    const c = DbConnections.empty();
+    c.addServer(target(), ConnectionLabel.parse('A', target()), sealed('x'), 's1', 1);
+    const next = target({ host: 'db2.local', port: 3307, ssl: 'verify' });
+    const v = c.editServer('s1', next, ConnectionLabel.parse('B', next), null, 5);
+    expect(v).toMatchObject({ id: 's1', name: 'B', path: 'app@db2.local:3307/shop', savedPassword: true, lastUsed: 5 });
+    expect(v.server).toMatchObject({ host: 'db2.local', port: 3307, ssl: 'verify' });
+    expect(c.list()).toHaveLength(1);
+  });
+  it('새 비밀번호(저장 여부 포함)를 주면 그것으로 바꾼다', () => {
+    const c = DbConnections.empty();
+    c.addServer(target(), ConnectionLabel.parse('A', target()), sealed('x'), 's1', 1);
+    expect(c.editServer('s1', target(), ConnectionLabel.parse('A', target()), SavedPassword.none(), 2).savedPassword).toBe(false);
+  });
+  it('고친 대상이 다른 저장 연결과 같은 서버면 거절한다(자기 자신은 괜찮다)', () => {
+    const c = DbConnections.empty();
+    c.addServer(target(), ConnectionLabel.parse('A', target()), sealed('x'), 's1', 1);
+    c.addServer(target({ database: 'other' }), ConnectionLabel.parse('B', target()), sealed('x'), 's2', 2);
+    expect(() => c.editServer('s2', target(), ConnectionLabel.parse('B', target()), null, 3)).toThrow(DbInputError);
+    expect(() => c.editServer('s1', target({ host: 'DB.LOCAL' }), ConnectionLabel.parse('A', target()), null, 3)).not.toThrow();
+  });
+  it('파일 연결이나 모르는 id 는 고칠 수 없다', () => {
+    const c = DbConnections.empty();
+    c.add(p('/a.db'), 'f1', 1);
+    expect(() => c.editServer('f1', target(), ConnectionLabel.parse('', target()), null, 2)).toThrow(DbInputError);
+    expect(() => c.editServer('nope', target(), ConnectionLabel.parse('', target()), null, 2)).toThrow(DbInputError);
+  });
+  it('파일 연결은 폼에 채울 서버 값이 없다', () => {
+    const c = DbConnections.empty();
+    expect(c.add(p('/a.db'), 'f1', 1).server).toBeNull();
   });
 });

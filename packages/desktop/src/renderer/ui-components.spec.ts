@@ -109,11 +109,73 @@ describe('버튼', () => {
     expect(rule('.btn.sm')['padding']?.split(' ')[0]).toBe('0');
     expect(rule('.btn.lg')['padding']?.split(' ')[0]).toBe('0');
   });
-  it('강조·위험·테두리 없음은 색만 바꾸고 크기는 건드리지 않는다', () => {
-    for (const s of ['.btn.primary', '.btn.danger', '.btn.ghost']) {
+  it('강조·실행·위험·테두리 없음은 색만 바꾸고 크기는 건드리지 않는다', () => {
+    for (const s of ['.btn.primary', '.btn.run', '.btn.danger', '.btn.ghost']) {
       const d = rule(s);
       for (const k of ['height', 'padding', 'font-size', 'line-height']) expect(d[k], `${s}의 ${k}`).toBeUndefined();
     }
+  });
+});
+
+describe('실행 단추(초록)', () => {
+  const root = rule(':root');
+  it('실행 색은 --run · --run-hover · --on-run 토큰이고, 저장·확인(파랑)·위험(빨강)과 다른 색이다', () => {
+    for (const k of ['--run', '--run-hover', '--on-run']) expect(root[k], k).toMatch(/^#[0-9a-f]{6}$/i);
+    const blue = parseCss(read('styles.css')).find((r) => r.selector === ':root')?.decls['--accent'];
+    expect(root['--run']).not.toBe(blue);
+    expect(root['--run']).not.toBe(root['--danger-border']);
+  });
+  it('실행 색 위 글자는 대비 4.5 이상이다', () => {
+    const lum = (hex: string): number => {
+      const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+    };
+    const ratio = (a: string, b: string): number => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x! + 0.05) / (y! + 0.05);
+    };
+    expect(ratio(root['--run']!, root['--on-run']!)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(root['--run-hover']!, root['--on-run']!)).toBeGreaterThanOrEqual(4.5);
+  });
+  it('.btn.run은 실행 토큰만 쓴다', () => {
+    const r = rule('.btn.run');
+    expect(r['background']).toBe('var(--run)');
+    expect(r['color']).toBe('var(--on-run)');
+    expect(rule('.btn.run:hover:not(:disabled)')['background']).toBe('var(--run-hover)');
+  });
+  it('Send · Run · Start · Up 단추는 run이고 primary(파랑)를 쓰지 않는다', () => {
+    const ts = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts'));
+    const bad: string[] = [];
+    let seen = 0;
+    for (const file of ts) {
+      for (const m of read(file).matchAll(/\(\s*'(Send|Run|Start|Up)'\s*,\s*'(btn[^']*)'/g)) {
+        seen++;
+        const words = m[2]!.split(/\s+/);
+        if (!words.includes('run') || words.includes('primary')) bad.push(`${file}: ${m[0]}`);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+    expect(bad).toEqual([]);
+  });
+});
+
+describe('탭 머리·빈 상태', () => {
+  it('탭 머리(.rhead)는 기본 높이(28)·간격 12·제목 15 한 가지다', () => {
+    const h = rule('.rhead');
+    expect(h['min-height']).toBe('var(--h-md)');
+    expect(h['display']).toBe('flex');
+    expect(h['align-items']).toBe('center');
+    expect(rule('.rhead > b')['font-size']).toBe('var(--fs-lg)');
+  });
+  it('빈 상태·확인 중·문제는 .empty-state 한 부품이다(제목 15, 실패면 빨강)', () => {
+    expect(rule('.empty-state')['display']).toBe('flex');
+    expect(rule('.empty-state > b')['font-size']).toBe('var(--fs-lg)');
+    expect(rule('.empty-state.failed > b')['color']).toBe('var(--red)');
+  });
+  it('키보드 포커스 링은 --focus 토큰 하나다', () => {
+    expect(rule(':root')['--focus']).toBe('var(--accentfg)');
+    expect(rule('.btn:focus-visible')['outline']).toContain('var(--focus)');
+    expect(rule('.row-item:focus-visible')['outline']).toContain('var(--focus)');
   });
 });
 
@@ -151,7 +213,7 @@ describe('탭마다 공통 부품을 덮어쓰지 않는다', () => {
   }
 
   it('.dim .hint .err .mono .lbl .btns 같은 공통 이름은 ui.css에서만 정의한다(다른 파일에서는 앞에 부모를 붙인 변형만)', () => {
-    const NAMES = ['.dim', '.faint', '.hint', '.err', '.mono', '.lbl', '.btns', '.pad'];
+    const NAMES = ['.dim', '.faint', '.hint', '.err', '.mono', '.lbl', '.btns', '.pad', '.rhead', '.rhead b', '.empty-state'];
     const bad: string[] = [];
     for (const file of otherCss.filter((f) => !NOT_MIGRATED.includes(f))) for (const r of parseCss(read(file))) if (NAMES.includes(r.selector)) bad.push(`${file} ${r.selector}`);
     expect(bad).toEqual([]);
@@ -176,16 +238,16 @@ describe('색 글자(#rrggbb)', () => {
 });
 
 describe('버튼 클래스 이름', () => {
-  const ALLOWED = new Set(['btn', 'primary', 'danger', 'ghost', 'sm', 'lg', 'icon', 'block']);
+  const ALLOWED = new Set(['btn', 'primary', 'run', 'danger', 'ghost', 'sm', 'lg', 'icon', 'block']);
   const ts = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts'));
-  it('btn 뒤에는 공통 변형(primary danger ghost sm lg icon block)과 위치용 이름만 온다', () => {
+  it('btn 뒤에는 공통 변형(primary run danger ghost sm lg icon block)과 위치용 이름만 오고, 색 종류는 하나만 붙는다', () => {
     const unknownModifiers: string[] = [];
     for (const file of ts) {
       for (const m of read(file).matchAll(/['`"]btn((?: [a-z][\w-]*)*)['`"]/g)) {
         const words = (m[1] ?? '').trim().split(/\s+/).filter((w) => w !== '');
         if (words.includes('sec')) unknownModifiers.push(`${file}: btn sec (보조는 기본 모양이라 sec를 붙이지 않는다)`);
         const kinds = words.filter((w) => ALLOWED.has(w));
-        if (kinds.filter((w) => ['primary', 'danger', 'ghost'].includes(w)).length > 1) unknownModifiers.push(`${file}: ${m[0]}`);
+        if (kinds.filter((w) => ['primary', 'run', 'danger', 'ghost'].includes(w)).length > 1) unknownModifiers.push(`${file}: ${m[0]}`);
       }
     }
     expect(unknownModifiers).toEqual([]);

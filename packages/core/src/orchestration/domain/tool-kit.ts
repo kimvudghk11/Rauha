@@ -6,9 +6,9 @@ import type { MemberRole } from './member-role.js';
  */
 export type ToolKit = 'browser' | 'aws' | 'connectors';
 
-/** 사용자가 설정에서 연결한 업무 도구(노션·컨플루언스·지라 …)를 읽고 쓰는 역할. 지금은 답변 팀원만. */
-const CONNECTOR_ROLES: ReadonlySet<MemberRole> = new Set(['answerer']);
-const CONNECTOR_WORDS = /노션|notion|컨플루언스|confluence|컨플|위키|wiki|지라|jira|아틀라시안|atlassian|구글\s?(독스|문서|시트|드라이브)|google\s?(docs?|sheets?|drive)|스프레드\s?시트|spreadsheet|시트에|커넥터|connector/i;
+/** 사용자가 설정에서 연결한 업무 도구(노션·컨플루언스·지라 …)를 읽고 쓰는 역할. 답변·문서·구현·운영·회사 부서 팀원. 테스트·리뷰·접수처럼 판정만 하는 팀원은 뺀다. */
+const CONNECTOR_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'writer', 'implementer', 'designer', 'debugger', 'operator', 'planner', 'releaser', 'riskchecker', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand']);
+const CONNECTOR_WORDS = /노션|notion|컨플루언스|confluence|컨플|위키|wiki|지라|jira|아틀라시안|atlassian|리니어|linear|슬랙|slack|피그마|figma|센트리|sentry|구글\s?(독스|문서|시트|드라이브)|google\s?(docs?|sheets?|drive)|스프레드\s?시트|spreadsheet|시트에|커넥터|connector/i;
 
 /** 브라우저로 페이지를 열어 볼 수 있는 역할. 답을 찾거나(답변·디버깅) 화면을 다루는(UX) 팀원만. */
 const BROWSER_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'debugger', 'uxdesigner']);

@@ -1,3 +1,4 @@
+import { ToolKits } from '../domain/tool-kit.js';
 import type { DeskHost } from './desk-host.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
 import { WRITER_SCHEMA } from './dto/schemas.js';
@@ -61,7 +62,8 @@ export class DocumentDesk {
         `<request>\n${input}\n</request>`,
       ],
       WRITER_SCHEMA,
-      { dirs, canWrite: (path) => /\.md$/i.test(path) },
+      // 노션·컨플루언스 같은 업무 도구에 정리하라는 요청이면 커넥터를 붙이고, 시킨 쓰기는 묻지 않게 요청을 넘긴다
+      { dirs, canWrite: (path) => /\.md$/i.test(path), kits: ToolKits.for('writer', input), ...(ToolKits.for('writer', input).includes('connectors') ? { request: input } : {}) },
     );
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const report = WriterReportDto.read(result.output);

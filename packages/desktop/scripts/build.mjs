@@ -1,5 +1,5 @@
 // main·preload·화면을 esbuild로 묶어 dist/에 둔다. core는 소스(rauha-source)를 바로 묶는다.
-import { cpSync, mkdirSync, readdirSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,10 +23,13 @@ const dbChildSource = dbChild.outputFiles[0].text;
 const searchWorker = await build({ entryPoints: [join(src, 'main', 'code', 'search-worker.ts')], bundle: true, platform: 'node', format: 'cjs', minify: true, write: false, conditions: ['rauha-source'], logLevel: 'warning' });
 const searchWorkerSource = searchWorker.outputFiles[0].text;
 
+// DB 탭: Amazon RDS 루트 CA 묶음(서버 SSL 인증서 확인용). 파일 내용을 main 번들에 문자열로 넣는다.
+const rdsCaBundle = readFileSync(join(src, 'main', 'db', 'certs', 'aws-rds-global-bundle.pem'), 'utf8');
+
 const common = { bundle: true, sourcemap: true, conditions: ['rauha-source'], logLevel: 'warning' };
 
 await Promise.all([
-  build({ ...common, entryPoints: [join(src, 'main', 'main.ts')], outfile: join(dist, 'main.cjs'), platform: 'node', format: 'cjs', external: runtimeExternal, ...metaUrl, define: { ...metaUrl.define, __DB_CHILD_SOURCE__: JSON.stringify(dbChildSource), __SEARCH_WORKER_SOURCE__: JSON.stringify(searchWorkerSource) } }),
+  build({ ...common, entryPoints: [join(src, 'main', 'main.ts')], outfile: join(dist, 'main.cjs'), platform: 'node', format: 'cjs', external: runtimeExternal, ...metaUrl, define: { ...metaUrl.define, __DB_CHILD_SOURCE__: JSON.stringify(dbChildSource), __SEARCH_WORKER_SOURCE__: JSON.stringify(searchWorkerSource), __RDS_CA_BUNDLE__: JSON.stringify(rdsCaBundle) } }),
   // 코드 탭의 정의로 이동·참조·진단: typescript 를 묶은 worker 파일(3.6MB, 처음 쓸 때만 읽는다). asar 밖(app.asar.unpacked)에 풀어 둔다.
   build({ bundle: true, minify: true, conditions: ['rauha-source'], logLevel: 'warning', entryPoints: [join(src, 'main', 'code', 'ts', 'ts-worker.ts')], outfile: join(dist, 'ts-worker.cjs'), platform: 'node', format: 'cjs' }),
   build({ ...common, entryPoints: [join(src, 'preload', 'preload.ts')], outfile: join(dist, 'preload.cjs'), platform: 'node', format: 'cjs', external: ['electron'] }),

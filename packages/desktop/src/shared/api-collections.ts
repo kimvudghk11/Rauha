@@ -228,6 +228,29 @@ export class ApiCollections {
     return { collections: ApiCollections.of(nodes), known: [...allKeys], report: { added, updated, kept, gone, total, groups: gen.groups.length }, rootId };
   }
 
+  /**
+   * 화면에 보일 나무: 고른 프로젝트의 자동 생성 폴더와, 어느 프로젝트 폴더에도 속하지 않은 내 요청·폴더만.
+   * 다른 프로젝트 폴더는 숨길 뿐 지우지 않는다(다시 고르면 그대로 보인다). project 가 null 이면 내 것만.
+   */
+  scopedTo(project: string | null): ApiCollections {
+    const byId = new Map(this.nodes.map((n) => [n.id, n]));
+    const top = (n: CollectionNode): CollectionNode => {
+      let cur = n;
+      for (let guard = 0; cur.parentId !== null && guard < 1000; guard += 1) {
+        const parent = byId.get(cur.parentId);
+        if (parent === undefined) break;
+        cur = parent;
+      }
+      return cur;
+    };
+    const visible = (n: CollectionNode): boolean => {
+      const t = top(n);
+      const isProjectRoot = t.kind === 'folder' && t.origin?.key === 'root';
+      return !isProjectRoot || t.origin?.project === project;
+    };
+    return ApiCollections.of(this.nodes.filter(visible));
+  }
+
   /** 이 프로젝트의 자동 생성 폴더가 남아 있나 */
   hasProject(project: string): boolean {
     return this.nodes.some((n) => n.kind === 'folder' && n.origin?.project === project && n.origin.key === 'root');

@@ -90,3 +90,29 @@ describe('비밀번호', () => {
     expect(() => SavedPassword.restore(5)).toThrow(DbInputError);
   });
 });
+
+describe('Amazon RDS 인증서', () => {
+  it('호스트가 *.rds.amazonaws.com(.cn) 이고 "SSL + 인증서 확인"이면 Amazon RDS CA 를 함께 믿는다', () => {
+    expect(ServerTarget.parse({ ...base, host: 'mydb.abc123.ap-northeast-2.rds.amazonaws.com', ssl: 'verify' }).extraCa()).toBe('aws-rds');
+    expect(ServerTarget.parse({ ...base, host: 'MyDB.cluster-ro-abc.us-east-1.RDS.amazonaws.com', ssl: 'verify' }).extraCa()).toBe('aws-rds');
+    expect(ServerTarget.parse({ ...base, host: 'mydb.abc.cn-north-1.rds.amazonaws.com.cn', ssl: 'verify' }).extraCa()).toBe('aws-rds');
+  });
+  it('RDS 가 아닌 호스트·이름만 비슷한 호스트·인증서를 보지 않는 SSL 에는 더하지 않는다', () => {
+    expect(ServerTarget.parse({ ...base, ssl: 'verify' }).extraCa()).toBeNull();
+    expect(ServerTarget.parse({ ...base, host: 'rds.amazonaws.com.evil.com', ssl: 'verify' }).extraCa()).toBeNull();
+    expect(ServerTarget.parse({ ...base, host: 'evilrds.amazonaws.com', ssl: 'verify' }).extraCa()).toBeNull();
+    expect(ServerTarget.parse({ ...base, host: 'mydb.abc.us-east-1.rds.amazonaws.com', ssl: 'require' }).extraCa()).toBeNull();
+    expect(ServerTarget.parse({ ...base, host: 'mydb.abc.us-east-1.rds.amazonaws.com', ssl: 'off' }).extraCa()).toBeNull();
+  });
+  it('RDS 호스트인지 따로 알 수 있다(폼에서 SSL 을 권할 때)', () => {
+    expect(ServerTarget.isAwsRdsHost('a.b.ap-northeast-2.rds.amazonaws.com')).toBe(true);
+    expect(ServerTarget.isAwsRdsHost('localhost')).toBe(false);
+  });
+});
+
+describe('폼에 다시 채울 값', () => {
+  it('연결 고치기·복제용 값에는 비밀번호가 없다', () => {
+    const t = ServerTarget.parse({ ...base, port: 6543, ssl: 'verify' });
+    expect(t.toJSON()).toEqual({ kind: 'postgres', host: 'db.example.com', port: 6543, user: 'app', database: 'shop', ssl: 'verify' });
+  });
+});

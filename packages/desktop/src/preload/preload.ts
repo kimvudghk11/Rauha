@@ -6,6 +6,7 @@ import type { LoginView } from '../shared/claude-login.js';
 import { API_IPC } from '../shared/api-ipc.js';
 import { DB_IPC } from '../shared/db-api.js';
 import { CONNECTOR_IPC, type ConnectorListView } from '../shared/connector-api.js';
+import { PLUGIN_IPC } from '../shared/plugin-api.js';
 import { DOCKER_IPC, type DockerLogEvent } from '../shared/docker-api.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
@@ -121,6 +122,17 @@ const api: RauhaApi = {
       ipcRenderer.on(TERM_IPC.event, (_e, event: TermEvent) => listener(event));
     },
   },
+  plugins: {
+    list: () => ipcRenderer.invoke(PLUGIN_IPC.list),
+    refresh: () => ipcRenderer.invoke(PLUGIN_IPC.refresh),
+    install: (input) => ipcRenderer.invoke(PLUGIN_IPC.install, input),
+    uninstall: (id) => ipcRenderer.invoke(PLUGIN_IPC.uninstall, id),
+    enable: (id) => ipcRenderer.invoke(PLUGIN_IPC.enable, id),
+    disable: (id) => ipcRenderer.invoke(PLUGIN_IPC.disable, id),
+    addMarketplace: (source) => ipcRenderer.invoke(PLUGIN_IPC.addMarketplace, source),
+    removeMarketplace: (name) => ipcRenderer.invoke(PLUGIN_IPC.removeMarketplace, name),
+    removeSkill: (name) => ipcRenderer.invoke(PLUGIN_IPC.removeSkill, name),
+  },
   connectors: {
     list: () => ipcRenderer.invoke(CONNECTOR_IPC.list),
     refresh: () => ipcRenderer.invoke(CONNECTOR_IPC.refresh),
@@ -140,6 +152,8 @@ const api: RauhaApi = {
     addPath: (req) => ipcRenderer.invoke(DB_IPC.addPath, req),
     pick: () => ipcRenderer.invoke(DB_IPC.pick),
     addServer: (req) => ipcRenderer.invoke(DB_IPC.addServer, req),
+    editServer: (req) => ipcRenderer.invoke(DB_IPC.editServer, req),
+    testServer: (req) => ipcRenderer.invoke(DB_IPC.testServer, req),
     unlock: (req) => ipcRenderer.invoke(DB_IPC.unlock, req),
     remove: (id) => ipcRenderer.invoke(DB_IPC.remove, id),
     tables: (id) => ipcRenderer.invoke(DB_IPC.tables, id),

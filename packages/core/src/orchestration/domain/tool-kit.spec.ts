@@ -71,6 +71,17 @@ describe('ToolKits 커넥터', () => {
 
   it('상관없는 요청과 다른 역할에는 붙이지 않는다', () => {
     expect(ToolKits.for('answerer', '이 함수 뭐 해?')).not.toContain('connectors');
-    expect(ToolKits.for('implementer', '노션에 정리해줘')).not.toContain('connectors');
+    expect(ToolKits.for('tester', '노션에 정리해줘')).not.toContain('connectors');
+  });
+});
+
+describe('ToolKits 커넥터 확장', () => {
+  it('슬랙·리니어·피그마·센트리를 가리켜도 붙인다', () => {
+    for (const request of ['슬랙 채널 요약해줘', 'Linear 이슈 정리', '피그마 화면 보고 만들어줘', '센트리 에러 원인']) expect(ToolKits.for('answerer', request)).toContain('connectors');
+  });
+
+  it('문서·구현·운영 팀원에게도 붙인다(테스트·리뷰·접수는 아니다)', () => {
+    for (const role of ['writer', 'implementer', 'designer', 'debugger', 'operator', 'planner', 'releaser'] as const) expect(ToolKits.for(role, '노션에 정리해줘')).toContain('connectors');
+    for (const role of ['tester', 'reviewer', 'intake', 'router'] as const) expect(ToolKits.for(role, '노션에 정리해줘')).not.toContain('connectors');
   });
 });

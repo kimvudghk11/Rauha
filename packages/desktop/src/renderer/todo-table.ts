@@ -19,7 +19,7 @@ export function buildTable(ctx: TodoCtx): TableView {
     const rows = board.view(ctx.filter(), sort, today);
     root.replaceChildren();
     if (rows.length === 0) {
-      root.append(el('div', 'tempty', board.items.length === 0 ? 'No cards' : 'No cards match. Change the search or filters.'));
+      root.append(el('div', 'empty-state tempty', board.items.length === 0 ? 'No cards' : 'No cards match. Change the search or filters.'));
       return;
     }
     const table = el('table', 'tbl');

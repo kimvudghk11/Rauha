@@ -4,7 +4,7 @@ import { button } from './todo-parts.js';
 
 /** API 탭 화면 조각들이 함께 쓰는 것: 메서드 이름표, 키-값 표, 글 입력 창, 시간 표시 */
 
-const METHOD_CLASS: Readonly<Record<string, string>> = { GET: 'm-get', POST: 'm-post', PUT: 'm-put', PATCH: 'm-patch', DELETE: 'm-delete' };
+export const METHOD_CLASS: Readonly<Record<string, string>> = { GET: 'm-get', POST: 'm-post', PUT: 'm-put', PATCH: 'm-patch', DELETE: 'm-delete' };
 
 export function methodBadge(method: string): HTMLElement {
   return el('span', `api-method ${METHOD_CLASS[method] ?? 'm-other'}`, method === 'DELETE' ? 'DEL' : method === 'OPTIONS' ? 'OPT' : method);

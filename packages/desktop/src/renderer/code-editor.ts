@@ -458,6 +458,12 @@ export class CodeEditor {
     return { fromLine: doc.lineAt(from).number, toLine: doc.lineAt(to > from && doc.lineAt(to).from === to ? to - 1 : to).number, text: doc.sliceString(from, to) };
   }
 
+  /** 보고 있는 글의 커서·고른 범위(글자 위치). from === to 면 고른 것이 없다 */
+  cursorRange(): { from: number; to: number; head: number } {
+    const { from, to, head } = this.view.state.selection.main;
+    return { from, to, head };
+  }
+
   /** 저장된 내용이 HEAD와 다른 줄을 왼쪽에 표시한다 */
   setMarks(path: string, marks: readonly LineMark[]): void {
     if (this.current === path) {

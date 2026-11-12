@@ -31,6 +31,10 @@ export interface ConnectorPresetView {
   readonly id: string;
   readonly label: string;
   readonly covers: string;
+  /** 업무에서 무엇을 해 주는지 한 줄 */
+  readonly summary: string;
+  /** 채팅에 바로 쓸 수 있는 예시 요청(누르면 채팅 입력칸에 채운다) */
+  readonly examples: readonly string[];
   /** 이미 목록에 있는지 */
   readonly added: boolean;
   /** 버튼 하나로 연결할 수 없는 이유('준비 중'). 연결할 수 있으면 null */
