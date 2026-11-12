@@ -5,9 +5,12 @@ import { sslHelp } from '../shared/db-view-text.js';
 import { el, isEnterKey } from './dom.js';
 import { button, select } from './todo-parts.js';
 
-const SERVER_KINDS: readonly (readonly [ServerKind, string])[] = [
+/** 새 연결의 종류: 서버 둘과 SQLite 파일(한 폼에서 고른다) */
+type FormKind = ServerKind | 'sqlite';
+const FORM_KINDS: readonly (readonly [FormKind, string])[] = [
   ['postgres', 'PostgreSQL'],
   ['mysql', 'MySQL'],
+  ['sqlite', 'SQLite file'],
 ];
 const SSL_MODES: readonly (readonly [SslMode, string])[] = [
   ['off', 'Off'],
@@ -23,6 +26,8 @@ export interface ServerFormDeps {
   /** 저장(추가·고치기)이 되었을 때 */
   readonly onSaved: (view: DbConnectionView) => void;
   readonly onClose: () => void;
+  /** SQLite 파일 연결: path 가 없으면 파일 고르기 창. 실패면 그 이유, 고르기를 취소하면 'cancelled', 되면 null */
+  readonly addFile: (path?: string) => Promise<DbFailure | 'cancelled' | null>;
 }
 
 /**
@@ -33,6 +38,8 @@ export interface ServerFormDeps {
 export function buildServerForm(deps: ServerFormDeps) {
   let mode: Mode = { kind: 'new' };
   let kind: ServerKind = 'postgres';
+  /** 폼에서 고른 종류(SQLite 면 파일 칸만 보인다) */
+  let formKind: FormKind = 'postgres';
   let ssl: SslMode = 'off';
   let sslTouched = false;
   let busy = false;
@@ -63,7 +70,11 @@ export function buildServerForm(deps: ServerFormDeps) {
   pass.type = 'password';
   pass.autocomplete = 'new-password';
   const database = input('Database name', 'postgres');
-  const kindSel = select(SERVER_KINDS, kind, (v) => setKind(v));
+  const kindSel = select(FORM_KINDS, formKind, (v) => setFormKind(v));
+  const filePath = input('Full path of a SQLite file', 'C:\\data\\app.db or /Users/me/app.db');
+  const chooseBtn = button('Choose file…', 'btn', () => void chooseFile());
+  const fileRow = el('div', 'db-hostport');
+  fileRow.append(filePath, chooseBtn);
   kindSel.setAttribute('aria-label', 'Database type');
   const sslSel = select(SSL_MODES, ssl, (v) => {
     ssl = v;
@@ -98,10 +109,12 @@ export function buildServerForm(deps: ServerFormDeps) {
   result.setAttribute('aria-live', 'polite');
 
   const grid = el('div', 'db-form-grid');
-  grid.append(field('Type', kindSel), field('Name', name), field('Host', hostRow), field('User', user), field('Password', pass, passNote), field('Database', database), field('SSL', sslSel, sslNote), field('', saveLabel));
+  const serverFields = [field('Name', name), field('Host', hostRow), field('User', user), field('Password', pass, passNote), field('Database', database), field('SSL', sslSel, sslNote), field('', saveLabel)];
+  const fileField = field('File', fileRow);
+  grid.append(field('Type', kindSel), fileField, ...serverFields);
   root.append(top, grid, actions, result);
 
-  for (const i of [name, host, port, user, pass, database]) {
+  for (const i of [name, host, port, user, pass, database, filePath]) {
     i.addEventListener('keydown', (e) => {
       if (isEnterKey(e)) {
         e.preventDefault();
@@ -124,6 +137,38 @@ export function buildServerForm(deps: ServerFormDeps) {
     }
     paintSsl();
   });
+
+  /** 종류 고르기: SQLite 면 파일 칸만, 서버면 서버 칸만 보인다 */
+  function setFormKind(next: FormKind): void {
+    formKind = next;
+    kindSel.value = next;
+    const file = next === 'sqlite';
+    fileField.hidden = !file;
+    for (const f of serverFields) f.hidden = file;
+    testBtn.hidden = file;
+    if (next !== 'sqlite') setKind(next);
+    if (mode.kind !== 'edit') sub.textContent = file ? 'Pick a SQLite file on this computer. It opens read-only.' : 'MySQL or PostgreSQL. Rauha connects once to check, then saves it. Everything opens read-only.';
+    showResult(null);
+  }
+  async function chooseFile(): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    const r = await deps.addFile();
+    setBusy(false);
+    if (r === 'cancelled' || r === null) return showResult(null);
+    showResult(r);
+  }
+  async function submitFile(): Promise<void> {
+    if (filePath.value.trim() === '') return showResult({ kind: 'bad-input', title: 'Missing details', message: 'Type the full path of a SQLite file, or press Choose file.', help: null });
+    setBusy(true, 'Opening the file…');
+    const r = await deps.addFile(filePath.value);
+    setBusy(false);
+    if (r === 'cancelled' || r === null) {
+      filePath.value = '';
+      return showResult(null);
+    }
+    showResult(r);
+  }
 
   function setKind(next: ServerKind): void {
     const oldDefault = String(defaultPort(kind));
@@ -166,7 +211,7 @@ export function buildServerForm(deps: ServerFormDeps) {
   };
   function setBusy(on: boolean, label?: string): void {
     busy = on;
-    testBtn.disabled = saveBtn.disabled = on;
+    testBtn.disabled = saveBtn.disabled = chooseBtn.disabled = on;
     if (on && label !== undefined) showResult(null, label);
     if (on) result.className = 'db-form-result wait';
   }
@@ -184,6 +229,7 @@ export function buildServerForm(deps: ServerFormDeps) {
 
   async function submit(): Promise<void> {
     if (busy) return;
+    if (formKind === 'sqlite') return submitFile();
     const m = missing();
     if (m !== null) return showResult({ kind: 'bad-input', title: 'Missing details', message: m, help: null });
     setBusy(true, `Connecting to ${host.value.trim()}…`);
@@ -213,17 +259,21 @@ export function buildServerForm(deps: ServerFormDeps) {
     showResult(null);
   }
 
-  function open(next: Mode): void {
+  function open(next: Mode, startKind: FormKind = 'postgres'): void {
     mode = next;
     fill(next.kind === 'new' ? null : next.conn);
-    title.textContent = next.kind === 'edit' ? `Edit ${next.conn.name}` : next.kind === 'copy' ? `Duplicate ${next.conn.name}` : 'New server connection';
-    sub.textContent = next.kind === 'edit' ? 'Rauha connects with the new details first and saves them only if that works.' : 'MySQL or PostgreSQL. Rauha connects once to check, then saves it. Everything opens read-only.';
+    filePath.value = '';
+    // 고치기·복제는 서버 연결만(SQLite 는 다시 고르면 된다). 새 연결은 종류부터 고른다
+    kindSel.disabled = next.kind !== 'new';
+    title.textContent = next.kind === 'edit' ? `Edit ${next.conn.name}` : next.kind === 'copy' ? `Duplicate ${next.conn.name}` : 'New connection';
+    if (next.kind === 'edit') sub.textContent = 'Rauha connects with the new details first and saves them only if that works.';
+    setFormKind(next.kind === 'new' ? startKind : (next.conn.server?.kind ?? 'postgres'));
     pass.placeholder = next.kind === 'edit' ? (next.conn.savedPassword === true ? 'Saved — leave empty to keep' : 'Leave empty to use the one you typed this session') : '';
     passNote.textContent = next.kind === 'copy' ? 'Type the password again for the copy.' : '';
     passNote.hidden = passNote.textContent === '';
     saveBtn.textContent = next.kind === 'edit' ? 'Save' : 'Connect';
     root.hidden = false;
-    (next.kind === 'new' ? host : name).focus();
+    (next.kind !== 'new' ? name : formKind === 'sqlite' ? filePath : host).focus();
   }
 
   function close(): void {
@@ -235,7 +285,7 @@ export function buildServerForm(deps: ServerFormDeps) {
 
   return {
     root,
-    openNew: () => open({ kind: 'new' }),
+    openNew: (startKind: FormKind = 'postgres') => open({ kind: 'new' }, startKind),
     openEdit: (c: DbConnectionView) => open({ kind: 'edit', conn: c }),
     openCopy: (c: DbConnectionView) => open({ kind: 'copy', conn: c }),
     close,

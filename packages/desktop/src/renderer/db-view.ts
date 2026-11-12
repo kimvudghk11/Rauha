@@ -158,24 +158,6 @@ export function buildDb(deps: DbViewDeps) {
   });
 
   // ── 왼쪽: 연결 · 테이블 ──
-  const pathInput = el('input', 'sm db-path');
-  pathInput.placeholder = 'SQLite file path, e.g. C:\\data\\app.db';
-  pathInput.spellcheck = false;
-  pathInput.setAttribute('aria-label', 'Full path of a SQLite file');
-  const addBtn = button('Add', 'btn sm', () => void addPath());
-  const browseBtn = button('Browse…', 'btn sm', () => void browse());
-  const serverBtn = button('Server…', 'btn sm', () => openForm('new'));
-  serverBtn.title = 'New MySQL or PostgreSQL connection';
-  const addBar = el('div', 'bar db-addbar');
-  addBar.append(pathInput, addBtn, browseBtn, serverBtn);
-  pathInput.addEventListener('keydown', (e) => {
-    if (isEnterKey(e)) {
-      e.preventDefault();
-      void addPath();
-    }
-  });
-  const addNote = el('div', 'hint db-addnote');
-  addNote.hidden = true;
 
   const fileList = el('div', 'db-files');
   const tableFilter = el('input', 'sm db-filter');
@@ -200,7 +182,10 @@ export function buildDb(deps: DbViewDeps) {
   const tableList = el('div', 'db-tables');
   const side = el('div', 'pane db-side');
   const filesHead = el('div', 'ph');
-  filesHead.append(el('b', 'grow', 'Connections'), button('+ Server', 'btn sm', () => openForm('new')));
+  // 새 연결은 단추 하나: 가운데 모달에서 종류(PostgreSQL·MySQL·SQLite 파일)부터 고른다
+  const newConn = button('+ New connection', 'btn sm', () => openForm('new'));
+  newConn.title = 'Connect to PostgreSQL or MySQL, or open a SQLite file';
+  filesHead.append(el('b', 'grow', 'Connections'), newConn);
   const tablesHead = el('div', 'ph');
   const tablesTitle = el('b', 'grow', 'Tables');
   const tablesReload = button('↻', 'btn icon sm ghost', () => void reloadTables());
@@ -209,9 +194,7 @@ export function buildDb(deps: DbViewDeps) {
   tablesHead.append(tablesTitle, tablesReload);
   const filterWrap = el('div', 'db-filterbar');
   filterWrap.append(tableFilter);
-  const addWrap = el('div', 'db-add');
-  addWrap.append(addBar, addNote);
-  side.append(filesHead, addWrap, fileList, tablesHead, filterWrap, tableList);
+  side.append(filesHead, fileList, tablesHead, filterWrap, tableList);
 
   // ── 가운데: 탭 + 칸 ──
   const tabsRow = el('div', 'tabs');
@@ -235,11 +218,27 @@ export function buildDb(deps: DbViewDeps) {
     canSavePasswords: () => canSavePasswords,
     onSaved: (v) => void afterSaved(v),
     onClose: () => paintForm(),
+    addFile: async (path) => {
+      const r = await (path === undefined ? api.pick() : api.addPath({ path }));
+      if (!r.ok) return r.failure;
+      if (r.data === null) return 'cancelled';
+      form.close();
+      await refreshList(r.data.id);
+      if (current?.id !== r.data.id) await openFile(r.data);
+      return null;
+    },
   });
-  main.append(tabsRow, schemaPanel, rowsPanel, sqlPanel, form.root);
+  main.append(tabsRow, schemaPanel, rowsPanel, sqlPanel);
+  // 연결 폼은 가운데 모달(바깥을 누르거나 Esc 로 닫힌다)
+  const formLayer = el('div', 'veil db-form-layer');
+  formLayer.hidden = true;
+  formLayer.append(form.root);
+  formLayer.addEventListener('mousedown', (e) => {
+    if (e.target === formLayer) form.close();
+  });
   const body = el('div', 'db-body');
   body.append(side, main);
-  root.append(head, limit, notice, body);
+  root.append(head, limit, notice, body, formLayer);
 
   // ── 칸 상세(고른 칸의 전체 값 · 복사) ──
   function cellPane(): { readonly root: HTMLElement; show(p: PickedCell, columns: readonly string[]): void; hide(): void } {
@@ -408,13 +407,10 @@ export function buildDb(deps: DbViewDeps) {
   }
   function paintForm(): void {
     const open = form.isOpen();
-    tabsRow.hidden = open;
-    serverBtn.classList.toggle('on', open);
-    if (open) schemaPanel.hidden = rowsPanel.hidden = sqlPanel.hidden = true;
-    else paintSub();
+    formLayer.hidden = !open;
+    newConn.classList.toggle('on', open);
   }
   function paintSub(): void {
-    if (form.isOpen()) return;
     for (const [id, b] of tabButtons) b.classList.toggle('on', id === sub);
     schemaPanel.hidden = sub !== 'schema';
     rowsPanel.hidden = sub !== 'rows';
@@ -484,9 +480,9 @@ export function buildDb(deps: DbViewDeps) {
   function paintMain(failure?: DbFailure): void {
     paintSub();
     if (current === null) {
-      const actions = [button('+ Server connection', 'btn primary', () => openForm('new')), button('Open SQLite file…', 'btn', () => void browse())];
-      schemaPanel.replaceChildren(empty('No database open', 'Connect to a MySQL or PostgreSQL server, or open a SQLite file.', ...actions));
-      rowsBody.replaceChildren(empty('No database open', 'Connect to a MySQL or PostgreSQL server, or open a SQLite file.', button('+ Server connection', 'btn primary', () => openForm('new')), button('Open SQLite file…', 'btn', () => void browse())));
+      const startButton = (): HTMLButtonElement => button('+ New connection', 'btn primary', () => openForm('new'));
+      schemaPanel.replaceChildren(empty('No database open', 'Connect to a MySQL or PostgreSQL server, or open a SQLite file.', startButton()));
+      rowsBody.replaceChildren(empty('No database open', 'Connect to a MySQL or PostgreSQL server, or open a SQLite file.', startButton()));
       prevBtn.disabled = nextBtn.disabled = rowsCsv.disabled = rowsRefresh.disabled = true;
       pageText.textContent = '';
       return;
@@ -682,26 +678,6 @@ export function buildDb(deps: DbViewDeps) {
     await loadRows();
   }
 
-  const remember = (text: string): void => {
-    addNote.textContent = text;
-    addNote.hidden = text === '';
-  };
-  async function register(task: Promise<DbResult<DbConnectionView | null>>): Promise<void> {
-    const r = await task;
-    if (!r.ok) return remember(`${r.failure.title}. ${r.failure.message}${r.failure.help === null ? '' : ` ${r.failure.help}`}`);
-    remember('');
-    if (r.data === null) return;
-    pathInput.value = '';
-    await refreshList(r.data.id);
-    if (current?.id !== r.data.id) await openFile(r.data);
-  }
-  async function addPath(): Promise<void> {
-    if (pathInput.value.trim() === '') return remember('Type the full path of a SQLite file first.');
-    await register(api.addPath({ path: pathInput.value }));
-  }
-  async function browse(): Promise<void> {
-    await register(api.pick());
-  }
   /** 비밀번호 창. 접속이 되면 true. 비밀번호는 main 으로만 가고 화면에 남기지 않는다 */
   async function askPassword(c: DbConnectionView, why: DbFailure): Promise<boolean> {
     let note = why.message;
@@ -720,7 +696,7 @@ export function buildDb(deps: DbViewDeps) {
   }
   async function removeFile(c: DbConnectionView): Promise<void> {
     const r = await api.remove(c.id);
-    if (!r.ok) return remember(r.failure.message);
+    if (!r.ok) return say(r.failure.message);
     connections = r.data.connections;
     canSavePasswords = r.data.canSavePasswords;
     status.delete(c.id);

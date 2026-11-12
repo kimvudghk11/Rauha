@@ -12,10 +12,6 @@
 .app[data-tier=xs] .db-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 40%) minmax(0, 1fr); }
 .db-side { flex: none; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .db-main { flex: none; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-.db-add { padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s1); flex: none; }
-.db-addbar { flex-wrap: wrap; }
-.db-path { flex: 1 1 100%; min-width: 0; font-family: var(--mono); }
-.db-addnote { overflow-wrap: anywhere; }
 .db-files { flex: 0 1 auto; max-height: 40%; overflow-y: auto; }
 .db-tables { flex: 1; min-height: 0; overflow-y: auto; }
 .app[data-tier=xs] .db-body { grid-template-rows: minmax(0, 50%) minmax(0, 1fr); }
@@ -101,7 +97,9 @@
 @keyframes db-spin { to { transform: rotate(360deg); } }
 
 /* 서버 연결 폼(가운데 칸에 크게) */
-.db-form { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4) var(--s5); max-width: 640px; box-sizing: border-box; }
+.db-form-layer[hidden] { display: none; }
+/* 새 연결·고치기 폼: 가운데 모달(바깥·Esc 로 닫힘) */
+.db-form { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4) var(--s5); box-sizing: border-box; background: var(--card); border: 1px solid var(--border2); border-radius: var(--r-lg); box-shadow: 0 10px 40px #000c; }
 .app[data-tier=xs] .db-form { padding: var(--s3); }
 .db-form-head { display: flex; flex-direction: column; gap: var(--s1); }
 .db-form-title { color: var(--bright); font-size: var(--fs-lg); }
