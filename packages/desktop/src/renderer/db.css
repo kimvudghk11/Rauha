@@ -55,3 +55,12 @@
 .db-msg { overflow-wrap: anywhere; white-space: pre-wrap; }
 .db-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s1); padding: var(--s5) var(--s3); text-align: center; }
 .db-empty b { color: var(--bright); font-size: var(--fs-lg); }
+
+/* 서버 연결 폼(MySQL · PostgreSQL) */
+.db-server { display: flex; flex-direction: column; gap: var(--s1); padding-top: var(--s2); border-top: 1px solid var(--border2); }
+.db-server[hidden] { display: none; }
+.db-srv-row { flex-wrap: nowrap; min-width: 0; }
+.db-srv-row > input, .db-srv-row > select { flex: 1 1 0; min-width: 0; }
+.db-srv-row > .db-port { flex: 0 0 64px; font-family: var(--mono); }
+.db-check { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--fs-sm); color: var(--text); cursor: pointer; }
+.db-row .chip { flex: none; }

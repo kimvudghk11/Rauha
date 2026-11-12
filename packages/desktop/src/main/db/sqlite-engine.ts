@@ -26,7 +26,7 @@ export interface EngineTestHooks {
 }
 
 export type EngineResponse =
-  | { readonly ok: true; readonly data: readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet }
+  | { readonly ok: true; readonly data: readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet | true }
   | { readonly ok: false; readonly code: 'no-engine' | 'error'; readonly message: string };
 
 // node:sqlite 의 타입(@types/node 22 에는 없는 부분이 있어 필요한 것만 직접 적는다)

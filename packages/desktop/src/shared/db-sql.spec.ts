@@ -120,3 +120,58 @@ describe('안전한 PRAGMA 목록', () => {
     expect(isSafePragma('TABLE_INFO')).toBe(true);
   });
 });
+
+describe('SQL 문장 가르기: MySQL · PostgreSQL 서버', () => {
+  const server = (sql: string, d: 'mysql' | 'postgres' = 'mysql') => SqlStatement.parse(sql, d).kind;
+  const serverBlocked = (sql: string, d: 'mysql' | 'postgres' = 'mysql') => {
+    try {
+      SqlStatement.parse(sql, d);
+    } catch (e) {
+      return e instanceof DbInputError ? e.kind : 'other';
+    }
+    return 'ran';
+  };
+  it('SHOW · DESCRIBE · DESC · EXPLAIN · TABLE 는 서버에서 읽기다', () => {
+    expect(server('SHOW TABLES')).toBe('read');
+    expect(server('DESCRIBE users')).toBe('read');
+    expect(server('desc users')).toBe('read');
+    expect(server('EXPLAIN SELECT 1', 'postgres')).toBe('read');
+    expect(server('TABLE users', 'postgres')).toBe('read');
+    expect(server('SHOW search_path', 'postgres')).toBe('read');
+  });
+  it('INSERT · UPDATE · DELETE · TRUNCATE · MERGE · CALL 은 쓰기, CREATE · ALTER · DROP · RENAME · GRANT 는 구조 변경이다', () => {
+    for (const s of ['INSERT INTO t VALUES (1)', 'UPDATE t SET a = 1', 'DELETE FROM t', 'TRUNCATE t', 'CALL p()', 'REPLACE INTO t VALUES (1)']) expect(server(s), s).toBe('write');
+    expect(server('MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE', 'postgres')).toBe('write');
+    for (const s of ['CREATE TABLE x (a int)', 'ALTER TABLE t ADD b int', 'DROP TABLE t', 'RENAME TABLE a TO b', 'GRANT SELECT ON t TO u']) expect(server(s), s).toBe('schema');
+    expect(server('WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d', 'postgres')).toBe('write');
+  });
+  it('쓰기 문장은 서버에서도 쓰기 모드와 확인이 둘 다 있어야 한다', () => {
+    const s = SqlStatement.parse('DELETE FROM t', 'postgres');
+    expect(() => s.assertAllowed({ writeMode: false, confirm: true })).toThrow(DbInputError);
+    expect(() => s.assertAllowed({ writeMode: true, confirm: false })).toThrow(DbInputError);
+    expect(() => s.assertAllowed({ writeMode: true, confirm: true })).not.toThrow();
+  });
+  it('서버 파일을 읽고 쓰거나 다른 연결로 새는 기능은 어디에 있든 막는다', () => {
+    expect(serverBlocked("SELECT * FROM t INTO OUTFILE '/tmp/x'")).toBe('blocked');
+    expect(serverBlocked("SELECT LOAD_FILE('/etc/passwd')")).toBe('blocked');
+    expect(serverBlocked("SELECT pg_read_file('/etc/passwd')", 'postgres')).toBe('blocked');
+    expect(serverBlocked("SELECT dblink_exec('x', 'DELETE FROM t')", 'postgres')).toBe('blocked');
+    expect(serverBlocked("SELECT set_config('default_transaction_read_only', 'off', false)", 'postgres')).toBe('blocked');
+    expect(serverBlocked('BEGIN')).toBe('blocked');
+  });
+  it('세션을 바꾸거나 서버를 다루는 문장(SET · COPY · KILL · LOAD · PRAGMA)은 실행하지 않는다', () => {
+    for (const s of ['SET GLOBAL x = 1', "COPY t FROM '/x'", 'KILL 5', 'LOAD DATA INFILE "x" INTO TABLE t', 'PRAGMA table_info(t)']) expect(serverBlocked(s), s).not.toBe('ran');
+  });
+  it("MySQL 의 \\' 이스케이프와 PostgreSQL 의 $$ · E'…' 문자열 안은 낱말로 보지 않는다", () => {
+    expect(server("SELECT 'a\\'; DROP TABLE x; -- '")).toBe('read');
+    expect(server("SELECT E'a\\'; DELETE FROM t; '", 'postgres')).toBe('read');
+    expect(server('SELECT 1 --1', 'mysql')).toBe('read');
+    expect(serverBlocked('SELECT 1 /*! INTO OUTFILE "/tmp/x" */')).toBe('blocked');
+    expect(server('SELECT $$ ; DELETE FROM t; $$', 'postgres')).toBe('read');
+    expect(server('SELECT $tag$ -- ; DROP $tag$', 'postgres')).toBe('read');
+    expect(() => SqlStatement.parse("SELECT 'a\\'", 'mysql')).toThrow(DbInputError);
+  });
+  it('서버에서도 한 번에 한 문장만 실행한다', () => {
+    expect(serverBlocked('SELECT 1; DELETE FROM t')).toBe('bad-input');
+  });
+});

@@ -3,13 +3,16 @@ import { csvFileName } from './db-csv.js';
 import type { DbCell } from './db-csv.js';
 import type { DbConnectionView } from './db-connections.js';
 import { ConnectionId, DbFilePath, DbInputError, PageNumber, SortSpec, TableName } from './db-names.js';
-import { SqlStatement, type SqlKind } from './db-sql.js';
+import { ConnectionLabel, DbPassword, ServerTarget } from './db-server.js';
+import { SqlStatement, type SqlDialect, type SqlKind } from './db-sql.js';
 
 /** DB 탭 IPC 채널. 화면은 연결 id 와 좁은 요청으로만 main 과 이야기하고, 파일 경로는 더하기·고르기 때만 보낸다. */
 export const DB_IPC = {
   list: 'db:list',
   addPath: 'db:add-path',
   pick: 'db:pick',
+  addServer: 'db:add-server',
+  unlock: 'db:unlock',
   remove: 'db:remove',
   tables: 'db:tables',
   detail: 'db:detail',
@@ -38,9 +41,10 @@ export const DB_LIMITS = {
 } as const;
 
 /** 정직한 한계: 화면 위쪽에 늘 보이는 안내 */
-export const DB_LIMIT_NOTE = 'SQLite files only for now (PostgreSQL and MySQL are not supported yet). Files open read-only; results are capped at 5,000 rows or 5 MB and queries stop after the time limit.';
+export const DB_LIMIT_NOTE = 'SQLite files and MySQL / PostgreSQL servers. Everything opens read-only; results are capped at 5,000 rows or 5 MB and queries stop after the time limit.';
 
-export type DbFailureKind = 'no-engine' | 'no-file' | 'not-sqlite' | 'busy' | 'timeout' | 'cancelled' | 'bad-input' | 'confirm' | 'write-mode' | 'blocked' | 'sql-error' | 'too-large' | 'failed';
+/** auth: 서버 로그인 실패 · no-server: 서버에 닿지 않음(주소·포트·VPN·SSL) · need-password: 저장한 비밀번호가 없어 물어야 한다 */
+export type DbFailureKind = 'no-engine' | 'no-file' | 'not-sqlite' | 'busy' | 'timeout' | 'cancelled' | 'bad-input' | 'confirm' | 'write-mode' | 'blocked' | 'sql-error' | 'too-large' | 'failed' | 'auth' | 'no-server' | 'need-password';
 
 /** 화면에 그대로 보여도 되는 실패 */
 export interface DbFailure {
@@ -74,7 +78,7 @@ export function inputFailure(e: DbInputError): DbFailure {
     case 'confirm':
       return failure('confirm', 'Confirmation needed', e.message);
     case 'write-mode':
-      return failure('write-mode', 'Write mode is off', e.message, 'Turn on Write mode (top right) if you really want to change this file.');
+      return failure('write-mode', 'Write mode is off', e.message, 'Turn on Write mode (top right) if you really want to change this database.');
     case 'blocked':
       return failure('blocked', 'That statement is not allowed', e.message);
     case 'bad-input':
@@ -94,6 +98,19 @@ export function engineFailure(message: string): DbFailure {
   return failure('sql-error', 'SQL error', m);
 }
 
+/** MySQL·PostgreSQL 드라이버가 돌려준 오류를 화면에 보일 실패로 가른다(비밀번호·연결 문자열은 failure 가 가린다) */
+export function serverFailure(message: string): DbFailure {
+  const m = message;
+  if (/password authentication failed|Access denied for user|no pg_hba\.conf entry|authentication failed|SASL/i.test(m)) return failure('auth', 'Sign-in failed', m, 'Check the user name and password.');
+  if (/statement timeout|maximum statement execution time exceeded|Query execution was interrupted/i.test(m)) return failure('timeout', 'The query was stopped', m, 'Add a WHERE or LIMIT, or raise the time limit.');
+  if (/read-only transaction|READ ONLY transaction/i.test(m)) return failure('write-mode', 'The database is open read-only', m, 'Turn on Write mode (top right) to change this database.');
+  if (/certificate|SSL connection|does not support SSL|SSL is not|SSL routines|TLS|EPROTO/i.test(m)) return failure('no-server', 'Secure connection failed', m, 'Try another SSL setting for this connection (remove it and add it again).');
+  if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ECONNRESET|connection timeout|connect timeout|timeout expired|Connection terminated|Could not reach/i.test(m)) return failure('no-server', 'Cannot reach the server', m, 'Check the host and port, your VPN, and that the server accepts connections from this computer.');
+  if (/database ".*" does not exist|Unknown database/i.test(m)) return failure('bad-input', 'Database not found', m, 'Check the database name.');
+  if (/lock wait timeout|deadlock|could not obtain lock|lock timeout/i.test(m)) return failure('busy', 'The table is locked', m, 'Another session is changing it. Try again in a moment.');
+  return failure('sql-error', 'SQL error', m);
+}
+
 export const NO_ENGINE: DbFailure = failure(
   'no-engine',
   'SQLite engine is not available',
@@ -105,6 +122,22 @@ export const NO_ENGINE: DbFailure = failure(
 
 export interface DbConnectionList {
   readonly connections: readonly DbConnectionView[];
+  /** 이 컴퓨터에서 비밀번호를 암호화해 저장할 수 있는지(safeStorage). 아니면 접속할 때마다 묻는다 */
+  readonly canSavePasswords: boolean;
+}
+
+/** 서버 연결 추가 폼 */
+export interface DbServerForm {
+  readonly name: string;
+  readonly kind: 'mysql' | 'postgres';
+  readonly host: string;
+  /** 비우면 기본 포트(3306 · 5432) */
+  readonly port: string;
+  readonly user: string;
+  readonly password: string;
+  readonly database: string;
+  readonly ssl: 'off' | 'require' | 'verify';
+  readonly savePassword: boolean;
 }
 
 export interface DbTableInfo {
@@ -163,6 +196,10 @@ export interface DbApi {
   addPath(req: { readonly path: string }): Promise<DbResult<DbConnectionView>>;
   /** 파일 고르기 창을 열어 더한다. 취소하면 data 가 null */
   pick(): Promise<DbResult<DbConnectionView | null>>;
+  /** 서버 연결을 더한다: main 이 먼저 접속해 보고 되면 저장한다. 비밀번호는 다시 돌아오지 않는다 */
+  addServer(req: DbServerForm): Promise<DbResult<DbConnectionView>>;
+  /** 저장한 비밀번호가 없는 서버 연결에 비밀번호를 준다(이번 실행 동안 기억, savePassword 면 암호화해 저장) */
+  unlock(req: { readonly id: string; readonly password: string; readonly savePassword: boolean }): Promise<DbResult<DbConnectionView>>;
   remove(id: string): Promise<DbResult<DbConnectionList>>;
   tables(id: string): Promise<DbResult<readonly DbTableInfo[]>>;
   detail(req: { readonly id: string; readonly table: string }): Promise<DbResult<DbTableDetail>>;
@@ -211,10 +248,24 @@ export const DbRequest = {
     const o = obj(raw);
     return { id: ConnectionId.parse(o['id']), table: TableName.parse(o['table']), page: PageNumber.parse(o['page']), sort: SortSpec.parse(o['sort']) };
   },
-  /** 쓰기 문장은 writeMode 와 confirm 이 둘 다 true 여야 통과한다(SqlStatement.assertAllowed) */
-  query(raw: unknown): { readonly id: ConnectionId; readonly statement: SqlStatement; readonly writeMode: boolean; readonly timeout: TimeoutSeconds; readonly key: string | null } {
+  /** 서버 연결 추가: 대상 · 이름 · 비밀번호 · 저장 여부. 거절 글에는 비밀번호를 넣지 않는다 */
+  addServer(raw: unknown): { readonly target: ServerTarget; readonly label: ConnectionLabel; readonly password: DbPassword; readonly savePassword: boolean } {
     const o = obj(raw);
-    const statement = SqlStatement.parse(o['sql']);
+    const target = ServerTarget.parse(o);
+    return { target, label: ConnectionLabel.parse(o['name'], target), password: DbPassword.parse(o['password']), savePassword: o['savePassword'] === true };
+  },
+  unlock(raw: unknown): { readonly id: ConnectionId; readonly password: DbPassword; readonly savePassword: boolean } {
+    const o = obj(raw);
+    return { id: ConnectionId.parse(o['id']), password: DbPassword.parse(o['password']), savePassword: o['savePassword'] === true };
+  },
+  /** 쿼리가 갈 연결 id 만 먼저 꺼낸다(연결 종류를 알아야 문법을 고를 수 있다) */
+  queryTarget(raw: unknown): ConnectionId {
+    return ConnectionId.parse(obj(raw)['id']);
+  },
+  /** 쓰기 문장은 writeMode 와 confirm 이 둘 다 true 여야 통과한다(SqlStatement.assertAllowed). dialect 는 연결 종류의 문법 */
+  query(raw: unknown, dialect: SqlDialect = 'sqlite'): { readonly id: ConnectionId; readonly statement: SqlStatement; readonly writeMode: boolean; readonly timeout: TimeoutSeconds; readonly key: string | null } {
+    const o = obj(raw);
+    const statement = SqlStatement.parse(o['sql'], dialect);
     const writeMode = o['writeMode'] === true;
     statement.assertAllowed({ writeMode, confirm: o['confirm'] === true });
     const key = o['key'];

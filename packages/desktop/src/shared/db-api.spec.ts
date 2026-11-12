@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DB_LIMITS, DbRequest, engineFailure, inputFailure, maskConnectionSecrets, TimeoutSeconds } from './db-api.js';
+import { DB_LIMITS, DbRequest, engineFailure, inputFailure, maskConnectionSecrets, serverFailure, TimeoutSeconds } from './db-api.js';
 import { DbInputError } from './db-names.js';
 
 describe('연결 문자열·비밀 가리기', () => {
@@ -85,5 +85,52 @@ describe('DB 요청 검사', () => {
     expect(() => DbRequest.exportCsv({ csv: 5, name: 'x' })).toThrow(DbInputError);
     expect(() => DbRequest.exportCsv({ csv: 'x'.repeat(DB_LIMITS.maxCsvBytes + 1), name: 'x' })).toThrow(/too large/);
     expect(DbRequest.exportCsv({ csv: 'a', name: '../../etc/passwd' }).fileName).not.toContain('/');
+  });
+});
+
+describe('서버 실패 가르기', () => {
+  it('로그인 실패 · 서버에 닿지 않음 · 읽기 전용 위반 · 시간 초과를 가른다', () => {
+    expect(serverFailure('password authentication failed for user "app"').kind).toBe('auth');
+    expect(serverFailure("Access denied for user 'app'@'10.0.0.1' (using password: YES)").kind).toBe('auth');
+    expect(serverFailure('connect ECONNREFUSED 127.0.0.1:5432').kind).toBe('no-server');
+    expect(serverFailure('getaddrinfo ENOTFOUND db.nowhere').kind).toBe('no-server');
+    expect(serverFailure('Connection terminated due to connection timeout').kind).toBe('no-server');
+    expect(serverFailure('self-signed certificate in certificate chain').kind).toBe('no-server');
+    expect(serverFailure('cannot execute DELETE in a read-only transaction').kind).toBe('write-mode');
+    expect(serverFailure('Cannot execute statement in a READ ONLY transaction.').kind).toBe('write-mode');
+    expect(serverFailure('canceling statement due to statement timeout').kind).toBe('timeout');
+    expect(serverFailure('relation "nope" does not exist').kind).toBe('sql-error');
+  });
+  it('실패 글에 섞인 연결 문자열 비밀번호는 가린다', () => {
+    expect(serverFailure('bad postgres://u:hunter2@h/db').message).not.toContain('hunter2');
+  });
+});
+
+describe('서버 연결 요청(DTO)', () => {
+  const ok = { name: 'Prod', kind: 'postgres', host: 'db', port: 5432, user: 'app', password: 'pw', database: 'shop', ssl: 'require', savePassword: true };
+  it('입력을 검사해 대상·이름·비밀번호·저장 여부로 바꾼다', () => {
+    const r = DbRequest.addServer(ok);
+    expect(r.target.address()).toBe('app@db:5432/shop');
+    expect(r.label.value).toBe('Prod');
+    expect(r.password.reveal()).toBe('pw');
+    expect(r.savePassword).toBe(true);
+    expect(DbRequest.addServer({ ...ok, savePassword: 'yes' }).savePassword).toBe(false);
+  });
+  it('비밀번호가 글이 아니면 거절하고, 거절 글에 비밀번호를 넣지 않는다', () => {
+    expect(() => DbRequest.addServer({ ...ok, password: 5 })).toThrow(DbInputError);
+    try {
+      DbRequest.addServer({ ...ok, host: 'x://y', password: 'TopSecret9' });
+    } catch (e) {
+      expect(String((e as Error).message)).not.toContain('TopSecret9');
+    }
+  });
+  it('잠금 풀기 요청은 연결 id · 비밀번호 · 저장 여부만 받는다', () => {
+    const r = DbRequest.unlock({ id: 'abc', password: 'pw', savePassword: true });
+    expect([r.id.value, r.password.reveal(), r.savePassword]).toEqual(['abc', 'pw', true]);
+    expect(() => DbRequest.unlock({ id: '../x', password: 'pw' })).toThrow(DbInputError);
+  });
+  it('쿼리 요청은 연결 종류에 맞는 문법으로 검사한다', () => {
+    expect(DbRequest.query({ id: 'a', sql: 'SHOW TABLES', writeMode: false, confirm: false }, 'mysql').statement.kind).toBe('read');
+    expect(() => DbRequest.query({ id: 'a', sql: 'SHOW TABLES', writeMode: false, confirm: false })).toThrow(DbInputError);
   });
 });

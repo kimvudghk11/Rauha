@@ -1,7 +1,8 @@
-import { DB_LIMIT_NOTE, type DbApi, type DbFailure, type DbResult, type DbResultSet, type DbRowsPage, type DbTableDetail, type DbTableInfo } from '../shared/db-api.js';
+import { DB_LIMIT_NOTE, type DbApi, type DbFailure, type DbResult, type DbResultSet, type DbRowsPage, type DbServerForm, type DbTableDetail, type DbTableInfo } from '../shared/db-api.js';
 import type { DbConnectionView } from '../shared/db-connections.js';
 import { toCsv } from '../shared/db-csv.js';
 import { DbInputError } from '../shared/db-names.js';
+import { defaultPort, type DbKind } from '../shared/db-server.js';
 import { SqlStatement } from '../shared/db-sql.js';
 import { nextSort, pageCount, pageLabel, resultLine, sqlPreview, truncationNote } from '../shared/db-view-text.js';
 import { CodeEditor } from './code-editor.js';
@@ -26,7 +27,24 @@ const TIMEOUTS: readonly (readonly [string, string])[] = [
   ['60', '60 s limit'],
 ];
 const LAST_KEY = 'rauha.db.last';
-const SAMPLE = 'SELECT name, type FROM sqlite_schema ORDER BY name;';
+/** 편집기에 처음 넣어 두는 예시(연결 종류마다) */
+const SAMPLES: Readonly<Record<DbKind, string>> = {
+  sqlite: 'SELECT name, type FROM sqlite_schema ORDER BY name;',
+  mysql: 'SHOW TABLES;',
+  postgres: 'SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name;',
+};
+const KIND_LABEL: Readonly<Record<DbKind, string>> = { sqlite: 'SQLite', mysql: 'MySQL', postgres: 'PostgreSQL' };
+const SERVER_KINDS: readonly (readonly ['postgres' | 'mysql', string])[] = [
+  ['postgres', 'PostgreSQL'],
+  ['mysql', 'MySQL'],
+];
+const SSL_MODES: readonly (readonly ['off' | 'require' | 'verify', string])[] = [
+  ['off', 'SSL off'],
+  ['require', 'SSL (no certificate check)'],
+  ['verify', 'SSL + verify certificate'],
+];
+/** 이름을 SQL 에 끼울 때: MySQL 은 백틱, 나머지는 큰따옴표 */
+const quoteFor = (kind: DbKind, name: string): string => (kind === 'mysql' ? `\`${name.replace(/`/g, '``')}\`` : `"${name.replace(/"/g, '""')}"`);
 const INDENT = { unit: 'space', size: 2, tabWidth: 2, source: 'default' } as const;
 
 const readLast = (): string | null => {
@@ -57,7 +75,7 @@ function empty(title: string, body: string): HTMLElement {
 }
 
 /**
- * DB 탭: SQLite 파일을 열어 테이블·스키마·행·SQL 결과를 본다. 화면은 그리기만 하고,
+ * DB 탭: SQLite 파일이나 MySQL·PostgreSQL 서버를 열어 테이블·스키마·행·SQL 결과를 본다. 화면은 그리기만 하고,
  * 어떤 SQL 이 쓰기인지·경로가 맞는지·상한은 shared 와 main 이 정한다(여기서 한 검사는 빠른 안내용일 뿐이다).
  * 기본은 읽기 전용이고, 쓰기 문장은 Write mode 를 켜고 확인 창에서 허락해야 main 으로 간다.
  */
@@ -79,6 +97,7 @@ export function buildDb(deps: DbViewDeps) {
   let timeoutSec = 10;
   let lastResult: DbResultSet | null = null;
   let seq = 0;
+  let canSavePasswords = false;
 
   // ── 머리줄 ──
   const modeChip = el('span');
@@ -102,7 +121,7 @@ export function buildDb(deps: DbViewDeps) {
     modeChip.replaceChildren(writeMode ? chipOf('Write mode', 'red') : chipOf('Read-only', 'green'));
     writeBox.checked = writeMode;
     writeBox.disabled = current === null;
-    fileHint.textContent = current === null ? 'No file open' : current.path;
+    fileHint.textContent = current === null ? 'No database open' : current.path;
     fileHint.title = current === null ? '' : current.path;
     say(writeMode ? 'Write mode is on. A statement that changes data asks you to confirm before it runs, and it cannot be undone.' : '');
   };
@@ -118,8 +137,10 @@ export function buildDb(deps: DbViewDeps) {
   pathInput.setAttribute('aria-label', 'Full path of a SQLite file');
   const addBtn = button('Add', 'btn sm', () => void addPath());
   const browseBtn = button('Browse…', 'btn sm', () => void browse());
+  const serverBtn = button('Server…', 'btn sm', () => toggleServerForm());
+  serverBtn.title = 'Connect to a MySQL or PostgreSQL server';
   const addBar = el('div', 'bar db-addbar');
-  addBar.append(pathInput, addBtn, browseBtn);
+  addBar.append(pathInput, addBtn, browseBtn, serverBtn);
   pathInput.addEventListener('keydown', (e) => {
     if (isEnterKey(e)) {
       e.preventDefault();
@@ -128,16 +149,82 @@ export function buildDb(deps: DbViewDeps) {
   });
   const addNote = el('div', 'hint db-addnote');
   addNote.hidden = true;
+
+  // ── 서버 연결 폼(MySQL · PostgreSQL) ──
+  const field = (placeholder: string, label: string, cls = 'sm'): HTMLInputElement => {
+    const input = el('input', cls);
+    input.placeholder = placeholder;
+    input.spellcheck = false;
+    input.setAttribute('aria-label', label);
+    return input;
+  };
+  const srvName = field('Name (optional)', 'Connection name');
+  let srvKind: 'postgres' | 'mysql' = 'postgres';
+  const srvPort = field(String(defaultPort('postgres')), 'Port', 'sm db-port');
+  srvPort.inputMode = 'numeric';
+  const srvKindSel = select(SERVER_KINDS, 'postgres', (v) => {
+    srvKind = v;
+    srvPort.placeholder = String(defaultPort(v));
+  });
+  srvKindSel.classList.add('sm');
+  srvKindSel.setAttribute('aria-label', 'Database type');
+  const srvHost = field('Host, e.g. db.example.com', 'Host');
+  const srvUser = field('User', 'User name');
+  const srvPass = field('Password', 'Password');
+  srvPass.type = 'password';
+  srvPass.autocomplete = 'new-password';
+  const srvDb = field('Database', 'Database name');
+  let srvSsl: 'off' | 'require' | 'verify' = 'off';
+  const srvSslSel = select(SSL_MODES, 'off', (v) => (srvSsl = v));
+  srvSslSel.classList.add('sm');
+  srvSslSel.setAttribute('aria-label', 'SSL');
+  const srvSave = el('input');
+  srvSave.type = 'checkbox';
+  srvSave.checked = true;
+  const srvSaveLabel = el('label', 'db-check');
+  srvSaveLabel.append(srvSave, el('span', undefined, 'Save password (encrypted)'));
+  const srvConnect = button('Connect', 'btn sm primary', () => void addServer());
+  const srvCancel = button('Cancel', 'btn sm', () => toggleServerForm(false));
+  const srvRow = (...parts: HTMLElement[]): HTMLElement => {
+    const row = el('div', 'bar db-srv-row');
+    row.append(...parts);
+    return row;
+  };
+  const serverForm = el('div', 'db-server');
+  serverForm.hidden = true;
+  serverForm.append(srvRow(srvKindSel, srvName), srvRow(srvHost, srvPort), srvRow(srvUser, srvPass), srvRow(srvDb, srvSslSel), srvRow(srvSaveLabel), srvRow(srvConnect, srvCancel));
+  for (const input of [srvName, srvHost, srvPort, srvUser, srvPass, srvDb]) {
+    input.addEventListener('keydown', (e) => {
+      if (isEnterKey(e)) {
+        e.preventDefault();
+        void addServer();
+      }
+    });
+  }
+  const paintSave = (): void => {
+    srvSave.disabled = !canSavePasswords;
+    if (!canSavePasswords) srvSave.checked = false;
+    srvSaveLabel.title = canSavePasswords ? 'Stored encrypted with your system keychain. Rauha never shows it again.' : 'This computer cannot encrypt passwords, so Rauha will ask each time you connect.';
+  };
+  function toggleServerForm(open = serverForm.hidden): void {
+    serverForm.hidden = !open;
+    serverBtn.classList.toggle('on', open);
+    srvPass.value = '';
+    if (open) {
+      paintSave();
+      srvHost.focus();
+    }
+  }
   const fileList = el('div', 'db-files');
   const tableList = el('div', 'db-tables');
   const side = el('div', 'pane db-side');
   const filesHead = el('div', 'ph');
-  filesHead.append(el('b', undefined, 'Files'));
+  filesHead.append(el('b', undefined, 'Databases'));
   const tablesHead = el('div', 'ph');
   const tablesTitle = el('b', undefined, 'Tables');
   tablesHead.append(tablesTitle);
   const addWrap = el('div', 'db-add');
-  addWrap.append(addBar, addNote);
+  addWrap.append(addBar, addNote, serverForm);
   side.append(filesHead, addWrap, fileList, tablesHead, tableList);
 
   // ── 가운데: 탭 + 칸 ──
@@ -178,7 +265,7 @@ export function buildDb(deps: DbViewDeps) {
   // ── SQL 칸 ──
   const editorHost = el('div', 'db-editor');
   const editor = new CodeEditor(editorHost, { onChange: () => undefined, onCursor: () => undefined });
-  editor.add('sql', SAMPLE, 'sql', INDENT, false);
+  editor.add('sql', SAMPLES.sqlite, 'sql', INDENT, false);
   editor.show('sql');
   editorHost.addEventListener(
     'keydown',
@@ -212,16 +299,16 @@ export function buildDb(deps: DbViewDeps) {
   function paintFiles(): void {
     fileList.replaceChildren();
     if (connections.length === 0) {
-      fileList.append(el('div', 'hint db-pad', 'No files yet. Type a full path above or press Browse.'));
+      fileList.append(el('div', 'hint db-pad', 'Nothing yet. Type the full path of a SQLite file, press Browse, or add a server.'));
       return;
     }
     for (const c of connections) {
       const row = el('div', c.id === current?.id ? 'row-item db-row on' : 'row-item db-row');
       row.tabIndex = 0;
       row.title = c.path;
-      row.append(el('span', 'db-name', c.name));
+      row.append(el('span', 'db-name', c.name), chipOf(KIND_LABEL[c.kind], c.kind === 'sqlite' ? '' : 'blue'));
       const rm = button('×', 'btn icon sm ghost', () => void removeFile(c));
-      rm.title = `Remove ${c.name} from this list (the file is not deleted)`;
+      rm.title = c.kind === 'sqlite' ? `Remove ${c.name} from this list (the file is not deleted)` : `Remove ${c.name} from this list (the database is not changed${c.savedPassword === true ? ', the saved password is deleted' : ''})`;
       rm.setAttribute('aria-label', `Remove ${c.name} from this list`);
       rm.addEventListener('click', (e) => e.stopPropagation());
       row.append(rm);
@@ -237,7 +324,7 @@ export function buildDb(deps: DbViewDeps) {
     tablesTitle.textContent = tables.length === 0 ? 'Tables' : `Tables (${tables.length})`;
     if (current === null) return;
     if (tables.length === 0) {
-      tableList.append(el('div', 'hint db-pad', 'This file has no tables.'));
+      tableList.append(el('div', 'hint db-pad', current.kind === 'sqlite' ? 'This file has no tables.' : 'No tables in this database (or its current schema).'));
       return;
     }
     for (const t of tables) {
@@ -269,7 +356,7 @@ export function buildDb(deps: DbViewDeps) {
     bar.append(
       button('Browse rows', 'btn sm', () => switchSub('rows')),
       button('Query it', 'btn sm', () => {
-        editor.replace('sql', `SELECT * FROM "${detail?.name.replace(/"/g, '""')}" LIMIT 100;`, 'sql', INDENT, false);
+        editor.replace('sql', `SELECT * FROM ${quoteFor(current?.kind ?? 'sqlite', detail?.name ?? '')} LIMIT 100;`, 'sql', INDENT, false);
         switchSub('sql');
       }),
     );
@@ -319,8 +406,8 @@ export function buildDb(deps: DbViewDeps) {
   function paintMain(failure?: DbFailure): void {
     paintSub();
     if (current === null) {
-      schemaPanel.replaceChildren(empty('No file open', 'Add a SQLite file on the left to browse its tables.'));
-      rowsBody.replaceChildren(empty('No file open', 'Add a SQLite file on the left to browse its tables.'));
+      schemaPanel.replaceChildren(empty('No database open', 'Add a SQLite file or a server on the left to browse its tables.'));
+      rowsBody.replaceChildren(empty('No database open', 'Add a SQLite file or a server on the left to browse its tables.'));
       prevBtn.disabled = nextBtn.disabled = rowsCsv.disabled = rowsRefresh.disabled = true;
       pageText.textContent = '';
       return;
@@ -352,6 +439,8 @@ export function buildDb(deps: DbViewDeps) {
       return;
     }
     connections = r.data.connections;
+    canSavePasswords = r.data.canSavePasswords;
+    paintSave();
     paintFiles();
     const want = selectId ?? readLast() ?? undefined;
     const found = connections.find((c) => c.id === want) ?? (selectId === undefined ? connections[0] : undefined);
@@ -384,12 +473,20 @@ export function buildDb(deps: DbViewDeps) {
     page = 0;
     tables = [];
     writeLast(c.id);
+    // 편집기가 아직 예시 그대로면 이 DB 의 예시로 바꾼다
+    if (Object.values(SAMPLES).includes(editor.textOf('sql') ?? '')) editor.replace('sql', SAMPLES[c.kind], 'sql', INDENT, false);
     paintFiles();
     paintTables();
     paintMode();
     paintMain();
-    const r = await api.tables(c.id);
+    let r = await api.tables(c.id);
     if (mine !== seq) return;
+    // 저장한 비밀번호가 없는 서버: 물어서 받으면 한 번 더
+    if (!r.ok && r.failure.kind === 'need-password' && (await askPassword(c, r.failure))) {
+      if (mine !== seq) return;
+      r = await api.tables(c.id);
+      if (mine !== seq) return;
+    }
     if (!r.ok) {
       paintMain(r.failure);
       return;
@@ -471,10 +568,43 @@ export function buildDb(deps: DbViewDeps) {
   async function browse(): Promise<void> {
     await register(api.pick());
   }
+  async function addServer(): Promise<void> {
+    if (srvConnect.disabled) return;
+    if (srvHost.value.trim() === '' || srvUser.value.trim() === '' || srvDb.value.trim() === '') return remember('Fill in the host, user and database.');
+    const form: DbServerForm = { name: srvName.value, kind: srvKind, host: srvHost.value, port: srvPort.value, user: srvUser.value, password: srvPass.value, database: srvDb.value, ssl: srvSsl, savePassword: srvSave.checked && canSavePasswords };
+    srvConnect.disabled = true;
+    srvConnect.textContent = 'Connecting…';
+    remember('');
+    const r = await api.addServer(form);
+    srvConnect.disabled = false;
+    srvConnect.textContent = 'Connect';
+    if (!r.ok) return remember(`${r.failure.title}. ${r.failure.message}${r.failure.help === null ? '' : ` ${r.failure.help}`}`);
+    for (const input of [srvName, srvHost, srvPort, srvUser, srvPass, srvDb]) input.value = '';
+    toggleServerForm(false);
+    await refreshList(r.data.id);
+    await openFile(r.data);
+  }
+  /** 비밀번호 창. 접속이 되면 true. 비밀번호는 main 으로만 가고 화면에 남기지 않는다 */
+  async function askPassword(c: DbConnectionView, why: DbFailure): Promise<boolean> {
+    let note = why.message;
+    for (;;) {
+      const answer = await askDialog({ title: `Connect to ${c.name}`, body: `${note}\n${c.path}`, input: { label: 'Password', value: '', secret: true }, okLabel: 'Connect' });
+      if (!answer.ok) return false;
+      // 전에 저장해 두었다면(이 컴퓨터에서 못 풀었을 때) 다시 저장하고, 저장하지 않기로 했으면 이번 실행 동안만 기억한다
+      const r = await api.unlock({ id: c.id, password: answer.value, savePassword: c.savedPassword === true && canSavePasswords });
+      if (r.ok) return true;
+      if (r.failure.kind !== 'auth') {
+        paintMain(r.failure);
+        return false;
+      }
+      note = `${r.failure.title}. ${r.failure.help ?? ''}`.trim();
+    }
+  }
   async function removeFile(c: DbConnectionView): Promise<void> {
     const r = await api.remove(c.id);
     if (!r.ok) return remember(r.failure.message);
     connections = r.data.connections;
+    canSavePasswords = r.data.canSavePasswords;
     if (current?.id === c.id) clearCurrent();
     paintFiles();
   }
@@ -506,20 +636,20 @@ export function buildDb(deps: DbViewDeps) {
 
   async function run(): Promise<void> {
     if (running !== null) return;
-    if (current === null) return paintRun('', { kind: 'bad-input', title: 'No file open', message: 'Add or pick a SQLite file first.', help: null });
+    if (current === null) return paintRun('', { kind: 'bad-input', title: 'No database open', message: 'Add a SQLite file or a server first.', help: null });
     const text = editor.textOf('sql') ?? '';
     let statement: SqlStatement;
     try {
-      statement = SqlStatement.parse(text);
+      statement = SqlStatement.parse(text, current.kind);
       statement.assertAllowed({ writeMode, confirm: true });
     } catch (error) {
       const m = error instanceof DbInputError ? error.message : 'That SQL cannot be run.';
       const kind = error instanceof DbInputError && error.kind === 'write-mode' ? 'write-mode' : 'bad-input';
-      return paintRun('', { kind, title: kind === 'write-mode' ? 'Write mode is off' : 'That statement cannot be run', message: m, help: kind === 'write-mode' ? 'Turn on Write mode (top right) if you really want to change this file.' : null });
+      return paintRun('', { kind, title: kind === 'write-mode' ? 'Write mode is off' : 'That statement cannot be run', message: m, help: kind === 'write-mode' ? 'Turn on Write mode (top right) if you really want to change this database.' : null });
     }
     let confirmed = false;
     if (statement.needsWriteMode()) {
-      const answer = await askDialog({ title: `Run ${statement.verb} on ${current.path.split(/[\\/]/).pop() ?? 'this file'}?`, body: `${sqlPreview(statement.text)}\n\nThis changes the file and cannot be undone.`, okLabel: 'Run', danger: true });
+      const answer = await askDialog({ title: `Run ${statement.verb} on ${current.name}?`, body: `${sqlPreview(statement.text)}\n\nThis changes the ${current.kind === 'sqlite' ? 'file' : 'database on the server'} and cannot be undone.`, okLabel: 'Run', danger: true });
       if (!answer.ok) return;
       confirmed = true;
     }

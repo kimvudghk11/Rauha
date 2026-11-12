@@ -31,7 +31,8 @@ export interface GitCtx {
 export interface AskOptions {
   readonly title: string;
   readonly body?: string;
-  readonly input?: { readonly label: string; readonly value: string };
+  /** secret: 비밀번호 칸(글자를 가린다) */
+  readonly input?: { readonly label: string; readonly value: string; readonly secret?: boolean };
   readonly okLabel: string;
   readonly danger?: boolean;
 }
@@ -47,6 +48,10 @@ export function askDialog(o: AskOptions): Promise<{ ok: boolean; value: string }
     if (o.input !== undefined) {
       box.appendChild(el('span', 'dim', o.input.label));
       field = el('input', 'ginput');
+      if (o.input.secret === true) {
+        field.type = 'password';
+        field.autocomplete = 'off';
+      }
       field.value = o.input.value;
       box.appendChild(field);
     }

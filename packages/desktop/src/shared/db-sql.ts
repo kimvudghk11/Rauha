@@ -2,6 +2,8 @@ import { DbInputError } from './db-names.js';
 
 /** read: 데이터를 바꾸지 않는다 · write: 행을 바꾼다 · schema: 테이블·인덱스 같은 구조를 바꾼다 */
 export type SqlKind = 'read' | 'write' | 'schema';
+/** 어느 DB 의 문법으로 읽을지(문자열·주석 규칙과 허용 문장이 조금씩 다르다) */
+export type SqlDialect = 'sqlite' | 'mysql' | 'postgres';
 
 export const SQL_MAX_CHARS = 100_000;
 
@@ -27,6 +29,15 @@ const MAX_BLOB_LITERAL = 64 * 1024 * 1024;
 /** 어디에 쓰였든 막는 함수 이름: 확장 불러오기·토크나이저 등록·파일 읽고 쓰기 */
 export const BLOCKED_FUNCTIONS: ReadonlySet<string> = new Set(['load_extension', 'fts3_tokenizer', 'readfile', 'writefile']);
 
+/** 서버에서 어디에 쓰였든 막는 낱말·함수: 서버 파일 읽고 쓰기, 다른 연결로 새기, 읽기 전용 풀기, 다른 세션 끊기 */
+const SERVER_BLOCKED: Readonly<Record<'mysql' | 'postgres', ReadonlySet<string>>> = {
+  mysql: new Set(['load_file', 'outfile', 'dumpfile', 'sys_exec', 'sys_eval']),
+  postgres: new Set([
+    'pg_read_file', 'pg_read_binary_file', 'pg_ls_dir', 'pg_stat_file', 'pg_file_write', 'lo_import', 'lo_export', 'dblink', 'dblink_exec', 'dblink_connect', 'dblink_send_query',
+    'set_config', 'pg_terminate_backend', 'pg_cancel_backend', 'pg_reload_conf', 'pg_rotate_logfile', 'pg_promote', 'pg_switch_wal',
+  ]),
+};
+
 /** 첫 낱말이 이것이면 쓰기 모드에서도 실행하지 않는다 */
 const BLOCKED_FIRST: Readonly<Record<string, string>> = {
   ATTACH: 'ATTACH DATABASE is not allowed (it could open other files).',
@@ -40,10 +51,13 @@ const BLOCKED_FIRST: Readonly<Record<string, string>> = {
   RELEASE: 'Transactions are not supported here: each statement runs on its own.',
 };
 
+/** PostgreSQL 달러 문자열의 여는 표시 */
+const DOLLAR = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/;
+
 type Token = { readonly t: 'word' | 'str' | 'id' | 'num' | 'punct'; readonly v: string };
 
 /** 주석을 빼고 낱말·문자열·인용 식별자·기호로 자른다. 닫히지 않은 따옴표는 오류(뒤를 숨기는 입력을 막는다). */
-function tokenize(sql: string): Token[] {
+function tokenize(sql: string, dialect: SqlDialect = 'sqlite'): Token[] {
   const out: Token[] = [];
   let i = 0;
   const n = sql.length;
@@ -51,17 +65,40 @@ function tokenize(sql: string): Token[] {
     const c = sql[i]!;
     if (c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === '\f') {
       i += 1;
-    } else if (c === '-' && sql[i + 1] === '-') {
+    } else if (c === '-' && sql[i + 1] === '-' && (dialect !== 'mysql' || i + 2 >= n || /\s/.test(sql[i + 2]!))) {
+      // MySQL 은 `-- ` 처럼 뒤에 공백이 있어야 주석이다(`1--1` 은 빼기)
+      const end = sql.indexOf('\n', i);
+      i = end === -1 ? n : end + 1;
+    } else if (c === '#' && dialect === 'mysql') {
       const end = sql.indexOf('\n', i);
       i = end === -1 ? n : end + 1;
     } else if (c === '/' && sql[i + 1] === '*') {
+      // MySQL 은 /*! … */ 안의 글을 실행한다: 검사를 숨길 수 있으니 받지 않는다
+      if (dialect === 'mysql' && sql[i + 2] === '!') throw new DbInputError('MySQL version comments (/*! … */) are not allowed here.', 'blocked');
       const end = sql.indexOf('*/', i + 2);
       i = end === -1 ? n : end + 2;
+    } else if (c === '$' && dialect === 'postgres' && DOLLAR.test(sql.slice(i, i + 66))) {
+      // PostgreSQL 달러 문자열: $tag$ … $tag$
+      const tag = DOLLAR.exec(sql.slice(i, i + 66))![0];
+      const end = sql.indexOf(tag, i + tag.length);
+      if (end === -1) throw new DbInputError('A $$ string in the SQL is never closed.');
+      out.push({ t: 'str', v: sql.slice(i + tag.length, end) });
+      i = end + tag.length;
     } else if (c === "'" || c === '"' || c === '`') {
+      // MySQL 문자열과 PostgreSQL E'…' 문자열은 역슬래시로 따옴표를 감출 수 있다
+      const prev = out[out.length - 1];
+      const eString = dialect === 'postgres' && c === "'" && prev !== undefined && prev.t === 'word' && /^[eE]$/.test(prev.v) && sql[i - 1] === prev.v;
+      if (eString) out.pop();
+      const backslash = (dialect === 'mysql' && c !== '`') || eString;
       let j = i + 1;
       let value = '';
       for (;;) {
         if (j >= n) throw new DbInputError('A quote in the SQL is never closed.');
+        if (backslash && sql[j] === '\\') {
+          value += sql[j + 1] ?? '';
+          j += 2;
+          continue;
+        }
         if (sql[j] === c) {
           if (sql[j + 1] === c) {
             value += c;
@@ -121,11 +158,67 @@ function pragmaKind(tokens: readonly Token[]): SqlKind {
   throw new DbInputError(`PRAGMA ${name} can only be read here (no value or argument).`, 'blocked');
 }
 
-function classify(tokens: readonly Token[]): SqlKind {
+/** EXPLAIN 뒤에서 실제로 설명할(ANALYZE 면 실행할) 문장이 시작하는 낱말 */
+const EXPLAINED: ReadonlySet<string> = new Set(['SELECT', 'VALUES', 'WITH', 'TABLE', 'INSERT', 'UPDATE', 'DELETE', 'REPLACE', 'MERGE']);
+
+/** MySQL·PostgreSQL 문장 가르기 */
+function classifyServer(tokens: readonly Token[], dialect: 'mysql' | 'postgres'): SqlKind {
+  const first = upper(tokens[0]);
+  const hasWord = (w: string): boolean => tokens.some((t) => upper(t) === w);
+  switch (first) {
+    case 'SELECT':
+      // PostgreSQL 의 SELECT … INTO 새_테이블 은 테이블을 만든다
+      return dialect === 'postgres' && hasWord('INTO') ? 'schema' : 'read';
+    case 'VALUES':
+    case 'SHOW':
+    case 'DESCRIBE':
+    case 'DESC':
+      return 'read';
+    case 'TABLE':
+      if (dialect === 'postgres') return 'read';
+      break;
+    case 'WITH': {
+      for (let i = 0; i < tokens.length; i += 1) {
+        const w = upper(tokens[i]);
+        if (w === 'INSERT' || w === 'UPDATE' || w === 'DELETE' || w === 'MERGE') return 'write';
+        if (w === 'REPLACE' && !(tokens[i + 1]?.t === 'punct' && tokens[i + 1]!.v === '(')) return 'write';
+      }
+      return dialect === 'postgres' && hasWord('INTO') ? 'schema' : 'read';
+    }
+    case 'EXPLAIN': {
+      // EXPLAIN ANALYZE 는 문장을 실제로 실행하니 설명하는 문장의 종류를 따른다
+      const at = tokens.findIndex((t, i) => i > 0 && t.t === 'word' && EXPLAINED.has(t.v.toUpperCase()));
+      if (at === -1) throw new DbInputError('EXPLAIN needs a SELECT, INSERT, UPDATE or DELETE after it.');
+      return classifyServer(tokens.slice(at), dialect);
+    }
+    case 'INSERT':
+    case 'REPLACE':
+    case 'UPDATE':
+    case 'DELETE':
+    case 'TRUNCATE':
+    case 'MERGE':
+    case 'CALL': // 저장 프로시저는 무엇이든 할 수 있으니 쓰기로 본다
+      return 'write';
+    case 'CREATE':
+    case 'DROP':
+    case 'ALTER':
+    case 'RENAME':
+    case 'GRANT':
+    case 'REVOKE':
+    case 'COMMENT':
+    case 'ANALYZE':
+    case 'REINDEX':
+      return 'schema';
+  }
+  throw new DbInputError(`${first} statements are not supported here.`);
+}
+
+function classify(tokens: readonly Token[], dialect: SqlDialect = 'sqlite'): SqlKind {
   const first = upper(tokens[0]);
   if (first === '') throw new DbInputError('That is not a SQL statement I can run (it must start with a keyword such as SELECT).');
   const blockedText = BLOCKED_FIRST[first];
   if (blockedText !== undefined) throw new DbInputError(blockedText, 'blocked');
+  if (dialect !== 'sqlite') return classifyServer(tokens, dialect);
   switch (first) {
     case 'SELECT':
     case 'VALUES':
@@ -173,15 +266,17 @@ export class SqlStatement {
     readonly verb: string,
   ) {}
 
-  static parse(input: unknown): SqlStatement {
+  static parse(input: unknown, dialect: SqlDialect = 'sqlite'): SqlStatement {
     if (typeof input !== 'string') throw new DbInputError('The SQL is missing.');
     if (input.includes('\0')) throw new DbInputError('The SQL has a NUL character.');
     if (input.length > SQL_MAX_CHARS) throw new DbInputError(`The SQL is too long (up to ${SQL_MAX_CHARS} characters).`);
-    const tokens = tokenize(input);
+    const tokens = tokenize(input, dialect);
     if (tokens.length === 0) throw new DbInputError('The SQL is empty.');
     // 막는 함수는 문장 어디에 있든 거절한다(인용 식별자로 감싼 것도)
+    const serverBlocked = dialect === 'sqlite' ? null : SERVER_BLOCKED[dialect];
     for (const t of tokens) {
       if ((t.t === 'word' || t.t === 'id') && BLOCKED_FUNCTIONS.has(t.v.toLowerCase())) throw new DbInputError(`${t.v} is not allowed (it could touch files or load code).`, 'blocked');
+      if (t.t === 'word' && serverBlocked?.has(t.v.toLowerCase()) === true) throw new DbInputError(`${t.v} is not allowed here (it could touch server files, other connections or the read-only setting).`, 'blocked');
     }
     // 거대한 값을 만드는 줄 알 수 있는 호출(randomblob(1000000000) 같은)은 막는다. 길이 한계 API(SQLITE_LIMIT_LENGTH)는 Node 24 에만 있어 문장 검사가 모든 Node 에서 통하는 방어선이다.
     for (let i = 0; i + 2 < tokens.length; i += 1) {
@@ -196,7 +291,7 @@ export class SqlStatement {
     const body = semi === -1 ? tokens : tokens.slice(0, semi);
     if (semi !== -1 && tokens.length > semi + 1) throw new DbInputError('Run one statement at a time (found text after the first ;).');
     if (body.length === 0) throw new DbInputError('The SQL is empty.');
-    const kind = classify(body);
+    const kind = classify(body, dialect);
     return new SqlStatement(input.trim(), kind, upper(body[0]));
   }
 

@@ -18,6 +18,8 @@ function newService(): DbService {
   return new DbService({
     store: new MemoryConnectionsStore(),
     runner: new ProcessRunner({ execPath: process.execPath, childSource }),
+    servers: { run: () => Promise.resolve({ kind: 'crashed', detail: 'no server here' }), cancel: () => false, stopAll: () => undefined },
+    secrets: { available: () => false, seal: () => '', open: () => '' },
     checkFile: checkSqliteFile,
     pickFile: async () => nextPick,
     saveCsv: async (fileName, text) => {

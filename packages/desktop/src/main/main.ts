@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, screen, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, safeStorage, screen, shell, type IpcMainInvokeEvent } from 'electron';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
@@ -865,6 +865,7 @@ void app.whenReady().then(async () => {
   registerDockerIpc(ipcMain, { workDir: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
   registerDbIpc(ipcMain, {
     dataDir,
+    safeStorage,
     onQuit: (cleanup) => app.on('before-quit', cleanup),
     pickFile: async () => {
       const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
