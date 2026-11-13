@@ -1,5 +1,12 @@
 # 릴리스 점검표 (2026-11-09 월요일용)
 
+## 인수인계 (2026-11-13 22:40 KST, 세션 77%·주간 49%; 세션 초기화 11-14 01:20 KST)
+
+- **오늘 main (push 완료):** 9377ce1 DB 호스트 `IP:포트` IPv6 오판 · 2347ee8 PgBouncer 류 풀러의 `unsupported startup parameter: statement_timeout`(접속 뒤 `SET` 으로) · 8488e40 AI API 테스트(모델 전에 서버 꺼짐 확인, 끊기면 남은 케이스 건너뜀, md·화면 리포트 개편, API 탭 맨 위 환경 바로 base_url 바로 고치기). `yarn typecheck`·`yarn test`(4790개) 통과, 환경 바는 개발 빌드 스크린샷으로 확인.
+- **확인 못 함:** 실제 PgBouncer 서버 접속(가짜 풀러 TCP 서버 테스트만), 실제 Nest 프로젝트로 AI 테스트 전체 흐름(서버 꺼짐 화면은 단위 테스트만), 맥. 릴리스(v0.2.1) 안 함.
+- **블로그:** Figma `be-peace dev blog — Finder`(hKGXkJEM22JFsnpnB2ZkfJ: 홈 열 보기·글·모바일, 토큰 21개·컴포넌트 3개). 레포 `E:\be-peace-blog`(로컬만, 원격·배포·도메인 안 함) 에 CLAUDE.md·docs/SPEC·DESIGN·DEPLOY 커밋. **남은 일:** 리셋 뒤 rauha CLI 로 구현 → 빌드·스크린샷 검증.
+- 사용률 읽기: scratchpad `usage.mjs`(core `readPlanUsage`).
+
 ## 인수인계 (2026-11-11 오후, 주간 89%에서 새 에이전트를 멈춤; 주간 초기화 11-14 18:00 UTC)
 
 - **릴리스:** v0.1.15 나감(API·Docker 탭, 탭 끌어서 순서 바꾸기, 채팅 @파일·선택 코드 보내기·이미지 붙이기, 작업 Changes 칸·되돌리기, Models 설정·오류 시 대체 실행). README 링크 갱신함.
