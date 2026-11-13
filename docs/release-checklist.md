@@ -6,6 +6,8 @@
 - **확인 못 함:** 실제 PgBouncer 서버 접속(가짜 풀러 TCP 서버 테스트만), 실제 Nest 프로젝트로 AI 테스트 전체 흐름(서버 꺼짐 화면은 단위 테스트만), 맥. 릴리스(v0.2.1) 안 함.
 - **블로그:** Figma `be-peace dev blog — Finder`(hKGXkJEM22JFsnpnB2ZkfJ: 홈 열 보기·글·모바일, 토큰 21개·컴포넌트 3개). 레포 `E:\be-peace-blog`(로컬만, 원격·배포·도메인 안 함) 에 CLAUDE.md·docs/SPEC·DESIGN·DEPLOY 커밋. **남은 일:** 리셋 뒤 rauha CLI 로 구현 → 빌드·스크린샷 검증.
 - 사용률 읽기: scratchpad `usage.mjs`(core `readPlanUsage`).
+- **블로그 구현 (11-14 01:22~01:44, rauha CLI 4회):** `E:\be-peace-blog` 로컬 커밋 ea0c5e3·cb823ea·8af87fc·e301e17. Astro 7, `npm run check` 0 오류 · `npm test` 22개 · `npm run build` 14페이지 + rss·sitemap·search.json·404. Playwright(Edge)로 확인: 홈 열 보기(최근 글 선택·Quick Look·경로 막대 동기화), 방향키, Ctrl+K 검색, 다크 토글 기억, 360px 가로 스크롤 없음, 모바일 루트·상위 링크. **남은 흠:** 모바일 루트 경로 칩에 데스크톱 선택 경로(`… › placeholder.md`)가 보임. Lighthouse 미측정. 글은 자리표시 3편(사람이 씀). 원격 레포·배포는 docs/DEPLOY.md 대로 사람 몫.
+- **rauha 버그 후보 (블로그 실행에서 발견):** ① CLI 가 요청을 파일·stdin 으로 못 받음 → Windows PowerShell 5.1 에서 큰따옴표 든 `-p` 인자가 잘리고, rauha 는 잘린 걸 알아채고도 앞부분만 처리하고 "완료". (`-p -` stdin 또는 `--prompt-file` 추가, 잘린 요청이면 멈추고 알리기) ② 최종 요약이 "코드를 고치지 않고 검증만 했다/기존 구현을 그대로 두었다" 라고 쓰는데 실제로 파일이 바뀜(재시도 뒤 마지막 회차 기준으로 요약하는 듯), 4차에서는 바뀐 `tests/lib.test.ts` 가 "바뀐 파일" 목록에서 빠짐 — 바뀐 파일은 git 기준으로 다시 세야 함.
 
 ## 인수인계 (2026-11-11 오후, 주간 89%에서 새 에이전트를 멈춤; 주간 초기화 11-14 18:00 UTC)
 
