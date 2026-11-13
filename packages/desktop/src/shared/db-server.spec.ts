@@ -20,6 +20,25 @@ describe('서버 연결 대상(값 객체)', () => {
     expect(ServerTarget.parse({ ...base, host: '::1' }).host).toBe('::1');
   });
 
+  it('IP 주소 뒤에 :포트 를 붙여 넣으면 호스트와 포트로 나눈다(IPv6 로 잘못 읽지 않는다)', () => {
+    const t = ServerTarget.parse({ ...base, kind: 'mysql', host: '3.39.2.12:3307' });
+    expect([t.host, t.port]).toEqual(['3.39.2.12', 3307]);
+    const named = ServerTarget.parse({ ...base, host: 'db.example.com:6543' });
+    expect([named.host, named.port]).toEqual(['db.example.com', 6543]);
+    expect(ServerTarget.parse({ ...base, kind: 'mysql', host: '3.39.2.12' }).addresses.primary().endpoint()).toBe('3.39.2.12:3306');
+    expect(ServerTarget.parse({ ...base, host: '[::1]:6000' }).port).toBe(6000);
+  });
+
+  it('호스트에 붙인 포트와 포트 칸이 다르면 어느 쪽인지 묻는다', () => {
+    expect(() => ServerTarget.parse({ ...base, host: '3.39.2.12:3307', port: '3306' })).toThrow(/port/i);
+    expect(ServerTarget.parse({ ...base, host: '3.39.2.12:3307', port: '3307' }).port).toBe(3307);
+  });
+
+  it('IPv4 는 칸마다 0~255 여야 한다', () => {
+    expect(() => ServerTarget.parse({ ...base, host: '3.39.2.312' })).toThrow(/255/);
+    expect(() => ServerTarget.parse({ ...base, host: '3.39.2' })).not.toThrow();
+  });
+
   it('포트는 1~65535 정수만, 종류는 mysql·postgres 만 받는다', () => {
     for (const port of [0, 70000, 1.5, 'abc', -1]) expect(() => ServerTarget.parse({ ...base, port }), String(port)).toThrow(DbInputError);
     expect(() => ServerTarget.parse({ ...base, kind: 'oracle' })).toThrow(DbInputError);

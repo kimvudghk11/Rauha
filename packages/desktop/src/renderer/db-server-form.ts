@@ -138,6 +138,13 @@ export function buildServerForm(deps: ServerFormDeps) {
     r.append(num, label, host, el('span', 'hint', 'Port'), port, up, down, del);
     for (const i of [label, host, port]) wireEnter(i);
     host.addEventListener('input', () => onHostInput(host));
+    // "3.39.2.12:3306" 처럼 포트까지 붙여 넣으면 칸을 나눠 보여 준다(포트 칸이 비어 있을 때만)
+    host.addEventListener('change', () => {
+      const m = /^(?:\[([^\]]+)\]|([^:[\]/@\s]+)):(\d{1,5})$/.exec(host.value.trim());
+      if (m === null || port.value.trim() !== '') return;
+      host.value = m[1] ?? m[2] ?? '';
+      port.value = m[3] ?? '';
+    });
     rows.push(row);
     addrList.append(r);
     paintRows();

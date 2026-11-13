@@ -18,8 +18,19 @@ const SEALED_MAX = 8192;
 const CONTROL = /[\u0000-\u001f\u007f]/;
 /** 호스트 이름·IPv4 */
 const HOST_NAME = /^[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_])?$/;
-/** IPv6(대괄호는 있어도 없어도) */
-const HOST_V6 = /^\[?[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*\]?$/;
+/** IPv6(대괄호는 있어도 없어도). 콜론이 둘 이상이어야 한다(3.39.2.12:3306 처럼 IPv4:포트 를 IPv6 로 읽지 않게) */
+const HOST_V6 = /^\[?[0-9A-Fa-f.]*:[0-9A-Fa-f.]*:[0-9A-Fa-f:.]*\]?$/;
+/** 숫자 네 칸(IPv4 모양) */
+const IPV4_SHAPE = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/;
+/** 호스트 칸에 붙여 넣은 "호스트:포트" · "[IPv6]:포트" */
+const HOST_WITH_PORT = /^(?:\[([^\]]+)\]|([^:[\]]+)):(\d{1,5})$/;
+
+/** "3.39.2.12:3306" 처럼 호스트 칸에 포트가 붙어 오면 둘로 나눈다. 아니면 port 는 null */
+function splitHostPort(input: unknown): { host: unknown; port: string | null } {
+  if (typeof input !== 'string') return { host: input, port: null };
+  const m = HOST_WITH_PORT.exec(input.trim());
+  return m === null ? { host: input, port: null } : { host: m[1] ?? m[2], port: m[3]! };
+}
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 /** Amazon RDS(·Aurora) 엔드포인트: <이름>.<id>.<지역>.rds.amazonaws.com(중국 지역은 .com.cn). 이름만 비슷한 다른 도메인은 맞지 않는다 */
 const AWS_RDS_HOST = /^(?:[a-z0-9-]+\.)+rds\.amazonaws\.com(?:\.cn)?$/i;
@@ -42,6 +53,8 @@ function host(input: unknown): string {
   if (v.length > HOST_MAX) throw new DbInputError(`The host is too long (up to ${HOST_MAX} characters).`);
   if (/[/@\s]/.test(v) || v.includes('://')) throw new DbInputError('Type only the host name or IP (e.g. db.example.com), not a URL.');
   if (!HOST_NAME.test(v) && !HOST_V6.test(v)) throw new DbInputError('The host can use only letters, digits, ".", "-" and "_".');
+  const v4 = IPV4_SHAPE.exec(v);
+  if (v4 !== null && v4.slice(1).some((p) => Number(p) > 255)) throw new DbInputError(`"${v}" is not a valid IPv4 address (each part is 0-255).`);
   return v;
 }
 
@@ -96,7 +109,12 @@ export class ServerAddress {
   static parse(input: unknown, kind: ServerKind): ServerAddress {
     if (typeof input !== 'object' || input === null || Array.isArray(input)) throw new DbInputError('The address is missing.');
     const o = input as Readonly<Record<string, unknown>>;
-    return new ServerAddress(host(o['host']), port(o['port'], kind), addressLabel(o['label']));
+    const split = splitHostPort(o['host']);
+    const typed = o['port'] === undefined || o['port'] === null || String(o['port']).trim() === '' ? null : port(o['port'], kind);
+    if (split.port !== null && typed !== null && typed !== Number(split.port)) {
+      throw new DbInputError(`The host ends with :${split.port} but the port box says ${typed}. Keep the port in one place.`);
+    }
+    return new ServerAddress(host(split.host), split.port !== null ? port(split.port, kind) : (typed ?? DEFAULT_PORT[kind]), addressLabel(o['label']));
   }
 
   /** host:port (IPv6 는 대괄호) */
