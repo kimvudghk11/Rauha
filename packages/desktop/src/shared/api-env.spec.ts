@@ -1,5 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { ApiEnvironment, ApiEnvironments, checkVarName } from './api-env.js';
+import { ApiEnvironment, ApiEnvironments, EnvBar, checkVarName } from './api-env.js';
+
+describe('환경 바(base_url 바로 고치기·환경 색)', () => {
+  const view = { id: 'e1', name: 'Local', vars: [{ name: 'base_url', value: 'http://localhost:3000', secret: false, has: true }, { name: 'token', value: '', secret: true, has: true }] };
+  it('base_url 만 바꾸고 비밀 변수는 값을 보내지 않아 그대로 둔다', () => {
+    expect(EnvBar.withBaseUrl(view, ' http://localhost:4000/ ')).toEqual([
+      { name: 'base_url', value: 'http://localhost:4000', secret: false },
+      { name: 'token', value: null, secret: true },
+    ]);
+  });
+  it('base_url 이 없던 환경이면 맨 앞에 더한다', () => {
+    expect(EnvBar.withBaseUrl({ ...view, vars: [] }, 'http://127.0.0.1:8080')).toEqual([{ name: 'base_url', value: 'http://127.0.0.1:8080', secret: false }]);
+  });
+  it('환경 색: localhost 주소나 local·dev 이름은 local, prod·live 는 prod, 그 밖은 remote', () => {
+    expect(EnvBar.tone('Local', 'http://localhost:3000')).toBe('local');
+    expect(EnvBar.tone('anything', 'http://127.0.0.1:8080')).toBe('local');
+    expect(EnvBar.tone('Production', 'https://api.example.com')).toBe('prod');
+    expect(EnvBar.tone('운영', 'https://api.example.com')).toBe('prod');
+    expect(EnvBar.tone('Staging', 'https://stg.example.com')).toBe('remote');
+    expect(EnvBar.tone(null, null)).toBe('none');
+  });
+});
 
 const FAKE = ['sec', 'ret', '-value', '-9'].join('');
 let n = 0;

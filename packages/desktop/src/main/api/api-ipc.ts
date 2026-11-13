@@ -9,6 +9,7 @@ import { ApiService } from './api-service.js';
 import { ApiProjectsStore, CollectionsStore, EnvironmentsStore, HistoryStore } from './api-store.js';
 import { ApiTestService } from './api-test-service.js';
 import { FsProjectReader } from './project-reader.js';
+import { probeServer } from './server-probe.js';
 
 /** AI 시험에 쓰는 시간 제한(로컬 서버라 짧게) */
 const TEST_TIMEOUT_MS = 15_000;
@@ -48,6 +49,7 @@ export function registerApiIpc(ipc: Pick<IpcMain, 'handle'>, deps: ApiIpcDeps): 
     collections,
     envs,
     reader,
+    probe: (url) => probeServer(url),
     // 같은 보내기(시간 제한·크기 상한)를 쓰되 이 컴퓨터 주소로만(리다이렉트 포함)
     send: (prepared, signal) => sendPrepared(prepared, { signal, resolve, timeoutMs: TEST_TIMEOUT_MS, stayOn: (url) => LocalTarget.isLocal(url) }),
     plan: deps.testModel.plan,

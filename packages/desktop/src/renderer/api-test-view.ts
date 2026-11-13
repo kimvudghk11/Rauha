@@ -1,6 +1,7 @@
 import type { ApiApi } from '../shared/api-ipc.js';
 import type { ApiRequestProps } from '../shared/api-request.js';
-import type { CaseCategory } from '../shared/api-test.js';
+import { EnvBar } from '../shared/api-env.js';
+import type { CaseCategory, TestTarget } from '../shared/api-test.js';
 import type { CaseView, PlanView, ReportRow, ReportView } from '../shared/api-test-dto.js';
 import { el } from './dom.js';
 import { methodBadge } from './api-parts.js';
@@ -31,26 +32,44 @@ export function buildTestPanel(deps: TestPanelDeps) {
   let plan: PlanView | null = null;
   let picked = new Set<string>();
   let lastStart: { requestId: string; request: ApiRequestProps } | null = null;
+  let target: TestTarget = { env: null, baseUrl: null };
+
+  /** 시험 대상 줄: 어느 환경·어느 주소로 보내는지 늘 보인다(바꾸려면 위 환경 바) */
+  const targetLine = (t: TestTarget): HTMLElement => {
+    const tone = EnvBar.tone(t.env, t.baseUrl);
+    const line = el('div', `api-test-target tone-${tone}`);
+    line.append(el('span', 'dim', 'Target'), el('span', 'api-env-dot'), el('b', undefined, t.env ?? 'No environment'), el('span', 'mono', t.baseUrl ?? '{{base_url}} not set'));
+    line.title = 'Change the environment or base_url in the bar at the top of the API tab.';
+    return line;
+  };
 
   const head = (title: string, ...extra: HTMLElement[]): HTMLElement => {
+    const wrap = el('div', 'api-test-headwrap');
     const h = el('div', 'bar api-test-head');
     const close = button('×', 'btn icon sm ghost', () => deps.closed());
     close.title = 'Close the AI test';
     close.setAttribute('aria-label', 'Close the AI test');
     h.append(el('b', 'api-test-title', title), el('span', 'grow'), ...extra, close);
-    return h;
+    wrap.append(h, targetLine(target));
+    return wrap;
   };
 
   const waiting = (title: string, note: string): void => {
     const box = el('div', 'empty-state api-test-wait');
-    box.append(el('b', undefined, title), el('span', 'dim', note));
+    box.append(el('span', 'api-test-spinner'), el('b', undefined, title), el('span', 'dim', note));
     root.replaceChildren(head('AI test'), box);
   };
 
   const failed = (error: string): void => {
-    const box = el('div', 'empty-state failed api-test-wait');
-    box.append(el('b', undefined, 'AI test stopped'), el('span', 'dim', error));
-    if (lastStart !== null) box.append(button('Try again', 'btn', () => void start(lastStart!.requestId, lastStart!.request)));
+    const serverDown = /^Nothing is answering at/.test(error);
+    const box = el('div', `empty-state failed api-test-wait${serverDown ? ' server-down' : ''}`);
+    if (serverDown) {
+      box.append(el('div', 'api-test-plug', '⏻'), el('b', undefined, 'Your server is not running'), el('span', 'dim', error));
+      const steps = el('ol', 'api-test-steps');
+      for (const s of ['Start the server in a terminal (for example yarn start:dev).', 'Or fix base_url in the bar at the top if it points to the wrong port.', 'Press Try again — no AI call was made yet.']) steps.append(el('li', undefined, s));
+      box.append(steps);
+    } else box.append(el('b', undefined, 'AI test stopped'), el('span', 'dim', error));
+    if (lastStart !== null) box.append(button('Try again', 'btn primary', () => void start(lastStart!.requestId, lastStart!.request)));
     root.replaceChildren(head('AI test'), box);
   };
 
@@ -163,9 +182,17 @@ export function buildTestPanel(deps: TestPanelDeps) {
   };
 
   const paintReport = (v: ReportView): void => {
+    target = v.target;
+    // 큰 숫자 한 줄: 통과율 + 개수
+    const hero = el('div', `api-test-hero ${v.counts.fail > 0 ? 'bad' : v.counts.error > 0 ? 'warn' : 'good'}`);
+    const rate = v.counts.total === 0 ? 0 : Math.round((v.counts.pass / v.counts.total) * 100);
+    const big = el('div', 'api-test-rate');
+    big.append(el('b', undefined, `${rate}%`), el('span', 'dim', 'passed'));
+    hero.append(big);
     const sum = el('div', 'bar api-test-counts');
     sum.append(el('span', 'chip green', `${v.counts.pass} passed`), el('span', `chip ${v.counts.fail > 0 ? 'red' : 'green'}`, `${v.counts.fail} failed`));
     if (v.counts.error > 0) sum.append(el('span', 'chip yellow', `${v.counts.error} not run`));
+    hero.append(sum);
     const meter = el('div', 'api-meter');
     meter.setAttribute('role', 'img');
     meter.setAttribute('aria-label', `${v.counts.pass} of ${v.counts.total} passed`);
@@ -175,7 +202,7 @@ export function buildTestPanel(deps: TestPanelDeps) {
       part.style.flexGrow = String(n);
       meter.append(part);
     }
-    sum.append(meter);
+    hero.append(meter);
     const tools = el('div', 'bar api-test-tools');
     if (v.fixRequest !== null && deps.toChat !== undefined) {
       const text = v.fixRequest;
@@ -189,13 +216,35 @@ export function buildTestPanel(deps: TestPanelDeps) {
       el('span', 'grow'),
       button('Back to cases', 'btn', () => (plan !== null ? paintPlan(plan) : undefined)),
     );
+    // 실패 → 실행 못 함 → 통과 순서. 통과는 한 묶음으로 접어 둔다
     const list = el('div', 'api-case-list');
-    list.append(...v.rows.map(reportRow));
-    const parts: HTMLElement[] = [head(`AI test report · ${v.label}`), sum];
+    const group = (title: string, rows: readonly ReportRow[], openNow: boolean): void => {
+      if (rows.length === 0) return;
+      const d = el('details', 'api-result-group');
+      d.open = openNow;
+      d.append(el('summary', undefined, `${title} (${rows.length})`), ...rows.map(reportRow));
+      list.append(d);
+    };
+    group('Failed', v.rows.filter((r) => r.outcome === 'fail'), true);
+    group('Not run', v.rows.filter((r) => r.outcome === 'error'), true);
+    group('Passed', v.rows.filter((r) => r.outcome === 'pass'), v.counts.fail === 0 && v.counts.error === 0);
+    const parts: HTMLElement[] = [head(`AI test report · ${v.label}`), hero];
+    if (v.serverDown) {
+      const warn = el('div', 'api-test-banner warn');
+      warn.append(el('b', undefined, 'The server stopped answering.'), el('span', undefined, ` Remaining cases were not sent. Start the server at ${v.target.baseUrl ?? '{{base_url}}'} and run again.`));
+      parts.push(warn);
+    }
     if (v.summary !== '') parts.push(el('div', 'api-test-summary', v.summary));
     parts.push(tools, list);
     root.replaceChildren(...parts);
   };
+
+  /** 환경 바에서 대상이 바뀌면 머리 줄도 바꾼다 */
+  function setTarget(t: TestTarget): void {
+    target = t;
+    const line = root.querySelector('.api-test-target');
+    if (line !== null) line.replaceWith(targetLine(t));
+  }
 
   // ── 흐름 ──
 
@@ -204,6 +253,7 @@ export function buildTestPanel(deps: TestPanelDeps) {
     waiting('Reading the code and making test cases…', 'One AI call. Controllers, DTOs, services and guards are read; secret values are not sent.');
     const r = await deps.api.plan({ requestId, request });
     if (!r.ok) return failed(r.error);
+    target = r.plan.target;
     paintPlan(r.plan);
   }
 
@@ -226,5 +276,5 @@ export function buildTestPanel(deps: TestPanelDeps) {
     );
   }
 
-  return { root, start };
+  return { root, start, setTarget };
 }

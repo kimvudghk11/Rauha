@@ -5,7 +5,7 @@ import { ApiError, ApiRequest, type ApiRequestProps } from '../../shared/api-req
 import { hideSecrets, maskUrlSecrets } from '../../shared/api-redact.js';
 import { pickContextFiles } from '../../shared/api-test-context.js';
 import { ApiTestPrompt, FixNotesDto, PlanTestsRequestDto, RunTestsRequestDto, TestPlanDto, TestPlanView, TestReportView, type CodeFile, type PlanTestsResult, type RunTestsResult, type SaveReportResult } from '../../shared/api-test-dto.js';
-import { ApiTestError, CaseResult, LocalTarget, TestReport, type ObservedResponse, type TestCase, type TestPlan } from '../../shared/api-test.js';
+import { ApiTestError, CaseResult, LocalTarget, TestReport, type ObservedResponse, type TestCase, type TestPlan, type TestTarget } from '../../shared/api-test.js';
 import type { SourceFile } from '../../shared/api-extract.js';
 import type { SendOutcome } from './api-sender.js';
 import type { ApiStorePort } from './api-store.js';
@@ -16,6 +16,8 @@ export interface ApiTestDeps {
   readonly collections: ApiStorePort<ApiCollections>;
   readonly envs: ApiStorePort<ApiEnvironments>;
   readonly reader: ProjectReaderPort;
+  /** 서버가 듣고 있는지(TCP 연결만). 듣고 있으면 null, 아니면 이유 글 */
+  readonly probe: (url: string) => Promise<string | null>;
   /** 준비된 요청을 보낸다(이 컴퓨터 주소만 허락하는 보내기여야 한다) */
   readonly send: (prepared: ReturnType<ApiRequest['prepare']>, signal: AbortSignal) => Promise<SendOutcome>;
   /** 모델: 케이스 만들기(모델 출력 그대로) */
@@ -80,6 +82,10 @@ export class ApiTestService {
       const url = base.url.replace(VAR_RE, (m: string, name: string) => vars.get(name) ?? m);
       if (/\{\{\s*base_url\s*\}\}/.test(url)) throw new ApiTestError('NO_BASE_URL', 'Set {{base_url}} in the selected environment (for example http://localhost:3000).');
       LocalTarget.assert(url);
+      // 모델(최대 몇 분)을 부르기 전에 서버가 켜져 있는지부터 본다
+      const down = await this.deps.probe(url);
+      if (down !== null) throw LocalTarget.downError(url, down);
+      const target: TestTarget = { env: env?.props.name ?? null, baseUrl: vars.get('base_url') ?? null };
 
       const survey = await this.deps.reader.survey(origin.project);
       const stack = ProjectStack.judge(StackFactsDto.from(survey));
@@ -97,7 +103,7 @@ export class ApiTestService {
       const prompt = ApiTestPrompt.forPlan({ label, request: safe, env: env?.props.vars ?? [], code });
       const plan = TestPlanDto.from(await this.deps.plan(prompt), { id: this.deps.newId(), requestId: req.requestId, label, method: base.method }, this.deps.newId);
       this.remember(plan.id, { plan, base, code, report: null });
-      return { ok: true as const, plan: TestPlanView.of(plan, base) };
+      return { ok: true as const, plan: TestPlanView.of(plan, base, target) };
     });
   }
 
@@ -112,9 +118,14 @@ export class ApiTestService {
       const vars = env?.variableMap() ?? new Map<string, string>();
       const secretNames = new Set((env?.props.vars ?? []).filter((v) => v.secret).map((v) => v.name));
       const results: CaseResult[] = [];
-      for (const c of cases) results.push(await this.runCase(c, stored.base, vars, secretNames));
+      // 서버가 꺼진 게 보이면 남은 케이스는 보내지 않는다(같은 거절을 수십 번 반복하지 않게)
+      for (const c of cases) {
+        if (results.some((r) => r.serverDown())) results.push(CaseResult.skippedServerDown(c, `${stored.base.method} ${maskUrlSecrets(stored.base.url, [])}`));
+        else results.push(await this.runCase(c, stored.base, vars, secretNames));
+      }
+      const target: TestTarget = { env: env?.props.name ?? null, baseUrl: vars.get('base_url') ?? null };
 
-      let report = TestReport.create(stored.plan, results, this.deps.now());
+      let report = TestReport.create(stored.plan, results, this.deps.now(), target);
       if (report.failed().length > 0) {
         try {
           const notes = FixNotesDto.from(await this.deps.fixes(ApiTestPrompt.forFixes({ report, code: stored.code })));

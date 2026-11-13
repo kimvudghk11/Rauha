@@ -33,6 +33,27 @@ export interface EnvVarEdit {
   readonly secret: boolean;
 }
 
+/** 환경 바의 색: 이 컴퓨터 · 운영 · 그 밖의 원격 · 환경 없음 */
+export type EnvTone = 'local' | 'prod' | 'remote' | 'none';
+
+/** API 탭 맨 위 환경 바의 규칙(base_url 을 바로 고치기, 환경 색) */
+export const EnvBar = {
+  /** 환경의 base_url 만 바꾼 저장용 변수 목록. 비밀 변수는 value null(지금 값 유지) */
+  withBaseUrl(env: { readonly vars: readonly EnvVarView[] }, url: string): EnvVarEdit[] {
+    const value = url.trim().replace(/\/+$/, '');
+    const vars: EnvVarEdit[] = env.vars.map((v) => (v.name === 'base_url' ? { name: v.name, value, secret: false } : { name: v.name, value: v.secret ? null : v.value, secret: v.secret }));
+    return env.vars.some((v) => v.name === 'base_url') ? vars : [{ name: 'base_url', value, secret: false }, ...vars];
+  },
+  tone(name: string | null, baseUrl: string | null): EnvTone {
+    if (name === null && baseUrl === null) return 'none';
+    const n = (name ?? '').toLowerCase();
+    if (/prod|live|운영|real/.test(n)) return 'prod';
+    if (baseUrl !== null && /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:|\/|$)/i.test(baseUrl.trim())) return 'local';
+    if (/^(local|dev|로컬)/.test(n)) return 'local';
+    return 'remote';
+  },
+};
+
 export interface ApiEnvironmentProps {
   readonly id: string;
   readonly name: string;

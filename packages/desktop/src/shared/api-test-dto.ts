@@ -1,6 +1,6 @@
 import { ApiRequestDto } from './api-dto.js';
 import type { ApiMethod, ApiRequestProps } from './api-request.js';
-import { CASE_CATEGORIES, CATEGORY_LABEL, Expectation, TestCase, TestPlan, type CaseAuth, type CaseCategory, type FixNote, type Outcome, type TestReport, ApiTestError } from './api-test.js';
+import { CASE_CATEGORIES, CATEGORY_LABEL, Expectation, TestCase, TestPlan, type CaseAuth, type CaseCategory, type FixNote, type Outcome, type TestReport, type TestTarget, ApiTestError } from './api-test.js';
 
 /** AI API 시험의 경계: 모델 출력 읽기, 화면·IPC 모양, 모델에게 보낼 글 */
 
@@ -183,14 +183,17 @@ export interface PlanView {
   readonly label: string;
   readonly notes: string;
   readonly cases: readonly CaseView[];
+  /** 시험 대상(환경 이름·base_url) */
+  readonly target: TestTarget;
 }
 
 export const TestPlanView = {
-  of(plan: TestPlan, base: ApiRequestProps): PlanView {
+  of(plan: TestPlan, base: ApiRequestProps, target: TestTarget = { env: null, baseUrl: null }): PlanView {
     return {
       id: plan.id,
       label: plan.props.label,
       notes: plan.props.notes,
+      target,
       cases: plan.cases.map((c) => {
         const r = c.toRequest(base);
         const p = c.props;
@@ -241,6 +244,9 @@ export interface ReportView {
   readonly markdown: string;
   /** 실패 전부를 고쳐 달라는 채팅 글(실패가 없으면 null) */
   readonly fixRequest: string | null;
+  readonly target: TestTarget;
+  /** 서버가 꺼져 닿지 못한 케이스가 있다 */
+  readonly serverDown: boolean;
 }
 
 export const TestReportView = {
@@ -268,7 +274,7 @@ export const TestReportView = {
         fixRequest: r.verdict.outcome === 'fail' ? report.fixRequest(r.caseId) : null,
       });
     }
-    return { planId: report.plan.id, label: report.plan.props.label, at: report.at.toISOString(), summary: report.summary, counts: report.counts(), rows, markdown: report.toMarkdown(), fixRequest: report.failed().length > 0 ? report.fixRequest() : null };
+    return { planId: report.plan.id, label: report.plan.props.label, at: report.at.toISOString(), summary: report.summary, counts: report.counts(), rows, markdown: report.toMarkdown(), fixRequest: report.failed().length > 0 ? report.fixRequest() : null, target: report.target, serverDown: report.serverDown() };
   },
 };
 

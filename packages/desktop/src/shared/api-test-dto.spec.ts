@@ -47,7 +47,7 @@ describe('화면용 모양', () => {
     const report = TestReport.create(plan, [CaseResult.from(plan.cases[0]!, 'POST /users', [{ status: 201, body: '{}', ms: 4, error: null }], [])], new Date());
     const v = TestReportView.of(report);
     expect(v.counts.fail).toBe(1);
-    expect(v.markdown).toContain('# API test report');
+    expect(v.markdown).toContain('# API test: POST /users');
     expect(v.fixRequest).toContain('이메일이 틀리면 400');
     expect(v.rows[0]!.outcome).toBe('fail');
   });

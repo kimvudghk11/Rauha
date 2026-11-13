@@ -24,7 +24,9 @@ const reader: ProjectReaderPort = {
   read: async (_root, paths) => paths.map((p) => ({ path: p, text: FILES[p]! })),
 };
 
-function setup(o: { baseUrl?: string; planOut?: unknown; statuses?: number[] } = {}) {
+const REFUSED: SendOutcome = { ok: false, kind: 'network', error: 'Connection refused: nothing is listening at that address and port.', ms: 1 } as SendOutcome;
+
+function setup(o: { baseUrl?: string; planOut?: unknown; statuses?: number[]; down?: boolean; refuseAfter?: number } = {}) {
   let n = 0;
   const newId = (): string => `id${++n}`;
   const spec = ProjectApiSpec.fromExtracted('/w/api', 'api', extractNest(Object.entries(FILES).map(([path, text]) => ({ path, text }))));
@@ -39,8 +41,10 @@ function setup(o: { baseUrl?: string; planOut?: unknown; statuses?: number[] } =
     collections: mem(collections),
     envs: mem(ApiEnvironments.of([env], 'e1')),
     reader,
+    probe: async () => (o.down === true ? 'Connection refused: nothing is listening at that address and port.' : null),
     send: async (p): Promise<SendOutcome> => {
       sent.push(p);
+      if (o.refuseAfter !== undefined && sent.length > o.refuseAfter) return REFUSED;
       return { ok: true, response: { status: statuses.shift() ?? 200, statusText: '', ms: 5, size: 2, headers: [], body: `{"echo":"${SECRET}"}`, truncated: false, contentType: 'application/json', redirects: [], binary: false } };
     },
     plan: async (prompt) => {
@@ -116,6 +120,37 @@ describe('AI API 시험 서비스', () => {
     expect(r.report.markdown).not.toContain(SECRET);
     const saved = await s.service.save(p.plan.id);
     expect(saved).toEqual({ ok: true, saved: '/docs/api-test-post-users.md' });
+  });
+
+  it('서버가 꺼져 있으면 모델을 부르기 전에 바로 멈추고, 어느 주소인지와 켜는 방법을 알려 준다', async () => {
+    const s = setup({ down: true });
+    const r = await s.service.plan({ requestId: s.request.id, request: s.request.props });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toContain('http://localhost:3000');
+      expect(r.error).toMatch(/start/i);
+    }
+    expect(s.prompts).toHaveLength(0);
+  });
+
+  it('계획에는 시험 대상(환경 이름·base_url)이 담겨 화면 머리에 보인다', async () => {
+    const s = setup();
+    const r = await s.service.plan({ requestId: s.request.id, request: s.request.props });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.plan.target).toEqual({ env: 'local', baseUrl: 'http://localhost:3000' });
+  });
+
+  it('실행 중 서버가 꺼지면 남은 케이스는 보내지 않고 "서버가 꺼져 건너뜀"으로 남긴다', async () => {
+    const s = setup({ refuseAfter: 0 });
+    const p = await s.service.plan({ requestId: s.request.id, request: s.request.props });
+    if (!p.ok) throw new Error(p.error);
+    const r = await s.service.run({ planId: p.plan.id, caseIds: p.plan.cases.map((c) => c.id), confirmed: true });
+    if (!r.ok) throw new Error(r.error);
+    expect(s.sent).toHaveLength(1);
+    expect(r.report.counts).toEqual({ pass: 0, fail: 0, error: 2, total: 2 });
+    expect(r.report.serverDown).toBe(true);
+    expect(s.fixPrompts).toHaveLength(0);
+    expect(r.report.markdown).toMatch(/server stopped answering/i);
   });
 
   it('모두 통과하면 수정 제안을 부르지 않는다(모델 호출 1번)', async () => {

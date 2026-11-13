@@ -1,5 +1,6 @@
 import { ApiCollections } from '../shared/api-collections.js';
 import { CollectionsDto, type CollectionsJson, type EnvironmentsView, type HistoryJson } from '../shared/api-dto.js';
+import { EnvBar } from '../shared/api-env.js';
 import type { ApiSource } from '../shared/api-extract.js';
 import type { ApiApi, CollectionResult, ProjectList, ProjectRow, SendResult } from '../shared/api-ipc.js';
 import { API_METHODS, ApiRequest, variablesIn, type ApiMethod, type ApiRequestProps } from '../shared/api-request.js';
@@ -64,7 +65,9 @@ export function buildApi(deps: ApiViewDeps) {
   const toggleList = button('Requests', 'btn api-toggle', () => root.classList.toggle('list-open'));
   const importBtn = button('Import', 'btn', () => void importDialog());
   const head = el('div', 'rhead api-head');
-  head.append(toggleList, el('b', undefined, 'API'), el('span', 'hint grow', 'Send requests from here. Tokens stay in environments.'), envHost, importBtn);
+  head.append(toggleList, el('b', undefined, 'API'), el('span', 'hint grow', 'Send requests from here. Tokens stay in environments.'), importBtn);
+  envHost.setAttribute('role', 'region');
+  envHost.setAttribute('aria-label', 'Environment and base URL');
 
   // ── 왼쪽: 컬렉션 · 기록 ──
   const sideTabs = el('div', 'tabs');
@@ -180,7 +183,7 @@ export function buildApi(deps: ApiViewDeps) {
 
   const body = el('div', 'api-body');
   body.append(sidePane, mainCol);
-  root.append(head, body);
+  root.append(head, envHost, body);
 
   // ── 상태 ──
   function markDirty(): void {
@@ -224,8 +227,20 @@ export function buildApi(deps: ApiViewDeps) {
     sendBtn.classList.toggle('danger', on);
   }
 
+  /**
+   * 환경 바: 탭 맨 위 한 줄 전체. 지금 환경(색 배지) · 환경 바꾸기 · base_url 을 그 자리에서 고치기 · Manage.
+   * 색으로 어디로 보내는지 한눈에: 이 컴퓨터(초록) · 원격(주황) · 운영(빨강)
+   */
   function paintEnv(): void {
     envHost.replaceChildren();
+    const env = envs.items.find((e) => e.id === envs.selectedId) ?? null;
+    const baseVar = env?.vars.find((v) => v.name === 'base_url');
+    const base = baseVar === undefined || baseVar.secret ? null : baseVar.value;
+    const tone = EnvBar.tone(env?.name ?? null, base);
+    envHost.className = `api-env-bar tone-${tone}`;
+    const badge = el('span', 'api-env-badge', tone === 'local' ? 'LOCAL' : tone === 'prod' ? 'PROD' : tone === 'remote' ? 'REMOTE' : 'NO ENV');
+    badge.title = tone === 'local' ? 'Requests go to this computer' : tone === 'prod' ? 'Careful: this looks like production' : tone === 'remote' ? 'Requests go to another server' : 'No environment: {{variables}} are not filled in';
+
     const opts: (readonly [string, string])[] = [['', 'No environment'], ...envs.items.map((e) => [e.id, e.name] as const)];
     const sel = select(opts, envs.selectedId ?? '', async (id) => {
       const r = await deps.api.env.apply({ kind: 'select', id: id === '' ? null : id });
@@ -234,8 +249,42 @@ export function buildApi(deps: ApiViewDeps) {
       paintEnv();
     }, 'api-env-select');
     sel.setAttribute('aria-label', 'Environment');
-    envHost.append(sel, button('Manage', 'btn', () => openEnvDialog({ envs: () => envs, apply: (op) => deps.api.env.apply(op), changed: (v) => ((envs = v), paintEnv()) }, envs.selectedId)));
+
+    const baseInput = el('input', 'api-env-base');
+    baseInput.spellcheck = false;
+    baseInput.value = base ?? '';
+    baseInput.placeholder = env === null ? 'Pick or create an environment first' : 'http://localhost:3000';
+    baseInput.disabled = env === null;
+    baseInput.setAttribute('aria-label', 'base_url of the selected environment');
+    baseInput.title = 'Used wherever a request has {{base_url}}. Press Enter to save.';
+    const status = el('span', 'hint api-env-saved');
+    const commit = async (): Promise<void> => {
+      if (env === null || baseInput.value.trim().replace(/\/+$/, '') === (base ?? '')) return;
+      const r = await deps.api.env.apply({ kind: 'save', id: env.id, name: env.name, vars: EnvBar.withBaseUrl(env, baseInput.value) });
+      if (!r.ok) {
+        say(r.error);
+        return;
+      }
+      envs = r.envs;
+      paintEnv();
+      const s = envHost.querySelector('.api-env-saved');
+      if (s !== null) s.textContent = 'Saved';
+    };
+    baseInput.addEventListener('keydown', (e) => {
+      if (isEnterKey(e)) {
+        e.preventDefault();
+        void commit();
+      } else if (e.key === 'Escape') {
+        baseInput.value = base ?? '';
+        baseInput.blur();
+      }
+    });
+    baseInput.addEventListener('change', () => void commit());
+
+    const label = el('span', 'api-env-label', 'base_url');
+    envHost.append(badge, sel, label, baseInput, status, button('Manage', 'btn sm', () => openEnvDialog({ envs: () => envs, apply: (op) => deps.api.env.apply(op), changed: (v) => ((envs = v), paintEnv()) }, envs.selectedId)));
     paintVars();
+    testPanel.setTarget({ env: env?.name ?? null, baseUrl: base });
   }
 
   function paintSide(): void {

@@ -64,7 +64,30 @@ export const LocalTarget = {
       throw new ApiTestError('NOT_LOCAL', `AI tests only run against a server on this computer (localhost, 127.0.0.1, ::1). ${host.slice(0, 80)} is not local. Start the server locally and point {{base_url}} at it.`);
     }
   },
+  /** 서버가 응답하지 않을 때(사전 확인 실패) 보일 글: 어느 주소인지 + 켜는 방법 */
+  downError(url: string, reason: string): ApiTestError {
+    let origin = url;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      /* 그대로 */
+    }
+    return new ApiTestError('SERVER_DOWN', `Nothing is answering at ${origin} (${reason.replace(/\.$/, '')}). Start the server (for example yarn start:dev or ./gradlew bootRun) and press Make test cases again, or change {{base_url}} in the environment bar.`);
+  },
 };
+
+/** 연결 자체가 안 된 오류(서버 꺼짐)인지: 이때는 남은 케이스를 보내지 않는다 */
+export function isServerDown(error: string | null): boolean {
+  return error !== null && /^(Connection refused|The connection was reset)/.test(error);
+}
+
+/** 시험 대상: 고른 환경 이름과 base_url 값(리포트·화면 머리에 보인다) */
+export interface TestTarget {
+  readonly env: string | null;
+  readonly baseUrl: string | null;
+}
+
+const SERVER_DOWN_REASON = 'Skipped: the server stopped answering, so the remaining cases were not sent.';
 
 // ── 기대와 판정 ──
 
@@ -272,6 +295,16 @@ export class CaseResult {
     return new CaseResult(c.id, sent, [], { outcome: 'error', reason });
   }
 
+  /** 앞 케이스에서 서버가 꺼진 게 보여 보내지 않은 케이스 */
+  static skippedServerDown(c: TestCase, sent: string): CaseResult {
+    return new CaseResult(c.id, sent, [], { outcome: 'error', reason: SERVER_DOWN_REASON });
+  }
+
+  /** 서버에 닿지 못한 결과(연결 거절이거나 그래서 건너뜀) */
+  serverDown(): boolean {
+    return this.verdict.reason === SERVER_DOWN_REASON || (this.verdict.outcome === 'error' && this.responses.some((r) => isServerDown(r.error)));
+  }
+
   slow(): boolean {
     return this.responses.some((r) => r.ms > TEST_LIMITS.slowMs);
   }
@@ -301,10 +334,16 @@ export class TestReport {
     readonly at: Date,
     readonly summary: string,
     readonly fixes: readonly FixNote[],
+    readonly target: TestTarget,
   ) {}
 
-  static create(plan: TestPlan, results: readonly CaseResult[], at: Date): TestReport {
-    return new TestReport(plan, results, at, '', []);
+  static create(plan: TestPlan, results: readonly CaseResult[], at: Date, target: TestTarget = { env: null, baseUrl: null }): TestReport {
+    return new TestReport(plan, results, at, '', [], target);
+  }
+
+  /** 서버가 꺼져서 닿지 못한 케이스가 있는지 */
+  serverDown(): boolean {
+    return this.results.some((r) => r.serverDown());
   }
 
   counts(): { pass: number; fail: number; error: number; total: number } {
@@ -323,37 +362,81 @@ export class TestReport {
   /** 수정 제안을 붙인다. 실패한 케이스의 것만 남긴다 */
   withFixes(summary: string, fixes: readonly FixNote[]): TestReport {
     const failed = new Set(this.failed().map((r) => r.caseId));
-    return new TestReport(this.plan, this.results, this.at, summary.trim(), fixes.filter((f) => failed.has(f.caseId)));
+    return new TestReport(this.plan, this.results, this.at, summary.trim(), fixes.filter((f) => failed.has(f.caseId)), this.target);
   }
 
   fixFor(caseId: string): FixNote | null {
     return this.fixes.find((f) => f.caseId === caseId) ?? null;
   }
 
+  /**
+   * 마크다운 리포트. 읽는 순서대로: 결과 한 줄 → 대상·시간 → (서버 꺼짐 안내) → 실패(다시 실행할 curl·응답) → 실행 못 함 → 전체 표(접힘) → 노트
+   */
   toMarkdown(): string {
     const c = this.counts();
-    const lines = [`# API test report: ${this.plan.props.label}`, '', `- Run at: ${this.at.toISOString()}`, `- Result: ${c.pass} passed, ${c.fail} failed, ${c.error} could not run (${c.total} cases)`];
+    const down = this.serverDown();
+    const notRun = this.results.filter((r) => r.verdict.outcome === 'error');
+    const result = [c.fail > 0 ? `**${c.fail} failed**` : `${c.fail} failed`, c.pass > 0 && c.fail === 0 && c.error === 0 ? `**${c.pass} passed**` : `${c.pass} passed`, c.error > 0 ? `**${c.error} not run**` : `${c.error} not run`].join(' · ');
+    const target = this.target.baseUrl === null ? '-' : `${this.target.env ?? 'no environment'} · \`${this.target.baseUrl}\``;
+    const slowest = this.results.reduce((m, r) => Math.max(m, r.maxMs()), 0);
+    const lines = [
+      `# API test: ${this.plan.props.label}`,
+      '',
+      `> ${c.fail === 0 && c.error === 0 ? '✅' : c.fail > 0 ? '❌' : '⚠️'} ${result} — ${c.total} cases`,
+      '',
+      '| | |',
+      '| --- | --- |',
+      `| Target | ${target} |`,
+      `| Run at | ${this.at.toISOString().replace('T', ' ').slice(0, 16)} UTC |`,
+      `| Slowest response | ${slowest} ms |`,
+    ];
+    if (down) lines.push('', `> ⚠️ **The server stopped answering.** Start the server at ${this.target.baseUrl ?? '{{base_url}}'} and run the tests again — cases that could not be sent are listed under *Not run*.`);
     if (this.summary !== '') lines.push('', this.summary);
-    lines.push('', '| Category | Case | Expected | Actual | Time | Result |', '| --- | --- | --- | --- | --- | --- |');
-    for (const r of this.results) {
+
+    const failed = this.failed();
+    if (failed.length > 0) lines.push('', `## Failed (${failed.length})`);
+    failed.forEach((r, i) => {
       const tc = this.caseOf(r.caseId);
-      if (tc === undefined) continue;
+      if (tc === undefined) return;
+      const p = tc.props;
       const actual = r.responses.map((x) => (x.status === null ? 'no response' : String(x.status))).join(', ') || '-';
-      lines.push(`| ${CATEGORY_LABEL[tc.props.category]} | ${cell(tc.props.title)} | ${tc.props.expect.statuses.join(' or ')} | ${actual} | ${r.maxMs()} ms | ${r.verdict.outcome} |`);
-    }
-    const failed = this.results.filter((r) => r.verdict.outcome !== 'pass');
-    if (failed.length > 0) lines.push('', '## Failed and not run');
-    for (const r of failed) {
-      const tc = this.caseOf(r.caseId);
-      if (tc === undefined) continue;
-      lines.push('', `### ${tc.props.title}`, '', `- Request: \`${r.sent}\``, `- ${r.verdict.reason}`, `- Evidence: ${tc.props.evidence || '-'}`);
+      lines.push('', `### ${i + 1}. ${p.title} · ${CATEGORY_LABEL[p.category]}`, '');
+      lines.push(`- **Expected** ${p.expect.statuses.join(' or ')}${p.expectNote.trim() !== '' ? ` — ${p.expectNote.trim()}` : ''}`, `- **Actual** ${actual} — ${r.verdict.reason}`);
+      if (p.evidence !== '') lines.push(`- **Evidence** \`${p.evidence}\``);
       const f = this.fixFor(r.caseId);
-      if (f !== null) lines.push(`- Cause: ${f.cause}`, `- How to fix${where(f) === '' ? '' : ` (${where(f)})`}: ${f.fix}`);
+      if (f !== null) lines.push(`- **Cause** ${f.cause}`, `- **Fix**${where(f) === '' ? '' : ` (\`${where(f)}\`)`} ${f.fix}`);
+      lines.push('', '```bash', TestReport.curl(r.sent, p.body), '```');
       const body = r.responses[r.responses.length - 1]?.excerpt ?? '';
-      if (body !== '') lines.push('', '```', body.slice(0, 600), '```');
+      if (body !== '') lines.push('', '<details><summary>Response body</summary>', '', '```', body.slice(0, 1200), '```', '', '</details>');
+    });
+
+    if (notRun.length > 0) {
+      lines.push('', `## Not run (${notRun.length})`, '');
+      for (const r of notRun) lines.push(`- ${this.caseOf(r.caseId)?.props.title ?? r.caseId} — ${r.verdict.reason}`);
     }
+
+    const mark: Readonly<Record<Outcome, string>> = { pass: '✅ pass', fail: '❌ fail', error: '⚠️ not run' };
+    lines.push('', '## All cases', '', `<details><summary>${c.total} cases</summary>`, '', '| # | Category | Case | Expected | Actual | Time | Result |', '| --- | --- | --- | --- | --- | --- | --- |');
+    this.results.forEach((r, i) => {
+      const tc = this.caseOf(r.caseId);
+      if (tc === undefined) return;
+      const actual = r.responses.map((x) => (x.status === null ? 'no response' : String(x.status))).join(', ') || '-';
+      lines.push(`| ${i + 1} | ${CATEGORY_LABEL[tc.props.category]} | ${cell(tc.props.title)} | ${tc.props.expect.statuses.join(' or ')} | ${actual} | ${r.maxMs()} ms${r.slow() ? ' 🐢' : ''} | ${mark[r.verdict.outcome]} |`);
+    });
+    lines.push('', '</details>');
     if (this.plan.props.notes.trim() !== '') lines.push('', '## Notes', '', this.plan.props.notes.trim());
     return `${lines.join('\n')}\n`;
+  }
+
+  /** 실패를 다시 재현할 curl 한 줄(비밀은 이미 가려진 sent 를 쓴다. 인증 헤더는 넣지 않는다) */
+  static curl(sent: string, body: string | null): string {
+    const q = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
+    const sp = sent.indexOf(' ');
+    const method = sp === -1 ? 'GET' : sent.slice(0, sp);
+    const url = sp === -1 ? sent : sent.slice(sp + 1);
+    const parts = [`curl -X ${method} ${q(url)}`];
+    if (body !== null) parts.push(`-H 'Content-Type: application/json'`, `-d ${q(body.slice(0, 2000))}`);
+    return parts.join(' \\\n  ');
   }
 
   /** 채팅으로 "이걸 고쳐 줘" 맡길 글. caseId 를 주면 그 케이스만 */

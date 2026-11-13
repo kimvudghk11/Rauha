@@ -4,8 +4,40 @@
 .api-toggle { display: none; }
 .app[data-tier=s] .api-toggle, .app[data-tier=xs] .api-toggle { display: inline-flex; }
 .app[data-tier=xs] .api-head .hint { display: none; }
-.api-env-bar { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
-.api-env-select { max-width: 180px; min-width: 0; }
+/* 환경 바: 탭 맨 위 한 줄. 왼쪽 색 띠와 배지로 어디로 보내는지 한눈에(이 컴퓨터 초록 · 원격 주황 · 운영 빨강) */
+.api-env-bar { --tone: var(--muted); display: flex; align-items: center; gap: var(--s2); min-width: 0; padding: 6px var(--s3); border: 1px solid var(--border2); border-left: 4px solid var(--tone); border-radius: 8px; background: color-mix(in srgb, var(--tone) 7%, var(--card)); }
+.api-env-bar.tone-local, .api-test-target.tone-local { --tone: var(--green); }
+.api-env-bar.tone-remote, .api-test-target.tone-remote { --tone: var(--yellow); }
+.api-env-bar.tone-prod, .api-test-target.tone-prod { --tone: var(--red); }
+.api-env-badge { flex: none; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; color: var(--bg); background: var(--tone); }
+.api-env-select { max-width: 200px; min-width: 0; font-weight: 600; }
+.api-env-label { flex: none; color: var(--muted); font-family: var(--mono, ui-monospace, monospace); font-size: var(--fs-xs); }
+.api-env-base { flex: 1; min-width: 120px; font-family: var(--mono, ui-monospace, monospace); font-size: var(--fs-md); color: var(--bright); background: var(--input); border: 1px solid var(--border2); border-radius: 6px; padding: 5px 8px; }
+.api-env-base:focus { border-color: var(--tone); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 35%, transparent); }
+.api-env-saved { flex: none; color: var(--green); }
+.app[data-tier=xs] .api-env-label { display: none; }
+
+/* AI 시험: 대상 줄 · 큰 결과 · 서버 꺼짐 */
+.api-test-headwrap { display: flex; flex-direction: column; gap: 4px; }
+.api-test-target { --tone: var(--muted); display: flex; align-items: center; gap: var(--s2); font-size: var(--fs-xs); padding: 4px var(--s3); border-radius: 6px; background: color-mix(in srgb, var(--tone) 8%, transparent); min-width: 0; }
+.api-test-target .mono { color: var(--bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.api-env-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); flex: none; }
+.api-test-hero { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; padding: var(--s3); border-radius: 10px; border: 1px solid var(--border2); background: var(--card); }
+.api-test-hero.good { border-color: color-mix(in srgb, var(--green) 50%, var(--border2)); }
+.api-test-hero.bad { border-color: color-mix(in srgb, var(--red) 50%, var(--border2)); }
+.api-test-hero.warn { border-color: color-mix(in srgb, var(--yellow) 50%, var(--border2)); }
+.api-test-rate { display: flex; align-items: baseline; gap: 6px; }
+.api-test-rate b { font-size: calc(var(--fs-lg) * 2); line-height: 1; color: var(--bright); font-variant-numeric: tabular-nums; }
+.api-test-hero .api-meter { flex: 1 1 160px; }
+.api-test-banner { padding: var(--s2) var(--s3); border-radius: 8px; font-size: var(--fs-sm); }
+.api-test-banner.warn { background: color-mix(in srgb, var(--yellow) 12%, transparent); border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent); }
+.api-result-group > summary { cursor: pointer; padding: var(--s2) var(--s1); font-weight: 600; color: var(--bright); }
+.api-test-wait.server-down { gap: var(--s2); }
+.api-test-plug { font-size: calc(var(--fs-lg) * 2); color: var(--yellow); }
+.api-test-steps { text-align: left; margin: 0; padding-left: 1.4em; color: var(--text); font-size: var(--fs-sm); }
+.api-test-spinner { width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--delfi); border-radius: 50%; animation: api-spin .8s linear infinite; }
+@keyframes api-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .api-test-spinner { animation: none; } }
 
 /* 몸: 왼쪽 목록 + 가운데 */
 .api-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: var(--s3); position: relative; }

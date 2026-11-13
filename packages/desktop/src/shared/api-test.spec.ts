@@ -149,12 +149,32 @@ describe('결과와 리포트', () => {
   });
   it('마크다운 리포트에 요약·표·실패 항목의 수정 방향이 들어간다', () => {
     const md = report.withFixes('검증이 빠졌어요', [{ caseId: 'c1', cause: '검증 누락', fix: 'IsEmail 추가', file: 'src/users/dto.ts', line: 4 }]).toMarkdown();
-    expect(md).toContain('# API test report');
+    expect(md).toContain('# API test: POST /users/:id');
     expect(md).toContain('| Input validation |');
     expect(md).toContain('src/users/dto.ts:4');
     expect(md).toContain('IsEmail 추가');
     expect(md).not.toContain('sk-live-abcdef123456');
   });
+  it('리포트 맨 위에 결과 한 줄·시험 대상(환경·base_url)이 오고, 실패가 표보다 먼저, 통과는 접어 둔다', () => {
+    const md = TestReport.create(plan, results, new Date('2026-11-12T00:00:00Z'), { env: 'local', baseUrl: 'http://localhost:3000' }).toMarkdown();
+    const lines = md.split('\n');
+    expect(lines[0]).toBe('# API test: POST /users/:id');
+    expect(md).toContain('**1 failed** · 1 passed · 0 not run');
+    expect(md).toContain('| Target | local · `http://localhost:3000` |');
+    expect(md.indexOf('## Failed')).toBeLessThan(md.indexOf('## All cases'));
+    expect(md).toContain('<details>');
+    expect(md).toMatch(/```bash\ncurl -X POST 'http:\/\/localhost:3000\/users\/1'/);
+  });
+
+  it('서버가 꺼져 건너뛴 케이스는 실패와 따로 묶고 서버를 켜라고 적는다', () => {
+    const skipped = CaseResult.skippedServerDown(c2, 'POST http://localhost:3000/users/1');
+    const r = TestReport.create(plan, [CaseResult.from(c1, 'POST http://localhost:3000/users/1', [{ status: null, body: '', ms: 1, error: 'Connection refused: nothing is listening at that address and port.' }], []), skipped], new Date());
+    expect(r.serverDown()).toBe(true);
+    const md = r.toMarkdown();
+    expect(md).toMatch(/server stopped answering/i);
+    expect(md).not.toContain('## Failed');
+  });
+
   it('고쳐 달라고 맡길 글에는 실패 항목과 근거 위치가 들어간다', () => {
     const text = report.withFixes('', [{ caseId: 'c1', cause: '검증 누락', fix: 'IsEmail 추가', file: 'src/users/dto.ts', line: 4 }]).fixRequest();
     expect(text).toContain('POST /users/:id');
