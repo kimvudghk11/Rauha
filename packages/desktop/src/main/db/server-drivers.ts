@@ -112,13 +112,15 @@ export const postgresDriver: ServerDriver = {
       database: t.database,
       ssl: ssl === null ? false : { rejectUnauthorized: ssl.rejectUnauthorized, ...(ssl.ca === undefined ? {} : { ca: [...ssl.ca] }) },
       connectionTimeoutMillis: o.connectTimeoutMs,
-      // 서버에서도 문장을 시간 제한에 멈춘다
-      statement_timeout: Math.max(1, Math.floor(o.statementTimeoutMs)),
+      // statement_timeout 은 시작 파라미터로 보내지 않는다: PgBouncer·RDS Proxy 같은 풀러가
+      // "unsupported startup parameter: statement_timeout" 으로 접속째 거절한다. 붙은 뒤 SET 으로 건다(아래)
       application_name: 'rauha',
       types: { getTypeParser: ((oid: number, format?: 'text' | 'binary') => (PG_DATE_TYPES.has(oid) ? (v: string) => v : pg.types.getTypeParser(oid, format ?? 'text'))) as typeof pg.types.getTypeParser },
     });
     client.on('error', () => undefined);
     await client.connect();
+    // 서버에서도 문장을 시간 제한에 멈춘다. 풀러가 SET 을 막으면 건너뛴다(앱 쪽 시간 제한은 그대로 걸린다)
+    await client.query(`SET statement_timeout = ${Math.max(1, Math.floor(o.statementTimeoutMs))}`).catch(() => undefined);
     let dead = false;
     const destroy = (): void => {
       dead = true;
