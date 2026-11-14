@@ -9,6 +9,14 @@
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
+## v0.2.7 (2026-11-14) — 채팅 위 AI 고르기 줄·공식 로고·컨셉 바꾸기 수정
+
+- **AI 고르기 줄**(채팅 맨 위): Claude team · Kiro · ChatGPT 칩(공식 로고, 로그인 상태 점), 고른 AI 의 계정과 Sign in / Switch account / Sign out. 로그인 창에서 돌아오면 다시 확인. Extensions 의 AI accounts 는 뺌.
+- 로고 출처: Claude·OpenAI 는 simple-icons 13.21.0, Kiro 는 kiro.dev/icon.svg(그림만, 스크립트 없음 확인).
+- **캐릭터 컨셉**을 바꾸면 이미 그려 둔 캐릭터(설정의 팀원 목록·채팅 카드)도 바로 새 컨셉으로.
+- 전체 테스트 4,957개 통과. v0.2.6 설치 파일(exe 218MB · arm64 237MB · x64 248MB).
+- 남음: 모든 대화 내역 한 목록(Claude Code·Kiro·Codex), 맡긴 팀과 이어서 대화.
+
 ## v0.2.6 (2026-11-14) — Kiro · ChatGPT(Codex) 연결
 
 - **채팅**: Main 옆 메뉴에서 Claude team / Kiro / ChatGPT (Codex). 바깥 AI 는 한 번 묻기·읽기 전용(Kiro 도구 미리 허락 없음, Codex read-only 샌드박스·기록 없음). 답 아래 "누가 · 몇 초 · read-only".
