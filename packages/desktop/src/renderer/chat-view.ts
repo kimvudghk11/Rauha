@@ -1,5 +1,7 @@
 import type { InfraRisk } from '@rauha/core/jobs';
 import type { ApprovalSummary } from '../shared/approval-summary.js';
+import { AI_PROVIDERS, providerOf, type AiProviderId } from '../shared/external-ai.js';
+import type { AiResult } from '../shared/external-ai-ipc.js';
 import { classifyDiffLine, type ChangeReview } from '../shared/branch-impact.js';
 import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared/ipc.js';
 import { CHARACTER_ROLES, leadName, spriteFor, type CharacterRole } from './characters.js';
@@ -41,6 +43,8 @@ const nameOf = (role: CharacterRole) => spriteFor(role).name;
 export interface ChatActions {
   /** images: 입력칸에 붙인 이미지 바이트(없으면 생략) */
   readonly submit: (text: string, images?: readonly Uint8Array[]) => Promise<JobView | null>;
+  /** Kiro · ChatGPT(Codex)에게 한 번 묻기(읽기 전용). 없으면 AI 고르기 메뉴를 숨긴다 */
+  readonly askOther?: (id: AiProviderId, text: string) => Promise<AiResult<{ readonly text: string; readonly seconds: number }>>;
   readonly stop: (id: string) => void;
   readonly deeper: (id: string) => Promise<JobView | null>;
   /** 보낸 일을 할 일로 담는다 */
@@ -83,6 +87,70 @@ export function buildChat(actions: ChatActions) {
   const leadHintText = (): string => `Hand work to ${leadName()}. You can send the next task right away.`;
   leadHint.textContent = leadHintText();
   head.append(headFace, el('b', undefined, 'Main'), leadHint, layoutToggle);
+  // 누구에게 물을지: Claude 팀(기본) 또는 바깥 AI(읽기 전용 한 번 묻기). 고른 값은 이 컴퓨터에 기억한다
+  const AI_KEY = 'rauha.chat.ai';
+  let target: 'team' | AiProviderId = 'team';
+  if (actions.askOther !== undefined) {
+    const pick = el('select', 'ai-pick');
+    pick.title = 'Who answers: the Claude team, or another AI (read-only, one answer)';
+    pick.setAttribute('aria-label', 'Who answers');
+    const opt = (value: string, label: string): void => {
+      const o = el('option', undefined, label);
+      o.value = value;
+      pick.append(o);
+    };
+    opt('team', 'Claude team');
+    for (const p of AI_PROVIDERS) opt(p.id, p.label);
+    try {
+      const saved = localStorage.getItem(AI_KEY);
+      if (saved !== null && (saved === 'team' || providerOf(saved) !== null)) target = saved as typeof target;
+    } catch {
+      /* 기억 못 해도 기본(팀)으로 */
+    }
+    pick.value = target;
+    const sync = (): void => {
+      leadHint.textContent = target === 'team' ? leadHintText() : `Ask ${providerOf(target)?.label ?? ''}. One answer, read-only (it cannot change files).`;
+      input.placeholder = target === 'team' ? 'Type a new task…  (@folder to pick a target, @file to attach one)' : `Ask ${providerOf(target)?.label ?? ''}…`;
+    };
+    pick.addEventListener('change', () => {
+      target = pick.value === 'team' ? 'team' : (providerOf(pick.value)?.id ?? 'team');
+      try {
+        localStorage.setItem(AI_KEY, target);
+      } catch {
+        /* 무시 */
+      }
+      sync();
+    });
+    head.insertBefore(pick, layoutToggle);
+    queueMicrotask(sync);
+  }
+  /** 바깥 AI 에게 한 번 묻고, 내 말풍선과 답 말풍선을 단다 */
+  async function askOther(id: AiProviderId, text: string): Promise<void> {
+    const p = providerOf(id);
+    if (actions.askOther === undefined || p === null) return;
+    empty.remove();
+    const me = el('div', 'm me');
+    me.appendChild(el('div', 'tx', text));
+    const reply = el('div', 'm other-ai');
+    const av = el('div', `av ai-av ${id}`, p.label[0] ?? '?');
+    const body = el('div');
+    const tx = el('div', 'tx');
+    tx.append(el('span', 'spinner'), ` Asking ${p.label}…`);
+    body.append(tx);
+    reply.append(av, body);
+    msgs.append(me, reply);
+    toBottom();
+    const r = await actions.askOther(id, text);
+    if (r.ok) {
+      tx.className = 'tx ai-answer';
+      tx.textContent = r.data.text;
+      body.append(el('div', 'hint ai-meta', `${p.label} · ${r.data.seconds}s · read-only`));
+    } else {
+      tx.className = 'tx err';
+      tx.textContent = r.error;
+    }
+    if (scroll.pinned) toBottom();
+  }
   /** 화면의 말풍선을 비운다(돌고 있는 작업과 기록은 그대로). /clear 와 '대화 초기화' 단추가 같이 쓴다. */
   function clearVisibleChat(): void {
     msgs.replaceChildren(empty);
@@ -177,6 +245,13 @@ export function buildChat(actions: ChatActions) {
     fit();
     suggest.close();
     mention.close();
+    // 바깥 AI 를 골랐으면 그쪽에 한 번 묻는다(슬래시 명령은 그대로 rauha 가 처리)
+    if (target !== 'team' && !typed.trimStart().startsWith('/')) {
+      if (draft.list().length > 0) flash('Images go to the Claude team only. They stay attached for your next team task.');
+      input.focus();
+      await askOther(target, typed.trim());
+      return;
+    }
     const text = actions.intercept === undefined ? typed : await actions.intercept(typed);
     if (text === null) {
       input.focus();

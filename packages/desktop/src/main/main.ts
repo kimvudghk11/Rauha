@@ -3,6 +3,8 @@ import { cpus, homedir, release, userInfo } from 'node:os';
 import { basename, join, resolve as resolvePath } from 'node:path';
 import { CLAUDE_HISTORY_IPC } from '../shared/claude-history-ipc.js';
 import { ClaudeHistoryService } from './history/claude-history-service.js';
+import { EXTERNAL_AI_IPC } from '../shared/external-ai-ipc.js';
+import { ExternalAiService } from './ai/external-ai-service.js';
 import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -909,6 +911,12 @@ void app.whenReady().then(async () => {
   });
   ipcMain.handle(CLAUDE_HISTORY_IPC.list, () => history.list());
   ipcMain.handle(CLAUDE_HISTORY_IPC.open, (_e, id: unknown) => history.open(id));
+  // 바깥 AI(Kiro · Codex): 각 회사 CLI 를 실행만 한다. 로그인·토큰은 CLI 몫(rauha 는 읽지 않는다)
+  const externalAi = ExternalAiService.create({ platform: process.platform, env: process.env, fake: process.env['RAUHA_FAKE_TEAM'] !== undefined });
+  ipcMain.handle(EXTERNAL_AI_IPC.status, () => externalAi.status());
+  ipcMain.handle(EXTERNAL_AI_IPC.ask, (_e, id: unknown, prompt: unknown) => externalAi.ask(id, prompt, currentWorkDir()));
+  ipcMain.handle(EXTERNAL_AI_IPC.login, (_e, id: unknown) => externalAi.login(id));
+  ipcMain.handle(EXTERNAL_AI_IPC.logout, (_e, id: unknown) => externalAi.logout(id));
   connectorService = registerConnectorIpc(ipcMain, {
     file: join(dataDir, 'connectors.json'),
     env: accountEnv,

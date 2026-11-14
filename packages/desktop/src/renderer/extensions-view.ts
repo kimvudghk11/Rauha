@@ -1,12 +1,15 @@
 import type { ConnectorApi, ConnectorListView, ConnectorReply, ConnectorView } from '../shared/connector-api.js';
 import type { PluginApi, PluginListView, PluginReply } from '../shared/plugin-api.js';
+import { AI_PROVIDERS } from '../shared/external-ai.js';
+import type { AiStatusView, ExternalAiApi } from '../shared/external-ai-ipc.js';
 import { connectorStatusText } from './connectors-view.js';
 import { el, isEnterKey } from './dom.js';
 import { exampleRow } from './example-chips.js';
 
 /** 분류(왼쪽 목록) */
-type Section = 'connectors' | 'mcp' | 'plugins' | 'skills' | 'marketplaces';
+type Section = 'ai' | 'connectors' | 'mcp' | 'plugins' | 'skills' | 'marketplaces';
 const SECTIONS: readonly { readonly id: Section; readonly label: string; readonly hint: string; readonly icon: string }[] = [
+  { id: 'ai', label: 'AI accounts', hint: 'Other AIs you can ask from Chat (Kiro, ChatGPT). They sign in with their own apps.', icon: 'M12 3a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z M5 20a7 7 0 0 1 14 0 M18 4l2-1 M6 4L4 3' },
   { id: 'connectors', label: 'Connectors', hint: 'Work apps teammates can read and write in chat', icon: 'M7 7h4v4H7z M13 13h4v4h-4z M11 9h2a2 2 0 0 1 2 2v2' },
   { id: 'mcp', label: 'MCP servers', hint: 'Any remote MCP address (https, sign-in in your browser)', icon: 'M4 6h16v5H4z M4 13h16v5H4z M7 8.5h.01 M7 15.5h.01' },
   { id: 'plugins', label: 'Plugins', hint: 'Claude Code plugins: commands, agents, skills, hooks', icon: 'M9 4h6v3a2 2 0 1 0 0 4v0h3v6h-3a2 2 0 1 0-4 0H6v-6h3a2 2 0 1 0 0-4z' },
@@ -64,6 +67,8 @@ function avatar(name: string): HTMLElement {
 export interface ExtensionsDeps {
   readonly connectors: ConnectorApi;
   readonly plugins: PluginApi;
+  /** Kiro · ChatGPT(Codex) 로그인 상태와 로그인·로그아웃 */
+  readonly externalAi?: ExternalAiApi;
   /** 예시 요청을 채팅 입력칸에 채운다 */
   readonly toChat?: (text: string) => void;
 }
@@ -310,7 +315,57 @@ export function buildExtensions(deps: ExtensionsDeps) {
     return [grid, form];
   }
 
+  /** AI accounts: 설치·로그인 상태, 로그인(새 터미널 창)·계정 바꾸기·로그아웃. 로그인은 각 CLI 가 하고 rauha 는 토큰을 읽지 않는다 */
+  function paintAi(): HTMLElement[] {
+    const ai = deps.externalAi;
+    if (ai === undefined) return [el('div', 'dim pad', 'Not available here.')];
+    if (aiStatus === null) {
+      void loadAi();
+      return [el('div', 'dim pad', 'Checking sign-in…')];
+    }
+    const grid = el('div', 'ext-grid');
+    for (const p of AI_PROVIDERS) {
+      const s = aiStatus.find((x) => x.id === p.id);
+      const key = `ai-${p.id}`;
+      const signIn = (label: string): HTMLButtonElement =>
+        btn(label, 'btn primary', key, () =>
+          act(key, 'Opening', `A terminal opened for ${p.label}. Finish signing in there (a browser may open), then press Check again.`, () => ai.login(p.id), () => undefined),
+        );
+      const actions: HTMLElement[] = [];
+      let status: { text: string; tone: 'ok' | 'warn' | 'bad' | 'off' };
+      if (s === undefined || !s.installed) {
+        status = { text: 'Not installed', tone: 'off' };
+      } else if (!s.signedIn) {
+        status = { text: 'Signed out', tone: 'warn' };
+        actions.push(signIn('Sign in'));
+      } else {
+        status = { text: 'Signed in', tone: 'ok' };
+        actions.push(
+          btn('Sign out', 'btn', `${key}-out`, () => act(`${key}-out`, 'Signing out', `Signed out of ${p.label}.`, () => ai.logout(p.id), () => void loadAi())),
+          signIn('Switch account'),
+        );
+      }
+      const desc = s?.installed === false ? p.install : s?.signedIn === true ? `Pick ${p.label} in the Chat tab’s AI menu to ask it. It answers read-only: it cannot change your files.` : 'Sign in once. The sign-in is kept by the app itself, so rauha never sees your password or token.';
+      grid.append(card({ key, name: p.label, sub: s?.who === '' || s === undefined ? p.note : s.who, kind: 'AI', desc, status, actions }));
+    }
+    const again = btn('Check sign-in again', 'btn sm', 'ai-check', () => act('ai-check', 'Checking', 'Checked.', async () => (await loadAi(), { ok: true }), () => undefined));
+    return [grid, again];
+  }
+  let aiStatus: readonly AiStatusView[] | null = null;
+  let aiLoading = false;
+  async function loadAi(): Promise<void> {
+    if (deps.externalAi === undefined || aiLoading) return;
+    aiLoading = true;
+    try {
+      aiStatus = await deps.externalAi.status();
+    } finally {
+      aiLoading = false;
+    }
+    paint();
+  }
+
   function counts(id: Section): string {
+    if (id === 'ai') return aiStatus === null ? '' : String(aiStatus.filter((s) => s.signedIn).length);
     if (id === 'connectors') return connectors === null ? '' : String(connectors.connectors.filter((c) => connectors!.presets.some((p) => p.id === c.id)).length);
     if (id === 'mcp') return connectors === null ? '' : String(connectors.connectors.filter((c) => !connectors!.presets.some((p) => p.id === c.id)).length);
     if (id === 'plugins') return plugins === null ? '' : String(plugins.installed.length);
@@ -341,7 +396,7 @@ export function buildExtensions(deps: ExtensionsDeps) {
       }, () => undefined),
     );
     title.append(refresh);
-    const content = section === 'connectors' ? paintConnectors() : section === 'mcp' ? paintMcp() : section === 'plugins' ? paintPlugins() : section === 'skills' ? paintSkills() : paintMarketplaces();
+    const content = section === 'ai' ? paintAi() : section === 'connectors' ? paintConnectors() : section === 'mcp' ? paintMcp() : section === 'plugins' ? paintPlugins() : section === 'skills' ? paintSkills() : paintMarketplaces();
     main.replaceChildren(title, ...content);
   }
 

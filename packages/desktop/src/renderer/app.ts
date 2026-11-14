@@ -198,7 +198,7 @@ function show(id: TabId): void {
   else if (id === 'api') screen.replaceChildren(buildApi({ api: window.rauha.api, copy: copyText, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'docker') screen.replaceChildren(buildDocker({ api: window.rauha.docker, copy: copyText }).root);
   else if (id === 'db') screen.replaceChildren(buildDb({ api: window.rauha.db, copy: copyText }).root);
-  else if (id === 'extensions') screen.replaceChildren(buildExtensions({ connectors: window.rauha.connectors, plugins: window.rauha.plugins, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
+  else if (id === 'extensions') screen.replaceChildren(buildExtensions({ connectors: window.rauha.connectors, plugins: window.rauha.plugins, externalAi: window.rauha.externalAi, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'records')
     screen.replaceChildren(
       buildRecordsSwitch({
@@ -251,6 +251,7 @@ const chat = buildChat({
   intercept: (text) => runner.intercept(text),
   suggest: (text) => commandBook.suggest(text),
   submit: (text, images) => window.rauha.submit(text, images),
+  askOther: (id, text) => window.rauha.externalAi.ask(id, text),
   saveTodo: (text) => addTodo(window.rauha.todo, TodoDto.draftFromChat(text)),
   stop: (id) => window.rauha.stop(id),
   deeper: (id) => window.rauha.goDeeper(id),
