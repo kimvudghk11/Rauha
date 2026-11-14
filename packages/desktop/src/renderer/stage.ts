@@ -131,7 +131,30 @@ export function mountStage(canvas: HTMLCanvasElement, options: { scale: number; 
 }
 
 /** 한 번만 그리는 작은 캐릭터(말풍선 옆 얼굴). 움직이지 않으니 등록하지 않는다. */
+/** 한 번 그린 캔버스들(약한 참조). 캐릭터 컨셉이 바뀌면 repaintAll 이 모두 새 컨셉으로 다시 그린다 */
+const painted = new Set<WeakRef<HTMLCanvasElement>>();
+const paintedArgs = new WeakMap<HTMLCanvasElement, { role: CharacterRole; scale: number; state: CharacterState }>();
+
+/** 지금까지 paintOnce 로 그린 캐릭터를 모두 다시 그린다(다른 탭에 떼어 둔 것도). 사라진 캔버스는 목록에서 뺀다 */
+export function repaintAll(): void {
+  for (const ref of [...painted]) {
+    const c = ref.deref();
+    const a = c === undefined ? undefined : paintedArgs.get(c);
+    if (c === undefined || a === undefined) {
+      painted.delete(ref);
+      continue;
+    }
+    drawStill(c, a.role, a.scale, a.state);
+  }
+}
+
 export function paintOnce(canvas: HTMLCanvasElement, role: CharacterRole, scale: number, state: CharacterState = 'idle'): void {
+  if (!paintedArgs.has(canvas)) painted.add(new WeakRef(canvas));
+  paintedArgs.set(canvas, { role, scale, state });
+  drawStill(canvas, role, scale, state);
+}
+
+function drawStill(canvas: HTMLCanvasElement, role: CharacterRole, scale: number, state: CharacterState): void {
   const { w, h } = art.size(role);
   canvas.width = w * scale;
   canvas.height = h * scale;

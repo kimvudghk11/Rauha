@@ -15,6 +15,7 @@ import { buildDb } from './db-view.js';
 import { buildDocker } from './docker-view.js';
 import { buildCommands, commandsApi } from './commands-view.js';
 import { useCharacterSet, useLooks } from './characters.js';
+import { repaintAll } from './stage.js';
 import { buildTeam } from './team-view.js';
 import { buildExtensions } from './extensions-view.js';
 import { TeamSettings } from '../shared/team-settings.js';
@@ -241,6 +242,8 @@ const runner = createRunner({
 function applyCharacterSet(id: string): void {
   useCharacterSet(id);
   chat.repaintCharacters();
+  // 설정의 팀원 목록·채팅 카드처럼 한 번 그려 둔 캐릭터도 새 컨셉으로
+  repaintAll();
 }
 void window.rauha.getSettings().then((s) => applyCharacterSet(s.characterSet));
 void window.rauha.getTeam().then((v) => useLooks(TeamSettings.from(v.settings).looks()));
