@@ -22,6 +22,7 @@ describe('단축키 안내', () => {
     expect(rows.find((r) => r.label === 'DB')?.keys).toBe('Ctrl+6');
     expect(rows.find((r) => r.label === 'Rules')?.keys).toBe('Ctrl+0');
     expect(rows.find((r) => r.label === 'Settings')?.keys).toBe('Ctrl+,');
+    expect(rows.find((r) => r.label === 'Extensions')?.keys).toBe('—');
     expect(shortcutSheet('darwin').find((g) => g.title === 'Switch tab')!.rows.find((r) => r.label === 'DB')?.keys).toBe('⌘6');
   });
   it('터미널 단축키(칸 토글·새 터미널·터미널 안 찾기·복사)가 안내에 있다', () => {

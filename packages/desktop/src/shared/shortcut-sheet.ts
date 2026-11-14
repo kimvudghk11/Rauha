@@ -8,16 +8,18 @@ export interface ShortcutGroup {
   readonly rows: readonly ShortcutRow[];
 }
 
-/** 왼쪽 막대 순서(위에서 아래, 설정이 맨 아래)의 탭 이름. 숫자 키는 열 개(1~9, 0)까지라 열한째 탭(Settings)은 Ctrl+, 로 적는다.
+/** 왼쪽 막대 순서(위에서 아래, 설정이 맨 아래)의 탭 이름. 숫자 키는 열 개(1~9, 0)까지라 Extensions 는 단축키가 없고(—), 설정은 Ctrl+, 로 적는다.
  * renderer/tabs.ts 의 TABS 와 같아야 하며 spec 이 확인한다. */
-export const TAB_LABELS: readonly string[] = ['Chat', 'Repo', 'Todo', 'API', 'Docker', 'DB', 'Records', 'Git', 'Slash', 'Rules', 'Settings'];
+export const TAB_LABELS: readonly string[] = ['Chat', 'Repo', 'Todo', 'API', 'Docker', 'DB', 'Records', 'Git', 'Slash', 'Rules', 'Extensions', 'Settings'];
+
+const tabKeys = (label: string, i: number, mod: string): string => (label === 'Settings' ? `${mod},` : i < 10 ? `${mod}${(i + 1) % 10}` : '—');
 
 export function shortcutSheet(platform: string): readonly ShortcutGroup[] {
   const mac = platform === 'darwin';
   const mod = mac ? '⌘' : 'Ctrl+';
   const shift = mac ? '⇧' : 'Shift+';
   return [
-    { title: 'Switch tab', rows: TAB_LABELS.map((label, i) => ({ keys: i < 10 ? `${mod}${(i + 1) % 10}` : `${mod},`, label })) },
+    { title: 'Switch tab', rows: TAB_LABELS.map((label, i) => ({ keys: tabKeys(label, i, mod), label })) },
     {
       title: 'Anywhere',
       rows: [
