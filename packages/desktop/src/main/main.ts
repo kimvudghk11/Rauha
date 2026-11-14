@@ -34,7 +34,7 @@ import { RepoGate } from './git/repo-gate.js';
 import { reviewChanges } from './team/git-review.js';
 import { Approvals } from './team/approvals.js';
 import { answerFor, approvalView } from './team/approval-view.js';
-import { accountNames, composeSession, profileResolver } from './team/compose.js';
+import { accountNames, composeSession, liveProfileResolver, profileResolver } from './team/compose.js';
 import { fakeTeam } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { resolveMentions } from './team/mention-context.js';
@@ -299,7 +299,9 @@ async function startRunner(): Promise<JobRunner> {
     work = teamWork({ newSession: (io, job) => fakeSession(io, job.id, job.request), askUser: (jobId, request) => askWithNotice(jobId, request), askCard: (jobId, payload, signal) => askCard(jobId, payload, signal) });
   } else {
     const prompts = await PromptLibrary.load(promptsDir());
-    const profileFor = await profileResolver(home, settings.account);
+    // 작업마다 지금 고른 계정으로(설정에서 바꾸면 다음 작업부터 바로 그 계정)
+    const resolveProfile = await liveProfileResolver(home);
+    const profileFor = (root: string) => resolveProfile(root, settings.account);
     work = teamWork({
       newSession: (io, job) => {
         const all = folders();

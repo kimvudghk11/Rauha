@@ -9,6 +9,8 @@ export type ChatTarget = 'team' | AiProviderId;
 export interface AiBarDeps {
   readonly auth: { check(): Promise<AccountCheck>; login(): Promise<unknown> };
   readonly externalAi: ExternalAiApi;
+  /** Claude 팀이 쓸 계정(프로필) 목록과 지금 고른 것, 바꾸기. 없으면 계정 고르기를 그리지 않는다 */
+  readonly accounts?: { list(): Promise<{ readonly names: readonly string[]; readonly selected: string | null }>; choose(name: string | null): Promise<unknown> };
 }
 
 /** 칩의 공식 로고 그림 */
@@ -53,10 +55,12 @@ export function buildAiBar(deps: AiBarDeps, onPick: (t: ChatTarget) => void) {
     return s.signedIn ? { tone: 'ok', text: 'Signed in', who: s.who } : { tone: 'warn', text: 'Signed out', who: '' };
   };
 
+  let accounts: { readonly names: readonly string[]; readonly selected: string | null } | null = null;
   async function load(): Promise<void> {
-    const [c, o] = await Promise.all([deps.auth.check().catch(() => null), deps.externalAi.status().catch(() => [] as readonly AiStatusView[])]);
+    const [c, o, a] = await Promise.all([deps.auth.check().catch(() => null), deps.externalAi.status().catch(() => [] as readonly AiStatusView[]), deps.accounts?.list().catch(() => null) ?? Promise.resolve(null)]);
     claude = c;
     others = o;
+    accounts = a;
     paint();
   }
 
@@ -111,7 +115,25 @@ export function buildAiBar(deps: AiBarDeps, onPick: (t: ChatTarget) => void) {
       acct.append(b);
     };
     if (target === 'team') {
-      if (s.tone === 'warn') btn('Sign in', true, () => void run(() => deps.auth.login(), 'A browser opened to sign in to Claude.'));
+      // 어느 Claude 계정(프로필)으로 일할지: 바꾸면 다음 작업부터 바로 그 계정. 한도가 찬 계정에서 다른 계정으로 옮길 때 쓴다
+      if (deps.accounts !== undefined && accounts !== null && accounts.names.length > 0) {
+        const pick = el('select', 'sm ai-account');
+        pick.title = 'Claude account the team uses. Changing it applies to the next task right away.';
+        pick.setAttribute('aria-label', 'Claude account');
+        const auto = el('option', undefined, 'Follow folder rules');
+        auto.value = '';
+        pick.append(auto, ...accounts.names.map((n) => {
+          const o = el('option', undefined, n);
+          o.value = n;
+          return o;
+        }));
+        pick.value = accounts.selected ?? '';
+        pick.disabled = busy;
+        const choose = deps.accounts.choose;
+        pick.addEventListener('change', () => void run(() => choose(pick.value === '' ? null : pick.value), `The team now uses ${pick.value === '' ? 'the folder rules' : `the ${pick.value} account`} from the next task.`));
+        acct.prepend(pick);
+      }
+      if (s.tone === 'warn') btn('Sign in', true, () => void run(() => deps.auth.login(), `A browser opened to sign in to Claude${accounts?.selected ? ` (${accounts.selected} account)` : ''}.`));
     } else {
       const id = target;
       const p = providerOf(id);

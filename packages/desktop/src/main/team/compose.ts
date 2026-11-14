@@ -79,6 +79,16 @@ export async function profileResolver(home: string, account: string | null = nul
   return (cwd) => book.resolve({ cwd, home, gitRemote: gitRemote(cwd), flag: account, env: process.env['RAUHA_PROFILE'] ?? null }).profile;
 }
 
+/**
+ * 계정을 그때그때 고르는 해석기: 설정 파일은 한 번 읽고, 계정(account)은 부를 때마다 받는다.
+ * 앱을 켤 때 계정을 고정해 두면 설정에서 바꿔도 팀 작업이 예전 계정으로 가서(한도 찬 계정) 막힌다.
+ */
+export async function liveProfileResolver(home: string): Promise<(cwd: string, account: string | null) => Profile> {
+  const configPath = process.env['RAUHA_CONFIG'] ?? join(home, '.rauha', 'config.toml');
+  const book = (await loadProfileConfig(configPath)).toEntity();
+  return (cwd, account) => book.resolve({ cwd, home, gitRemote: gitRemote(cwd), flag: account, env: process.env['RAUHA_PROFILE'] ?? null }).profile;
+}
+
 /** 설정 화면에서 고를 수 있는 계정(프로필) 이름들 */
 export async function accountNames(home: string): Promise<string[]> {
   const configPath = process.env['RAUHA_CONFIG'] ?? join(home, '.rauha', 'config.toml');
