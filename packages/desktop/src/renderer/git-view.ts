@@ -9,7 +9,7 @@ import { askDialog, type GitCtx } from './git-common.js';
 import { openBranchMenu, openNewBranchDialog } from './git-branch-ui.js';
 import { gitIcon } from './git-icons.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
-import { directionText, fetchedLabel } from '../shared/git-toolbar.js';
+import { directionText, fetchedLabel, isPushRejected, syncSentence } from '../shared/git-toolbar.js';
 import { primaryGitAction } from '../shared/git-primary.js';
 import { branchMark } from '../shared/git-branch-mark.js';
 import { settleGitView, visibleGitViews, type GitViewId } from '../shared/git-tabs.js';
@@ -163,7 +163,9 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     branch.addEventListener('click', () => void openBranchMenu(branch, ctx, (prefill) => void openNewBranchDialog(ctx, prefill)));
     head.append(branch);
     if (overview.merging) head.appendChild(el('span', 'chip red', 'Merging'));
-    if (!overview.hasRemote) head.appendChild(el('span', 'chip', 'No remote'));
+    const o0 = overview;
+    const behindOrBoth = (o0.behind ?? 0) > 0;
+    head.appendChild(el('span', `gsyncline${behindOrBoth ? ' warn' : (o0.ahead ?? 0) > 0 ? ' ahead' : ''}`, syncSentence(o0)));
     head.appendChild(el('span', 'grow'));
 
     const hasRemote = overview.hasRemote;
@@ -193,7 +195,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     };
     const o = overview;
     // 파랗게 강조하는 동작은 상태에서 하나만 정한다(shared/git-primary.ts). 나머지도 글자와 아이콘은 항상 읽힌다.
-    const primary = primaryGitAction({ staged: o.files.filter((f) => f.staged).length, conflicts: o.files.some((f) => f.conflict), merging: o.merging, ahead: o.ahead, behind: o.behind, hasRemote });
+    const primary = primaryGitAction({ staged: o.files.filter((f) => f.staged).length, conflicts: o.files.some((f) => f.conflict), merging: o.merging, ahead: o.ahead, behind: o.behind, hasRemote, upstream: o.branch === null ? undefined : o.upstream });
     const dir = (kind: 'up' | 'down', n: number | null): HTMLElement | null => {
       const text = directionText(kind === 'up' ? n : null, kind === 'down' ? n : null);
       if (text === '') return null;
@@ -204,8 +206,9 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     const fetched = fetchedLabel(o.fetchedAt, Math.floor(Date.now() / 1000));
     const fb = el('span', 'sbadge faint fbadge', fetched.replace('Last checked ', '').replace('Checked just now', 'just now'));
     syncBtn('fetch', 'Fetch', 'Fetching…', async () => void (await call('fetch', undefined as never)), `Check the remote for news (nothing is downloaded into your branch) · ${fetched}`, false, fb);
-    syncBtn('pull', 'Pull', 'Pulling…', pull, 'Get new commits from the remote and merge them', primary === 'pull', dir('down', o.behind));
-    syncBtn('push', 'Push', 'Pushing…', async () => void (await call('push', {})), 'Send my commits to the remote', primary === 'push', dir('up', o.ahead));
+    syncBtn('pull', 'Pull', 'Pulling…', async () => void (await pull()), 'Get new commits from the remote and merge them', primary === 'pull', dir('down', o.behind));
+    const publish = primary === 'publish';
+    syncBtn('push', publish ? 'Publish branch' : 'Push', publish ? 'Publishing…' : 'Pushing…', push, publish ? 'Create this branch on the remote and link it' : 'Send my commits to the remote', primary === 'push' || publish, dir('up', o.ahead));
     const pr = el('button', 'btn prbtn');
     pr.disabled = !hasRemote || busy;
     pr.title = hasRemote ? 'Open a PR on GitHub' : 'This repo has no remote.';
@@ -228,14 +231,45 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
     } else if (status.firstChild !== msg) status.replaceChildren(msg);
   }
 
-  async function pull(): Promise<void> {
+  /** 받아서 합친다. 충돌 없이 끝났으면 true(이어서 push 해도 된다) */
+  async function pull(): Promise<boolean> {
     const r = await callRaw('pull', { mode: 'ff' });
-    if (r.ok) return say(r.data.message), void (r.data.conflicts === true && (await open('conflicts')));
-    if (r.code !== 'BLOCKED') return say(r.error, true);
+    if (r.ok) {
+      say(r.data.message);
+      if (r.data.conflicts === true) return await open('conflicts'), false;
+      return true;
+    }
+    if (r.code !== 'BLOCKED') return say(r.error, true), false;
     const a = await askDialog({ title: 'Cannot fast-forward', body: `${r.error}\n\nPull with a merge instead? If it conflicts, resolve it in the Conflicts tab.`, okLabel: 'Pull with merge' });
-    if (!a.ok) return say('Did not pull.');
+    if (!a.ok) return say('Did not pull.'), false;
     const m = await call('pull', { mode: 'merge' });
-    if (m?.conflicts === true) await open('conflicts');
+    if (m === null) return false;
+    if (m.conflicts === true) return await open('conflicts'), false;
+    return true;
+  }
+
+  /** 보낸다. 원격에 내가 없는 커밋이 있어 거절되면 "받고 다시 보내기"를 한 번에 제안한다 */
+  async function push(): Promise<void> {
+    let confirmed = false;
+    let r = await callRaw('push', {});
+    if (!r.ok && r.code === 'PROTECTED') {
+      const a = await askDialog({ title: 'Protected branch', body: r.error, okLabel: 'Continue anyway', danger: true });
+      if (!a.ok) return;
+      confirmed = true;
+      r = await callRaw('push', {}, true);
+    }
+    if (r.ok) return say(r.data.message);
+    if (!isPushRejected(r.error)) return say(r.error, true);
+    const a = await askDialog({ title: 'Push was rejected', body: `${r.error}\n\nGet the new commits first and push again? Your commits stay as they are. If something conflicts, you resolve it in the Conflicts tab and push after.`, okLabel: 'Pull and push again' });
+    if (!a.ok) return say('Did not push. Pull first when you are ready.');
+    running = 'pull';
+    renderHead();
+    if (!(await pull())) return;
+    running = 'push';
+    renderHead();
+    const again = await callRaw('push', {}, confirmed);
+    if (again.ok) say(`Pulled and pushed. ${again.data.message}`);
+    else say(again.error, true);
   }
 
   async function openPr(): Promise<void> {

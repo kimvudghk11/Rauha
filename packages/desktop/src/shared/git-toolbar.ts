@@ -75,6 +75,32 @@ export function commitBlockReason(i: CommitInput): string | null {
   return null;
 }
 
+export interface SyncState {
+  readonly branch: string | null;
+  readonly upstream: string | null;
+  readonly ahead: number | null;
+  readonly behind: number | null;
+  readonly hasRemote: boolean;
+}
+
+/** 저장소 막대에서 브랜치 옆에 보이는 한 문장: 지금 원격과 어떤 사이인지 */
+export function syncSentence(s: SyncState): string {
+  if (s.branch === null) return 'Not on a branch (detached HEAD)';
+  if (!s.hasRemote) return 'No remote · commits stay on this computer';
+  if (s.upstream === null) return 'Not on the remote yet';
+  const a = s.ahead ?? 0;
+  const b = s.behind ?? 0;
+  if (a > 0 && b > 0) return `${a} ahead · ${b} behind ${s.upstream}`;
+  if (a > 0) return `${a} commit${a === 1 ? '' : 's'} ahead of ${s.upstream}`;
+  if (b > 0) return `${b} commit${b === 1 ? '' : 's'} behind ${s.upstream}`;
+  return `Up to date with ${s.upstream}`;
+}
+
+/** push 가 "원격에 내가 없는 커밋이 있어서" 거절됐다(Pull 하고 다시 push 하면 되는 경우). 원문이든 쉬운 말이든 알아본다 */
+export function isPushRejected(message: string): boolean {
+  return /non-fast-forward|\[rejected\]|fetch first|contains work that you do not have|remote has commits you do not have/i.test(message);
+}
+
 /** 브랜치 목록·툴바에서 쓰는 앞섬·뒤처짐 표기: "↑1 ↓3" (0이거나 모르면 비운다) */
 export function directionText(ahead: number | null, behind: number | null): string {
   return [syncBadge('up', ahead), syncBadge('down', behind)].filter((x) => x !== '').join(' ');

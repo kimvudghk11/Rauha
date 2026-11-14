@@ -59,6 +59,10 @@ textarea.ginput, input.ginput { width: 100%; }
 .gtool .gselect { max-width: 200px; min-width: 0; flex: 0 1 200px; }
 .gbranchname { font-size: var(--fs-lg); font-weight: 600; color: var(--bright); font-family: var(--mono); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gsync { flex-wrap: nowrap; flex: none; }
+.gsyncline { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
+.gsyncline.ahead { color: var(--accentfg); }
+.gsyncline.warn { color: var(--yellow); }
+.app[data-tier=xs] .gsyncline { display: none; }
 .gsync .glabel { white-space: nowrap; }
 .gbranch { min-width: 0; flex: 0 1 auto; }
 .gstatus { min-height: 20px; display: flex; align-items: center; gap: var(--s2); min-width: 0; }
