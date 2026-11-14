@@ -23,6 +23,7 @@ export interface ExternalAiApi {
   /** 한 번 묻기(파일을 고치지 못하게). 작업 폴더에서 실행한다 */
   ask(id: AiProviderId, prompt: string): Promise<AiResult<{ readonly text: string; readonly seconds: number }>>;
   /** 새 터미널 창에서 그 CLI 의 로그인을 연다(브라우저 로그인은 CLI 가 띄운다) */
-  login(id: AiProviderId): Promise<AiResult<null>>;
+  /** switchAccount 면 먼저 로그아웃한다(Kiro 는 그래야 다른 계정으로 로그인된다) */
+  login(id: AiProviderId, switchAccount?: boolean): Promise<AiResult<null>>;
   logout(id: AiProviderId): Promise<AiResult<null>>;
 }

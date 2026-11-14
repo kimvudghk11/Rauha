@@ -114,11 +114,13 @@ export class ExternalAiService {
   }
 
   /** 새 터미널 창에서 로그인 명령을 연다. 명령과 인자는 고정이라 바깥 글이 섞이지 않는다 */
-  async login(rawId: unknown): Promise<AiResult<null>> {
+  async login(rawId: unknown, switchAccount = false): Promise<AiResult<null>> {
     const p = providerOf(rawId);
     if (p === null) return { ok: false, error: 'Unknown AI.' };
     const exe = this.exe(p.id);
     if (exe === null) return { ok: false, error: `${p.label} is not installed. ${p.install}` };
+    // 계정 바꾸기: Kiro 는 로그아웃해야 다른 계정으로 로그인된다(Codex 도 같은 방식으로 깨끗하게)
+    if (switchAccount) await runFile(exe.file, [...exe.pre, ...LOGOUT_ARGS[p.id]], { timeoutMs: 20_000, env: this.deps.env });
     const line = [exe.shellName, ...LOGIN_ARGS[p.id]].join(' ');
     try {
       if (this.deps.platform === 'win32') spawn('cmd.exe', ['/c', 'start', `rauha · ${p.label} sign-in`, 'cmd', '/k', line], { detached: true, stdio: 'ignore', windowsHide: false, env: this.deps.env }).unref();

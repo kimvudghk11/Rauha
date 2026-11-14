@@ -75,7 +75,9 @@
 .ai-chip:hover { background: var(--row-hover); }
 .ai-chip.on { background: var(--sel); border-color: var(--accentfg); color: var(--bright); }
 .ai-logo { width: 18px; height: 18px; flex: none; border-radius: 4px; }
-.ai-logo.codex { background: var(--well); padding: 2px; box-sizing: border-box; }
+/* 바탕이 없는 로고(Claude·OpenAI)는 Kiro 처럼 둥근 네모 안에 같은 크기로 가운데 */
+.ai-logo.team, .ai-logo.codex { background: var(--well); padding: 3px; box-sizing: border-box; display: block; }
+.ai-chip .ai-logo { align-self: center; }
 .ai-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
 .ai-dot.ok { background: var(--green); }
 .ai-dot.warn { background: var(--yellow); }

@@ -915,7 +915,7 @@ void app.whenReady().then(async () => {
   const externalAi = ExternalAiService.create({ platform: process.platform, env: process.env, fake: process.env['RAUHA_FAKE_TEAM'] !== undefined });
   ipcMain.handle(EXTERNAL_AI_IPC.status, () => externalAi.status());
   ipcMain.handle(EXTERNAL_AI_IPC.ask, (_e, id: unknown, prompt: unknown) => externalAi.ask(id, prompt, currentWorkDir()));
-  ipcMain.handle(EXTERNAL_AI_IPC.login, (_e, id: unknown) => externalAi.login(id));
+  ipcMain.handle(EXTERNAL_AI_IPC.login, (_e, id: unknown, switchAccount: unknown) => externalAi.login(id, switchAccount === true));
   ipcMain.handle(EXTERNAL_AI_IPC.logout, (_e, id: unknown) => externalAi.logout(id));
   connectorService = registerConnectorIpc(ipcMain, {
     file: join(dataDir, 'connectors.json'),

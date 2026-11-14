@@ -118,7 +118,7 @@ export function buildAiBar(deps: AiBarDeps, onPick: (t: ChatTarget) => void) {
       if (s.text === 'Not installed') acct.append(el('span', 'hint', p?.install ?? ''));
       else if (s.tone === 'warn') btn('Sign in', true, () => void run(() => deps.externalAi.login(id), 'A sign-in window opened. Finish there, then come back here.'));
       else if (s.tone === 'ok') {
-        btn('Switch account', false, () => void run(() => deps.externalAi.login(id), 'A sign-in window opened for the other account.'));
+        btn('Switch account', false, () => void run(() => deps.externalAi.login(id, true), 'Signed out of the current account. A sign-in window opened for the other one.'));
         btn('Sign out', false, () => void run(() => deps.externalAi.logout(id), `Signed out of ${p?.label ?? id}.`));
       }
     }

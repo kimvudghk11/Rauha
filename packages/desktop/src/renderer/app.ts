@@ -244,6 +244,16 @@ function applyCharacterSet(id: string): void {
   chat.repaintCharacters();
   // 설정의 팀원 목록·채팅 카드처럼 한 번 그려 둔 캐릭터도 새 컨셉으로
   repaintAll();
+  // 팀원 이름도 컨셉마다 달라서, 설정 화면이면 다시 그린다(보던 자리는 지킨다)
+  if (current === 'settings') {
+    const scroller = screen.querySelector<HTMLElement>('.settings') ?? screen;
+    const top = scroller.scrollTop;
+    show('settings');
+    setTimeout(() => {
+      const again = screen.querySelector<HTMLElement>('.settings') ?? screen;
+      again.scrollTop = top;
+    }, 400);
+  }
 }
 void window.rauha.getSettings().then((s) => applyCharacterSet(s.characterSet));
 void window.rauha.getTeam().then((v) => useLooks(TeamSettings.from(v.settings).looks()));
