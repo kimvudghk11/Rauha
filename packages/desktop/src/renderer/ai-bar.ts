@@ -1,6 +1,7 @@
 import type { AccountCheck } from '../shared/account-state.js';
 import { AI_PROVIDERS, providerOf, type AiProviderId } from '../shared/external-ai.js';
 import type { AiStatusView, ExternalAiApi } from '../shared/external-ai-ipc.js';
+import { AI_LOGO_SVG, aiLogoUrl } from './ai-logos.js';
 import { el } from './dom.js';
 
 export type ChatTarget = 'team' | AiProviderId;
@@ -10,7 +11,14 @@ export interface AiBarDeps {
   readonly externalAi: ExternalAiApi;
 }
 
-const EMOJI: Readonly<Record<ChatTarget, string>> = { team: '🐬', kiro: '👻', codex: '🤖' };
+/** 칩의 공식 로고 그림 */
+const logo = (t: ChatTarget): HTMLElement => {
+  const img = el('img', `ai-logo ${t}`);
+  img.src = aiLogoUrl(AI_LOGO_SVG[t]);
+  img.alt = '';
+  img.setAttribute('aria-hidden', 'true');
+  return img;
+};
 const LABEL = (t: ChatTarget): string => (t === 'team' ? 'Claude team' : (providerOf(t)?.label ?? t));
 const KEY = 'rauha.chat.ai';
 
@@ -76,7 +84,7 @@ export function buildAiBar(deps: AiBarDeps, onPick: (t: ChatTarget) => void) {
       b.type = 'button';
       b.setAttribute('aria-pressed', String(t === target));
       b.title = `${LABEL(t)} · ${s.text}${s.who === '' ? '' : ` · ${s.who}`}`;
-      b.append(el('span', 'ai-emoji', EMOJI[t]), el('span', undefined, LABEL(t)), el('span', `ai-dot ${s.tone}`));
+      b.append(logo(t), el('span', undefined, LABEL(t)), el('span', `ai-dot ${s.tone}`));
       b.addEventListener('click', () => {
         target = t;
         note = '';
