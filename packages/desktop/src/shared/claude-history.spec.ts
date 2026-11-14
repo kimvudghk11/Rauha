@@ -14,6 +14,16 @@ describe('세션 요약(목록 한 줄)', () => {
     expect(sessionSummary([user('<endpoint>POST /users</endpoint> 시험')]).automated).toBe(true);
     expect(sessionSummary([user('<3 고마워')]).automated).toBe(false);
   });
+  it('VS Code 가 앞에 붙이는 꼬리표(열린 파일·선택·붙여넣기)는 떼고 사람 대화로 본다', () => {
+    const s = sessionSummary([user('<ide_opened_file>The user opened the file a.json in the IDE.</ide_opened_file>\n\n<ide_selection>x</ide_selection>\n이 파일 정리해 줘')]);
+    expect(s).toMatchObject({ title: '이 파일 정리해 줘', automated: false });
+    const p = sessionSummary([user('<ide_opened_file>o</ide_opened_file>\n<pasted_content id="86a1">\n검색어\t클릭\n</pasted_content>')]);
+    expect(p).toMatchObject({ title: '검색어 클릭', automated: false });
+  });
+  it('슬래시 명령만 있는 대화는 명령 이름을 제목으로, 사람 대화로 본다', () => {
+    const s = sessionSummary([user('<local-command-caveat>x</local-command-caveat>'), user('<command-name>/reload-plugins</command-name>\n<command-message>reload-plugins</command-message>'), assistant([{ type: 'text', text: '네' }])]);
+    expect(s).toMatchObject({ title: '/reload-plugins', automated: false });
+  });
   it('요약(summary) 줄이 있으면 그것을 제목으로', () => {
     expect(sessionSummary([line({ type: 'summary', summary: 'Fix DB pooler' }), user('hello')]).title).toBe('Fix DB pooler');
   });

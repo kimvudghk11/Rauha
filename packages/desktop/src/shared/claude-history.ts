@@ -72,9 +72,24 @@ function humanText(o: Obj): string | null {
   if (msg === null) return null;
   const c = msg['content'];
   if (Array.isArray(c) && c.some((b) => isObj(b) && b['type'] === 'tool_result')) return null;
-  const t = textOf(c);
+  const t = stripIdeContext(textOf(c));
   if (t.trim() === '' || NOT_HUMAN.test(t)) return null;
   return t;
+}
+
+/** VS Code 확장이 사람 글 앞에 붙이는 꼬리표(열린 파일·선택·진단)는 떼고, 붙여넣은 글은 껍질만 벗긴다 */
+const IDE_CONTEXT = /<(ide_opened_file|ide_selection|ide_diagnostics)\b[^>]*>[\s\S]*?<\/\1>/g;
+const PASTED = /<pasted_content\b[^>]*>([\s\S]*?)<\/pasted_content>/g;
+function stripIdeContext(t: string): string {
+  return t.replace(IDE_CONTEXT, '').replace(PASTED, '$1').trim();
+}
+
+/** 슬래시 명령 줄이면 그 이름(/reload-plugins), 아니면 null */
+function commandName(o: Obj): string | null {
+  if (o['type'] !== 'user') return null;
+  const msg = isObj(o['message']) ? o['message'] : null;
+  const m = /<command-name>\s*(\/[^<\s]+)\s*<\/command-name>/.exec(msg === null ? '' : textOf(msg['content']));
+  return m === null ? null : (m[1] ?? null);
 }
 
 /** 목록 한 줄: 앞부분 줄들에서 제목(요약 줄 또는 첫 사람 질문)·작업 폴더·시작 시각 */
@@ -83,6 +98,7 @@ export function sessionSummary(lines: readonly string[]): SessionHead {
   let summary = '';
   let cwd = '';
   let startedAt = '';
+  let command = '';
   for (const line of lines) {
     const o = parse(line);
     if (o === null) continue;
@@ -93,9 +109,10 @@ export function sessionSummary(lines: readonly string[]): SessionHead {
       const h = humanText(o);
       if (h !== null) title = h;
     }
+    if (command === '') command = commandName(o) ?? '';
     if (title !== '' && cwd !== '' && startedAt !== '' && summary !== '') break;
   }
-  const t = (summary || title).replace(/\s+/g, ' ').trim();
+  const t = (summary || title || command).replace(/\s+/g, ' ').trim();
   return { title: clip(t, TITLE_MAX), cwd, startedAt, automated: /^\s*<[A-Za-z_][\w-]*[\s>]/.test(title) };
 }
 
