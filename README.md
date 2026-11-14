@@ -16,7 +16,7 @@
 | 코드만 만든다 | 문서·이력서·보고서·인프라 점검까지 **역할별 팀원**이 맡는다 |
 | 모르는 것도 아는 척 | 모르는 칸은 지어내지 않고 **"모름"** 이라고 쓴다. 화면에 금액도 없다 |
 
-- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.2.0/rauha-Setup-0.2.0-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.2.0/rauha-0.2.0-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.2.0/rauha-0.2.0-mac-x64.dmg) — 설치 방법은 아래 "설치"
+- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.2.1/rauha-Setup-0.2.1-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.2.1/rauha-0.2.1-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.2.1/rauha-0.2.1-mac-x64.dmg) — 설치 방법은 아래 "설치"
 - 사용 안내(한 장): [docs/desktop-guide.md](docs/desktop-guide.md) · 되는 것과 아직 안 되는 것: [docs/release-checklist.md](docs/release-checklist.md)
 
 ## 무엇을 하나
@@ -43,9 +43,9 @@
 
 | 내 컴퓨터 | 내려받기 | 크기 |
 | --- | --- | --- |
-| Windows | [rauha-Setup-0.2.0-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.2.0/rauha-Setup-0.2.0-x64.exe) | 228MB |
-| Mac (Apple 칩, M1 이상) | [rauha-0.2.0-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.2.0/rauha-0.2.0-mac-arm64.dmg) | 248MB |
-| Mac (인텔) | [rauha-0.2.0-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.2.0/rauha-0.2.0-mac-x64.dmg) | 259MB |
+| Windows | [rauha-Setup-0.2.1-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.2.1/rauha-Setup-0.2.1-x64.exe) | 228MB |
+| Mac (Apple 칩, M1 이상) | [rauha-0.2.1-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.2.1/rauha-0.2.1-mac-arm64.dmg) | 248MB |
+| Mac (인텔) | [rauha-0.2.1-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.2.1/rauha-0.2.1-mac-x64.dmg) | 259MB |
 
 내 맥의 칩은 Apple 메뉴 → 이 Mac에 관하여에서 볼 수 있다. 다른 버전은 [Releases 페이지](https://github.com/kimvudghk11/rauha/releases)에 있다.
 

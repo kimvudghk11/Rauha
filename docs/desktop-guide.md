@@ -149,7 +149,10 @@ VS Code를 열지 않고 파일을 보고 고치는 곳이에요. 왼쪽 탐색�
 
 ## 7-4. API 탭
 
-왼쪽 막대의 API 탭(Todo 다음)은 Postman·Apidog 같은 요청 보내기 화면입니다. 메서드·주소·헤더·쿼리·본문(JSON·form·raw)·인증(Bearer·Basic·API key)으로 요청을 만들어 Send 하면 상태·시간·크기·헤더·본문(JSON 은 들여써서 색 표시)이 나오고, 느린 응답은 Cancel 로 바로 끊을 수 있어요(30초 넘으면 시간 초과, 본문은 5MB 까지만 읽어요). 요청은 Rauha 본체가 보내서 CORS 가 없고 http·https 만 됩니다. 왼쪽 목록에는 컬렉션·폴더와 기록이 있고, Manage 에서 환경(`{{base_url}}` 같은 변수)을 만들어요. 토큰 같은 비밀 변수는 `api-environments.json`(소유자만 읽기)에만 두고 컬렉션·기록·내보내기에는 `{{변수}}` 로만 남아요. Import 로 cURL·.http·OpenAPI 를 가져옵니다. 이 PC 의 로컬 서버로만 확인했고 맥은 확인하지 못했어요.
+왼쪽 막대의 API 탭(Todo 다음)은 Postman·Apidog 같은 요청 보내기 화면입니다. 메서드·주소·헤더·쿼리·경로 변수(`/users/:id`, `/users/{id}`)·본문(JSON·form·multipart 파일·raw)·인증(Bearer·Basic·API key)으로 요청을 만들어 Send 하면 상태·시간·크기·헤더·본문(JSON 은 들여써서 색 표시, 이미지는 미리보기)이 나오고, 느린 응답은 Cancel 로 바로 끊을 수 있어요(30초 넘으면 시간 초과, 본문은 20MB 까지 읽고 "Save to file" 로 파일에 저장).
+
+- **After response 탭**: 응답의 JSON 경로(`$.accessToken`)·헤더·상태를 환경 변수로 저장해 다음 요청에서 `{{accessToken}}` 으로 씁니다(토큰·비밀번호 같은 이름은 비밀 변수로). 상태 코드·JSON 값·헤더·응답 시간·본문을 검증하면 응답 위에 `Checks 2/3` 처럼 결과가 나오고 실패한 줄은 실제 값을 보여 줘요.
+- **쿠키**: 서버가 준 쿠키(Set-Cookie)를 브라우저처럼 기억해 같은 사이트로 다시 보냅니다. 환경 바의 Cookies 에서 보고 지울 수 있고, 앱을 끄면 사라져요. 헤더에 Cookie 를 직접 적으면 그 값만 보냅니다. 요청은 Rauha 본체가 보내서 CORS 가 없고 http·https 만 됩니다. 왼쪽 목록에는 컬렉션·폴더와 기록이 있고, Manage 에서 환경(`{{base_url}}` 같은 변수)을 만들어요. 토큰 같은 비밀 변수는 `api-environments.json`(소유자만 읽기)에만 두고 컬렉션·기록·내보내기에는 `{{변수}}` 로만 남아요. Import 로 cURL·.http·OpenAPI 를 가져옵니다. 이 PC 의 로컬 서버로만 확인했고 맥은 확인하지 못했어요.
 
 ## 7-3. Docker 탭
 

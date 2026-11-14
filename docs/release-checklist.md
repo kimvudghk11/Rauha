@@ -1,5 +1,11 @@
 # 릴리스 점검표 (2026-11-09 월요일용)
 
+## v0.2.1 (2026-11-14) — API 탭 Postman·APIdog 급
+
+- **실제 앱으로 확인함**(시험 서버 + Electron 개발 빌드, `window.rauha.api` 로 51개 시나리오): 메서드 7종, 쿼리 한글 인코딩, Bearer·Basic·API key, 302·307·출처 바뀌는 리다이렉트(인증 떼기), gzip·br, EUC-KR, 204·422·500, SSE, 취소, 기록 마스킹, cURL 가져오기·내보내기, **쿠키 저장소**(로그인 쿠키로 /me 200), **응답 뒤 변수 저장**(토큰 → 다음 요청 Bearer), **검증**(통과·실패 표시), **경로 변수**(`:id` ← `{{uid}}`), **multipart 실제 파일 업로드**, 이미지 미리보기, 한글 헤더 안내, User-Agent `rauha/0.2.1`. 화면(After response 탭·multipart 표·Checks 결과)도 스크린샷으로 확인.
+- **확인 못 함**: "Save to file"·"Choose…" 의 저장/열기 창(자동화 불가), 맥, 쿠키 창 화면.
+- **아직 없음**(Postman 대비): 컬렉션 일괄 실행(Runner), 요청 전 스크립트, GraphQL 전용 편집기, WebSocket, 응답 시간 단계별 분해, TLS 검사 끄기(일부러 안 함).
+
 ## 인수인계 (2026-11-13 22:40 KST, 세션 77%·주간 49%; 세션 초기화 11-14 01:20 KST)
 
 - **오늘 main (push 완료):** 9377ce1 DB 호스트 `IP:포트` IPv6 오판 · 2347ee8 PgBouncer 류 풀러의 `unsupported startup parameter: statement_timeout`(접속 뒤 `SET` 으로) · 8488e40 AI API 테스트(모델 전에 서버 꺼짐 확인, 끊기면 남은 케이스 건너뜀, md·화면 리포트 개편, API 탭 맨 위 환경 바로 base_url 바로 고치기). `yarn typecheck`·`yarn test`(4790개) 통과, 환경 바는 개발 빌드 스크린샷으로 확인.
