@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { primaryGitAction, type GitPrimaryInput } from './git-primary.js';
-import { isPushRejected, syncSentence } from './git-toolbar.js';
+import { isPushRejected, switchBlockedByChanges, syncSentence } from './git-toolbar.js';
 
 const base: GitPrimaryInput = { staged: 0, conflicts: false, merging: false, ahead: 0, behind: 0, hasRemote: true };
 
@@ -32,6 +32,14 @@ describe('원격에 없는 브랜치는 Publish 가 파란 단추다', () => {
   });
   it('upstream 을 모르면(undefined) 예전처럼 앞섬·뒤처짐으로만', () => {
     expect(primaryGitAction({ ...base, ahead: null, behind: null })).toBeNull();
+  });
+});
+
+describe('브랜치 전환이 고친 파일 때문에 막혔는지', () => {
+  it('git 원문과 쉬운 말 둘 다 알아본다', () => {
+    expect(switchBlockedByChanges('error: Your local changes to the following files would be overwritten by checkout:\n\ta.txt\nPlease commit your changes or stash them before you switch branches.')).toBe(true);
+    expect(switchBlockedByChanges('Your uncommitted changes could be overwritten. Commit or stash them first.')).toBe(true);
+    expect(switchBlockedByChanges("fatal: invalid reference: nope")).toBe(false);
   });
 });
 

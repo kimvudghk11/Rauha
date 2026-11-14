@@ -80,6 +80,8 @@ textarea.ginput, input.ginput { width: 100%; }
 .gbm { min-width: 300px; max-width: 360px; }
 .gbm > input { position: sticky; top: 0; flex: none; margin: 0 0 var(--s1); }
 .gbm > button .grow { overflow: hidden; text-overflow: ellipsis; }
+.gbm > .gbm-create { background: var(--sel); color: var(--bright); }
+.gbm > .gbm-why { padding: 4px var(--s2); font-size: var(--fs-sm); }
 
 /* 새 브랜치 대화상자·커밋 입력 */
 .gnew { width: 420px; max-width: calc(100vw - 48px); }

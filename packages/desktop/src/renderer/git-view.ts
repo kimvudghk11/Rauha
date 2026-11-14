@@ -98,6 +98,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   const ctx: GitCtx = {
     root: () => repo ?? '',
     call,
+    callRaw: (fn, arg) => callRaw(fn, arg),
     say,
     ask: askDialog,
     changed: () => loadHeader(),

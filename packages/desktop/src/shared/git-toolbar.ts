@@ -101,6 +101,11 @@ export function isPushRejected(message: string): boolean {
   return /non-fast-forward|\[rejected\]|fetch first|contains work that you do not have|remote has commits you do not have/i.test(message);
 }
 
+/** 브랜치 전환이 고친 파일(덮어써질 변경) 때문에 막혔다. stash 하고 바꾸면 된다 */
+export function switchBlockedByChanges(message: string): boolean {
+  return /would be overwritten|could be overwritten|commit your changes or stash/i.test(message);
+}
+
 /** 브랜치 목록·툴바에서 쓰는 앞섬·뒤처짐 표기: "↑1 ↓3" (0이거나 모르면 비운다) */
 export function directionText(ahead: number | null, behind: number | null): string {
   return [syncBadge('up', ahead), syncBadge('down', behind)].filter((x) => x !== '').join(' ');

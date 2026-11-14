@@ -1,4 +1,4 @@
-import type { GitArg, GitData, GitFn, Overview } from '../shared/git-api.js';
+import type { GitArg, GitData, GitFn, GitResult, Overview } from '../shared/git-api.js';
 import type { DiffView } from '../shared/git-api.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
 import type { Selection } from '../shared/git-diff.js';
@@ -11,6 +11,8 @@ export interface GitCtx {
   root(): string;
   /** git 함수를 부른다. 실패하면 이유를 띄우고 null. 보호 브랜치면 확인 창을 거쳐 다시 부른다. */
   call<K extends GitFn>(fn: K, arg: GitArg<K>): Promise<GitData<K> | null>;
+  /** 실패해도 띄우지 않고 결과를 그대로 돌려준다(실패 종류에 따라 다른 길로 갈 때) */
+  callRaw<K extends GitFn>(fn: K, arg: GitArg<K>): Promise<GitResult<GitData<K>>>;
   say(text: string, bad?: boolean): void;
   ask(options: AskOptions): Promise<{ ok: boolean; value: string }>;
   /** 헤더(브랜치·앞섬/뒤처짐)를 다시 읽는다 */
