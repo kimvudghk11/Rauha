@@ -17,6 +17,13 @@ export interface LogRow {
   readonly parents: readonly string[];
 }
 
+/** 히스토리 찾기: 띄어 쓴 낱말마다 제목·작성자·브랜치 이름에 들어 있거나 해시가 그 낱말로 시작해야 한다 */
+export function logMatches(row: LogRow, query: string): boolean {
+  const words = query.trim().toLowerCase().split(/\s+/).filter((w) => w !== '');
+  const text = `${row.subject}\n${row.author}\n${row.refs.join('\n')}`.toLowerCase();
+  return words.every((w) => text.includes(w) || row.hash.startsWith(w));
+}
+
 export function parseLog(text: string): LogRow[] {
   return text
     .split(RS)

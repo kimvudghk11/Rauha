@@ -80,6 +80,17 @@ F4~F6 은 Figma 무료(Starter) MCP 호출 한도에 걸려 이 문서로만 정
 | F6-3 | Stash 탭 · [Stash changes] | 메시지 칸 + [Include untracked] → `stash()` | 고친 파일 없으면 단추 꺼짐 + 이유 |
 | F6-4 | 스태시 행: [Apply] [Pop] [Drop…] | `stashApply` / `stashPop` / `stashDrop`(확인 창: 파일 n개를 잃음) | 적용 중 충돌 → F4 와 같은 충돌 화면 |
 
+## 구현 상태 (2026-11-14, 실제 앱에서 임시 저장소로 확인)
+
+1. ✅ 저장소 막대 상태 문장, Publish branch 파란 단추 — 60ad2ec
+2. ✅ Push 거절 → Pull and push again(보호 브랜치 확인·갈라짐 merge 포함) — 60ad2ec
+3. ✅ 브랜치 메뉴 바로 만들기(Enter)·이름 오류 줄·Stash and switch — 6574f5d
+4. ✅ 실패 줄 고치기 단추: Set name and email(이 레포/모든 레포), Try again — 37d5e35
+5. ✅ Actions 탭(읽기 전용, ETag, 실행 중 30초, 끝나면 알림, 로그는 gh 로그인 때만) — 5a3e5e9
+6. ✅ ✨ Draft with teammate(스테이지한 diff 만 Haiku, 실제 15초) — 1b401a6
+7. ✅ 히스토리 찾기·Copy hash·Create branch here. 충돌 나란히 보기·내 것/상대 것은 이미 있었음
+- 남음: Merge/Rebase 선택 기억(F2-3), 진행 단계 배너(F2-4), Actions Re-run(F5-4, 시간 사용이라 보류), GitHub 기기 로그인(OAuth 앱 등록 필요 — 지금은 gh CLI 로그인 사용)
+
 ## 만드는 순서(작은 것부터, 각 단계 spec 먼저)
 
 1. **저장소 막대 + 파란 단추 규칙** — `primaryAction(overview)` 값 객체(shared), 상태 문장. 기존 `git-toolbar.ts` 옆.

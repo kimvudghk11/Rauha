@@ -104,6 +104,9 @@ textarea.ginput, input.ginput { width: 100%; }
 .gact-step { display: flex; align-items: center; gap: var(--s2); padding-left: var(--s3); font-size: var(--fs-sm); }
 .gact-step.failure { color: var(--red); }
 .gact-log { max-height: 260px; overflow: auto; background: var(--well); border: 1px solid var(--border); border-radius: 6px; padding: var(--s2); font-family: var(--mono); font-size: var(--fs-xs); white-space: pre-wrap; word-break: break-all; }
+.ghfind { margin: 0 0 var(--s1); width: 100%; }
+.gfiles.finding .ggraph { visibility: hidden; }
+.gmh .ghtools { margin-left: auto; flex: none; }
 .gmsg .gfix { margin-left: var(--s2); vertical-align: middle; }
 .gbm > .gbm-why { padding: 4px var(--s2); font-size: var(--fs-sm); }
 

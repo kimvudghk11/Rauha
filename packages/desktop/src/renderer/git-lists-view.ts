@@ -6,7 +6,7 @@ import { type GitCtx, renderDiff } from './git-common.js';
 import { ago } from './git-format.js';
 import { gitIcon } from './git-icons.js';
 import { openNewBranchDialog, trackBadgeEl } from './git-branch-ui.js';
-import { sortBranchesRecent } from '../shared/git-lists.js';
+import { logMatches, sortBranchesRecent } from '../shared/git-lists.js';
 import { graphCell, graphCols } from './git-graph-view.js';
 import { layoutGraph } from '../shared/git-graph.js';
 import { ConflictText, type ConflictChoice } from '../shared/conflict-text.js';
@@ -108,7 +108,21 @@ export function buildHistory(ctx: GitCtx) {
     void refresh();
   });
   let listBox = el('div', 'gfiles');
-  side.append(opts, listBox);
+  // 찾기: 제목·작성자·해시·브랜치 이름. 찾는 동안에는 그래프 선이 끊겨 보이므로 숨긴다
+  const find = el('input', 'sm ghfind');
+  find.placeholder = 'Find commits (subject, author, hash, branch)';
+  find.spellcheck = false;
+  let shown: readonly LogRow[] = [];
+  const applyFind = (): void => {
+    const q = find.value;
+    listBox.classList.toggle('finding', q.trim() !== '');
+    [...listBox.querySelectorAll<HTMLElement>('.gcm')].forEach((n, i) => {
+      const r = shown[i];
+      n.hidden = r !== undefined && !logMatches(r, q);
+    });
+  };
+  find.addEventListener('input', applyFind);
+  side.append(opts, find, listBox);
   async function show(row: LogRow): Promise<void> {
     selected = row.hash;
     main.replaceChildren(el('div', 'dim pad', 'Loading…'));
@@ -118,6 +132,21 @@ export function buildHistory(ctx: GitCtx) {
     const head = el('div', 'gmh');
     head.append(el('b', undefined, row.subject), el('span', 'dim mono', row.short), el('span', 'dim', `${row.author} · ${files.length} file(s)`));
     if (row.parents.length > 1) head.append(el('span', 'chip purple', `Merge of ${row.parents.length} parents`));
+    const tools = el('span', 'btns ghtools');
+    const copy = el('button', 'btn sm', 'Copy hash');
+    copy.type = 'button';
+    copy.addEventListener('click', () => void navigator.clipboard.writeText(row.hash).then(() => ctx.say(`Copied ${row.short}.`)));
+    const branchHere = el('button', 'btn sm', 'Create branch here');
+    branchHere.type = 'button';
+    branchHere.title = 'Start a new branch from this commit and switch to it';
+    branchHere.addEventListener('click', async () => {
+      const a = await ctx.ask({ title: `New branch from ${row.short}`, body: `Starts at "${row.subject}". Your changed files come along.`, input: { label: 'Branch name', value: '' }, okLabel: 'Create and switch' });
+      if (!a.ok || a.value.trim() === '') return;
+      const done = await ctx.call('createBranch', { name: a.value.trim(), base: row.hash, checkout: true });
+      if (done !== null) await ctx.reload();
+    });
+    tools.append(copy, branchHere);
+    head.append(tools);
     main.appendChild(head);
     for (const f of files) {
       main.appendChild(el('div', 'gh', f.path));
@@ -160,6 +189,8 @@ export function buildHistory(ctx: GitCtx) {
     if (rows.length === 0) list.appendChild(el('div', 'dim pad', 'No commits yet.'));
     listBox.replaceWith(list);
     listBox = list;
+    shown = rows;
+    applyFind();
     if (rows[0] !== undefined && selected === '') void show(rows[0]);
   }
   return { root, refresh };
