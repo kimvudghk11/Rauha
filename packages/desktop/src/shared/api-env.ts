@@ -180,6 +180,25 @@ export class ApiEnvironments {
   }
 
   /**
+   * 응답에서 꺼낸 값(응답 뒤 규칙)을 고른 환경에 넣는다. 이미 있는 변수는 값만 바꾸고 비밀 여부는 지킨다.
+   * 새 변수는 secretByName 이 참이면 비밀이 된다. 고른 환경이 없으면 바꾸지 않고 이유를 돌려준다.
+   */
+  capture(values: readonly { readonly name: string; readonly value: string }[], secretByName: (name: string) => boolean): { readonly envs: ApiEnvironments; readonly secret: ReadonlySet<string>; readonly note: string | null } {
+    if (values.length === 0) return { envs: this, secret: new Set(), note: null };
+    const env = this.find(this.selectedId);
+    if (env === null) return { envs: this, secret: new Set(), note: 'Pick an environment to save variables from responses.' };
+    const current = new Map(env.props.vars.map((v) => [v.name, v]));
+    const secret = new Set<string>();
+    let next = env;
+    for (const v of values) {
+      const s = current.get(v.name)?.secret ?? secretByName(v.name);
+      if (s) secret.add(v.name);
+      next = next.withVar({ name: v.name, value: v.value, secret: s });
+    }
+    return { envs: this.replace(next), secret, note: null };
+  }
+
+  /**
    * 요청에서 꺼낸 비밀 값(secret=false면 보통 변수)을 환경에 넣는다. 고른 환경이 없으면 "Default" 환경을 만든다.
    * 같은 이름이 이미 있으면 덮지 않고 그대로 둔다(사용자가 정한 값을 지키려고).
    */

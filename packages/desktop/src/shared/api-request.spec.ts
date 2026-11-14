@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, ApiRequest, isVariableRef, variablesIn } from './api-request.js';
+import { ApiError, ApiRequest, isVariableRef, pathVariableNames, variablesIn } from './api-request.js';
 
 // 시험용 가짜 비밀은 조각을 이어 붙여 만든다
 const FAKE = ['tok', 'en', '-abc', '123456'].join('');
@@ -94,5 +94,55 @@ describe('비밀은 변수 이름으로만 둔다', () => {
   it('이미 변수 이름이면 그대로다(같은 객체)', () => {
     const r = req({ auth: { kind: 'bearer', token: '{{t}}' } });
     expect(r.withSecretsAsVariables().request).toBe(r);
+  });
+});
+
+describe('경로 변수(Postman :id · APIdog {id})', () => {
+  it('URL 의 :id 와 {id} 를 이름 순서대로 찾는다({{변수}}와 포트는 빼고)', () => {
+    expect(pathVariableNames('{{base_url}}/users/:id/posts/{postId}?q=:nope')).toEqual(['id', 'postId']);
+    expect(pathVariableNames('http://localhost:3000/a')).toEqual([]);
+  });
+  it('보낼 때 Params 의 경로 변수 값을 인코딩해 채운다(값에 {{변수}}도 된다)', () => {
+    const r = req({ url: '{{base}}/users/:id/files/{name}', pathVars: [{ key: 'id', value: '{{uid}}', enabled: true }, { key: 'name', value: 'a b.txt', enabled: true }] });
+    expect(r.prepare(vars({ base: 'http://x', uid: '42' })).url).toBe('http://x/users/42/files/a%20b.txt');
+  });
+  it('값이 없는 경로 변수가 있으면 이름을 알리며 보내지 않는다', () => {
+    expect(() => req({ url: 'http://x/users/:id' }).prepare(vars({}))).toThrow(/:id/);
+  });
+  it('내보내기용 URL 은 값이 있는 경로 변수만 채운다', () => {
+    const r = req({ url: '{{base}}/users/:id/:other', pathVars: [{ key: 'id', value: '7', enabled: true }] });
+    expect(r.urlWithPathVars()).toBe('{{base}}/users/7/:other');
+  });
+});
+
+describe('multipart/form-data', () => {
+  it('글 필드와 파일 필드를 나눠 준비하고 본문 글은 없다', () => {
+    const r = req({ method: 'POST', url: 'http://x/upload', body: { kind: 'multipart', parts: [{ key: 'title', value: '{{t}}', enabled: true, file: false }, { key: 'doc', value: 'C:\\a\\b.pdf', enabled: true, file: true }, { key: 'off', value: 'x', enabled: false, file: false }] } });
+    const p = r.prepare(vars({ t: '제목' }));
+    expect(p.body).toBeNull();
+    expect(p.multipart).toEqual([{ name: 'title', value: '제목' }, { name: 'doc', file: 'C:\\a\\b.pdf' }]);
+  });
+  it('사용자가 적은 multipart Content-Type 은 떼어 낸다(경계 문자열은 보내기가 만든다)', () => {
+    const r = req({ method: 'POST', url: 'http://x', headers: [{ key: 'Content-Type', value: 'multipart/form-data', enabled: true }], body: { kind: 'multipart', parts: [{ key: 'a', value: '1', enabled: true, file: false }] } });
+    expect(r.prepare(vars({})).headers.some(([k]) => k.toLowerCase() === 'content-type')).toBe(false);
+  });
+  it('파일 경로가 비어 있으면 알린다', () => {
+    const r = req({ method: 'POST', url: 'http://x', body: { kind: 'multipart', parts: [{ key: 'doc', value: '', enabled: true, file: true }] } });
+    expect(() => r.prepare(vars({}))).toThrow(/Choose a file for doc/);
+  });
+});
+
+describe('헤더 값의 글자', () => {
+  it('한글처럼 Latin-1 밖 글자가 있으면 무엇을 하면 되는지 알린다', () => {
+    const r = req({ url: 'http://x', headers: [{ key: 'X-Name', value: '김평화', enabled: true }] });
+    expect(() => r.prepare(vars({}))).toThrow(/X-Name.*encodeURIComponent/);
+  });
+});
+
+describe('응답 뒤 규칙', () => {
+  it('규칙이 없으면 비어 있고, 있으면 그대로 들고 다닌다', () => {
+    expect(req().props.after).toEqual({ captures: [], checks: [] });
+    const after = { captures: [{ name: 'token', from: 'json' as const, path: 'accessToken', enabled: true }], checks: [] };
+    expect(req({ after }).props.after).toEqual(after);
   });
 });

@@ -1,3 +1,4 @@
+import { CAPTURE_SOURCES, CHECK_OPS, CHECK_TARGETS, NO_AFTER, type ApiAfter, type Capture, type Check } from './api-after.js';
 import { ApiCollections, type CollectionNode, type NodeOrigin } from './api-collections.js';
 import { ApiEnvironment, ApiEnvironments, ENV_LIMITS, type EnvVar, type EnvVarEdit, type EnvVarView } from './api-env.js';
 import { ApiHistory, type HistoryEntry, type ResponseSummaryProps } from './api-response.js';
@@ -74,9 +75,35 @@ function bodyOf(v: unknown): ApiBody {
       return { kind: o['kind'], text: text(o['text'], 'body', DTO_LIMITS.text, '') };
     case 'form':
       return { kind: 'form', fields: rows(o['fields'], 'form') };
+    case 'multipart': {
+      const raw = Array.isArray(o['parts']) ? o['parts'] : [];
+      const kv = rows(raw, 'form data');
+      return { kind: 'multipart', parts: kv.map((r, i) => ({ ...r, file: flag((raw[i] as Record<string, unknown>)['file'], 'form data file', false) })) };
+    }
     default:
-      throw new ApiError('Body type must be none, json, form or raw.');
+      throw new ApiError('Body type must be none, json, form, multipart or raw.');
   }
+}
+
+const AFTER_ROWS = 50;
+
+function afterOf(v: unknown): ApiAfter {
+  if (v === undefined || v === null) return NO_AFTER;
+  const o = obj(v, 'after');
+  const list = (x: unknown, field: string): Record<string, unknown>[] => {
+    if (x === undefined) return [];
+    if (!Array.isArray(x)) throw new ApiError(`${field} must be a list.`);
+    if (x.length > AFTER_ROWS) throw new ApiError(`${field} can have at most ${AFTER_ROWS} rows.`);
+    return x.map((r, i) => obj(r, `${field}[${i}]`));
+  };
+  const oneOf = <T extends string>(x: unknown, allowed: readonly T[], field: string): T => {
+    if (typeof x !== 'string' || !(allowed as readonly string[]).includes(x)) throw new ApiError(`${field} must be ${allowed.slice(0, -1).join(', ')} or ${allowed[allowed.length - 1]}.`);
+    return x as T;
+  };
+  return {
+    captures: list(o['captures'], 'Saved variables').map((r): Capture => ({ name: text(r['name'], 'variable name', ENV_LIMITS.name, ''), from: oneOf(r['from'], CAPTURE_SOURCES, 'Variable source'), path: text(r['path'], 'path', DTO_LIMITS.cell, ''), enabled: flag(r['enabled'], 'enabled', true) })),
+    checks: list(o['checks'], 'Checks').map((r): Check => ({ target: oneOf(r['target'], CHECK_TARGETS, 'Check target'), path: text(r['path'], 'path', DTO_LIMITS.cell, ''), op: oneOf(r['op'], CHECK_OPS, 'Check'), value: text(r['value'], 'expected value', DTO_LIMITS.cell, ''), enabled: flag(r['enabled'], 'enabled', true) })),
+  };
 }
 
 function authOf(v: unknown): ApiAuth {
@@ -119,6 +146,8 @@ export class ApiRequestDto {
       headers: rows(o['headers'], 'headers'),
       body: bodyOf(o['body']),
       auth: authOf(o['auth']),
+      pathVars: rows(o['pathVars'], 'path variables'),
+      after: afterOf(o['after']),
     });
   }
 

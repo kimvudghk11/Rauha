@@ -1,4 +1,6 @@
+import type { CapturedValue, CheckResult } from './api-after.js';
 import type { SyncReport } from './api-collections.js';
+import type { CookieView } from './api-cookies.js';
 import type { CollectionsJson, EnvironmentsView, HistoryJson } from './api-dto.js';
 import type { ApiSource } from './api-extract.js';
 import type { ProjectRecord } from './api-project.js';
@@ -23,9 +25,28 @@ export const API_IPC = {
   testsPlan: 'api:tests:plan',
   testsRun: 'api:tests:run',
   testsSave: 'api:tests:save',
+  cookiesGet: 'api:cookies:get',
+  cookiesClear: 'api:cookies:clear',
+  saveBody: 'api:save-body',
+  pickFile: 'api:pick-file',
 } as const;
 
 export type SendFail = 'invalid' | 'missing' | 'blocked' | 'busy' | 'timeout' | 'cancelled' | 'network';
+
+/** 응답 뒤 규칙의 결과(화면용: 비밀 변수 값은 •••• 로) */
+export interface AfterView {
+  readonly captured: readonly CapturedValue[];
+  readonly checks: readonly CheckResult[];
+  /** 저장하지 못한 이유 등(없으면 null) */
+  readonly note: string | null;
+}
+
+export interface CookiesView {
+  readonly count: number;
+  readonly items: readonly CookieView[];
+}
+
+export type SaveBodyResult = { readonly ok: true; readonly saved: string | null } | { readonly ok: false; readonly error: string };
 
 export type SendResult =
   | {
@@ -34,6 +55,12 @@ export type SendResult =
       /** 복사용으로 가린 응답(본문이 작을 때만). 없으면 화면이 헤더·토큰 모양만 가려서 복사한다 */
       readonly masked: ResponseSummaryProps | null;
       readonly historyId: string;
+      /** 응답 뒤 규칙 결과(규칙이 없으면 null) */
+      readonly after: AfterView | null;
+      /** 응답에서 변수를 저장해 환경이 바뀌었으면 새 환경 목록(값 없이) */
+      readonly envs: EnvironmentsView | null;
+      /** 지금 쿠키 저장소의 쿠키 수 */
+      readonly cookies: number;
     }
   | { readonly ok: false; readonly kind: SendFail; readonly error: string; readonly missing: readonly string[]; readonly historyId: string | null };
 
@@ -107,4 +134,14 @@ export interface ApiApi {
     /** 마지막 리포트를 .md 로 저장(저장 위치를 묻는다) */
     save(planId: string): Promise<SaveReportResult>;
   };
+  /** 쿠키 저장소(앱을 끄면 비워진다) */
+  cookies: {
+    get(): Promise<CookiesView>;
+    /** domain 을 주면 그 도메인만 */
+    clear(domain?: string): Promise<CookiesView>;
+  };
+  /** 마지막 응답 본문 전체를 파일로 저장(저장 위치를 묻는다) */
+  saveBody(historyId: string): Promise<SaveBodyResult>;
+  /** multipart 파일 필드에 넣을 파일 고르기(취소하면 null) */
+  pickFile(): Promise<string | null>;
 }

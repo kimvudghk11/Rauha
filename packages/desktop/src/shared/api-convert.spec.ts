@@ -30,8 +30,8 @@ describe('cURL 가져오기', () => {
   it('-u는 Basic 인증이다', () => {
     expect(parseCurl('curl -u kim:pw1234 http://x', 'r').props.auth).toEqual({ kind: 'basic', username: 'kim', password: 'pw1234' });
   });
-  it('-F는 폼 본문, --data-urlencode는 폼 형식 본문이다', () => {
-    expect(parseCurl('curl -F a=1 http://x', 'r').props.body).toEqual({ kind: 'form', fields: [{ key: 'a', value: '1', enabled: true }] });
+  it('-F는 multipart 본문(curl 과 같이), --data-urlencode는 폼 형식 본문이다', () => {
+    expect(parseCurl('curl -F a=1 http://x', 'r').props.body).toEqual({ kind: 'multipart', parts: [{ key: 'a', value: '1', enabled: true, file: false }] });
     expect(parseCurl(`curl -H 'Content-Type: application/x-www-form-urlencoded' -d 'a=1&b=x%20y' http://x`, 'r').props.body).toMatchObject({ kind: 'form' });
   });
   it('모르는 옵션(-L -s --compressed -k)은 건너뛴다', () => {

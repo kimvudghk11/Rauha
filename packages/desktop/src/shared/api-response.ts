@@ -2,10 +2,10 @@ import { ApiError, type ApiRequestProps } from './api-request.js';
 import { hideSecrets, maskHeaders, maskUrlSecrets } from './api-redact.js';
 
 export const RESPONSE_LIMITS = {
-  /** 이만큼까지만 받는다(넘으면 자르고 알린다) */
-  read: 5 * 1024 * 1024,
+  /** 이만큼까지만 받는다(넘으면 자르고 알린다). 전체는 "파일로 저장"으로 */
+  read: 20 * 1024 * 1024,
   /** 화면에 싣는 본문 글자 수 */
-  show: 1_000_000,
+  show: 2_000_000,
   /** 기록에 남기는 본문 글자 수 */
   history: 32_000,
   /** 기록 개수 */
@@ -30,6 +30,8 @@ export interface ResponseSummaryProps {
   readonly redirects: readonly string[];
   /** 글자가 아닌 본문(이미지 등): body는 비어 있다 */
   readonly binary: boolean;
+  /** 이미지 미리보기(data URL). 기록에는 남기지 않는다 */
+  readonly preview?: string;
 }
 
 /** 응답 요약. 상태·시간·크기·헤더·본문 앞부분. */
@@ -71,9 +73,24 @@ export class ResponseSummary {
 
   /** 기록에 남길 모양: 가리고, 본문을 기록 상한으로 줄인다 */
   forHistory(secrets: readonly string[]): ResponseSummary {
-    const m = this.masked(secrets);
-    const body = m.props.body.length > RESPONSE_LIMITS.history ? m.props.body.slice(0, RESPONSE_LIMITS.history) : m.props.body;
-    return new ResponseSummary({ ...m.props, body, truncated: m.props.truncated || body.length < m.props.body.length });
+    const { preview: _preview, ...m } = this.masked(secrets).props;
+    const body = m.body.length > RESPONSE_LIMITS.history ? m.body.slice(0, RESPONSE_LIMITS.history) : m.body;
+    return new ResponseSummary({ ...m, body, truncated: m.truncated || body.length < m.body.length });
+  }
+
+  /** "파일로 저장"의 기본 이름: 주소 마지막 조각(확장자가 있으면), 없으면 response.<종류> */
+  static fileName(url: string, contentType: string): string {
+    let last = '';
+    try {
+      last = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+    } catch {
+      last = '';
+    }
+    const safe = last.replace(/[^\w.\-가-힣]+/g, '-').slice(0, 80);
+    if (/\.[A-Za-z0-9]{1,8}$/.test(safe)) return safe;
+    const t = contentType.toLowerCase();
+    const ext = /json/.test(t) ? 'json' : /xml/.test(t) ? 'xml' : /html/.test(t) ? 'html' : /csv/.test(t) ? 'csv' : /^text\//.test(t) ? 'txt' : /png/.test(t) ? 'png' : /jpe?g/.test(t) ? 'jpg' : /gif/.test(t) ? 'gif' : /webp/.test(t) ? 'webp' : /pdf/.test(t) ? 'pdf' : /zip/.test(t) ? 'zip' : 'bin';
+    return `${safe === '' ? 'response' : safe}.${ext}`;
   }
 
   /** "12.3 KB" 같은 크기 글 */

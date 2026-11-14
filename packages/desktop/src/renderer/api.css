@@ -178,3 +178,31 @@
 .api-fix { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s2); border-radius: var(--r-sm); border: 1px solid var(--warn-border); background: var(--warn-bg); }
 .api-fix > b { color: var(--yellow); }
 .api-fix-where { color: var(--purple); font-size: var(--fs-xs); }
+
+/* 경로 변수 · multipart · After response · 응답 검증 · 쿠키 */
+.api-path-vars { display: flex; flex-direction: column; gap: var(--s1); margin-bottom: var(--s2); }
+.api-path-vars .api-field .lbl { min-width: 90px; color: var(--accent); }
+.api-path-vars .api-field input { flex: 1; min-width: 0; font-family: var(--mono); }
+.api-kv-row.api-mp-row { grid-template-columns: 16px minmax(0, 1fr) 80px minmax(0, 2fr) auto 24px; }
+.api-mp-row > input.sm { width: 100%; min-width: 0; font-family: var(--mono); }
+.api-after { display: flex; flex-direction: column; gap: var(--s2); }
+.api-after-rows { display: flex; flex-direction: column; gap: var(--s1); }
+.api-after-row { display: flex; align-items: center; gap: var(--s2); min-width: 0; flex-wrap: wrap; }
+.api-after-row > input.sm { flex: 1; min-width: 90px; font-family: var(--mono); }
+.api-after-row > input.api-after-var { flex: 0 1 140px; }
+.api-checks { display: flex; flex-direction: column; gap: 2px; padding: var(--s2) var(--s3); }
+.api-check { display: flex; align-items: center; gap: var(--s2); padding: 4px var(--s2); border-radius: var(--r-sm); font-size: var(--fs-sm); min-width: 0; }
+.api-check .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.api-check.pass { background: color-mix(in srgb, var(--green) 8%, transparent); }
+.api-check.fail { background: color-mix(in srgb, var(--red) 10%, transparent); }
+.api-check.saved { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.api-check-mark { flex: none; width: 16px; text-align: center; font-weight: 700; }
+.api-check.pass .api-check-mark { color: var(--green); }
+.api-check.fail .api-check-mark { color: var(--red); }
+.api-check.saved .api-check-mark { color: var(--accent); }
+.api-check-sub { margin-top: var(--s2); color: var(--muted); font-size: var(--fs-xs); }
+.api-checks-chip { cursor: pointer; border: 0; font: inherit; }
+.api-res-image { display: block; max-width: 100%; max-height: 420px; margin: var(--s3); background: repeating-conic-gradient(var(--border2) 0 25%, transparent 0 50%) 0 0 / 16px 16px; border-radius: var(--r-sm); image-rendering: auto; }
+.api-cookies { width: min(640px, 92vw); max-height: 80vh; display: flex; flex-direction: column; gap: var(--s2); }
+.api-cookie-list { overflow: auto; min-height: 60px; }
+.api-cookie-domain { margin-top: var(--s2); }

@@ -6,7 +6,19 @@ import type { SendFail } from '../../shared/api-ipc.js';
 
 export const SEND_DEFAULTS = { timeoutMs: 30_000 } as const;
 
-export type SendOutcome = { readonly ok: true; readonly response: ResponseSummaryProps } | { readonly ok: false; readonly kind: SendFail; readonly error: string; readonly ms: number };
+export type SendOutcome = { readonly ok: true; readonly response: ResponseSummaryProps; /** 받은 바이트(상한까지): "파일로 저장"용 */ readonly bytes?: Uint8Array } | { readonly ok: false; readonly kind: SendFail; readonly error: string; readonly ms: number };
+
+/** 쿠키 저장소와 이어 주는 고리(Postman 의 Cookie jar) */
+export interface CookieHooks {
+  /** 이 주소로 갈 Cookie 값(없으면 null) */
+  header(url: string): string | null;
+  /** 응답(리다이렉트 포함)의 Set-Cookie 들을 기억한다 */
+  store(url: string, setCookies: readonly string[]): void;
+}
+
+/** 미리보기를 싣는 이미지(SVG 는 스크립트가 들 수 있어 뺀다) */
+const PREVIEW_TYPE = /^image\/(png|jpe?g|gif|webp|bmp|avif|x-icon|vnd\.microsoft\.icon)\b/i;
+const PREVIEW_MAX = 5 * 1024 * 1024;
 
 export interface SendOptions {
   readonly signal: AbortSignal;
@@ -21,7 +33,43 @@ export interface SendOptions {
   readonly resolve?: (hostname: string) => Promise<readonly string[]>;
   /** 주면 보내기 직전(리다이렉트마다) 이 검사를 통과하는 주소로만 보낸다. AI 시험은 이 컴퓨터 주소만 허락한다 */
   readonly stayOn?: (url: string) => boolean;
+  /** 주면 응답 쿠키를 기억하고 맞는 요청에 붙인다 */
+  readonly cookies?: CookieHooks;
+  /** multipart 파일 필드를 읽는다(main 이 주는 파일 읽기) */
+  readonly readFile?: (path: string) => Promise<{ readonly bytes: Uint8Array; readonly name: string }>;
+  /** User-Agent 헤더를 적지 않았을 때 쓸 값 */
+  readonly userAgent?: string;
 }
+
+type Part = { readonly name: string; readonly value: string } | { readonly name: string; readonly bytes: Uint8Array; readonly filename: string };
+
+/** 파일 필드를 한 번만 읽어 둔다(307·308 리다이렉트로 다시 보낼 때도 같은 바이트) */
+async function loadParts(parts: NonNullable<PreparedRequest['multipart']>, readFile: SendOptions['readFile']): Promise<Part[] | string> {
+  const out: Part[] = [];
+  for (const p of parts) {
+    if ('value' in p) {
+      out.push(p);
+      continue;
+    }
+    if (readFile === undefined) return `Files cannot be attached here (${p.name}).`;
+    try {
+      const f = await readFile(p.file);
+      out.push({ name: p.name, bytes: f.bytes, filename: f.name });
+    } catch (e) {
+      return `Could not read the file for ${p.name} (${p.file}): ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+  return out;
+}
+
+const formOf = (parts: readonly Part[]): FormData => {
+  const fd = new FormData();
+  for (const p of parts) {
+    if ('value' in p) fd.append(p.name, p.value);
+    else fd.append(p.name, new Blob([p.bytes as BlobPart]), p.filename);
+  }
+  return fd;
+};
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const TEXT_TYPE = /^(text\/|application\/(json|xml|javascript|x-www-form-urlencoded|graphql|yaml|x-yaml|ld\+json)|[^;]*\+(json|xml))/i;
@@ -98,19 +146,38 @@ export async function sendPrepared(request: PreparedRequest, options: SendOption
     let { method, url } = request;
     let headers = request.headers.map(([k, v]) => [k, v] as [string, string]);
     let body = request.body;
+    let parts: Part[] | null = null;
+    if (request.multipart !== undefined && request.multipart !== null && method !== 'GET' && method !== 'HEAD') {
+      const loaded = await loadParts(request.multipart, options.readFile);
+      if (typeof loaded === 'string') return fail('invalid', loaded);
+      parts = loaded;
+    }
+    if (options.userAgent !== undefined && !headers.some(([k]) => k.toLowerCase() === 'user-agent')) headers.push(['User-Agent', options.userAgent]);
+    /** 사용자가 직접 적은 Cookie 가 있으면 저장소 쿠키는 붙이지 않는다 */
+    const manualCookie = headers.some(([k]) => k.toLowerCase() === 'cookie');
     const redirects: string[] = [];
     for (let hop = 0; ; hop++) {
       const target = checkTarget(url);
       if (!target.ok) return fail('blocked', hop === 0 ? target.error : `Blocked a redirect: ${target.error}`);
       if (options.stayOn !== undefined && !options.stayOn(target.url)) return fail('blocked', `${hop === 0 ? 'Blocked' : 'Blocked a redirect'}: AI tests only send requests to this computer (localhost, 127.0.0.1, ::1).`);
       const hostname = new URL(target.url).hostname;
-      if (options.resolve !== undefined && !/^[d.]+$/.test(hostname) && !hostname.startsWith('[')) {
+      if (options.resolve !== undefined && !/^[\d.]+$/.test(hostname) && !hostname.startsWith('[')) {
         const addresses = await options.resolve(hostname).catch(() => [] as readonly string[]);
         if (addresses.some(isMetadataAddress)) return fail('blocked', `${hop === 0 ? '' : 'Blocked a redirect: '}${hostname} points to a cloud metadata or link-local address, which is blocked because it can expose credentials.`);
       }
-      const init: RequestInit = { method, headers, redirect: 'manual', signal: controller.signal };
-      if (body !== null && method !== 'GET' && method !== 'HEAD') init.body = body;
+      const hopHeaders = [...headers];
+      if (options.cookies !== undefined && !manualCookie) {
+        const jar = options.cookies.header(target.url);
+        if (jar !== null) hopHeaders.push(['Cookie', jar]);
+      }
+      const init: RequestInit = { method, headers: hopHeaders, redirect: 'manual', signal: controller.signal };
+      if (parts !== null && method !== 'GET' && method !== 'HEAD') init.body = formOf(parts);
+      else if (body !== null && method !== 'GET' && method !== 'HEAD') init.body = body;
       const res = await fetchFn(target.url, init);
+      if (options.cookies !== undefined) {
+        const set = res.headers.getSetCookie();
+        if (set.length > 0) options.cookies.store(target.url, set);
+      }
       const location = res.headers.get('location');
       if (REDIRECTS.has(res.status) && location !== null) {
         await res.body?.cancel().catch(() => undefined);
@@ -126,6 +193,7 @@ export async function sendPrepared(request: PreparedRequest, options: SendOption
         if (res.status === 303 || ((res.status === 301 || res.status === 302) && method === 'POST')) {
           if (method !== 'HEAD') method = 'GET';
           body = null;
+          parts = null;
           headers = headers.filter(([k]) => !/^content-(type|length)$/i.test(k));
         }
         url = next.toString();
@@ -145,8 +213,9 @@ export async function sendPrepared(request: PreparedRequest, options: SendOption
         contentType,
         redirects,
         binary,
+        ...(binary && !truncated && bytes.length <= PREVIEW_MAX && PREVIEW_TYPE.test(contentType) ? { preview: `data:${contentType.split(';')[0]?.trim().toLowerCase()};base64,${Buffer.from(bytes).toString('base64')}` } : {}),
       };
-      return { ok: true, response };
+      return { ok: true, response, bytes };
     }
   } catch (error) {
     if (options.signal.aborted && !timedOut) return fail('cancelled', 'Cancelled.');

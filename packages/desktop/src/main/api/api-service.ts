@@ -10,7 +10,10 @@ import { ApiHistory, ResponseSummary, type HistoryEntry } from '../../shared/api
 import { checkTarget } from '../../shared/api-guard.js';
 import { ApiProjects, ProjectApiSpec, ProjectStack, ProjectSyncRequestDto, StackFactsDto } from '../../shared/api-project.js';
 import type { ProjectList, ProjectSyncResult } from '../../shared/api-ipc.js';
-import type { SendOutcome } from './api-sender.js';
+import { AfterRules } from '../../shared/api-after.js';
+import { CookieJar } from '../../shared/api-cookies.js';
+import type { AfterView, CookiesView, SaveBodyResult } from '../../shared/api-ipc.js';
+import type { CookieHooks, SendOutcome } from './api-sender.js';
 import type { ApiStorePort } from './api-store.js';
 import type { ProjectReaderPort } from './project-reader.js';
 
@@ -18,7 +21,9 @@ export interface ApiServiceDeps {
   readonly collections: ApiStorePort<ApiCollections>;
   readonly envs: ApiStorePort<ApiEnvironments>;
   readonly history: ApiStorePort<ApiHistory>;
-  readonly send: (prepared: ReturnType<ApiRequest['prepare']>, signal: AbortSignal) => Promise<SendOutcome>;
+  readonly send: (prepared: ReturnType<ApiRequest['prepare']>, signal: AbortSignal, cookies: CookieHooks) => Promise<SendOutcome>;
+  /** 응답 본문을 저장 위치를 물어 파일로 쓴다. 취소하면 null(없으면 저장 기능이 꺼진다) */
+  readonly saveBytes?: (fileName: string, bytes: Uint8Array) => Promise<string | null>;
   readonly newId: () => string;
   readonly now: () => Date;
   /** 저장 위치를 물어 파일로 쓴다. 취소하면 null */
@@ -32,6 +37,8 @@ export interface ApiServiceDeps {
 
 const message = (e: unknown): string => (e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Something went wrong.');
 const SECRET_VAR_RE = /^(token|api_?key|password|passwd|secret|.*_(token|key|secret|password))$/i;
+/** accessToken · apiKey · clientSecret 같은 낙타 표기 비밀 이름 */
+const CAMEL_SECRET_RE = /[a-z0-9](Token|Key|Secret|Password|Pwd)$/;
 
 /**
  * API 탭의 일: 불러오기 → 엔티티 메서드 → 저장. 요청 정의가 화면으로 나갈 때는 비밀이 변수 이름이고,
@@ -42,6 +49,14 @@ export class ApiService {
   /** 지금 읽는 중인 프로젝트 루트 */
   private readonly syncing = new Set<string>();
   private queue: Promise<unknown> = Promise.resolve();
+  /** 쿠키 저장소(메모리에만: 앱을 끄면 사라진다) */
+  private jar = CookieJar.empty();
+  /** 마지막 응답의 바이트(파일로 저장용, 하나만 들고 있는다) */
+  private lastBody: { readonly id: string; readonly bytes: Uint8Array; readonly fileName: string } | null = null;
+  private readonly cookieHooks: CookieHooks = {
+    header: (url) => this.jar.header(url, this.deps.now().getTime()),
+    store: (url, setCookies) => void (this.jar = this.jar.store(url, setCookies, this.deps.now().getTime())),
+  };
 
   constructor(private readonly deps: ApiServiceDeps) {}
 
@@ -65,6 +80,12 @@ export class ApiService {
     this.inflight.set(json.key, controller);
     try {
       const request = ApiRequest.create(json.request);
+      let rules: AfterRules;
+      try {
+        rules = AfterRules.of(request.props.after);
+      } catch (e) {
+        return { ok: false, kind: 'invalid', error: message(e), missing: [], historyId: null };
+      }
       const envs = await this.deps.envs.load();
       const env = envs.find(envs.selectedId);
       const secretNames = new Set((env?.props.vars ?? []).filter((v) => v.secret).map((v) => v.name));
@@ -77,7 +98,7 @@ export class ApiService {
       }
       const target = checkTarget(prepared.url);
       if (!target.ok) return { ok: false, kind: 'blocked', error: target.error, missing: [], historyId: null };
-      const outcome = await this.deps.send(prepared, controller.signal);
+      const outcome = await this.deps.send(prepared, controller.signal, this.cookieHooks);
       const safe = request.withSecretsAsVariables().request.props;
       const entryBase = { id: this.deps.newId(), at: this.deps.now().toISOString(), request: safe };
       if (!outcome.ok) {
@@ -85,12 +106,63 @@ export class ApiService {
         return { ok: false, kind: outcome.kind, error: outcome.error, missing: [], historyId: null };
       }
       const summary = ResponseSummary.create(outcome.response);
-      await this.remember({ ...entryBase, status: summary.props.status, ms: summary.props.ms, size: summary.props.size, error: null, response: summary.forHistory(prepared.secrets).props });
-      return { ok: true, response: summary.props, masked: summary.props.body.length <= 100_000 ? summary.masked(prepared.secrets).props : null, historyId: entryBase.id };
+      this.lastBody = { id: entryBase.id, bytes: outcome.bytes ?? new TextEncoder().encode(outcome.response.body), fileName: ResponseSummary.fileName(prepared.url, summary.props.contentType) };
+      const applied = rules.isEmpty() ? null : await this.applyAfter(rules, summary);
+      const hide = [...prepared.secrets, ...(applied?.hidden ?? [])];
+      await this.remember({ ...entryBase, status: summary.props.status, ms: summary.props.ms, size: summary.props.size, error: null, response: summary.forHistory(hide).props });
+      return {
+        ok: true,
+        response: summary.props,
+        masked: summary.props.body.length <= 100_000 ? summary.masked(hide).props : null,
+        historyId: entryBase.id,
+        after: applied?.view ?? null,
+        envs: applied?.envs ?? null,
+        cookies: this.jar.size(this.deps.now().getTime()),
+      };
     } catch (e) {
       return { ok: false, kind: 'network', error: message(e), missing: [], historyId: null };
     } finally {
       this.inflight.delete(json.key);
+    }
+  }
+
+  /** 응답 뒤 규칙을 돌리고, 꺼낸 값을 고른 환경에 저장한다. 비밀 변수 값은 화면용 결과에서 가린다 */
+  private async applyAfter(rules: AfterRules, summary: ResponseSummary): Promise<{ readonly view: AfterView; readonly envs: EnvironmentsView | null; readonly hidden: readonly string[] }> {
+    const result = rules.run(summary.props);
+    const found = result.captured.filter((c) => c.found);
+    const cap = await this.serial(async () => {
+      const before = await this.deps.envs.load();
+      const r = before.capture(found, (name) => SECRET_VAR_RE.test(name) || CAMEL_SECRET_RE.test(name));
+      if (r.envs !== before) await this.deps.envs.save(r.envs);
+      return { ...r, changed: r.envs !== before };
+    });
+    const hidden = found.filter((c) => cap.secret.has(c.name) && c.value.length >= 4).map((c) => c.value);
+    return {
+      view: { captured: result.captured.map((c) => (c.found && cap.secret.has(c.name) ? { ...c, value: '••••' } : c)), checks: result.checks, note: cap.note },
+      envs: cap.changed ? EnvironmentsDto.view(cap.envs) : null,
+      hidden,
+    };
+  }
+
+  cookies(): CookiesView {
+    const now = this.deps.now().getTime();
+    return { count: this.jar.size(now), items: this.jar.list(now) };
+  }
+
+  clearCookies(domain?: unknown): CookiesView {
+    this.jar = typeof domain === 'string' && domain !== '' ? this.jar.removeDomain(domain) : this.jar.clear();
+    return this.cookies();
+  }
+
+  /** 마지막 응답 본문 전체를 파일로(기록 id 가 마지막 응답이어야 한다) */
+  async saveBody(historyId: unknown): Promise<SaveBodyResult> {
+    const last = this.lastBody;
+    if (last === null || typeof historyId !== 'string' || historyId !== last.id) return { ok: false, error: 'Only the latest response can be saved. Send the request again.' };
+    if (this.deps.saveBytes === undefined) return { ok: false, error: 'Saving files is not available.' };
+    try {
+      return { ok: true, saved: await this.deps.saveBytes(last.fileName, last.bytes) };
+    } catch (e) {
+      return { ok: false, error: message(e) };
     }
   }
 

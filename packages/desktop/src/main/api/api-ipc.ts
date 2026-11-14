@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { join } from 'node:path';
+import { readFile, stat } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import type { IpcMain } from 'electron';
 import { API_IPC } from '../../shared/api-ipc.js';
 import { LocalTarget } from '../../shared/api-test.js';
@@ -25,6 +26,21 @@ export interface ApiIpcDeps {
   readonly testModel: { readonly plan: (prompt: string) => Promise<unknown>; readonly fixes: (prompt: string) => Promise<unknown> };
   /** 시험 리포트(.md)를 저장 위치를 물어 쓴다. 취소하면 null */
   readonly saveReport: (fileName: string, text: string) => Promise<string | null>;
+  /** 응답 본문을 저장 위치를 물어 파일로 쓴다. 취소하면 null */
+  readonly saveBytes: (fileName: string, bytes: Uint8Array) => Promise<string | null>;
+  /** multipart 에 붙일 파일 고르기. 취소하면 null */
+  readonly pickFile: () => Promise<string | null>;
+  /** User-Agent 를 적지 않은 요청에 쓸 값(예: rauha/0.2.1) */
+  readonly userAgent: string;
+}
+
+/** multipart 파일 필드: 보통 파일만, 100MB 까지 */
+const UPLOAD_MAX = 100 * 1024 * 1024;
+async function readUploadFile(path: string): Promise<{ bytes: Uint8Array; name: string }> {
+  const s = await stat(path);
+  if (!s.isFile()) throw new Error('It is not a file.');
+  if (s.size > UPLOAD_MAX) throw new Error(`It is larger than ${UPLOAD_MAX / 1024 / 1024} MB.`);
+  return { bytes: new Uint8Array(await readFile(path)), name: basename(path) };
 }
 
 /** API 탭의 main 쪽: api:* 채널. 요청은 이 프로세스가 보낸다. */
@@ -37,7 +53,8 @@ export function registerApiIpc(ipc: Pick<IpcMain, 'handle'>, deps: ApiIpcDeps): 
     collections,
     envs,
     history: new HistoryStore(join(deps.dataDir, 'api-history.json')),
-    send: (prepared, signal) => sendPrepared(prepared, { signal, resolve }),
+    send: (prepared, signal, cookies) => sendPrepared(prepared, { signal, resolve, cookies, readFile: readUploadFile, userAgent: deps.userAgent }),
+    saveBytes: deps.saveBytes,
     newId: () => randomUUID(),
     now: () => new Date(),
     saveFile: deps.saveFile,
@@ -74,5 +91,9 @@ export function registerApiIpc(ipc: Pick<IpcMain, 'handle'>, deps: ApiIpcDeps): 
   ipc.handle(API_IPC.testsPlan, (_e, req: unknown) => tests.plan(req));
   ipc.handle(API_IPC.testsRun, (_e, req: unknown) => tests.run(req));
   ipc.handle(API_IPC.testsSave, (_e, planId: unknown) => tests.save(planId));
+  ipc.handle(API_IPC.cookiesGet, () => service.cookies());
+  ipc.handle(API_IPC.cookiesClear, (_e, domain: unknown) => service.clearCookies(domain));
+  ipc.handle(API_IPC.saveBody, (_e, id: unknown) => service.saveBody(id));
+  ipc.handle(API_IPC.pickFile, () => deps.pickFile());
   return service;
 }

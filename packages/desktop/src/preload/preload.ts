@@ -216,6 +216,12 @@ const api: RauhaApi = {
       run: (req) => ipcRenderer.invoke(API_IPC.testsRun, req),
       save: (planId) => ipcRenderer.invoke(API_IPC.testsSave, planId),
     },
+    cookies: {
+      get: () => ipcRenderer.invoke(API_IPC.cookiesGet),
+      clear: (domain) => ipcRenderer.invoke(API_IPC.cookiesClear, domain),
+    },
+    saveBody: (historyId) => ipcRenderer.invoke(API_IPC.saveBody, historyId),
+    pickFile: () => ipcRenderer.invoke(API_IPC.pickFile),
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

@@ -1,4 +1,4 @@
-import { API_METHODS, ApiError, ApiRequest, type ApiAuth, type ApiBody, type ApiMethod, type KeyValue } from './api-request.js';
+import { API_METHODS, ApiError, ApiRequest, type ApiAuth, type ApiBody, type ApiMethod, type KeyValue, type MultipartPart } from './api-request.js';
 
 /** 셸 흉내: 작은따옴표·큰따옴표·역슬래시·줄 잇기(\ 줄바꿈)를 풀어 낱말로 나눈다. 명령 치환($(...))은 하지 않는다. */
 export function shellWords(line: string): string[] {
@@ -129,7 +129,7 @@ export function parseCurl(command: string, id: string): ApiRequest {
   let url: string | null = null;
   const headers: KeyValue[] = [];
   const data: string[] = [];
-  const form: KeyValue[] = [];
+  const form: MultipartPart[] = [];
   let user: string | null = null;
   let getMode = false;
   let head = false;
@@ -182,9 +182,13 @@ export function parseCurl(command: string, id: string): ApiRequest {
       }
       case '-F':
       case '--form': {
+        // curl -F 는 multipart: name=@path 는 파일(;type= 등은 뗀다), name=<path 도 파일 내용
         const v = arg();
         const e = v.indexOf('=');
-        form.push(kvOf(e === -1 ? v : v.slice(0, e), e === -1 ? '' : v.slice(e + 1)));
+        const key = e === -1 ? v : v.slice(0, e);
+        const value = e === -1 ? '' : v.slice(e + 1);
+        const file = /^[@<]/.test(value);
+        form.push({ key, value: file ? (value.slice(1).split(';')[0] ?? '').replace(/^"(.*)"$/, '$1') : value, enabled: true, file });
         break;
       }
       case '-u':
@@ -241,7 +245,7 @@ export function parseCurl(command: string, id: string): ApiRequest {
   } else if (info !== null) url = (info[1] as string) + url.slice(info[0].length);
   let { url: bare, query } = splitQuery(url);
   let body: ApiBody = { kind: 'none' };
-  if (form.length > 0) body = { kind: 'form', fields: form };
+  if (form.length > 0) body = { kind: 'multipart', parts: form };
   else if (data.length > 0) {
     if (getMode) query = [...query, ...bodyFromQuery(data.join('&'))];
     else body = bodyFrom(data.join('&'), ct);
@@ -272,7 +276,8 @@ export function toCurl(request: ApiRequest): string {
   const parts: string[] = ['curl'];
   if (p.method !== 'GET') parts.push(`-X ${p.method}`);
   const qs = p.query.filter((q) => q.enabled && q.key !== '');
-  let url = qs.length === 0 ? p.url : `${p.url}${p.url.includes('?') ? '&' : '?'}${qs.map((q) => `${encodeURIComponent(q.key)}=${encodeURIComponent(q.value).replace(/%7B%7B/gi, '{{').replace(/%7D%7D/gi, '}}')}`).join('&')}`;
+  const path = safe.urlWithPathVars();
+  let url = qs.length === 0 ? path : `${path}${path.includes('?') ? '&' : '?'}${qs.map((q) => `${encodeURIComponent(q.key)}=${encodeURIComponent(q.value).replace(/%7B%7B/gi, '{{').replace(/%7D%7D/gi, '}}')}`).join('&')}`;
   if (p.auth.kind === 'apikey' && p.auth.in === 'query') url = `${url}${url.includes('?') ? '&' : '?'}${p.auth.name}=${p.auth.value}`;
   parts.push(sq(url));
   for (const h of p.headers) if (h.enabled && h.key !== '') parts.push(`-H ${sq(`${h.key}: ${h.value}`)}`);
@@ -285,6 +290,10 @@ export function toCurl(request: ApiRequest): string {
     if (!p.headers.some((h) => h.key.toLowerCase() === 'content-type')) parts.push(`-H ${sq('Content-Type: application/json')}`);
     parts.push(`--data-raw ${sq(b.text)}`);
   } else if (b.kind === 'raw') parts.push(`--data-raw ${sq(b.text)}`);
-  else if (b.kind === 'form') for (const f of b.fields) if (f.enabled && f.key !== '') parts.push(`--data-urlencode ${sq(`${f.key}=${f.value}`)}`);
+  else if (b.kind === 'form') {
+    for (const f of b.fields) if (f.enabled && f.key !== '') parts.push(`--data-urlencode ${sq(`${f.key}=${f.value}`)}`);
+  } else if (b.kind === 'multipart') {
+    for (const f of b.parts) if (f.enabled && f.key !== '') parts.push(`-F ${sq(f.file ? `${f.key}=@${f.value}` : `${f.key}=${f.value}`)}`);
+  }
   return parts.join(' \\\n  ');
 }

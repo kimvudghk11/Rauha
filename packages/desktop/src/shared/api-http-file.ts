@@ -90,9 +90,10 @@ const fieldLine = (s: string): string => s.replace(/[\r\n]+/g, ' ');
 export function toHttpFile(requests: readonly ApiRequest[]): string {
   const out: string[] = [];
   for (const r of requests) {
-    const p = r.withSecretsAsVariables().request.props;
+    const safe = r.withSecretsAsVariables().request;
+    const p = safe.props;
     const qs = p.query.filter((q) => q.enabled && q.key !== '');
-    let url = p.url;
+    let url = safe.urlWithPathVars();
     if (qs.length > 0) url += `${url.includes('?') ? '&' : '?'}${qs.map((q) => `${encodeURIComponent(q.key)}=${encodeURIComponent(q.value).replace(/%7B%7B/gi, '{{').replace(/%7D%7D/gi, '}}')}`).join('&')}`;
     if (p.auth.kind === 'apikey' && p.auth.in === 'query') url += `${url.includes('?') ? '&' : '?'}${p.auth.name}=${p.auth.value}`;
     const block = [`### ${fieldLine(p.name)}`, `${p.method} ${fieldLine(url)} HTTP/1.1`];
@@ -106,6 +107,16 @@ export function toHttpFile(requests: readonly ApiRequest[]): string {
     if (b.kind === 'form' && !p.headers.some((h) => h.key.toLowerCase() === 'content-type')) block.push('Content-Type: application/x-www-form-urlencoded');
     if (b.kind === 'json' || b.kind === 'raw') block.push('', b.text);
     else if (b.kind === 'form') block.push('', b.fields.filter((f) => f.enabled && f.key !== '').map((f) => `${encodeURIComponent(f.key)}=${encodeURIComponent(f.value).replace(/%7B%7B/gi, '{{').replace(/%7D%7D/gi, '}}')}`).join('&'));
+    else if (b.kind === 'multipart') {
+      // JetBrains·VS Code REST Client 의 multipart 모양: 파일은 "< 경로"
+      const boundary = 'rauha-boundary';
+      block.push(`Content-Type: multipart/form-data; boundary=${boundary}`, '');
+      for (const f of b.parts.filter((x) => x.enabled && x.key !== '')) {
+        const name = fieldLine(f.key).replace(/"/g, '');
+        block.push(`--${boundary}`, f.file ? `Content-Disposition: form-data; name="${name}"; filename="${fieldLine(f.value.split(/[\\/]/).pop() ?? 'file')}"` : `Content-Disposition: form-data; name="${name}"`, '', f.file ? `< ${fieldLine(f.value)}` : fieldLine(f.value));
+      }
+      block.push(`--${boundary}--`);
+    }
     out.push(block.join('\n'));
   }
   return `${out.join('\n\n')}\n`;

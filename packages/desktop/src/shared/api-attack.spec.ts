@@ -76,9 +76,12 @@ describe('헤더 주입(CRLF)', () => {
     expect(() => req({ auth: { kind: 'apikey', name: 'X-Key\r\nEvil', value: 'v', in: 'header' } }).prepare(vars({}))).toThrow(ApiError);
     expect(() => req({ auth: { kind: 'apikey', name: 'X-Key', value: '{{t}}', in: 'header' } }).prepare(vars({ t: 'a\u0000b' }))).toThrow(ApiError);
   });
-  it('보통 헤더(탭·유니코드 포함)는 그대로 보낸다', () => {
-    const p = req({ headers: [{ key: 'X-Name', value: 'a\tb 한글', enabled: true }] }).prepare(vars({}));
-    expect(p.headers).toContainEqual(['X-Name', 'a\tb 한글']);
+  it('보통 헤더(탭·Latin-1 글자 포함)는 그대로 보낸다', () => {
+    const p = req({ headers: [{ key: 'X-Name', value: 'a\tb café', enabled: true }] }).prepare(vars({}));
+    expect(p.headers).toContainEqual(['X-Name', 'a\tb café']);
+  });
+  it('한글처럼 HTTP 헤더에 못 싣는 글자는 보내기 전에 이유를 알린다(실제 전송은 알기 어려운 오류로 실패한다)', () => {
+    expect(() => req({ headers: [{ key: 'X-Name', value: 'a 한글', enabled: true }] }).prepare(vars({}))).toThrow(/X-Name has "한"/);
   });
   it('쿼리 값의 줄바꿈은 인코딩되어 주소에 안전하게 들어간다', () => {
     const p = req({ query: [{ key: 'q', value: 'a\r\nb', enabled: true }] }).prepare(vars({}));

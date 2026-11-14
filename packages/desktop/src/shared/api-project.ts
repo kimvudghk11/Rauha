@@ -94,7 +94,7 @@ export class ProjectStack {
 export interface GeneratedRequest {
   /** 다시 읽어도 같은 값: `메서드 경로` */
   readonly key: string;
-  readonly request: Omit<ApiRequestProps, 'id'>;
+  readonly request: Omit<ApiRequestProps, 'id' | 'pathVars' | 'after'> & Partial<Pick<ApiRequestProps, 'pathVars' | 'after'>>;
 }
 export interface GeneratedGroup {
   readonly key: string;

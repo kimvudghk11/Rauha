@@ -914,6 +914,17 @@ void app.whenReady().then(async () => {
       writeFileSync(result.filePath, text, 'utf8');
       return result.filePath;
     },
+    saveBytes: async (fileName, bytes) => {
+      const result = await dialog.showSaveDialog(window ?? undefined!, { title: 'Save response', defaultPath: join(app.getPath('downloads'), fileName), properties: ['createDirectory', 'showOverwriteConfirmation'] });
+      if (result.canceled || !result.filePath) return null;
+      writeFileSync(result.filePath, bytes);
+      return result.filePath;
+    },
+    pickFile: async () => {
+      const result = await dialog.showOpenDialog(window ?? undefined!, { title: 'Attach a file', properties: ['openFile'] });
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    },
+    userAgent: `rauha/${app.getVersion()}`,
   });
   ipcMain.handle(IPC.commandsSave, (_e, book: unknown) => commandStore.save(book));
   ipcMain.handle(IPC.teamGet, () => teamView(team));

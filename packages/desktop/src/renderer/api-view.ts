@@ -6,6 +6,7 @@ import type { ApiApi, CollectionResult, ProjectList, ProjectRow, SendResult } fr
 import { API_METHODS, ApiRequest, variablesIn, type ApiMethod, type ApiRequestProps } from '../shared/api-request.js';
 import type { HistoryEntry } from '../shared/api-response.js';
 import { el, isEnterKey } from './dom.js';
+import { openCookieDialog } from './api-cookie-dialog.js';
 import { buildRequestEditor } from './api-editor.js';
 import { openEnvDialog } from './api-env-dialog.js';
 import { askText, METHOD_CLASS } from './api-parts.js';
@@ -52,6 +53,8 @@ export function buildApi(deps: ApiViewDeps) {
   let dirty = false;
   let sending = false;
   let counter = 0;
+  /** 쿠키 저장소의 쿠키 수(환경 바 단추 글) */
+  let cookieCount = 0;
   const lastResult = new Map<string, SendResult>();
 
   // ── 머리줄 ──
@@ -107,7 +110,7 @@ export function buildApi(deps: ApiViewDeps) {
   urlInput.placeholder = '{{base_url}}/users or https://api.example.com/users';
   urlInput.spellcheck = false;
   urlInput.setAttribute('aria-label', 'Request URL');
-  urlInput.addEventListener('input', () => (edit({ url: urlInput.value }), paintVars()));
+  urlInput.addEventListener('input', () => (edit({ url: urlInput.value }), editor.setUrl(urlInput.value), paintVars()));
   urlInput.addEventListener('keydown', (e) => {
     if (isEnterKey(e)) {
       e.preventDefault();
@@ -145,11 +148,14 @@ export function buildApi(deps: ApiViewDeps) {
     }
   }
 
-  const editor = buildRequestEditor(() => {
-    draft = editor.read(draft);
-    markDirty();
-  });
-  const response = buildResponseView({ copy: deps.copy, say });
+  const editor = buildRequestEditor(
+    () => {
+      draft = editor.read(draft);
+      markDirty();
+    },
+    { pickFile: () => deps.api.pickFile() },
+  );
+  const response = buildResponseView({ copy: deps.copy, say, saveBody: (id) => deps.api.saveBody(id) });
   response.empty();
   const requestPane = el('div', 'pane api-req');
   requestPane.append(nameBar, urlBar, varsLine, editor.root);
@@ -282,7 +288,11 @@ export function buildApi(deps: ApiViewDeps) {
     baseInput.addEventListener('change', () => void commit());
 
     const label = el('span', 'api-env-label', 'base_url');
-    envHost.append(badge, sel, label, baseInput, status, button('Manage', 'btn sm', () => openEnvDialog({ envs: () => envs, apply: (op) => deps.api.env.apply(op), changed: (v) => ((envs = v), paintEnv()) }, envs.selectedId)));
+    const cookiesBtn = button(cookieCount > 0 ? `Cookies (${cookieCount})` : 'Cookies', 'btn sm api-cookies-btn', () =>
+      void openCookieDialog({ get: () => deps.api.cookies.get(), clear: (d) => deps.api.cookies.clear(d), changed: (n) => ((cookieCount = n), (cookiesBtn.textContent = n > 0 ? `Cookies (${n})` : 'Cookies')) }),
+    );
+    cookiesBtn.title = 'Cookies the servers set. They are sent back automatically, like a browser.';
+    envHost.append(badge, sel, label, baseInput, status, cookiesBtn, button('Manage', 'btn sm', () => openEnvDialog({ envs: () => envs, apply: (op) => deps.api.env.apply(op), changed: (v) => ((envs = v), paintEnv()) }, envs.selectedId)));
     paintVars();
     testPanel.setTarget({ env: env?.name ?? null, baseUrl: base });
   }
@@ -450,6 +460,12 @@ export function buildApi(deps: ApiViewDeps) {
       lastResult.set(key, result);
       response.show(result);
       setSending(false);
+    }
+    if (result.ok) {
+      cookieCount = result.cookies;
+      // 응답에서 변수를 저장했으면 환경 바·변수 칩을 새 값으로
+      if (result.envs !== null) envs = result.envs;
+      paintEnv();
     }
     if (result.ok || result.kind !== 'busy') history = await deps.api.history.get();
     if (side === 'history') paintSide();
