@@ -9,7 +9,8 @@ import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { python } from '@codemirror/lang-python';
 import { rust } from '@codemirror/lang-rust';
-import { sql } from '@codemirror/lang-sql';
+import { MySQL, PostgreSQL, SQLite, sql } from '@codemirror/lang-sql';
+import { acceptCompletion, autocompletion } from '@codemirror/autocomplete';
 import { xml } from '@codemirror/lang-xml';
 import { yaml } from '@codemirror/lang-yaml';
 import { bracketMatching, foldGutter, foldKeymap, HighlightStyle, indentOnInput, indentUnit, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
@@ -18,7 +19,7 @@ import { properties } from '@codemirror/legacy-modes/mode/properties';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
 import { toml } from '@codemirror/legacy-modes/mode/toml';
 import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
-import { Compartment, EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state';
+import { Compartment, EditorState, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField, type Extension, type Text } from '@codemirror/state';
 import { Decoration, drawSelection, dropCursor, EditorView, GutterMarker, gutter, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, keymap, lineNumbers, rectangularSelection, type DecorationSet } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import type { LineMark } from '../shared/code-changes.js';
@@ -197,6 +198,9 @@ const blameField = StateField.define<RangeSet<GutterMarker>>({
   },
 });
 const blameSlot = new Compartment();
+/** 언어(구문 색): SQL 은 DB 탭이 테이블·컬럼을 아는 자동 완성으로 바꿔 끼운다 */
+const langSlot = new Compartment();
+const SQL_DIALECTS = { sqlite: SQLite, mysql: MySQL, postgres: PostgreSQL } as const;
 
 /** 문법·타입 오류 밑줄. 글을 고치면 밑줄도 글자를 따라 움직이고, 다음 진단 결과가 오면 통째로 바뀐다. */
 const setDiagnostics = StateEffect.define<readonly NavDiagnostic[]>();
@@ -369,7 +373,7 @@ export class CodeEditor {
         EditorState.tabSize.of(indent.tabWidth),
         EditorState.readOnly.of(readOnly),
         EditorView.editable.of(!readOnly),
-        languageExtension(language),
+        langSlot.of(languageExtension(language)),
         theme,
         this.clickNav(),
         EditorView.updateListener.of((u) => {
@@ -382,6 +386,26 @@ export class CodeEditor {
         }),
       ],
     });
+  }
+
+  /**
+   * SQL 자동 완성(DBeaver 처럼): 키워드 + 이 DB 의 테이블·컬럼. 목록이 뜨면 Tab·Enter 로 고르고, 없으면 Tab 은 들여쓰기.
+   * schema 는 { 테이블: [컬럼…] } (컬럼을 모르면 빈 목록).
+   */
+  setSqlAssist(path: string, dialect: 'sqlite' | 'mysql' | 'postgres', schema: Readonly<Record<string, readonly string[]>>, defaultTable?: string): void {
+    const ext: Extension = [
+      sql({ dialect: SQL_DIALECTS[dialect], schema: Object.fromEntries(Object.entries(schema).map(([t, cols]) => [t, [...cols]])), upperCaseKeywords: true, ...(defaultTable !== undefined && schema[defaultTable] !== undefined ? { defaultTable } : {}) }),
+      autocompletion({ activateOnTyping: true, maxRenderedOptions: 60, icons: true }),
+      Prec.highest(keymap.of([{ key: 'Tab', run: acceptCompletion }])),
+    ];
+    const effects = langSlot.reconfigure(ext);
+    if (this.current === path) {
+      this.view.dispatch({ effects });
+      this.states.set(path, this.view.state);
+    } else {
+      const st = this.states.get(path);
+      if (st !== undefined) this.states.set(path, st.update({ effects }).state);
+    }
   }
 
   /** 파일을 처음 열 때 상태를 만든다 */

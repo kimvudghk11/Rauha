@@ -36,14 +36,10 @@ const TIMEOUTS: readonly (readonly [string, string])[] = [
 ];
 const LAST_KEY = 'rauha.db.last';
 const HISTORY_KEY = 'rauha.db.history';
+/** 연결마다 쓰던 SQL(뒤에 연결 id) */
+const SCRIPT_KEY = 'rauha.db.sql.';
 /** 접어 둔 연결 그룹 이름들 */
 const CLOSED_GROUPS_KEY = 'rauha.db.closedGroups';
-/** 편집기에 처음 넣어 두는 예시(연결 종류마다) */
-const SAMPLES: Readonly<Record<DbKind, string>> = {
-  sqlite: 'SELECT name, type FROM sqlite_schema ORDER BY name;',
-  mysql: 'SHOW TABLES;',
-  postgres: 'SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name;',
-};
 const KIND_LABEL: Readonly<Record<DbKind, string>> = { sqlite: 'SQLite', mysql: 'MySQL', postgres: 'PostgreSQL' };
 /** 연결 목록의 종류 표시(작은 글자 배지) */
 const KIND_BADGE: Readonly<Record<DbKind, string>> = { sqlite: 'SQ', mysql: 'My', postgres: 'Pg' };
@@ -327,8 +323,15 @@ export function buildDb(deps: DbViewDeps) {
 
   // ── SQL 칸 ──
   const editorHost = el('div', 'db-editor');
-  const editor = new CodeEditor(editorHost, { onChange: () => undefined, onCursor: () => undefined });
-  editor.add('sql', SAMPLES.sqlite, 'sql', INDENT, false);
+  // DB 마다 쓰던 SQL 을 따로 기억한다(DBeaver 의 연결별 스크립트처럼). 예시 쿼리는 넣지 않는다
+  const scriptKey = (id: string): string => `${SCRIPT_KEY}${id}`;
+  const editor = new CodeEditor(editorHost, {
+    onChange: () => {
+      if (current !== null) store.set(scriptKey(current.id), (editor.textOf('sql') ?? '').slice(0, 200_000));
+    },
+    onCursor: () => undefined,
+  });
+  editor.add('sql', '', 'sql', INDENT, false);
   editor.show('sql');
   editorHost.addEventListener(
     'keydown',
@@ -655,6 +658,34 @@ export function buildDb(deps: DbViewDeps) {
     }
   }
 
+  /** 자동 완성에 지금 DB 의 테이블·(읽어 둔) 컬럼을 넣는다 */
+  function applyAssist(): void {
+    if (current === null) return;
+    const c = current;
+    const schema: Record<string, readonly string[]> = {};
+    for (const t of tables) {
+      const cols = columnCache.get(`${c.id}:${t.name}`);
+      schema[t.name] = Array.isArray(cols) ? (cols as readonly DbColumnInfo[]).map((x) => x.name) : [];
+    }
+    // 마지막으로 연 테이블의 컬럼은 테이블 이름 없이도 후보로
+    editor.setSqlAssist('sql', c.kind, schema, table ?? undefined);
+  }
+
+  /** DBeaver 처럼 메타데이터를 미리 읽어 컬럼 자동 완성을 채운다(테이블 80개까지, 하나씩, 다른 DB 로 옮기면 멈춤) */
+  async function preloadColumns(c: DbConnectionView, mine: number): Promise<void> {
+    let changed = 0;
+    for (const t of tables.slice(0, 80)) {
+      if (mine !== seq || current?.id !== c.id) return;
+      const key = `${c.id}:${t.name}`;
+      if (columnCache.has(key)) continue;
+      const r = await api.detail({ id: c.id, table: t.name });
+      if (mine !== seq) return;
+      if (r.ok) columnCache.set(key, r.data.columns);
+      if (++changed % 10 === 0) applyAssist();
+    }
+    if (mine === seq) applyAssist();
+  }
+
   async function toggleColumns(c: DbConnectionView, name: string): Promise<void> {
     const key = `${c.id}:${name}`;
     if (openTables.has(key)) {
@@ -668,6 +699,7 @@ export function buildDb(deps: DbViewDeps) {
     const r = await api.detail({ id: c.id, table: name });
     columnCache.set(key, r.ok ? r.data.columns : r.failure);
     paintFiles();
+    if (r.ok && current?.id === c.id) applyAssist();
   }
 
   function paintTables(): void {
@@ -833,8 +865,9 @@ export function buildDb(deps: DbViewDeps) {
     openTables.clear();
     status.set(c.id, 'busy');
     store.set(LAST_KEY, c.id);
-    // 편집기가 아직 예시 그대로면 이 DB 의 예시로 바꾼다
-    if (Object.values(SAMPLES).includes(editor.textOf('sql') ?? '')) editor.replace('sql', SAMPLES[c.kind], 'sql', INDENT, false);
+    // 이 DB 에서 쓰던 SQL 을 꺼낸다(처음이면 빈 칸). 자동 완성은 테이블을 읽은 뒤 채운다
+    editor.replace('sql', store.get(scriptKey(c.id)) ?? '', 'sql', INDENT, false);
+    editor.setSqlAssist('sql', c.kind, {});
     sqlBody.replaceChildren();
     structPane.hidden = true;
     paintFiles();
@@ -852,7 +885,11 @@ export function buildDb(deps: DbViewDeps) {
     tablesLoading = false;
     status.set(c.id, r.ok ? 'ok' : 'error');
     if (!r.ok) openFailure ??= r.failure;
-    else tables = r.data;
+    else {
+      tables = r.data;
+      applyAssist();
+      void preloadColumns(c, mine);
+    }
     sqlBody.replaceChildren();
     paintFiles();
     paintTables();
@@ -887,11 +924,12 @@ export function buildDb(deps: DbViewDeps) {
     if (current === null) return;
     table = name;
     paintTables();
-    editor.replace('sql', browseSql(current.kind, name), 'sql', INDENT, false);
     sub = 'sql';
     paintSub();
     if (!structPane.hidden && structPane.dataset['table'] !== name) structPane.hidden = true;
-    await run();
+    applyAssist();
+    // 편집기의 쓰던 SQL 은 그대로 두고 행 보기 문장만 돌린다
+    await run(browseSql(current.kind, name));
   }
 
   /** ⓘ: 결과 위 작은 칸에 그 테이블의 열(형식 · NULL · 기본값 · 키)과 CREATE 문을 보인다 */
@@ -1052,11 +1090,12 @@ export function buildDb(deps: DbViewDeps) {
     sqlBody.append(resultTable(result, { onPick: (p) => showCell(p, result.columns) }));
   }
 
-  async function run(): Promise<void> {
+  /** override 를 주면 편집기 글 대신 그 문장을 돌린다(테이블 행 보기: 쓰던 SQL 을 덮지 않게) */
+  async function run(override?: string): Promise<void> {
     if (running !== null) return;
     if (current === null) return paintRun('', { kind: 'bad-input', title: 'No database open', message: 'Add a SQLite file or a server first.', help: null });
     const range = editor.cursorRange();
-    const text = statementAt(editor.textOf('sql') ?? '', range.head, range.from === range.to ? null : range);
+    const text = override ?? statementAt(editor.textOf('sql') ?? '', range.head, range.from === range.to ? null : range);
     if (text === '') return paintRun('', { kind: 'bad-input', title: 'Nothing to run', message: 'Type a SQL statement first.', help: null });
     let statement: SqlStatement;
     try {

@@ -4,6 +4,8 @@
 
 - main 에 push 했지만 **v0.2.3 태그 뒤라 아직 설치 파일에 없는 것**: 8c56f4a(그룹 화살표·연결 칸 55%), 81bb85c(**DB 왼쪽을 DBeaver 같은 나무 하나로**: 그룹 › 연결 › Tables/Views › 테이블 › 컬럼, 검색칸 하나). 다음 태그(v0.2.4)에 들어간다.
 - v0.2.3 CI 는 진행 중이었다(끝났는지 Releases 확인 → README 크기 갱신).
+- **11:45 추가(커밋됨, 태그 전)**: DB SQL 자동 완성(키워드 + 테이블 + 미리 읽은 컬럼 80개 테이블까지, Tab·Enter 로 고름, 마지막 연 테이블 컬럼은 이름만으로), 예시 쿼리 없앰, **연결마다 쓰던 SQL 기억**(localStorage `rauha.db.sql.<id>`), 테이블 행 보기는 쓰던 SQL 을 덮지 않음.
+- **다음 할 일(사용자 요청, DBeaver 참고)**: SQL 편집기 **탭 여러 개**(연결마다 스크립트 파일 여러 개 — 지금은 연결당 1개를 localStorage 에): 앱 데이터 폴더 `db-scripts/<연결 id>/<이름>.sql` 로 저장(DTO 로 이름 검사), 탭 줄(+ 새 스크립트, 이름 바꾸기, 닫기), 연결을 누르면 그 연결의 마지막 탭, 탭 제목에 연결 이름·env 색. FROM 절의 테이블로 컬럼 후보를 고르는 문맥 완성(지금은 lang-sql 기본: table. 뒤 또는 defaultTable).
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
