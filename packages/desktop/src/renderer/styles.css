@@ -8,7 +8,7 @@
   --mono: Consolas, "Cascadia Code", "D2Coding", monospace;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.45 "Segoe UI", "Malgun Gothic", system-ui, sans-serif; overflow: hidden; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: var(--fs-md)/1.5 "Segoe UI", "Malgun Gothic", system-ui, sans-serif; overflow: hidden; }
 button { font: inherit; color: inherit; cursor: pointer; }
 
 .app { height: 100vh; display: grid; grid-template-columns: 52px minmax(0, 1fr); grid-template-rows: var(--titlebar-h, 0px) auto minmax(0, 1fr) var(--h-sm); }

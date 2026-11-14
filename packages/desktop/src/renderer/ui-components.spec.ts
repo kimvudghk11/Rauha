@@ -88,8 +88,8 @@ describe('공통 토큰', () => {
   it('간격 단계는 4 · 8 · 12 · 16 · 24다', () => {
     expect([root['--s1'], root['--s2'], root['--s3'], root['--s4'], root['--s5']]).toEqual(['4px', '8px', '12px', '16px', '24px']);
   });
-  it('글자 크기 단계는 11 · 12 · 13 · 15다', () => {
-    expect([root['--fs-xs'], root['--fs-sm'], root['--fs-md'], root['--fs-lg']]).toEqual(['11px', '12px', '13px', '15px']);
+  it('글자 크기 단계는 12 · 13 · 14 · 16이다(작은 글자가 읽기 어렵다는 피드백으로 한 단계씩 키움)', () => {
+    expect([root['--fs-xs'], root['--fs-sm'], root['--fs-md'], root['--fs-lg']]).toEqual(['12px', '13px', '14px', '16px']);
   });
 });
 

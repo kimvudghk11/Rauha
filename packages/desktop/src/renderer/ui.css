@@ -6,12 +6,12 @@
 :root {
   /* 간격 단계 */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
-  /* 글자 크기 단계 (본문 13) */
-  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px;
+  /* 글자 크기 단계 (본문 14) */
+  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px;
   /* 조작 부품 높이: 작게 24 · 기본 28 · 크게 32 (버튼·입력칸·탭이 같은 높이를 쓴다) */
   --h-sm: 24px; --h-md: 28px; --h-lg: 32px;
-  /* 화면 바깥 여백(탭 공통, 좁으면 8) · 칸 머리줄 높이 */
-  --page-pad: var(--s3); --h-head: 36px;
+  /* 화면 바깥 여백(탭 공통: 기본 16, 넓으면 24, 좁으면 12·8) · 칸 머리줄 높이 */
+  --page-pad: var(--s4); --h-head: 36px;
   /* 모서리 */
   --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-pill: 999px;
   /* 버튼 색 */
@@ -35,7 +35,7 @@
 .err { color: var(--red); font-size: var(--fs-sm); }
 .err:empty { display: none; }
 .lbl { color: var(--muted); font-size: var(--fs-sm); }
-.pad { padding: var(--s2) var(--s3); }
+.pad { padding: var(--s3) var(--s4); }
 .grow { flex: 1 1 auto; min-width: 0; }
 .tg { display: flex; align-items: center; gap: var(--s1); flex: none; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 
@@ -210,3 +210,5 @@ button.chip:hover { border-color: var(--accentfg); }
 
 /* 좁은 창(xs)에서는 모든 탭의 바깥 여백이 같이 줄어든다 */
 .app[data-tier=xs] { --page-pad: var(--s2); }
+.app[data-tier=s] { --page-pad: var(--s3); }
+.app[data-tier=xl] { --page-pad: var(--s5); }
