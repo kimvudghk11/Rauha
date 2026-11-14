@@ -16,6 +16,7 @@
 .db-side { flex: none; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .db-main { flex: none; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .db-files { flex: 0 1 auto; max-height: 55%; overflow-y: auto; }
+.db-files.db-tree { flex: 1 1 auto; max-height: none; }
 .db-tables { flex: 1; min-height: 0; overflow-y: auto; }
 .app[data-tier=xs] .db-body { grid-template-rows: minmax(0, 50%) minmax(0, 1fr); }
 .app[data-tier=xs] .db-files { max-height: 84px; }
@@ -197,3 +198,29 @@
 .db-retag-row input, .db-retag-row select { flex: 1; min-width: 0; }
 .db-group-chev { display: inline-block; font-size: var(--fs-md); line-height: 1; transition: transform .12s ease-out; }
 .db-group-chev.open { transform: rotate(90deg); }
+
+/* 왼쪽 나무(DBeaver Database Navigator 처럼): 연결 › Tables/Views › 테이블 › 컬럼 */
+.db-tree-chev { flex: none; width: 12px; display: inline-block; text-align: center; color: var(--muted); font-size: var(--fs-md); line-height: 1; transition: transform .12s ease-out; cursor: pointer; }
+.db-tree-chev.open { transform: rotate(90deg); }
+.db-node { --depth: 1; display: flex; align-items: center; gap: var(--s1); min-height: 24px; padding: 2px var(--s2) 2px calc(var(--s2) + var(--depth) * 14px); }
+.db-node .db-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-node-folder { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; cursor: pointer; }
+.db-node-folder:hover { color: var(--bright); }
+.db-folder-icon { flex: none; color: var(--yellow); }
+.db-node-table { cursor: pointer; }
+.db-node-table .db-tinfo, .db-node-folder .db-node-act { visibility: hidden; }
+.db-node-table:hover .db-tinfo, .db-node-table:focus-within .db-tinfo, .db-node-folder:hover .db-node-act { visibility: visible; }
+.db-node-col { font-size: var(--fs-xs); color: var(--text); }
+.db-col-key { flex: none; width: 14px; text-align: center; color: var(--muted); }
+.db-col-key.pk { color: var(--yellow); }
+.db-col-type { flex: none; color: var(--muted); font-family: var(--mono); font-size: var(--fs-xs); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-node-note { min-height: 22px; }
+.db-conn .db-tree-chev { margin-right: 2px; }
+/* 나무 안 연결은 한 줄(이름 + 흐린 주소) */
+.db-tree .db-conn { min-height: 28px; }
+.db-tree .db-conn-text { flex-direction: row; align-items: baseline; gap: 6px; }
+.db-tree .db-conn-text .db-name { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-tree .db-conn-sub { flex: 1; }
+/* 나무에서는 이름만(주소는 줄에 마우스를 올리면) — 좁은 사이드바에서 이름이 잘리지 않게 */
+.db-tree .db-conn-sub { display: none; }
+.db-tree .db-conn-text .db-name { max-width: none; flex: 1; }

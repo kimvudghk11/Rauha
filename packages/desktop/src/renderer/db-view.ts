@@ -1,4 +1,4 @@
-import { DB_LIMIT_NOTE, type DbApi, type DbFailure, type DbResultSet, type DbTableDetail, type DbTableInfo } from '../shared/db-api.js';
+import { DB_LIMIT_NOTE, type DbApi, type DbColumnInfo, type DbFailure, type DbResultSet, type DbTableDetail, type DbTableInfo } from '../shared/db-api.js';
 import type { DbConnectionView } from '../shared/db-connections.js';
 import { toCsv } from '../shared/db-csv.js';
 import type { DbSchemaGraph } from '../shared/db-diagram.js';
@@ -122,6 +122,11 @@ export function buildDb(deps: DbViewDeps) {
   let openFailure: DbFailure | null = null;
   let tables: readonly DbTableInfo[] = [];
   let tablesLoading = false;
+  /** 왼쪽 나무: 지금 연결을 접었나, 접은 Tables/Views 폴더, 컬럼을 펼친 테이블, 읽어 둔 컬럼 */
+  let currentCollapsed = false;
+  const closedFolders = new Set<string>();
+  const openTables = new Set<string>();
+  const columnCache = new Map<string, readonly DbColumnInfo[] | 'loading' | DbFailure>();
   let filter = '';
   let table: string | null = null;
   let sub: Sub = 'sql';
@@ -207,7 +212,7 @@ export function buildDb(deps: DbViewDeps) {
   // 연결이 많아지면: 이름·주소·그룹·환경으로 거르는 칸(5개 이상일 때만 보인다)
   let connQuery = '';
   const connFilter = el('input', 'sm db-conn-filter');
-  connFilter.placeholder = 'Filter connections (name, host, group, prod…)';
+  connFilter.placeholder = 'Filter connections and tables';
   connFilter.spellcheck = false;
   connFilter.setAttribute('aria-label', 'Filter connections');
   connFilter.addEventListener('input', () => {
@@ -237,6 +242,10 @@ export function buildDb(deps: DbViewDeps) {
   tablesHead.append(tablesTitle, tablesReload);
   const filterWrap = el('div', 'db-filterbar');
   filterWrap.append(tableFilter);
+  // DBeaver 의 Database Navigator 처럼 나무 하나: 그룹 › 연결 › Tables/Views › 테이블 › 컬럼
+  fileList.classList.add('db-tree');
+  fileList.setAttribute('role', 'tree');
+  tablesHead.hidden = filterWrap.hidden = tableList.hidden = true;
   side.append(filesHead, connFilter, fileList, tablesHead, filterWrap, tableList);
 
   // ── 가운데: 탭(SQL · Diagram) ──
@@ -426,12 +435,15 @@ export function buildDb(deps: DbViewDeps) {
 
   function paintFiles(): void {
     fileList.replaceChildren();
-    connFilter.hidden = connections.length < 5 && connQuery === '';
+    connFilter.hidden = connections.length === 0;
     if (connections.length === 0) {
       fileList.append(el('div', 'hint db-pad', 'No connections yet. Add a MySQL / PostgreSQL server, or type the path of a SQLite file.'));
       return;
     }
-    const groups = groupConnections(connections, connQuery);
+    // 검색어가 지금 연결의 테이블 이름에 걸리면 그 연결은 남긴다(아래에 걸린 테이블이 보이게)
+    const keep = new Set(groupConnections(connections, connQuery).flatMap((g) => g.items.map((x) => x.id)));
+    if (current !== null && connQuery.trim() !== '' && filterTables(tables, connQuery).length > 0) keep.add(current.id);
+    const groups = connQuery.trim() === '' ? groupConnections(connections, '') : groupConnections(connections.filter((x) => keep.has(x.id)), '');
     if (groups.length === 0) fileList.append(el('div', 'hint db-pad', `No connection matches “${connQuery.trim()}”.`));
     for (const g of groups) {
       // 그룹 머리(그룹을 하나도 쓰지 않으면 머리 없이 한 묶음). 검색 중에는 접힌 그룹도 펼쳐 보인다
@@ -458,9 +470,15 @@ export function buildDb(deps: DbViewDeps) {
   function paintConnRow(c: DbConnectionView, inGroup: boolean): void {
     {
       const env = envOf(c);
-      const row = el('div', `row-item db-row db-conn${c.id === current?.id ? ' on' : ''}${env.env !== null ? ` env-${env.env}` : ''}${env.guessed ? ' env-guessed' : ''}${inGroup ? ' in-group' : ''}`);
+      const isCurrent = c.id === current?.id;
+      const expanded = isCurrent && !currentCollapsed;
+      const row = el('div', `row-item db-row db-conn${isCurrent ? ' on' : ''}${env.env !== null ? ` env-${env.env}` : ''}${env.guessed ? ' env-guessed' : ''}${inGroup ? ' in-group' : ''}`);
       row.tabIndex = 0;
+      row.setAttribute('aria-expanded', String(expanded));
       row.title = `${KIND_LABEL[c.kind]} · ${c.path}${c.via !== null ? `\n${viaLine(c.via)}` : ''}`;
+      // DBeaver 처럼: 화살표로 펼치면 접속하고 아래에 테이블이 나온다
+      const chev = el('span', `db-tree-chev${expanded ? ' open' : ''}`, '›');
+      row.append(chev);
       const badge = el('span', `db-badge ${c.kind}`, KIND_BADGE[c.kind]);
       badge.setAttribute('aria-label', KIND_LABEL[c.kind]);
       const text = el('span', 'db-conn-text');
@@ -492,9 +510,21 @@ export function buildDb(deps: DbViewDeps) {
       actions.append(act('⚑', `Group & environment of ${c.name}`, () => openRetag(c)));
       actions.append(act('×', c.kind === 'sqlite' ? `Remove ${c.name} from this list (the file is not deleted)` : `Remove ${c.name} from this list (the database is not changed${c.savedPassword === true ? ', the saved password is deleted' : ''})`, () => void removeFile(c)));
       row.append(actions);
-      row.addEventListener('click', () => void openFile(c));
+      // 다른 연결이면 열고 펼친다. 지금 연결이면 접고 펼치기만
+      const activate = (): void => {
+        if (isCurrent) {
+          currentCollapsed = !currentCollapsed;
+          paintFiles();
+        } else {
+          currentCollapsed = false;
+          void openFile(c);
+        }
+      };
+      row.addEventListener('click', activate);
       row.addEventListener('keydown', (e) => {
-        if (isEnterKey(e)) void openFile(c);
+        if (isEnterKey(e)) activate();
+        else if (e.key === 'ArrowRight' && !expanded) activate();
+        else if (e.key === 'ArrowLeft' && expanded) activate();
       });
       row.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -508,14 +538,147 @@ export function buildDb(deps: DbViewDeps) {
         ]);
       });
       fileList.append(row);
+      if (expanded) paintChildren(c);
     }
   }
+
+  /** 펼친 연결 아래: 접속 중·실패·Tables·Views 폴더 → 테이블 → 컬럼 */
+  function paintChildren(c: DbConnectionView): void {
+    const node = (cls: string, depth: number): HTMLElement => {
+      const r = el('div', `row-item db-row db-node ${cls}`);
+      r.style.setProperty('--depth', String(depth));
+      return r;
+    };
+    if (tablesLoading) {
+      const r = node('db-node-note', 1);
+      r.append(loading(c.kind === 'sqlite' ? 'Reading tables…' : connectingText(c)));
+      return void fileList.append(r);
+    }
+    if (status.get(c.id) === 'error' && tables.length === 0) {
+      const r = node('db-node-note err', 1);
+      r.append(el('span', 'hint', 'Could not open. See the message on the right.'));
+      return void fileList.append(r);
+    }
+    const q = connQuery.trim();
+    // 연결 이름이 검색에 걸렸으면 테이블은 다 보이고, 아니면 테이블 이름으로 거른다
+    const connHit = q === '' || [c.name, c.path, c.group].some((t) => t.toLowerCase().includes(q.toLowerCase()));
+    const shown = connHit ? tables : filterTables(tables, q);
+    for (const kind of ['table', 'view'] as const) {
+      const list = shown.filter((t) => t.kind === kind);
+      if (list.length === 0 && (kind === 'view' || tables.some((t) => t.kind === 'view'))) continue;
+      const folderKey = `${c.id}:${kind}`;
+      const closed = closedFolders.has(folderKey) && q === '';
+      const head = node('db-node-folder', 1);
+      head.tabIndex = 0;
+      head.setAttribute('aria-expanded', String(!closed));
+      const total = tables.filter((t) => t.kind === kind).length;
+      head.append(el('span', `db-tree-chev${closed ? '' : ' open'}`, '›'), el('span', 'db-folder-icon', '▤'), el('span', 'grow', kind === 'table' ? 'Tables' : 'Views'), el('span', 'dim', list.length === total ? String(total) : `${list.length}/${total}`));
+      if (kind === 'table') {
+        const re = button('↻', 'btn icon sm ghost db-node-act', () => void reloadTables());
+        re.title = 'Reload the table list';
+        re.setAttribute('aria-label', 'Reload the table list');
+        re.addEventListener('click', (e) => e.stopPropagation());
+        head.append(re);
+      }
+      const toggleFolder = (): void => {
+        if (closedFolders.has(folderKey)) closedFolders.delete(folderKey);
+        else closedFolders.add(folderKey);
+        paintFiles();
+      };
+      head.addEventListener('click', toggleFolder);
+      head.addEventListener('keydown', (e) => {
+        if (isEnterKey(e)) toggleFolder();
+      });
+      fileList.append(head);
+      if (closed) continue;
+      if (list.length === 0) {
+        const r = node('db-node-note', 2);
+        r.append(el('span', 'hint', total === 0 ? (c.kind === 'postgres' ? 'No tables in the current schema. Other schemas: use SQL.' : 'No tables.') : `No table matches “${q}”.`));
+        fileList.append(r);
+        continue;
+      }
+      for (const t of list) paintTableNode(c, t, node);
+    }
+  }
+
+  function paintTableNode(c: DbConnectionView, t: DbTableInfo, node: (cls: string, depth: number) => HTMLElement): void {
+    const key = `${c.id}:${t.name}`;
+    const open = openTables.has(key);
+    const row = node(`db-node-table${t.name === table ? ' on' : ''}`, 2);
+    row.tabIndex = 0;
+    row.title = `${t.name} — click to show rows (SELECT * … LIMIT 100). Arrow to list columns.`;
+    const chev = el('span', `db-tree-chev${open ? ' open' : ''}`, '›');
+    chev.title = open ? 'Hide columns' : 'Show columns';
+    chev.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void toggleColumns(c, t.name);
+    });
+    row.append(chev, el('span', `db-ticon ${t.kind}`, t.kind === 'view' ? '◇' : '▦'), el('span', 'db-name grow', t.name));
+    const info = button('ⓘ', 'btn icon sm ghost db-tinfo', () => void showStructure(t.name));
+    info.title = `Structure of ${t.name} (columns, keys, CREATE)`;
+    info.setAttribute('aria-label', `Structure of ${t.name}`);
+    info.addEventListener('click', (e) => e.stopPropagation());
+    row.append(info);
+    row.addEventListener('click', () => void browseTable(t.name));
+    row.addEventListener('keydown', (e) => {
+      if (isEnterKey(e)) void browseTable(t.name);
+      else if (e.key === 'ArrowRight' && !open) void toggleColumns(c, t.name);
+      else if (e.key === 'ArrowLeft' && open) void toggleColumns(c, t.name);
+    });
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showMenu({ x: e.clientX, y: e.clientY }, [
+        { label: 'Show rows', pick: () => void browseTable(t.name) },
+        { label: open ? 'Hide columns' : 'Show columns', pick: () => void toggleColumns(c, t.name) },
+        { label: 'Structure (columns, keys, CREATE)', pick: () => void showStructure(t.name) },
+        { label: 'Copy name', pick: () => void copy(t.name).then((ok) => say(ok ? `Copied ${t.name}.` : 'Could not copy to the clipboard.')) },
+      ]);
+    });
+    fileList.append(row);
+    if (!open) return;
+    const cols = columnCache.get(key);
+    if (cols === undefined || cols === 'loading') {
+      const r = node('db-node-note', 3);
+      r.append(loading('Reading columns…'));
+      return void fileList.append(r);
+    }
+    if (!Array.isArray(cols)) {
+      const r = node('db-node-note err', 3);
+      r.append(el('span', 'hint', (cols as DbFailure).message));
+      return void fileList.append(r);
+    }
+    for (const col of cols as readonly DbColumnInfo[]) {
+      const r = node('db-node-col', 3);
+      r.title = `${col.name} ${col.type}${col.notNull ? ' NOT NULL' : ''}${col.defaultValue !== null ? ` DEFAULT ${col.defaultValue}` : ''}`;
+      r.append(el('span', `db-col-key${col.primaryKey > 0 ? ' pk' : ''}`, col.primaryKey > 0 ? '🔑' : '•'), el('span', 'db-name grow', col.name), el('span', 'db-col-type', col.type.toLowerCase() || 'any'));
+      fileList.append(r);
+    }
+  }
+
+  async function toggleColumns(c: DbConnectionView, name: string): Promise<void> {
+    const key = `${c.id}:${name}`;
+    if (openTables.has(key)) {
+      openTables.delete(key);
+      return paintFiles();
+    }
+    openTables.add(key);
+    if (Array.isArray(columnCache.get(key))) return paintFiles();
+    columnCache.set(key, 'loading');
+    paintFiles();
+    const r = await api.detail({ id: c.id, table: name });
+    columnCache.set(key, r.ok ? r.data.columns : r.failure);
+    paintFiles();
+  }
+
   function paintTables(): void {
+    // 테이블은 이제 왼쪽 나무(연결 아래)에 그린다. 옛 칸은 숨긴 채 상태만 맞춘다
+    paintFiles();
     tableList.replaceChildren();
     const shown = filterTables(tables, filter);
     tablesTitle.textContent = tables.length === 0 ? 'Tables' : filter.trim() === '' ? `Tables (${tables.length})` : `Tables (${shown.length} of ${tables.length})`;
     tablesReload.disabled = current === null || tablesLoading;
-    filterWrap.hidden = tables.length === 0;
+    // 테이블 거르기는 나무 위 검색칸 하나가 맡는다
+    filterWrap.hidden = true;
     if (current === null) return;
     if (tablesLoading) return void tableList.append(loading(current.kind === 'sqlite' ? 'Reading tables…' : connectingText(current)));
     if (status.get(current.id) === 'error' && tables.length === 0) return void tableList.append(el('div', 'hint db-pad', 'Could not open this database. See the message on the right.'));
@@ -667,6 +830,7 @@ export function buildDb(deps: DbViewDeps) {
     openFailure = null;
     tablesLoading = true;
     tableFilter.value = filter = '';
+    openTables.clear();
     status.set(c.id, 'busy');
     store.set(LAST_KEY, c.id);
     // 편집기가 아직 예시 그대로면 이 DB 의 예시로 바꾼다
@@ -710,6 +874,7 @@ export function buildDb(deps: DbViewDeps) {
     if (r.ok) {
       tables = r.data;
       graph = null;
+      for (const k of [...columnCache.keys()]) if (k.startsWith(`${c.id}:`)) columnCache.delete(k);
       if (sub === 'diagram') void loadGraph();
     } else say(`${r.failure.title}. ${r.failure.message}`);
     paintFiles();
