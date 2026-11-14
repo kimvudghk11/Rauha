@@ -210,6 +210,17 @@
 .attach-thumb { width: var(--h-lg); height: var(--h-lg); object-fit: cover; border-radius: var(--r-sm); background: var(--well); flex: 0 0 auto; }
 .attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .composer.drop textarea { border-style: dashed; }
+/* 팀 대화: 팀원 얼굴 · 이름 · 말풍선 */
+.team-chat { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s1); }
+.tc-line { display: flex; align-items: flex-start; gap: var(--s2); }
+.tc-face { flex: none; image-rendering: pixelated; margin-top: 2px; }
+.tc-say { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tc-who { font-size: var(--fs-xs); color: var(--muted); }
+.tc-bubble { background: var(--card); border: 1px solid var(--border); border-radius: 4px var(--r-lg) var(--r-lg) var(--r-lg); padding: 6px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tc-typing { padding-left: 52px; font-size: var(--fs-sm); }
+.tc-dots { animation: tcdots 1.2s steps(3, end) infinite; display: inline-block; overflow: hidden; width: 1.2em; vertical-align: bottom; }
+@keyframes tcdots { 0% { width: .4em; } 100% { width: 1.2em; } }
+@media (prefers-reduced-motion: reduce) { .tc-dots { animation: none; } }
 /* 답장: 입력칸 위 "Replying to …" · 말풍선 위 인용 · 작업 상세의 이어 온 대화 */
 .reply-bar { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3); margin-bottom: var(--s1); border-left: 3px solid var(--accentfg); background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: var(--r-sm); font-size: var(--fs-sm); min-width: 0; }
 .reply-bar b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--bright); }

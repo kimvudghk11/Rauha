@@ -1,6 +1,7 @@
 import type { InfraRisk } from '@rauha/core/jobs';
 import type { ApprovalSummary } from '../shared/approval-summary.js';
 import { providerOf, type AiProviderId } from '../shared/external-ai.js';
+import { teamChat } from '../shared/team-voice.js';
 import { buildAiBar, type AiBarDeps, type ChatTarget } from './ai-bar.js';
 import { AI_LOGO_SVG, aiLogoUrl } from './ai-logos.js';
 import type { AiResult } from '../shared/external-ai-ipc.js';
@@ -904,12 +905,28 @@ export function buildChat(actions: ChatActions) {
       if (job.result !== null) body.appendChild(el('div', 'result', job.result));
       if (job.status === 'done' || job.status === 'stopped') body.appendChild(changesPanel(job.id, 'detail'));
       if (job.status === 'stopped' && needsLogin(`${job.result ?? ''} ${job.stopReason ?? ''}`)) body.appendChild(loginCard());
-      const doneNotes = job.notes.filter((n) => n.role !== null).slice(-8);
-      if (doneNotes.length > 0) {
-        body.appendChild(el('div', 'sub', 'So far'));
-        const ul = el('ul');
-        for (const n of doneNotes) ul.appendChild(el('li', undefined, `${n.roleName}: ${n.message}`));
-        body.appendChild(ul);
+      // 팀 대화: 실제 진행 글을 팀원 얼굴·이름·말풍선으로(성격은 말투로만, shared/team-voice.ts)
+      // 직책("구현 팀원") 대신 지금 컨셉의 캐릭터 이름으로 부른다(넘겨받는 말에도)
+      const titleOf = new Map(job.notes.filter((n) => n.role !== null).map((n) => [n.role as string, n.roleName ?? '']));
+      const talk = teamChat(job.notes.map((n) => (n.role !== null && isRole(n.role) ? { ...n, roleName: nameOf(n.role) } : n))).map((l) => ({ ...l, who: `${l.who}${titleOf.get(l.role) ? ` · ${titleOf.get(l.role)}` : ''}` }));
+      if (talk.length > 0) {
+        body.appendChild(el('div', 'sub', job.status === 'done' || job.status === 'stopped' ? 'How the team talked it through' : 'Team chat'));
+        const box = el('div', 'team-chat');
+        for (const line of talk) {
+          const row = el('div', 'tc-line');
+          const face = el('canvas', 'sp tc-face');
+          paintOnce(face, (isRole(line.role) ? line.role : 'intake') as CharacterRole, 2);
+          const say = el('div', 'tc-say');
+          say.append(el('div', 'tc-who', line.who), el('div', 'tc-bubble', line.text));
+          row.append(face, say);
+          box.appendChild(row);
+        }
+        if (job.status !== 'done' && job.status !== 'stopped') {
+          const typing = el('div', 'tc-line tc-typing');
+          typing.append(el('span', 'dim', `${job.roleName ?? 'Team'} is working`), el('span', 'tc-dots', '…'));
+          box.appendChild(typing);
+        }
+        body.appendChild(box);
       }
       if (actions.followUp !== undefined) body.appendChild(followBox(job));
     }
