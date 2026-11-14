@@ -1,6 +1,7 @@
 import type { InfraRisk } from '@rauha/core/jobs';
 import type { ApprovalSummary } from '../shared/approval-summary.js';
-import { AI_PROVIDERS, providerOf, type AiProviderId } from '../shared/external-ai.js';
+import { providerOf, type AiProviderId } from '../shared/external-ai.js';
+import { buildAiBar, type AiBarDeps, type ChatTarget } from './ai-bar.js';
 import type { AiResult } from '../shared/external-ai-ipc.js';
 import { classifyDiffLine, type ChangeReview } from '../shared/branch-impact.js';
 import type { ApprovalChoice, ApprovalView, BoardView, JobView } from '../shared/ipc.js';
@@ -45,6 +46,8 @@ export interface ChatActions {
   readonly submit: (text: string, images?: readonly Uint8Array[]) => Promise<JobView | null>;
   /** Kiro · ChatGPT(Codex)에게 한 번 묻기(읽기 전용). 없으면 AI 고르기 메뉴를 숨긴다 */
   readonly askOther?: (id: AiProviderId, text: string) => Promise<AiResult<{ readonly text: string; readonly seconds: number }>>;
+  /** 채팅 맨 위 AI 고르기 줄(로그인 상태·단추). 없으면 줄을 그리지 않는다 */
+  readonly ai?: AiBarDeps;
   readonly stop: (id: string) => void;
   readonly deeper: (id: string) => Promise<JobView | null>;
   /** 보낸 일을 할 일로 담는다 */
@@ -87,43 +90,13 @@ export function buildChat(actions: ChatActions) {
   const leadHintText = (): string => `Hand work to ${leadName()}. You can send the next task right away.`;
   leadHint.textContent = leadHintText();
   head.append(headFace, el('b', undefined, 'Main'), leadHint, layoutToggle);
-  // 누구에게 물을지: Claude 팀(기본) 또는 바깥 AI(읽기 전용 한 번 묻기). 고른 값은 이 컴퓨터에 기억한다
-  const AI_KEY = 'rauha.chat.ai';
-  let target: 'team' | AiProviderId = 'team';
-  if (actions.askOther !== undefined) {
-    const pick = el('select', 'ai-pick');
-    pick.title = 'Who answers: the Claude team, or another AI (read-only, one answer)';
-    pick.setAttribute('aria-label', 'Who answers');
-    const opt = (value: string, label: string): void => {
-      const o = el('option', undefined, label);
-      o.value = value;
-      pick.append(o);
-    };
-    opt('team', 'Claude team');
-    for (const p of AI_PROVIDERS) opt(p.id, p.label);
-    try {
-      const saved = localStorage.getItem(AI_KEY);
-      if (saved !== null && (saved === 'team' || providerOf(saved) !== null)) target = saved as typeof target;
-    } catch {
-      /* 기억 못 해도 기본(팀)으로 */
-    }
-    pick.value = target;
-    const sync = (): void => {
-      leadHint.textContent = target === 'team' ? leadHintText() : `Ask ${providerOf(target)?.label ?? ''}. One answer, read-only (it cannot change files).`;
-      input.placeholder = target === 'team' ? 'Type a new task…  (@folder to pick a target, @file to attach one)' : `Ask ${providerOf(target)?.label ?? ''}…`;
-    };
-    pick.addEventListener('change', () => {
-      target = pick.value === 'team' ? 'team' : (providerOf(pick.value)?.id ?? 'team');
-      try {
-        localStorage.setItem(AI_KEY, target);
-      } catch {
-        /* 무시 */
-      }
-      sync();
-    });
-    head.insertBefore(pick, layoutToggle);
-    queueMicrotask(sync);
-  }
+  // 누구에게 물을지: 채팅 맨 위 AI 줄(Claude 팀 기본 · Kiro · ChatGPT, 로그인 단추 포함). 바깥 AI 는 읽기 전용 한 번 묻기
+  let target: ChatTarget = 'team';
+  const aiBar = actions.ai === undefined ? null : buildAiBar(actions.ai, (t) => {
+    target = t;
+    leadHint.textContent = t === 'team' ? leadHintText() : `Ask ${providerOf(t)?.label ?? ''}. One answer, read-only (it cannot change files).`;
+    input.placeholder = t === 'team' ? 'Type a new task…  (@folder to pick a target, @file to attach one)' : `Ask ${providerOf(t)?.label ?? ''}…`;
+  });
   /** 바깥 AI 에게 한 번 묻고, 내 말풍선과 답 말풍선을 단다 */
   async function askOther(id: AiProviderId, text: string): Promise<void> {
     const p = providerOf(id);
@@ -220,7 +193,7 @@ export function buildChat(actions: ChatActions) {
   // 답을 기다리는 허락·질문 카드. 팀 상세를 열지 않아도 입력칸 바로 위에서 답할 수 있다(안 보여서 작업이 멈춘 듯 보이지 않게).
   const askTray = el('div', 'ask-tray');
   askTray.hidden = true;
-  mainPane.append(head, msgsWrap, askTray, composer);
+  mainPane.append(...(aiBar === null ? [] : [aiBar.root]), head, msgsWrap, askTray, composer);
 
   // ── 아주 좁을 때 맨 위 띠 ──
   const strip = el('div', 'strip');

@@ -69,7 +69,20 @@
 @media (prefers-reduced-motion: reduce) { .theme-slot .sp { transition: none; } }
 
 /* 채팅: 누구에게 물을지(Claude 팀 · Kiro · ChatGPT)와 바깥 AI 답 */
-.ai-pick { flex: none; max-width: 160px; }
+.ai-bar { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; padding: 6px var(--s3); border-bottom: 1px solid var(--border); }
+.ai-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.ai-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border2); border-radius: 999px; background: none; color: var(--text); font: inherit; cursor: pointer; }
+.ai-chip:hover { background: var(--row-hover); }
+.ai-chip.on { background: var(--sel); border-color: var(--accentfg); color: var(--bright); }
+.ai-emoji { font-size: var(--fs-md); line-height: 1; }
+.ai-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.ai-dot.ok { background: var(--green); }
+.ai-dot.warn { background: var(--yellow); }
+.ai-acct { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; min-width: 0; }
+.ai-pill { font-size: var(--fs-xs); font-weight: 600; border-radius: 999px; padding: 1px 8px; color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); }
+.ai-pill.ok { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.ai-pill.warn { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.ai-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
 .m.other-ai .ai-av { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; font-weight: 700; color: var(--bright); background: var(--accent); flex: none; }
 .m.other-ai .ai-av.kiro { background: color-mix(in srgb, var(--accent) 55%, var(--red)); }
 .m.other-ai .ai-av.codex { background: color-mix(in srgb, var(--green) 60%, var(--accent)); }
