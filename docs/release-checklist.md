@@ -9,6 +9,14 @@
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
+## v0.2.8 (2026-11-14) — 계정 바꾸기 버그·Kiro 계정 전환·Codex 설치
+
+- **Claude 계정**: 팀 작업이 앱을 켤 때 계정으로 고정되던 버그 — 작업마다 지금 고른 계정. 채팅 위 Claude 칩 옆에 계정 고르기(Follow folder rules / personal / work)와 그 계정 Sign in.
+- **Kiro·Codex Switch account**: 먼저 로그아웃(Kiro 는 그래야 다른 계정 로그인).
+- **Codex [Install]**: node 로 npm 전역 설치, 권한 문제면 ~/.rauha/npm-global 로 다시, 네트워크·npm 없음은 쉬운 말.
+- 로고를 같은 칸 가운데로, 컨셉 바꾸면 설정의 팀원 이름도.
+- 전체 테스트 4,959개 통과. v0.2.7 설치 파일(exe 218MB · arm64 237MB · x64 248MB).
+
 ## v0.2.7 (2026-11-14) — 채팅 위 AI 고르기 줄·공식 로고·컨셉 바꾸기 수정
 
 - **AI 고르기 줄**(채팅 맨 위): Claude team · Kiro · ChatGPT 칩(공식 로고, 로그인 상태 점), 고른 AI 의 계정과 Sign in / Switch account / Sign out. 로그인 창에서 돌아오면 다시 확인. Extensions 의 AI accounts 는 뺌.
