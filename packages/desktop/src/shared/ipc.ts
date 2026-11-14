@@ -33,6 +33,8 @@ export const IPC = {
   stop: 'job:stop',
   /** 같은 질문을 깊게 다시 답해 달라("더 깊게") */
   deeper: 'job:deeper',
+  /** 화면 → main: 끝난(또는 도는) 작업에 이어서 묻기(답장·후속 질문). 같은 레포에서 앞 맥락을 붙인 새 작업 */
+  followUp: 'job:follow-up',
   /** main → 화면: 작업판이 바뀔 때마다 보낸다 */
   board: 'job:board',
   /** 화면 → main: 지금 작업판을 한 번 달라(화면을 새로 열 때) */
@@ -186,6 +188,8 @@ export interface RauhaApi {
   stop(id: string): void;
   /** 끝난 작업의 질문을 깊게 다시 묻는 새 작업을 만든다 */
   goDeeper(id: string): Promise<JobView | null>;
+  /** 작업 id 에 이어서 묻는다(같은 레포, 앞 요청·결과를 맥락으로). 받지 못하면 null */
+  followUp(parentId: string, text: string): Promise<JobView | null>;
   onBoard(listener: (board: BoardView) => void): void;
   boardNow(): Promise<BoardView>;
   onApprovals(listener: (list: readonly ApprovalView[]) => void): void;

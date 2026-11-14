@@ -265,6 +265,7 @@ const chat = buildChat({
   suggest: (text) => commandBook.suggest(text),
   submit: (text, images) => window.rauha.submit(text, images),
   askOther: (id, text) => window.rauha.externalAi.ask(id, text),
+  followUp: (parentId, text) => window.rauha.followUp(parentId, text),
   ai: { auth: window.rauha.auth, externalAi: window.rauha.externalAi, accounts: { list: () => window.rauha.listAccounts(), choose: (name) => window.rauha.updateSettings({ account: name }) } },
   saveTodo: (text) => addTodo(window.rauha.todo, TodoDto.draftFromChat(text)),
   stop: (id) => window.rauha.stop(id),

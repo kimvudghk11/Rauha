@@ -47,6 +47,8 @@ export interface ChatActions {
   readonly submit: (text: string, images?: readonly Uint8Array[]) => Promise<JobView | null>;
   /** Kiro · ChatGPT(Codex)에게 한 번 묻기(읽기 전용). 없으면 AI 고르기 메뉴를 숨긴다 */
   readonly askOther?: (id: AiProviderId, text: string) => Promise<AiResult<{ readonly text: string; readonly seconds: number }>>;
+  /** 작업에 이어서 묻기(답장·후속 질문). 없으면 단추를 숨긴다 */
+  readonly followUp?: (parentId: string, text: string) => Promise<JobView | null>;
   /** 채팅 맨 위 AI 고르기 줄(로그인 상태·단추). 없으면 줄을 그리지 않는다 */
   readonly ai?: AiBarDeps;
   readonly stop: (id: string) => void;
@@ -215,10 +217,63 @@ export function buildChat(actions: ChatActions) {
   const cleared = new Set<string>();
   const roomEls = new Map<string, RoomEl>();
 
+  // ── 답장(이어서 묻기) ──
+  /** 후속 작업 → 앞 작업 id(화면이 만든 이어짐. 작업 상세에서 줄줄이 보인다) */
+  const followOf = new Map<string, string>();
+  const followDrafts = new Map<string, string>();
+  let followFocus: string | null = null;
+  let replyTo: JobView | null = null;
+  const replyBar = el('div', 'reply-bar');
+  replyBar.hidden = true;
+  composer.prepend(replyBar);
+  function setReply(job: JobView | null): void {
+    replyTo = job;
+    replyBar.hidden = job === null;
+    if (job === null) return void replyBar.replaceChildren();
+    const x = el('button', 'link', '✕');
+    x.title = 'Cancel the reply';
+    x.setAttribute('aria-label', 'Cancel the reply');
+    x.addEventListener('click', () => setReply(null));
+    replyBar.replaceChildren(el('span', 'dim', '↩ Replying to'), el('b', 'grow', short(job.request, 80)), x);
+    input.focus();
+  }
+  /** 이어서 묻기를 보내고 말풍선을 단다. 받지 못하면 false */
+  async function sendFollowUp(parent: JobView, text: string): Promise<boolean> {
+    if (actions.followUp === undefined) return false;
+    const job = await actions.followUp(parent.id, text);
+    if (job === null) return false;
+    followOf.set(job.id, parent.id);
+    jobs.set(job.id, job);
+    addJob(job);
+    // 작업판 소식이 먼저 와서 말풍선이 이미 그려졌을 수 있다: 거기에도 인용을 붙인다
+    quoteOn(job.id);
+    return true;
+  }
+  /** 내 말풍선 위에 "↩ 앞 요청" 인용(한 번만) */
+  const meById = new Map<string, HTMLElement>();
+  function quoteOn(id: string): void {
+    const parent = followOf.get(id);
+    const me = meById.get(id);
+    if (parent === undefined || me === undefined || me.querySelector('.reply-quote') !== null) return;
+    me.prepend(el('div', 'reply-quote', `↩ ${short(jobs.get(parent)?.request ?? '', 60)}`));
+  }
+
   // ── 보내기 ──
   const send = async () => {
     const typed = input.value;
     if (typed.trim() === '') return;
+    if (replyTo !== null && target === 'team' && !typed.trimStart().startsWith('/')) {
+      const parent = replyTo;
+      input.value = '';
+      fit();
+      if (await sendFollowUp(parent, typed.trim())) setReply(null);
+      else {
+        input.value = typed;
+        flash('Could not continue that task. Pick and allow a work folder first, or try again.');
+      }
+      input.focus();
+      return;
+    }
     input.value = '';
     fit();
     suggest.close();
@@ -421,8 +476,17 @@ export function buildChat(actions: ChatActions) {
       });
       hand.append(keep);
     }
+    if (actions.followUp !== undefined) {
+      // 답장: 이 작업에 이어서 묻기(같은 레포, 앞 요청·결과를 맥락으로)
+      const re = el('button', 'link reply', '↩ Reply');
+      re.title = 'Continue this task: your next message builds on its request and result';
+      re.addEventListener('click', () => setReply(job));
+      hand.append(re);
+    }
     hand.append(stop);
     tx.appendChild(hand);
+    meById.set(job.id, me);
+    quoteOn(job.id);
     body.append(el('div', 'who', leadName()), tx);
     reply.append(av, body);
     msgs.append(me, reply);
@@ -730,6 +794,70 @@ export function buildChat(actions: ChatActions) {
     return card;
   }
 
+  /** 작업 상세 아래: 이 팀과 이어 온 대화(후속 작업들)와 이어서 묻기 칸 */
+  function followBox(job: JobView): HTMLElement {
+    const box = el('div', 'follow');
+    // 이 작업에서 이어진 작업들을 차례로(후속의 후속까지)
+    const chain: JobView[] = [];
+    let cur = job.id;
+    for (;;) {
+      const next = [...followOf.entries()].find(([, p]) => p === cur)?.[0];
+      const j = next === undefined ? undefined : jobs.get(next);
+      if (j === undefined) break;
+      chain.push(j);
+      cur = j.id;
+    }
+    if (chain.length > 0) {
+      box.append(el('div', 'sub', 'Continued'));
+      for (const j of chain) {
+        const row = el('div', 'follow-turn');
+        const q = el('div', 'follow-q', j.request);
+        const a = el('div', 'follow-a', j.result ?? `${STATUS_LABEL[j.status]}…`);
+        const view = el('button', 'link', 'Open');
+        view.addEventListener('click', () => open(j.id));
+        row.append(q, a, view);
+        box.append(row);
+      }
+    }
+    const last = chain[chain.length - 1] ?? job;
+    const ask = el('textarea', 'follow-input');
+    ask.rows = 2;
+    // 상세는 진행될 때마다 다시 그려진다: 쓰던 글과 커서 자리를 작업마다 기억한다
+    ask.value = followDrafts.get(last.id) ?? '';
+    ask.addEventListener('input', () => followDrafts.set(last.id, ask.value));
+    if (followFocus === last.id)
+      queueMicrotask(() => {
+        ask.focus();
+        ask.setSelectionRange(ask.value.length, ask.value.length);
+      });
+    ask.addEventListener('focus', () => (followFocus = last.id));
+    ask.addEventListener('blur', () => {
+      if (ask.isConnected) followFocus = null;
+    });
+    ask.placeholder = `Ask this team to continue… (builds on "${short(last.request, 40)}")`;
+    const go = el('button', 'btn primary', 'Continue with this team');
+    go.addEventListener('click', async () => {
+      const text = ask.value.trim();
+      if (text === '') return;
+      go.disabled = true;
+      const ok = await sendFollowUp(last, text);
+      go.disabled = false;
+      if (ok) {
+        ask.value = '';
+        followDrafts.delete(last.id);
+        followFocus = null;
+        renderDetail();
+      } else flash('Could not continue that task. Pick and allow a work folder first, or try again.');
+    });
+    ask.addEventListener('keydown', (e) => {
+      if (isEnterKey(e) && (e.ctrlKey || e.metaKey)) go.click();
+    });
+    const row = el('div', 'btns');
+    row.append(el('span', 'hint grow', 'Ctrl+Enter to send. The team gets the earlier request and its result.'), go);
+    box.append(ask, row);
+    return box;
+  }
+
   function renderDetail(): void {
     detail.replaceChildren();
     const job = openId === null ? undefined : jobs.get(openId);
@@ -783,6 +911,7 @@ export function buildChat(actions: ChatActions) {
         for (const n of doneNotes) ul.appendChild(el('li', undefined, `${n.roleName}: ${n.message}`));
         body.appendChild(ul);
       }
+      if (actions.followUp !== undefined) body.appendChild(followBox(job));
     }
     main.append(ph, tabs, body);
 

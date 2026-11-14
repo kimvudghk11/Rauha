@@ -14,6 +14,7 @@ import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
 import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
 import { canWork, DEFAULT_SETTINGS, forgetRecentFolder, updateSettings, type Settings } from '../shared/settings.js';
+import { followUpPrompt, followUpText } from '../shared/follow-up.js';
 import { SettingsStore } from './settings-store.js';
 import { CommandStore } from './command-store.js';
 import { applyTeamOp, TeamSettingsStore, teamView } from './team-settings-store.js';
@@ -306,7 +307,9 @@ async function startRunner(): Promise<JobRunner> {
       newSession: (io, job) => {
         const all = folders();
         const target = parseTarget(job.request, all);
-        const root = target.folder?.root ?? all[0]?.root ?? currentWorkDir();
+        // 이어서 묻기는 앞 작업과 같은 레포에서
+        const root = followRoot.get(job.id) ?? target.folder?.root ?? all[0]?.root ?? currentWorkDir();
+        jobRepoRoots.set(job.id, root);
         let note: string | null = null;
         const fallbacks = new Set<string>();
         return {
@@ -336,7 +339,9 @@ async function startRunner(): Promise<JobRunner> {
               const staged = jobImages.get(job.id);
               const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
-              return await session.handle(withAttachments(mentioned, staged?.paths ?? [], target.text), depth);
+              // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
+              const ask = followContext.get(job.id) ?? target.text;
+              return await session.handle(withAttachments(mentioned, staged?.paths ?? [], ask), depth);
             } finally {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
               const after = before === null ? null : await snapshotChanges(cwd);
@@ -440,6 +445,11 @@ const askCard = askCardFlow({
 
 /** 팀(메인)에 일을 넘긴다. 폴더를 고르고 허락하기 전에는 일을 받지 않는다(엉뚱한 폴더에서 일하지 않게). 확인용 환경 변수가 있으면 건너뛴다. */
 const submitReady = (): boolean => runnerRef !== null && (process.env['RAUHA_WORK_DIR'] !== undefined || FAKE || canWork(settings));
+/** 이어서 묻기: 작업 id → 팀에 넘길 맥락 붙은 글 / 앞 작업의 레포 루트. 작업마다 레포 루트도 기억한다 */
+const followContext = new Map<string, string>();
+const followRoot = new Map<string, string>();
+const jobRepoRoots = new Map<string, string>();
+
 function submitJob(text: string): { id: string } | null {
   return submitReady() ? runnerRef!.submit(text) : null;
 }
@@ -1080,6 +1090,19 @@ void app.whenReady().then(async () => {
     if (next === null) return null;
     const root = jobRoots.get(done.id);
     if (root !== undefined) jobRoots.set(next.id, root);
+    return boardView(runner.board).jobs.find((j) => j.id === next.id) ?? null;
+  });
+  // 이어서 묻기: 같은 레포에서, 앞 요청·결과를 맥락으로 붙인 새 작업. 화면에는 사용자가 쓴 말만 요청으로 보인다
+  ipcMain.handle(IPC.followUp, (_e, parentId: unknown, raw: unknown) => {
+    const parent = typeof parentId === 'string' ? runner.board.find(parentId) : null;
+    const text = followUpText(raw);
+    if (parent === null || text === null || !submitReady()) return null;
+    const next = runner.submit(text);
+    if (next === null) return null;
+    // 앞 작업의 요청은 화면에 보인 말(후속 작업도 사용자가 쓴 말만 요청으로 남는다)
+    followContext.set(next.id, followUpPrompt({ request: parent.request, result: parent.result }, text));
+    const root = jobRepoRoots.get(parent.id);
+    if (root !== undefined) followRoot.set(next.id, root);
     return boardView(runner.board).jobs.find((j) => j.id === next.id) ?? null;
   });
   ipcMain.on(IPC.stop, (_e, id: unknown) => {
