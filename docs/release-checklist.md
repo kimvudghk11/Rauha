@@ -9,6 +9,18 @@
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
+## v0.2.5 (2026-11-14) — Git 탭 고도화·Actions 탭·커밋 초안
+
+- **저장소 막대**: 원격과의 사이를 한 문장으로("1 ahead · 3 behind origin/main", "Not on the remote yet"), 원격에 없는 브랜치는 Publish branch 가 파란 단추.
+- **Push 거절** → [Pull and push again] 한 번에(보호 브랜치 확인·갈라짐 merge 포함).
+- **브랜치 메뉴**: 없는 이름은 Enter 로 바로 만들기, 이름 오류 한 줄, 고친 파일 때문에 막히면 Stash and switch.
+- **실패 줄 고치기 단추**: Set name and email(이 레포/모든 레포), Try again.
+- **Actions 탭**(읽기 전용): 최근 실행 30개, 작업·단계, 끝나면 알림. 로그 원문은 gh 로그인이 있을 때만. ETag 로 GitHub 횟수 아낌.
+- **✨ Draft with teammate**: 스테이지한 diff 만 Haiku 에 보내 이 레포 방식으로 커밋 초안.
+- **히스토리**: 찾기, Copy hash, Create branch here.
+- **Claude 대화 내역**: VS Code 꼬리표로 시작하는 대화·슬래시 명령만 있는 대화가 자동 실행으로 숨던 것.
+- v0.2.4 설치 파일 3개 올라감(exe 218MB · arm64 236MB · x64 247MB).
+
 ## v0.2.4 (2026-11-14) — DBeaver 식 DB 나무·SQL 자동 완성·사람 캐릭터·Extensions 탭
 
 - **DB**: 왼쪽이 DBeaver 처럼 연결 › Tables/Views › 테이블 › 컬럼 나무. 연결마다 쓰던 SQL 을 기억(예시 쿼리 없앰), 테이블을 눌러 봐도 쓰던 SQL 은 그대로. SQL 자동 완성(키워드·테이블·컬럼, Tab 으로 고르기, 방언별).
