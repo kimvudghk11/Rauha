@@ -9,15 +9,11 @@ import { createLoginControl } from './login-view.js';
 import { usageTooltip, type UsageFeed } from './usage-feed.js';
 import { diagnosticsText } from './diagnostics-text.js';
 import { CHARACTER_SETS } from './character-sets/index.js';
-import { setSprite, type CharacterRole } from './characters.js';
 import { AUTO_SAVE_MODES, autoSaveLabel, parseAutoSaveMode } from '../shared/auto-save.js';
 import { buildRecentFolders } from './recent-folders-view.js';
 import { ask } from './code-dialog.js';
-import { paintSpriteFace } from './pixel-art.js';
+import { buildThemePicker } from './character-theme-picker.js';
 import { buildModels } from './models-view.js';
-
-/** 테마 카드 미리보기에 보여 줄 역할(팀장 포함 앞 몇 명) */
-const PREVIEW_ROLES: readonly CharacterRole[] = ['intake', 'tester', 'implementer', 'reviewer', 'bm'];
 
 export interface SettingsApi {
   get(): Promise<Settings>;
@@ -227,23 +223,9 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     // 모델 이름: 등급마다 부를 모델 ID(계정마다 쓸 수 있는 모델이 다르다)
     root.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
 
-    // 캐릭터 테마: 22역할의 그림이 한 번에 바뀐다
-    const sets = el('div', 'cset-list');
-    for (const set of CHARACTER_SETS) {
-      const card = el('button', set.id === s.characterSet ? 'item cset on' : 'item cset');
-      card.type = 'button';
-      card.setAttribute('aria-pressed', String(set.id === s.characterSet));
-      const faces = el('span', 'cset-faces');
-      for (const role of PREVIEW_ROLES) {
-        const face = el('canvas', 'sp');
-        paintSpriteFace(face, setSprite(set, role), 3);
-        faces.appendChild(face);
-      }
-      card.append(faces, el('b', undefined, set.name), el('span', 'hint', set.blurb));
-      card.addEventListener('click', () => void api.update({ characterSet: set.id }).then((next) => (api.onCharacterSet?.(next.characterSet), render())));
-      sets.appendChild(card);
-    }
-    root.appendChild(section('Character theme', sets, el('div', 'hint pad', 'Click to change all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.')));
+    // 캐릭터 컨셉: 드롭다운으로 고르면 22역할의 그림이 한 번에 바뀌고, 무대 5칸에서 대표 캐릭터가 움직인다
+    const picker = buildThemePicker(s.characterSet, (id) => void api.update({ characterSet: id }).then((next) => api.onCharacterSet?.(next.characterSet)));
+    root.appendChild(section('Character theme', picker, el('div', 'hint pad', `${CHARACTER_SETS.length} concepts. Changing it switches all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.`)));
 
     if (api.connectors !== undefined) root.appendChild(section('Connectors', api.connectors.build()));
     if (api.plugins !== undefined) root.appendChild(section('Plugins & skills', api.plugins.build()));

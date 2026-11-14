@@ -4,8 +4,6 @@ import { canDismiss, progressModal, type ModalAction } from '../shared/update-pr
 import { diagnosticsText } from './diagnostics-text.js';
 import { el } from './dom.js';
 
-const MARK = { done: '✓', active: '●', pending: '○', failed: '✕' } as const;
-
 /**
  * 화면 가운데 업데이트 진행 모달. 그릴 내용은 shared/update-progress.ts가 정하고, 여기서는 그대로 그린다.
  * 내려받는 중 "취소"와 실패 뒤 "닫기"만 닫을 수 있다.
@@ -71,12 +69,8 @@ export function createUpdateModal(api: UpdateApi, copyDiagnostics: () => Promise
       if (model.percent !== null) bar.setAttribute('aria-valuenow', String(Math.round(model.percent)));
       box.append(bar);
     }
-    if (model.detail !== null) box.append(el('p', 'hint detail', model.detail));
+    // 진행 중에는 제목·한 줄·막대만(받은 양·속도·단계 목록은 보이지 않는다). 실패하면 이유와 버튼만 더한다
     if (model.reason !== null) box.append(el('p', 'err reason', model.reason));
-    if (model.note !== null) box.append(el('p', 'hint note', model.note));
-    const steps = el('ul', 'steps');
-    for (const s of model.steps) steps.append(el('li', s.state, `${MARK[s.state]} ${s.label}`));
-    box.append(steps);
     if (hint !== '') box.append(el('p', 'hint', hint));
     if (model.actions.length > 0) {
       const btns = el('div', 'btns end');
@@ -89,7 +83,7 @@ export function createUpdateModal(api: UpdateApi, copyDiagnostics: () => Promise
       box.append(btns);
     }
     veil.replaceChildren(box);
-    // 받는 동안 속도·남은 시간이 1초마다 갱신되도록
+    // 막대가 1초마다 새 퍼센트로
     if (timer === undefined) timer = setInterval(paint, 1000);
   }
 

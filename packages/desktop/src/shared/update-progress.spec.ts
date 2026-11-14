@@ -69,7 +69,7 @@ describe('진행 모달', () => {
 
   it('SHA-256 확인과 설치 준비 단계는 버튼 없이 글만 보인다', () => {
     const v = progressModal(s({ phase: 'verifying' }), 0)!;
-    expect(v.headline).toBe('Verifying SHA-256…');
+    expect(v.headline).toBe('Checking the download…');
     expect(v.actions).toEqual([]);
     expect(v.steps.map((x) => x.state)).toEqual(['done', 'done', 'active', 'pending', 'pending']);
     expect(progressModal(s({ phase: 'preparing', targetNote: 'Installs to: /Applications/Rauha.app' }), 0)!.headline).toBe('Preparing to install…');
@@ -77,7 +77,7 @@ describe('진행 모달', () => {
 
   it('설치 단계는 닫을 수 없고 앱을 닫고 다시 켠다고 알리며 설치 위치를 보인다', () => {
     const m = progressModal(s({ phase: 'installing', targetNote: '설치 위치: /Applications/Rauha.app (임시 위치에서 열려 있어서)' }), 0)!;
-    expect(m.headline).toBe('The app will close, install and restart');
+    expect(m.headline).toBe('Restarting to finish the update…');
     expect(m.actions).toEqual([]);
     expect(m.note).toContain('/Applications/Rauha.app');
     expect(m.steps.map((x) => x.state)).toEqual(['done', 'done', 'done', 'done', 'active']);

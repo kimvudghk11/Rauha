@@ -38,7 +38,12 @@ function fillRows(ctx: CanvasRenderingContext2D, rows: readonly string[], palett
 
 /** 역할과 상관없이 스프라이트 하나의 기본 얼굴을 캔버스에 한 번 그린다(캐릭터 테마 미리보기). */
 export function paintSpriteFace(canvas: HTMLCanvasElement, sprite: Sprite, scale: number): void {
-  const rows = sprite.frames[FRAME.idle]!;
+  paintSpriteFrame(canvas, sprite, FRAME.idle, scale);
+}
+
+/** 스프라이트의 프레임 하나(0 기본·1 눈 감음·2 기쁨·3 걱정·4 잠)를 캔버스에 그린다(테마 미리보기의 움직임). */
+export function paintSpriteFrame(canvas: HTMLCanvasElement, sprite: Sprite, frame: number, scale: number): void {
+  const rows = sprite.frames[frame] ?? sprite.frames[FRAME.idle]!;
   canvas.width = rows[0]!.length * scale;
   canvas.height = rows.length * scale;
   const ctx = canvas.getContext('2d');

@@ -68,11 +68,11 @@ function headlineOf(state: InstallState): string {
     case 'downloading':
       return state.percent === null ? 'Downloading…' : `Downloading ${Math.round(state.percent)}%`;
     case 'verifying':
-      return 'Verifying SHA-256…';
+      return 'Checking the download…';
     case 'preparing':
       return 'Preparing to install…';
     case 'installing':
-      return 'The app will close, install and restart';
+      return 'Restarting to finish the update…';
     case 'failed':
       return 'Could not install';
     case 'idle':
