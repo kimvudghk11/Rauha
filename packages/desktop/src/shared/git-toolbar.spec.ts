@@ -49,10 +49,10 @@ describe('실패 이유를 쉬운 말로', () => {
   it('업스트림이 없으면 push로 연결하라고 알린다', () => {
     expect(friendlyGitError('fatal: The current branch x has no upstream branch.')).toMatch(/remote branch/);
   });
-  it('커밋에 쓸 이름·이메일이 없으면 git config로 정하라고 알린다', () => {
+  it('커밋에 쓸 이름·이메일이 없으면 한 번 정하라고 알린다(정하는 단추는 화면이 붙인다)', () => {
     const raw = 'Author identity unknown\n\n*** Please tell me who you are.\n\nRun\n\n  git config --global user.email "you@example.com"';
     expect(friendlyGitError(raw)).toMatch(/name and email/);
-    expect(friendlyGitError(raw)).toMatch(/git config/);
+    expect(friendlyGitError(raw)).toMatch(/Set them once/);
     expect(friendlyGitError("fatal: unable to auto-detect email address (got 'a@b.(none)')")).toMatch(/email/);
   });
   it('갈라진 브랜치를 빨리감기할 수 없다는 힌트 줄들도 갈라졌다는 한 문장으로 바꾼다', () => {
