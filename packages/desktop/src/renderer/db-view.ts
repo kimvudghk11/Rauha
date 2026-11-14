@@ -441,7 +441,7 @@ export function buildDb(deps: DbViewDeps) {
         head.type = 'button';
         head.setAttribute('aria-expanded', String(!closed));
         const prod = g.items.filter((c) => envOf(c).env === 'prod').length;
-        head.append(el('span', 'db-group-chev', closed ? '▸' : '▾'), el('span', 'grow', g.name), ...(prod > 0 ? [el('span', 'db-env-chip prod', `${prod} prod`)] : []), el('span', 'dim', String(g.items.length)));
+        head.append(el('span', `db-group-chev${closed ? '' : ' open'}`, '›'), el('span', 'grow', g.name), ...(prod > 0 ? [el('span', 'db-env-chip prod', `${prod} prod`)] : []), el('span', 'dim', String(g.items.length)));
         head.addEventListener('click', () => {
           if (closedGroups.has(g.name)) closedGroups.delete(g.name);
           else closedGroups.add(g.name);
