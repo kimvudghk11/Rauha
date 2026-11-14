@@ -9,7 +9,8 @@ import { askDialog, type GitCtx } from './git-common.js';
 import { openBranchMenu, openNewBranchDialog } from './git-branch-ui.js';
 import { gitIcon } from './git-icons.js';
 import type { ConventionsView } from '../shared/git-conventions-view.js';
-import { directionText, fetchedLabel, isPushRejected, syncSentence } from '../shared/git-toolbar.js';
+import { directionText, fetchedLabel, gitFixFor, isPushRejected, syncSentence } from '../shared/git-toolbar.js';
+import { openIdentityDialog } from './git-branch-ui.js';
 import { primaryGitAction } from '../shared/git-primary.js';
 import { branchMark } from '../shared/git-branch-mark.js';
 import { settleGitView, visibleGitViews, type GitViewId } from '../shared/git-tabs.js';
@@ -68,11 +69,25 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   let sayTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** 결과 한 줄. 성공 글은 잠깐 보였다 사라지고, 실패 글은 다음 동작 때까지 남는다. */
+  /** 마지막으로 누른 동기화 동작(실패 줄의 Try again 이 다시 부른다) */
+  let lastSync: (() => void) | null = null;
   const say = (text: string, bad = false) => {
     clearTimeout(sayTimer);
     msg.textContent = text;
     msg.className = `gmsg${text === '' ? '' : bad ? ' bad' : ' ok'}`;
     if (text !== '' && !bad) sayTimer = setTimeout(() => say(''), 9000);
+    // 실패 줄 옆에 바로 고치는 단추(shared/git-toolbar.ts gitFixFor)
+    const fix = bad ? gitFixFor(text) : null;
+    if (fix === 'identity') {
+      const b = el('button', 'btn sm primary gfix', 'Set name and email');
+      b.addEventListener('click', () => void openIdentityDialog(ctx));
+      msg.append(' ', b);
+    } else if (fix === 'retry' && lastSync !== null) {
+      const again = lastSync;
+      const b = el('button', 'btn sm gfix', 'Try again');
+      b.addEventListener('click', () => again());
+      msg.append(' ', b);
+    }
   };
 
   const callRaw = async <K extends GitFn>(fn: K, arg: GitArg<K>, confirmed = false): Promise<GitResult<GitData<K>>> => {
@@ -180,6 +195,7 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
       b.append(running === kind ? el('span', 'spinner') : gitIcon(kind, true), el('span', 'glabel', running === kind ? progress : label));
       if (badge !== null) b.append(badge);
       b.addEventListener('click', async () => {
+        lastSync = () => [...sync.ownerDocument.querySelectorAll<HTMLButtonElement>('.gsync button')].find((x) => x.getAttribute('aria-label') === b.getAttribute('aria-label'))?.click();
         busy = true;
         running = kind;
         say('');

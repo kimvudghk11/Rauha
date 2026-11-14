@@ -113,6 +113,26 @@ export class StashRef {
 }
 
 /** stash 메시지 값 객체. 빈 글이면 git 의 기본 메시지(WIP on 브랜치)를 쓴다. */
+const IDENTITY_NAME_MAX = 100;
+const EMAIL_MAX = 254;
+
+/** git 커밋에 적힐 이름·이메일. git config 값으로 그대로 넘기므로 옵션처럼 읽히거나 줄을 바꾸는 값은 만들 수 없다. */
+export class GitIdentity {
+  private constructor(readonly name: string, readonly email: string) {}
+
+  static parse(input: unknown): GitIdentity {
+    const o = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+    const name = typeof o['name'] === 'string' ? o['name'].trim() : '';
+    const email = typeof o['email'] === 'string' ? o['email'].trim() : '';
+    if (name === '') throw new GitInputError('Please enter your name.');
+    if (CONTROL.test(name) || CONTROL.test(email)) throw new GitInputError('The name or email has a character that is not allowed.');
+    if (name.startsWith('-') || email.startsWith('-')) throw new GitInputError('The name and email cannot start with "-".');
+    if (name.length > IDENTITY_NAME_MAX) throw new GitInputError(`The name is too long (up to ${IDENTITY_NAME_MAX} characters).`);
+    if (email.length > EMAIL_MAX || !/^[^\s@]+@[^\s@]+$/.test(email)) throw new GitInputError('Please enter an email like you@example.com.');
+    return new GitIdentity(name, email);
+  }
+}
+
 export class StashMessage {
   private constructor(readonly value: string) {}
 

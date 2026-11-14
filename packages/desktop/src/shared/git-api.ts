@@ -10,7 +10,7 @@ export const GIT_FUNCTIONS = [
   'overview', 'diff', 'stage', 'unstage', 'stageSelection', 'discard', 'commit',
   'branches', 'createBranch', 'switchBranch', 'merge', 'deleteBranch', 'fetch', 'pull', 'push',
   'conventions', 'undoCommit', 'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr', 'worktrees',
-  'stashList', 'stash', 'stashApply', 'stashPop', 'stashDrop',
+  'stashList', 'stash', 'stashApply', 'stashPop', 'stashDrop', 'setIdentity',
 ] as const;
 export type GitFn = (typeof GIT_FUNCTIONS)[number];
 
@@ -88,6 +88,8 @@ export interface GitCalls {
   stashList: [void, readonly StashView[]];
   /** 바뀐 파일을 stash 로 치운다(메시지는 선택, 새 파일 포함 여부) */
   stash: [{ message?: string; includeUntracked?: boolean }, Done];
+  /** 커밋에 적힐 이름·이메일을 정한다. global 이면 이 컴퓨터의 모든 레포, repo 면 이 레포만 */
+  setIdentity: [{ name: string; email: string; scope: 'global' | 'repo' }, Done];
   stashApply: [StashTarget, Done];
   stashPop: [StashTarget, Done];
   /** 되돌릴 수 없는 동작: 화면은 확인 창을 거친다 */

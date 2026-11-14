@@ -23,7 +23,7 @@ export function pullDoneMessage(received: number | null): string {
 /** 원격이 아닌 로컬 git 작업(커밋·전환·머지·브랜치 삭제)이 실패한 이유를 쉬운 말로. 아는 모양이 아니면 null. */
 export function knownLocalGitError(raw: string): string | null {
   const t = raw.trim();
-  if (/Author identity unknown|unable to auto-detect email|empty ident name|Please tell me who you are/i.test(t)) return 'Git does not know your name and email yet. Run git config --global user.name "Your Name" and git config --global user.email "you@example.com" in a terminal once, then try again.';
+  if (/Author identity unknown|unable to auto-detect email|empty ident name|Please tell me who you are/i.test(t)) return 'Git does not know your name and email yet. Set them once, then commit again.';
   if (/not fully merged/i.test(t)) return 'This branch has unmerged commits, so it was not deleted. Merge it first, or run git branch -D in a terminal if you really do not need it.';
   if (/would be overwritten|commit your changes or stash/i.test(t)) return 'Your uncommitted changes could be overwritten. Commit or stash them first.';
   return null;
@@ -99,6 +99,15 @@ export function syncSentence(s: SyncState): string {
 /** push 가 "원격에 내가 없는 커밋이 있어서" 거절됐다(Pull 하고 다시 push 하면 되는 경우). 원문이든 쉬운 말이든 알아본다 */
 export function isPushRejected(message: string): boolean {
   return /non-fast-forward|\[rejected\]|fetch first|contains work that you do not have|remote has commits you do not have/i.test(message);
+}
+
+/** 실패 줄 옆에 붙일 "바로 고치기" 종류. identity: 이름·이메일 입력, retry: 같은 일 다시 */
+export type GitFix = 'identity' | 'retry';
+
+export function gitFixFor(message: string): GitFix | null {
+  if (/does not know your name and email|Author identity unknown|Please tell me who you are|unable to auto-detect email|empty ident name/i.test(message)) return 'identity';
+  if (/Could not reach the remote|Could not resolve host|Network is unreachable|timed out|Connection refused/i.test(message)) return 'retry';
+  return null;
 }
 
 /** 브랜치 전환이 고친 파일(덮어써질 변경) 때문에 막혔다. stash 하고 바꾸면 된다 */

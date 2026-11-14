@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { type ConfirmArg, type Done, type DiffView, type FileDiffView, type Overview, protectedMessage } from '../../shared/git-api.js';
 import { ChangeSet } from '../../shared/git-changes.js';
 import { FileDiff, type PatchMode, type Selection } from '../../shared/git-diff.js';
-import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath, StashMessage, type StashRef } from '../../shared/git-guard.js';
+import { BranchName, compareUrl, GitInputError, ProtectedBranches, RepoPath, StashMessage, type GitIdentity, type StashRef } from '../../shared/git-guard.js';
 import { classifyStashApply, parseStashes, STASH_FORMAT, stashDropMessage, type StashView } from '../../shared/git-stash.js';
 import { BRANCH_FORMAT, branchView, LOG_FORMAT, LOG_LIMIT, parseBranches, parseLog } from '../../shared/git-lists.js';
 import { parseWorktrees, type WorktreeView } from '../../shared/git-worktrees.js';
@@ -376,6 +376,14 @@ export class GitRepo {
    * 바뀐 파일을 stash 로 치운다. 첫 커밋이 없거나, 충돌이 남았거나, 치울 변경이 없으면 막는다(빈 stash 를 만들지 않는다).
    * 메시지는 값 객체로 검증하고, 새 파일 포함(--include-untracked)도 무시한 파일(.gitignore)은 건드리지 않는다.
    */
+  /** 커밋에 적힐 이름·이메일. 값은 GitIdentity 가 이미 검사했다(옵션·줄바꿈 없음) */
+  async setIdentity(id: GitIdentity, scope: 'global' | 'repo'): Promise<Done> {
+    const where = scope === 'global' ? ['--global'] : ['--local'];
+    await mustGit(this.root, ['config', ...where, 'user.name', id.name]);
+    await mustGit(this.root, ['config', ...where, 'user.email', id.email]);
+    return ok(scope === 'global' ? `Saved ${id.name} <${id.email}> for all repos on this computer.` : `Saved ${id.name} <${id.email}> for this repo.`);
+  }
+
   async stash(message: unknown, includeUntracked: boolean): Promise<Done> {
     const msg = StashMessage.parse(message).value;
     if (!(await this.hasHead())) throw new GitFailure('BLOCKED', 'Make the first commit before stashing.');

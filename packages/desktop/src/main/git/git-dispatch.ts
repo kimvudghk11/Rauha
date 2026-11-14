@@ -1,7 +1,7 @@
 import { GIT_FUNCTIONS, type GitErrorCode, type GitFn, type GitResult } from '../../shared/git-api.js';
 import { conventionsView } from '../../shared/git-conventions-view.js';
 import { readConventions } from '../workspace/git-worktree.js';
-import { GitInputError, StashRef } from '../../shared/git-guard.js';
+import { GitIdentity, GitInputError, StashRef } from '../../shared/git-guard.js';
 import { GitRepo } from './git-repo.js';
 import { GitFailure } from './git-run.js';
 import type { RepoGate } from './repo-gate.js';
@@ -76,6 +76,7 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       stashApply: () => repo.stashApply(StashRef.parse({ index: a['index'], hash: a['hash'] })),
       stashPop: () => repo.stashPop(StashRef.parse({ index: a['index'], hash: a['hash'] })),
       stashDrop: () => repo.stashDrop(StashRef.parse({ index: a['index'], hash: a['hash'] })),
+      setIdentity: () => repo.setIdentity(GitIdentity.parse(a), a['scope'] === 'repo' ? 'repo' : 'global'),
       openPr: async () => {
         const { url } = await repo.prUrl(str(a['base']));
         if (!url.startsWith('https://')) throw new GitFailure('INVALID', 'Only https addresses can be opened.');

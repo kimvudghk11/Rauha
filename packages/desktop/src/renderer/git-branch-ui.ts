@@ -146,6 +146,58 @@ export async function openBranchMenu(anchor: HTMLElement, ctx: GitCtx, onNew: (p
   search.focus();
 }
 
+/** 커밋에 적힐 이름·이메일을 그 자리에서 정한다(터미널에 git config 를 치지 않아도 된다) */
+export async function openIdentityDialog(ctx: GitCtx): Promise<void> {
+  const veil = el('div', 'veil');
+  const box = el('div', 'dialog gnew');
+  box.setAttribute('role', 'dialog');
+  box.append(el('b', undefined, 'Your name and email for commits'), el('div', 'hint', 'Git writes these into every commit. Use the email of your GitHub account so commits link to you.'));
+  const field = (label: string, ph: string): HTMLInputElement => {
+    const f = el('div', 'gfield');
+    const i = el('input');
+    i.placeholder = ph;
+    i.spellcheck = false;
+    f.append(el('span', 'lbl', label), i);
+    box.append(f);
+    return i;
+  };
+  const name = field('Name', 'Your Name');
+  const email = field('Email', 'you@example.com');
+  const all = el('label', 'gcheck');
+  const allBox = el('input');
+  allBox.type = 'checkbox';
+  allBox.checked = true;
+  all.append(allBox, el('span', undefined, 'Use for all repos on this computer'));
+  const row = el('div', 'btns end');
+  const why = el('span', 'err grow');
+  const cancel = el('button', 'btn', 'Cancel');
+  const ok = el('button', 'btn primary', 'Save');
+  row.append(why, cancel, ok);
+  box.append(all, row);
+  veil.append(box);
+  const finish = (): void => {
+    document.removeEventListener('keydown', onKey, true);
+    veil.remove();
+  };
+  const save = async (): Promise<void> => {
+    ok.disabled = true;
+    const r = await ctx.callRaw('setIdentity', { name: name.value, email: email.value, scope: allBox.checked ? 'global' : 'repo' });
+    ok.disabled = false;
+    if (!r.ok) return void (why.textContent = r.error);
+    finish();
+    ctx.say(`${r.data.message} Try the commit again.`);
+  };
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') finish();
+    else if (isEnterKey(e) && !ok.disabled) void save();
+  };
+  cancel.addEventListener('click', finish);
+  ok.addEventListener('click', () => void save());
+  document.addEventListener('keydown', onKey, true);
+  document.body.append(veil);
+  name.focus();
+}
+
 /**
  * 새 브랜치 대화상자: 이름(이 레포 방식의 접두어 칩 · 즉시 검사 · 겹침 경고), 기준 브랜치, 만들고 바로 이동.
  * 만들기가 막힌 이유는 버튼 옆에 한 줄로 보인다.
