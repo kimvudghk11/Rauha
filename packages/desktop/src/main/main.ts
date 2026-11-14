@@ -908,8 +908,23 @@ void app.whenReady().then(async () => {
       const account = (await accountEnv())['CLAUDE_CONFIG_DIR'];
       const out = [{ dir: base, label: base === join(homedir(), '.claude') ? '~/.claude' : base }];
       if (account !== undefined && resolvePath(account).toLowerCase() !== resolvePath(base).toLowerCase()) out.push({ dir: account, label: `rauha account (${basename(account)})` });
+      // rauha 의 모든 계정(personal·work …) 대화도: ~/.rauha/profiles/<이름>/claude
+      const profiles = join(homedir(), '.rauha', 'profiles');
+      let names: string[] = [];
+      try {
+        names = readdirSync(profiles);
+      } catch {
+        /* 계정 폴더가 아직 없다 */
+      }
+      for (const name of names) {
+        const dir = join(profiles, name, 'claude');
+        if (out.some((o) => resolvePath(o.dir).toLowerCase() === resolvePath(dir).toLowerCase())) continue;
+        if (existsSync(join(dir, 'projects'))) out.push({ dir, label: `rauha account (${name})` });
+      }
       return out;
     },
+    // 다른 AI 대화(읽기만): Kiro CLI·crew, Codex
+    others: { kiro: join(homedir(), '.kiro'), codex: join(homedir(), '.codex') },
   });
   ipcMain.handle(CLAUDE_HISTORY_IPC.list, () => history.list());
   ipcMain.handle(CLAUDE_HISTORY_IPC.open, (_e, id: unknown) => history.open(id));

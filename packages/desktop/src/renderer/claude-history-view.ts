@@ -1,5 +1,8 @@
 import type { TranscriptEntry } from '../shared/claude-history.js';
 import type { ClaudeHistoryApi, ClaudeSessionView } from '../shared/claude-history-ipc.js';
+import { actionSummary, groupTurns, touchedFiles, type Turn } from '../shared/conversation-turns.js';
+import { RecordEntry } from '../shared/record-book.js';
+import { buildBlogPanel, type BlogPanelDeps } from './blog-view.js';
 import { el, isEnterKey } from './dom.js';
 import { button } from './todo-parts.js';
 
@@ -7,7 +10,14 @@ export interface ClaudeHistoryDeps {
   readonly api: ClaudeHistoryApi;
   readonly now: () => number;
   readonly copy: (text: string) => Promise<boolean>;
+  /** 대화 하나로 블로그 글 쓰기(기록 탭의 블로그 패널을 그대로 쓴다). 없으면 단추를 숨긴다 */
+  readonly blog?: Omit<BlogPanelDeps, 'copy'>;
 }
+
+/** 출처 칩: 모든 대화 / Claude Code / Kiro / ChatGPT */
+type SourceKind = 'all' | 'claude' | 'kiro' | 'codex';
+const SOURCE_LABEL: Readonly<Record<SourceKind, string>> = { all: 'All', claude: 'Claude Code', kiro: 'Kiro', codex: 'ChatGPT' };
+const kindOf = (s: ClaudeSessionView): SourceKind => (s.id.startsWith('kiro') ? 'kiro' : s.id.startsWith('codex:') ? 'codex' : 'claude');
 
 const ago = (iso: string, now: number): string => {
   const t = Date.parse(iso);
@@ -51,18 +61,34 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
   const autoText = el('span', undefined, 'Show automated runs');
   autoLabel.append(autoBox, autoText);
   autoLabel.title = 'Conversations started by programs (for example rauha teammates), not typed by you';
+  // 출처 칩과 "내 질문만" 보기
+  let kind: SourceKind = 'all';
+  let onlyMine = false;
+  const chips = el('div', 'chist-sources');
+  const paintChips = (): void => {
+    chips.replaceChildren(
+      ...(['all', 'claude', 'kiro', 'codex'] as const).map((k) => {
+        const n = k === 'all' ? sessions.length : sessions.filter((s) => kindOf(s) === k).length;
+        const b = el('button', `chist-chip${k === kind ? ' on' : ''}`, `${SOURCE_LABEL[k]} ${n}`);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', String(k === kind));
+        b.addEventListener('click', () => ((kind = k), paintChips(), paintList()));
+        return b;
+      }),
+    );
+  };
   tools.append(search, folderSel, autoLabel, refresh, count);
 
   const body = el('div', 'chist-body');
   const list = el('div', 'chist-list pane');
   const detail = el('div', 'chist-detail pane');
   body.append(list, detail);
-  const foot = el('div', 'hint chist-foot', 'Read from Claude Code’s own files on this computer (projects/*.jsonl), read-only. Conversations on claude.ai or the Claude app live on Anthropic’s servers and are not shown here.');
-  root.append(tools, body, foot);
+  const foot = el('div', 'hint chist-foot', 'Read-only, from files on this computer: Claude Code (terminal · VS Code · rauha accounts), Kiro CLI, Codex CLI. Chats on claude.ai, the Claude app or chatgpt.com live on their servers and are not shown here.');
+  root.append(chips, tools, body, foot);
 
   const shown = (): ClaudeSessionView[] => {
     const q = query.trim().toLowerCase();
-    return sessions.filter((s) => (showAuto || !s.automated) && (folder === '' || s.cwd === folder) && (q === '' || s.title.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q)));
+    return sessions.filter((s) => (kind === 'all' || kindOf(s) === kind) && (showAuto || !s.automated) && (folder === '' || s.cwd === folder) && (q === '' || s.title.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q)));
   };
 
   function paintFolders(): void {
@@ -90,8 +116,10 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
       const row = el('div', `chist-row${s.id === selected ? ' on' : ''}`);
       row.tabIndex = 0;
       row.title = `${s.cwd}\n${s.source}`;
-      const meta = el('span', 'dim chist-meta', `${folderName(s.cwd)} · ${ago(s.updatedAt, now)}${s.source === '~/.claude' ? '' : ` · ${s.source}`}`);
-      row.append(el('span', 'chist-title', s.title), meta);
+      const meta = el('span', 'dim chist-meta', `${folderName(s.cwd)} · ${ago(s.updatedAt, now)}`);
+      const top = el('span', 'chist-rtop');
+      top.append(el('span', `chist-src ${kindOf(s)}`, kindOf(s) === 'claude' ? (s.source === '~/.claude' ? 'Claude Code' : s.source.replace('rauha account', 'rauha')) : s.source), meta);
+      row.append(el('span', 'chist-title', s.title), top);
       const pick = (): void => void openSession(s);
       row.addEventListener('click', pick);
       row.addEventListener('keydown', (e) => {
@@ -101,17 +129,67 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
     }
   }
 
-  function bubble(e: TranscriptEntry): HTMLElement {
-    const b = el('div', `chist-msg ${e.role}`);
-    b.append(el('div', 'chist-who', e.role === 'user' ? 'You' : 'Claude'));
-    if (e.text !== '') b.append(el('div', 'chist-text', e.text));
-    if (e.tools !== undefined && e.tools.length > 0) {
-      const t = el('div', 'chist-tools mono');
-      for (const line of e.tools.slice(0, 12)) t.append(el('div', undefined, `▸ ${line}`));
-      if (e.tools.length > 12) t.append(el('div', 'dim', `+ ${e.tools.length - 12} more tool calls`));
-      b.append(t);
+  /** 질문 카드: 위에 "You asked"(내 말), 아래에 "<AI> did"(한 일 요약 → 답, 길면 접힘) */
+  function turnCard(t: Turn, n: number, who: string): HTMLElement {
+    const card = el('section', 'chist-turn');
+    const ask = el('div', 'chist-ask');
+    ask.append(el('div', 'chist-label', t.ask === '' ? 'Start' : `You asked · #${n}`));
+    if (t.ask !== '') ask.append(el('div', 'chist-text', t.ask));
+    card.append(ask);
+    if (onlyMine) return card;
+    const did = el('div', 'chist-did');
+    did.append(el('div', 'chist-label', `${who} did`));
+    const acts = actionSummary(t.tools);
+    if (acts.length > 0) {
+      const ul = el('div', 'chist-acts');
+      for (const a of acts) {
+        const line = el('div', 'chist-act');
+        line.append(el('b', undefined, `${a.label} ${a.count}`), el('span', 'dim mono', a.sample.join(' · ') + (a.count > a.sample.length ? ' …' : '')));
+        ul.append(line);
+      }
+      did.append(ul);
     }
-    return b;
+    if (t.answer !== '') {
+      const long = t.answer.length > 600;
+      const text = el('div', `chist-text chist-answer${long ? ' folded' : ''}`, t.answer);
+      did.append(text);
+      if (long) {
+        const more = el('button', 'link', 'Show the full answer');
+        more.type = 'button';
+        more.addEventListener('click', () => {
+          const folded = text.classList.toggle('folded');
+          more.textContent = folded ? 'Show the full answer' : 'Show less';
+        });
+        did.append(more);
+      }
+    } else if (acts.length === 0) did.append(el('div', 'dim', 'No answer recorded.'));
+    card.append(did);
+    return card;
+  }
+
+  /** 대화 하나를 기록 하나로 바꿔 블로그 패널에 넘긴다(비밀 가리기·요약은 RecordEntry 가 한다) */
+  function asRecord(s: ClaudeSessionView, entries: readonly TranscriptEntry[]): RecordEntry | null {
+    const turns = groupTurns(entries);
+    const asks = turns.map((t) => t.ask).filter((x) => x !== '');
+    try {
+      return RecordEntry.capture({
+        id: `conv-${s.id}`,
+        request: asks[0] ?? s.title,
+        result: turns.map((t) => [t.ask === '' ? '' : `Q: ${t.ask}`, t.answer].filter((x) => x !== '').join('\n')).join('\n\n'),
+        status: 'done',
+        stopReason: null,
+        roles: [s.source],
+        stages: [],
+        queuedAt: s.startedAt || s.updatedAt,
+        endedAt: s.updatedAt,
+        repo: folderName(s.cwd) || null,
+        files: touchedFiles(turns.flatMap((t) => t.tools)),
+        approvals: [],
+        direction: null,
+      });
+    } catch {
+      return null;
+    }
   }
 
   async function openSession(s: ClaudeSessionView): Promise<void> {
@@ -132,9 +210,29 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
         head.append(el('span', 'hint chist-copied', ok ? 'Copied — paste it in a terminal to continue this conversation.' : 'Could not copy.'));
       }),
     );
-    const sub = el('div', 'hint chist-sub', `${s.cwd} · started ${s.startedAt.slice(0, 16).replace('T', ' ')} · ${r.data.entries.length} messages${r.data.truncated ? ' (first part only)' : ''}`);
+    const turns = groupTurns(r.data.entries);
+    const who = kindOf(s) === 'kiro' ? 'Kiro' : kindOf(s) === 'codex' ? 'ChatGPT' : 'Claude';
+    const sub = el('div', 'hint chist-sub', `${s.cwd} · started ${s.startedAt.slice(0, 16).replace('T', ' ')} · ${turns.filter((t) => t.ask !== '').length} questions${r.data.truncated ? ' (first part only)' : ''}`);
+    const mine = el('label', 'hint chist-auto');
+    const mineBox = el('input');
+    mineBox.type = 'checkbox';
+    mineBox.checked = onlyMine;
+    mine.append(mineBox, el('span', undefined, 'Only my questions'));
     const msgs = el('div', 'chist-msgs');
-    for (const e of r.data.entries) msgs.append(bubble(e));
+    const paintTurns = (): void => void msgs.replaceChildren(...turns.map((t, i) => turnCard(t, i + 1, who)));
+    mineBox.addEventListener('change', () => ((onlyMine = mineBox.checked), paintTurns()));
+    paintTurns();
+    if (deps.blog !== undefined) {
+      const blogDeps = { ...deps.blog, copy: deps.copy };
+      head.append(button('✍ Blog post', 'btn sm', () => {
+        const rec = asRecord(s, r.data.entries);
+        if (rec === null) return;
+        detail.replaceChildren(buildBlogPanel(blogDeps, [rec], () => void openSession(s)));
+        detail.scrollTop = 0;
+      }));
+    }
+    if (kindOf(s) !== 'claude') head.querySelector('button')?.remove();
+    sub.append(' · ', mine);
     detail.replaceChildren(head, sub, msgs);
     detail.scrollTop = 0;
   }
@@ -144,6 +242,7 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
     const r = await deps.api.list();
     if (!r.ok) return void list.replaceChildren(el('div', 'err pad', r.error));
     sessions = r.data.sessions;
+    paintChips();
     paintFolders();
     paintList();
     if (selected === null) detail.replaceChildren(el('div', 'hint pad', `Pick a conversation on the left. Reading from ${r.data.roots.join(' and ')}.`));

@@ -1,5 +1,6 @@
 import { createReadStream } from 'node:fs';
-import { open, readdir, stat } from 'node:fs/promises';
+import { open, readdir, readFile, stat } from 'node:fs/promises';
+import { codexEntry, codexSummary, kiroCliEntry, kiroCliSummary, kiroCrewEntry, kiroCrewSummary, OTHER_SOURCE_LABEL, OtherHistoryId } from '../../shared/other-history.js';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { HistoryId, mergeTurns, sessionSummary, transcriptEntry, type TranscriptEntry } from '../../shared/claude-history.js';
@@ -31,6 +32,8 @@ const SESSION_FILE = /^[A-Za-z0-9._-]{1,200}\.jsonl$/;
 export interface ClaudeHistoryDeps {
   /** 대화 내역을 찾을 Claude 설정 폴더들(기본 ~/.claude 와 지금 계정의 CLAUDE_CONFIG_DIR). 같은 폴더는 한 번만 */
   readonly roots: () => Promise<readonly { readonly dir: string; readonly label: string }[]>;
+  /** 다른 AI 의 기록 폴더(없으면 그 출처는 건너뜀): ~/.kiro, ~/.codex */
+  readonly others?: { readonly kiro?: string; readonly codex?: string };
 }
 
 /**
@@ -67,14 +70,74 @@ export class ClaudeHistoryService {
           }
         }
       }
+      const others = await this.otherRows();
+      rows.push(...others);
       rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-      return { ok: true, data: { sessions: rows.slice(0, MAX_SESSIONS), roots: roots.map((r) => r.label) } };
+      const labels = [...roots.map((r) => r.label), ...new Set(others.map((r) => r.source))];
+      return { ok: true, data: { sessions: rows.slice(0, MAX_SESSIONS), roots: labels } };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
 
+  /** Kiro CLI · Kiro crew · Codex 대화 목록(읽기만) */
+  private async otherRows(): Promise<ClaudeSessionRow[]> {
+    const rows: ClaudeSessionRow[] = [];
+    const { kiro, codex } = this.deps.others ?? {};
+    const row = async (id: OtherHistoryId | null, path: string, s: { title: string; cwd: string; startedAt: string } | null, updated?: string): Promise<void> => {
+      if (id === null || s === null || s.title === '') return;
+      const st = await stat(path).catch(() => null);
+      if (st === null || st.size === 0) return;
+      rows.push({ id: id.toString(), title: s.title, cwd: s.cwd, startedAt: s.startedAt, updatedAt: updated || st.mtime.toISOString(), bytes: st.size, source: OTHER_SOURCE_LABEL[id.source], automated: false });
+    };
+    if (kiro !== undefined) {
+      const cli = join(kiro, 'sessions', 'cli');
+      for (const f of await readdir(cli).catch(() => [] as string[])) {
+        if (!f.endsWith('.json')) continue;
+        const name = f.slice(0, -'.json'.length);
+        const meta = kiroCliSummary(await readFile(join(cli, f), 'utf8').catch(() => ''));
+        const path = join(cli, `${name}.jsonl`);
+        // 제목이 비어 있는 대화가 있다: 첫 질문을 제목으로
+        const firstAsk = meta !== null && meta.title === '' ? (await readHead(path).catch(() => [] as string[])).map(kiroCliEntry).find((e) => e?.role === 'user')?.text ?? '' : '';
+        const titled = meta === null ? null : { ...meta, title: meta.title || firstAsk.replace(/\s+/g, ' ').trim().slice(0, 140) };
+        await row(OtherHistoryId.of('kiro', name), path, titled, meta?.updatedAt);
+      }
+      const crew = join(kiro, 'crew', 'sessions');
+      for (const f of await readdir(crew).catch(() => [] as string[])) {
+        if (!f.endsWith('.jsonl')) continue;
+        const path = join(crew, f);
+        await row(OtherHistoryId.of('kirocrew', f.slice(0, -'.jsonl'.length)), path, kiroCrewSummary(await readHead(path).catch(() => [])));
+      }
+    }
+    if (codex !== undefined) {
+      const base = join(codex, 'sessions');
+      for (const y of await readdir(base).catch(() => [] as string[]))
+        for (const m of await readdir(join(base, y)).catch(() => [] as string[]))
+          for (const d of await readdir(join(base, y, m)).catch(() => [] as string[]))
+            for (const f of await readdir(join(base, y, m, d)).catch(() => [] as string[])) {
+              if (!f.startsWith('rollout-') || !f.endsWith('.jsonl')) continue;
+              const path = join(base, y, m, d, f);
+              await row(OtherHistoryId.of('codex', `${y}/${m}/${d}/${f.slice(0, -'.jsonl'.length)}`), path, codexSummary(await readHead(path).catch(() => [])));
+            }
+    }
+    return rows;
+  }
+
+  private otherPath(id: OtherHistoryId): string | null {
+    const { kiro, codex } = this.deps.others ?? {};
+    if (id.source === 'kiro') return kiro === undefined ? null : join(kiro, 'sessions', 'cli', `${id.file}.jsonl`);
+    if (id.source === 'kirocrew') return kiro === undefined ? null : join(kiro, 'crew', 'sessions', `${id.file}.jsonl`);
+    return codex === undefined ? null : join(codex, 'sessions', ...id.file.split('/')) + '.jsonl';
+  }
+
   async open(raw: unknown): Promise<HistoryResult<{ readonly entries: readonly TranscriptEntry[]; readonly truncated: boolean }>> {
+    const other = OtherHistoryId.parse(raw);
+    if (other !== null) {
+      const path = this.otherPath(other);
+      if (path === null) return { ok: false, error: 'That conversation is not in the list. Refresh the list.' };
+      const parseLine = other.source === 'kiro' ? kiroCliEntry : other.source === 'kirocrew' ? kiroCrewEntry : codexEntry;
+      return this.readEntries(path, parseLine);
+    }
     let id: HistoryId;
     try {
       id = HistoryId.parse(raw);
@@ -84,7 +147,10 @@ export class ClaudeHistoryService {
     const roots = await this.deps.roots();
     const root = roots[id.root];
     if (root === undefined) return { ok: false, error: 'That conversation is not in the list. Refresh the list.' };
-    const path = join(root.dir, 'projects', id.project, `${id.session}.jsonl`);
+    return this.readEntries(join(root.dir, 'projects', id.project, `${id.session}.jsonl`), transcriptEntry);
+  }
+
+  private async readEntries(path: string, parseLine: (line: string) => TranscriptEntry | null): Promise<HistoryResult<{ readonly entries: readonly TranscriptEntry[]; readonly truncated: boolean }>> {
     const st = await stat(path).catch(() => null);
     if (st === null || !st.isFile()) return { ok: false, error: 'That conversation file no longer exists.' };
     if (st.size > MAX_FILE) return { ok: false, error: 'That conversation is too large to open here.' };
@@ -92,7 +158,7 @@ export class ClaudeHistoryService {
     let truncated = false;
     const rl = createInterface({ input: createReadStream(path, { encoding: 'utf8' }), crlfDelay: Infinity });
     for await (const line of rl) {
-      const e = transcriptEntry(line);
+      const e = parseLine(line);
       if (e === null) continue;
       if (entries.length >= MAX_ENTRIES) {
         truncated = true;

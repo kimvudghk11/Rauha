@@ -105,4 +105,25 @@
 .chist-who { font-size: var(--fs-xs); color: var(--muted); margin-bottom: 2px; }
 .chist-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-sm); line-height: 1.55; }
 .chist-tools { margin-top: var(--s1); font-size: var(--fs-xs); color: var(--muted); }
-.chist-auto { display: flex; align-items: center; gap: var(--s1); white-space: nowrap; }
+.chist-auto { display: inline-flex; align-items: center; gap: var(--s1); white-space: nowrap; }
+/* 출처 칩 · 목록 줄의 출처 표시 */
+.chist-sources { display: flex; gap: var(--s1); flex-wrap: wrap; }
+.chist-chip { border: 1px solid var(--border2); border-radius: 999px; padding: 3px 12px; background: none; color: var(--text); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.chist-chip:hover { background: var(--row-hover); }
+.chist-chip.on { background: var(--sel); color: var(--bright); border-color: var(--accentfg); }
+.chist-rtop { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.chist-src { flex: none; font-size: var(--fs-xs); font-weight: 600; border-radius: 999px; padding: 0 7px; color: var(--accentfg); background: color-mix(in srgb, var(--accentfg) 14%, transparent); }
+.chist-src.kiro { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.chist-src.codex { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+/* 질문 카드: 위 "You asked" · 아래 "<AI> did" 를 확실히 나눈다 */
+.chist-msgs { gap: var(--s3); }
+.chist-turn { border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; }
+.chist-ask { padding: var(--s3); background: color-mix(in srgb, var(--accent) 12%, transparent); border-left: 3px solid var(--accentfg); }
+.chist-ask .chist-text { color: var(--bright); font-size: var(--fs-md); }
+.chist-did { padding: var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+.chist-label { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: var(--s1); }
+.chist-acts { display: flex; flex-direction: column; gap: 2px; padding: var(--s2); border-radius: 6px; background: var(--well); }
+.chist-act { display: flex; gap: var(--s2); min-width: 0; font-size: var(--fs-sm); }
+.chist-act b { flex: none; color: var(--text); min-width: 84px; }
+.chist-act .dim { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chist-answer.folded { max-height: 9.5em; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, black 70%, transparent); mask-image: linear-gradient(180deg, black 70%, transparent); }

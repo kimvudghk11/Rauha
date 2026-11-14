@@ -204,7 +204,7 @@ function show(id: TabId): void {
     screen.replaceChildren(
       buildRecordsSwitch({
         records: () => buildRecords({ api: window.rauha.records, now: () => Date.now(), copy: copyText, blog: { api: window.rauha.blog, names: { get: async () => (await window.rauha.getSettings()).blogNames, set: async (names) => (await window.rauha.updateSettings({ blogNames: names })).blogNames } } }).root,
-        claude: () => buildClaudeHistory({ api: window.rauha.claudeHistory, now: () => Date.now(), copy: copyText }).root,
+        claude: () => buildClaudeHistory({ api: window.rauha.claudeHistory, now: () => Date.now(), copy: copyText, blog: { api: window.rauha.blog, names: { get: async () => (await window.rauha.getSettings()).blogNames, set: async (names) => (await window.rauha.updateSettings({ blogNames: names })).blogNames } } }).root,
       }).root,
     );
   else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);

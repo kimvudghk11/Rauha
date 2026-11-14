@@ -8,9 +8,10 @@ export function buildRecordsSwitch(make: Readonly<Record<View, () => HTMLElement
   const root = el('section', 'records-switch');
   const tabs = el('div', 'tabs records-tabs');
   const host = el('div', 'records-host');
-  let view: View = 'records';
+  // 기본은 모든 대화(Claude Code · Kiro · Codex). rauha 작업 기록은 두 번째 탭
+  let view: View = 'claude';
   try {
-    if (localStorage.getItem(KEY) === 'claude') view = 'claude';
+    if (localStorage.getItem(KEY) === 'records') view = 'records';
   } catch {
     /* 기억은 없어도 된다 */
   }
@@ -31,7 +32,7 @@ export function buildRecordsSwitch(make: Readonly<Record<View, () => HTMLElement
     }
     host.replaceChildren(node);
   };
-  for (const [id, label] of [['records', 'rauha records'], ['claude', 'Claude conversations']] as const) {
+  for (const [id, label] of [['claude', 'All conversations'], ['records', 'rauha task records']] as const) {
     const b = el('button', 'tab', label);
     b.type = 'button';
     b.addEventListener('click', () => show(id));
