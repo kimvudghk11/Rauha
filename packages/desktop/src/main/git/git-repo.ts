@@ -422,6 +422,11 @@ export class GitRepo {
   }
 
   /** GitHub 비교 주소(PR 만들기 화면). GitHub 원격이 아니면 실패한다. */
+  /** 스테이지한 변경의 diff(바이너리는 이름만). 커밋 메시지 초안용 */
+  async stagedDiff(): Promise<string> {
+    return (await runGit(this.root, ['diff', '--cached', '--no-color', '--no-ext-diff', '--stat', '--patch', '--find-renames'])).stdout;
+  }
+
   /** 이 레포의 GitHub 원격(owner/repo). 원격이 없거나 GitHub 가 아니면 이유를 던진다 */
   async githubRepo(): Promise<GithubRepo> {
     const remote = await this.remoteName();

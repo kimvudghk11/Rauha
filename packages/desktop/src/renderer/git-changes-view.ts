@@ -84,7 +84,28 @@ export function buildChanges(ctx: GitCtx) {
     title.value = subject;
     const count = el('span', 'fld-count');
     const head = el('div', 'gsub');
-    head.append(el('span', 'lbl', 'Subject'), count);
+    // 스테이지한 변경만 보고 팀원(Haiku)이 제목·본문 초안을 쓴다. 고친 뒤 직접 커밋한다.
+    const draft = el('button', 'btn sm gdraft', '✨ Draft with teammate');
+    draft.type = 'button';
+    draft.disabled = stagedCount === 0;
+    draft.title = stagedCount === 0 ? 'Stage some changes first. The draft is written from staged changes only.' : 'A teammate (Haiku) reads only the staged diff and writes a subject and body in this repo\'s style. You edit and commit.';
+    draft.addEventListener('click', async () => {
+      draft.disabled = true;
+      draft.textContent = 'Drafting…';
+      const r = await ctx.callRaw('draftCommit', undefined as never);
+      draft.textContent = '✨ Draft with teammate';
+      draft.disabled = false;
+      if (!r.ok) return ctx.say(r.error, true);
+      // 쓰는 동안 화면이 다시 그려졌을 수 있다: 값은 바깥 상태에 두고, 지금 보이는 칸에 넣는다
+      subject = r.data.subject;
+      body = r.data.body;
+      if (!title.isConnected) return void (await refresh());
+      title.value = subject;
+      desc.value = body;
+      sync();
+      title.focus();
+    });
+    head.append(el('span', 'lbl', 'Subject'), el('span', 'grow'), draft, count);
     subjectRow.append(head, title);
     const descRow = el('div', 'gfield');
     const desc = el('textarea');

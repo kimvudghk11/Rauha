@@ -14,6 +14,8 @@ export interface GitContext {
   readonly openExternal: (url: string) => Promise<void>;
   /** GitHub Actions 읽기(없으면 Actions 함수는 거절) */
   readonly actions?: ActionsClient;
+  /** 스테이지한 diff 와 이 레포의 커밋 방식 안내로 메시지 초안을 쓴다(모델 한 번). 없으면 거절 */
+  readonly draftCommit?: (stagedDiff: string, style: string) => Promise<{ subject: string; body: string }>;
 }
 
 const str = (v: unknown): string => {
@@ -94,6 +96,12 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       },
       actionsJobs: async () => actions().jobs(await repo.githubRepo(), ghId(a['runId'])),
       actionsLog: async () => actions().log(await repo.githubRepo(), ghId(a['jobId'])),
+      draftCommit: async () => {
+        if (ctx.draftCommit === undefined) throw new GitFailure('INVALID', 'Drafting is not available here.');
+        const diff = await repo.stagedDiff();
+        if (diff.trim() === '') throw new GitFailure('BLOCKED', 'Stage some changes first. The draft is written from staged changes only.');
+        return ctx.draftCommit(diff, conventionsView(await readConventions(checked)).commit.text);
+      },
       openPr: async () => {
         const { url } = await repo.prUrl(str(a['base']));
         if (!url.startsWith('https://')) throw new GitFailure('INVALID', 'Only https addresses can be opened.');

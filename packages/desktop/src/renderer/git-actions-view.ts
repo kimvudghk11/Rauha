@@ -19,7 +19,7 @@ const mark = (v: Verdict): HTMLElement => {
  * 실패한 작업은 로그 끝부분(GitHub CLI 로그인 필요). 다시 실행·취소는 하지 않는다(GitHub 에서).
  */
 export function buildActions(ctx: GitCtx) {
-  const root = el('div', 'gpanel gact');
+  const root = el('div', 'gpanel gactions');
   const head = el('div', 'gtools gact-head');
   const title = el('span', 'hint grow', 'GitHub Actions');
   const reload = el('button', 'btn sm', 'Refresh');

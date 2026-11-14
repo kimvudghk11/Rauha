@@ -7,7 +7,7 @@ import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, safeStorage, screen, shell, type IpcMainInvokeEvent } from 'electron';
-import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftRule, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
+import { DefaultRuleSet, DefaultRulesDto, DomainError, discoverRepos, draftBlog, draftCommit, draftRule, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
 import { boardView, jobView, IPC, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
@@ -25,6 +25,7 @@ import { RepoConversations } from './team/repo-conversations.js';
 import { WorktreeLedger } from './workspace/worktree-ledger.js';
 import { dispatchGit } from './git/git-dispatch.js';
 import { ghCliToken, GithubActionsClient } from './github/actions-client.js';
+import { GitFailure } from './git/git-run.js';
 import { CHECKPOINT_IPC } from '../shared/checkpoint-api.js';
 import { dispatchCheckpoint } from './team/checkpoint-dispatch.js';
 import { RepoGate } from './git/repo-gate.js';
@@ -833,9 +834,19 @@ void app.whenReady().then(async () => {
   // git 탭: 앱이 작업 폴더에서 찾은 레포의 루트에서만 git을 돌린다
   const gitGate = new RepoGate(async () => (await scanWorkFolder(currentWorkDir())).filter((e) => e.kind === 'repo').map((e) => e.root));
   // GitHub Actions 보기(읽기 전용). 토큰은 GitHub CLI 로그인이 있을 때만 main 안에서 쓴다.
+  // 커밋 메시지 초안: 스테이지한 diff 만 Haiku 에 한 번(확인용 실행에서는 모델을 부르지 않는다)
+  const draftCommitMessage = async (diff: string, style: string): Promise<{ subject: string; body: string }> => {
+    if (process.env['RAUHA_FAKE_TEAM'] !== undefined) return { subject: 'feat: add n (draft)', body: 'Drafted from the staged diff.' };
+    const profile = (await profileResolver(home, settings.account))(currentWorkDir());
+    try {
+      return await draftCommit(diff, style, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.haiku);
+    } catch (e) {
+      throw new GitFailure('FAILED', e instanceof DomainError ? e.message : 'Could not write a commit message. Check sign-in or the usage limit.');
+    }
+  };
   const githubActions = GithubActionsClient.create({ fetch: (u, i) => fetch(u, i), ghToken: ghCliToken, userAgent: `rauha/${app.getVersion()}` });
   ipcMain.handle(IPC.gitCall, (_e, fn: unknown, root: unknown, arg: unknown) =>
-    dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => openSafe(url), actions: githubActions }, fn, root, arg),
+    dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => openSafe(url), actions: githubActions, draftCommit: draftCommitMessage }, fn, root, arg),
   );
   ipcMain.handle(CHECKPOINT_IPC.call, async (_e, fn: unknown, arg: unknown) => {
     await checkpointsReady;

@@ -82,7 +82,7 @@ textarea.ginput, input.ginput { width: 100%; }
 .gbm > button .grow { overflow: hidden; text-overflow: ellipsis; }
 .gbm > .gbm-create { background: var(--sel); color: var(--bright); }
 /* Actions 탭: 왼쪽 실행 목록 · 오른쪽 작업과 단계 · 실패한 작업은 로그 끝부분 */
-.gact { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.gactions { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .gact-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 2fr) minmax(0, 3fr); gap: var(--s2); }
 .app[data-tier=xs] .gact-body, .app[data-tier=s] .gact-body { grid-template-columns: 1fr; }
 .gact-runs, .gact-detail { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }

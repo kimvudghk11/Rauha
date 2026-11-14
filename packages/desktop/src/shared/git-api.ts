@@ -12,7 +12,7 @@ export const GIT_FUNCTIONS = [
   'branches', 'createBranch', 'switchBranch', 'merge', 'deleteBranch', 'fetch', 'pull', 'push',
   'conventions', 'undoCommit', 'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr', 'worktrees',
   'stashList', 'stash', 'stashApply', 'stashPop', 'stashDrop', 'setIdentity',
-  'actionsRuns', 'actionsJobs', 'actionsLog',
+  'actionsRuns', 'actionsJobs', 'actionsLog', 'draftCommit',
 ] as const;
 export type GitFn = (typeof GIT_FUNCTIONS)[number];
 
@@ -96,6 +96,8 @@ export interface GitCalls {
   actionsRuns: [void, { slug: string; signedIn: boolean; runs: readonly RunView[] }];
   actionsJobs: [{ runId: number }, readonly JobView[]];
   actionsLog: [{ jobId: number }, { lines: readonly LogLine[]; needsLogin: boolean }];
+  /** 스테이지한 변경만 보고 팀원(Haiku)이 커밋 제목·본문 초안을 쓴다. 커밋은 하지 않는다 */
+  draftCommit: [void, { subject: string; body: string }];
   stashApply: [StashTarget, Done];
   stashPop: [StashTarget, Done];
   /** 되돌릴 수 없는 동작: 화면은 확인 창을 거친다 */
