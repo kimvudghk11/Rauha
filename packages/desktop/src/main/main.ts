@@ -917,6 +917,7 @@ void app.whenReady().then(async () => {
   ipcMain.handle(EXTERNAL_AI_IPC.ask, (_e, id: unknown, prompt: unknown) => externalAi.ask(id, prompt, currentWorkDir()));
   ipcMain.handle(EXTERNAL_AI_IPC.login, (_e, id: unknown, switchAccount: unknown) => externalAi.login(id, switchAccount === true));
   ipcMain.handle(EXTERNAL_AI_IPC.logout, (_e, id: unknown) => externalAi.logout(id));
+  ipcMain.handle(EXTERNAL_AI_IPC.install, (_e, id: unknown) => externalAi.install(id));
   connectorService = registerConnectorIpc(ipcMain, {
     file: join(dataDir, 'connectors.json'),
     env: accountEnv,

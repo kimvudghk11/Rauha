@@ -60,6 +60,15 @@ export function limitMessage(id: AiProviderId, raw: string): string | null {
   return null;
 }
 
+/** npm 전역 설치가 실패한 까닭. permission 이면 사용자 폴더로 다시 시도한다 */
+export type InstallFailure = 'permission' | 'network' | 'other';
+
+export function installFailure(output: string): InstallFailure {
+  if (/EACCES|EPERM|permission denied|operation not permitted/i.test(output)) return 'permission';
+  if (/ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|network|getaddrinfo|proxy/i.test(output)) return 'network';
+  return 'other';
+}
+
 /** 상태 명령 출력 → 로그인했는지와 누구인지(이메일 등) */
 export function loginState(id: AiProviderId, raw: string, code: number): { signedIn: boolean; who: string } {
   const text = raw.replace(ANSI, '');

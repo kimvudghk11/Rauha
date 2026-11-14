@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
-import { AI_PROVIDERS, askArgs, cleanAnswer, limitMessage, LOGIN_ARGS, LOGOUT_ARGS, loginState, providerOf, STATUS_ARGS, type AiProviderId } from '../../shared/external-ai.js';
+import { AI_PROVIDERS, askArgs, cleanAnswer, installFailure, limitMessage, LOGIN_ARGS, LOGOUT_ARGS, loginState, providerOf, STATUS_ARGS, type AiProviderId } from '../../shared/external-ai.js';
 import type { AiResult, AiStatusView } from '../../shared/external-ai-ipc.js';
 
 const PROMPT_MAX = 20_000;
@@ -66,14 +66,43 @@ export class ExternalAiService {
       return found === null ? null : { file: found, pre: [], shellName: 'kiro-cli' };
     }
     if (platform !== 'win32') {
-      const found = which('codex', env, platform);
+      const mine = join(this.userPrefix(), 'bin', 'codex');
+      const found = which('codex', env, platform) ?? (existsSync(mine) ? mine : null);
       return found === null ? null : { file: found, pre: [], shellName: 'codex' };
     }
-    const cmd = which('codex', env, platform);
+    const cmd = which('codex', env, platform) ?? (existsSync(join(this.userPrefix(), 'codex.cmd')) ? join(this.userPrefix(), 'codex.cmd') : null);
     if (cmd === null) return null;
     const js = join(dirname(cmd), 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
     const node = existsSync(join(dirname(cmd), 'node.exe')) ? join(dirname(cmd), 'node.exe') : which('node', env, platform);
     return existsSync(js) && node !== null ? { file: node, pre: [js], shellName: 'codex.cmd' } : null;
+  }
+
+  /** 권한 문제로 전역 설치가 막히면 쓰는 사용자 폴더(~/.rauha/npm-global) */
+  private userPrefix(): string {
+    return join(this.deps.env['USERPROFILE'] ?? this.deps.env['HOME'] ?? '.', '.rauha', 'npm-global');
+  }
+
+  /**
+   * Codex CLI 설치: npm install -g @openai/codex. npm 을 셸 없이 부르려고 node 로 npm-cli.js 를 연다.
+   * 권한 때문에 실패하면 사용자 폴더(~/.rauha/npm-global)로 한 번 더 시도한다. 그 밖의 실패는 까닭을 쉬운 말로.
+   */
+  async install(rawId: unknown): Promise<AiResult<null>> {
+    const p = providerOf(rawId);
+    if (p === null) return { ok: false, error: 'Unknown AI.' };
+    if (p.id !== 'codex') return { ok: false, error: 'Install Kiro from kiro.dev (its installer is not on npm).' };
+    if (this.exe('codex') !== null) return { ok: true, data: null };
+    const node = which('node', this.deps.env, this.deps.platform);
+    const npmCli = node === null ? null : [join(dirname(node), 'node_modules', 'npm', 'bin', 'npm-cli.js'), join(dirname(node), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js')].find((x) => existsSync(x)) ?? null;
+    if (node === null || npmCli === null) return { ok: false, error: 'Node.js (with npm) is not installed. Install Node.js LTS from nodejs.org, then press Install again.' };
+    const tryOnce = (extra: readonly string[]): Promise<Ran> => runFile(node, [npmCli, 'install', '-g', '@openai/codex', '--no-fund', '--no-audit', ...extra], { timeoutMs: 5 * 60_000, env: this.deps.env });
+    let r = await tryOnce([]);
+    if (r.code !== 0 && installFailure(`${r.stdout}\n${r.stderr}`) === 'permission') r = await tryOnce(['--prefix', this.userPrefix()]);
+    if (r.code === 0 && this.exe('codex') !== null) return { ok: true, data: null };
+    const why = installFailure(`${r.stdout}\n${r.stderr}`);
+    if (why === 'network') return { ok: false, error: 'Could not reach the npm registry. Check the internet (or company proxy), then press Install again.' };
+    if (why === 'permission') return { ok: false, error: 'This computer does not allow installing there. Run "npm install -g @openai/codex" in a terminal opened as administrator.' };
+    const line = `${r.stderr}\n${r.stdout}`.split('\n').map((l) => l.trim()).find((l) => /ERR!|error/i.test(l)) ?? `exit code ${r.code}`;
+    return { ok: false, error: `Install failed: ${line}` };
   }
 
   async status(): Promise<AiStatusView[]> {

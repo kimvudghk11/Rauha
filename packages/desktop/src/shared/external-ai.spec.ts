@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { askArgs, cleanAnswer, limitMessage, loginState, AI_PROVIDERS, providerOf } from './external-ai.js';
+import { askArgs, cleanAnswer, installFailure, limitMessage, loginState, AI_PROVIDERS, providerOf } from './external-ai.js';
 
 describe('바깥 AI 고르기', () => {
   it('kiro · codex 만 받는다(claude 는 팀이 맡는다)', () => {
@@ -32,6 +32,15 @@ describe('답 정리', () => {
   it('여러 줄 답은 줄을 지킨다', () => {
     expect(cleanAnswer('kiro', '> line one\nline two\n\n ▸ Time: 2s')).toBe('line one\nline two');
     expect(cleanAnswer('codex', '  answer\n')).toBe('answer');
+  });
+});
+
+describe('설치 실패 까닭', () => {
+  it('권한·네트워크·그 밖', () => {
+    expect(installFailure('npm ERR! code EACCES\nnpm ERR! syscall mkdir')).toBe('permission');
+    expect(installFailure('npm ERR! code EPERM')).toBe('permission');
+    expect(installFailure('npm ERR! code ENOTFOUND\nrequest to https://registry.npmjs.org failed')).toBe('network');
+    expect(installFailure('npm ERR! code E404')).toBe('other');
   });
 });
 

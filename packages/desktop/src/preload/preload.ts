@@ -93,6 +93,7 @@ const api: RauhaApi = {
     ask: (id, prompt) => ipcRenderer.invoke(EXTERNAL_AI_IPC.ask, id, prompt),
     login: (id, switchAccount) => ipcRenderer.invoke(EXTERNAL_AI_IPC.login, id, switchAccount === true),
     logout: (id) => ipcRenderer.invoke(EXTERNAL_AI_IPC.logout, id),
+    install: (id) => ipcRenderer.invoke(EXTERNAL_AI_IPC.install, id),
   },
   blog: {
     context: () => ipcRenderer.invoke(BLOG_IPC.context),

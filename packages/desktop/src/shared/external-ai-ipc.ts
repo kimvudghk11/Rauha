@@ -6,6 +6,7 @@ export const EXTERNAL_AI_IPC = {
   ask: 'external-ai:ask',
   login: 'external-ai:login',
   logout: 'external-ai:logout',
+  install: 'external-ai:install',
 } as const;
 
 export interface AiStatusView {
@@ -26,4 +27,6 @@ export interface ExternalAiApi {
   /** switchAccount 면 먼저 로그아웃한다(Kiro 는 그래야 다른 계정으로 로그인된다) */
   login(id: AiProviderId, switchAccount?: boolean): Promise<AiResult<null>>;
   logout(id: AiProviderId): Promise<AiResult<null>>;
+  /** 설치(Codex 만: npm 전역, 권한 문제면 사용자 폴더로 다시) */
+  install(id: AiProviderId): Promise<AiResult<null>>;
 }
