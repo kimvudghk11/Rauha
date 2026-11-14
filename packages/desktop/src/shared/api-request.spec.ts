@@ -146,3 +146,33 @@ describe('응답 뒤 규칙', () => {
     expect(req({ after }).props.after).toEqual(after);
   });
 });
+
+describe('변수 안의 변수와 동적 변수', () => {
+  it('환경 값 안의 {{변수}}도 채운다(Postman 처럼)', () => {
+    expect(req({ url: '{{base}}/x' }).prepare(vars({ base: 'http://{{host}}:{{port}}', host: 'localhost', port: '4510' })).url).toBe('http://localhost:4510/x');
+  });
+  it('서로를 부르는 변수는 끝없이 돌지 않고 멈춘다', () => {
+    expect(() => req({ url: '{{a}}/x' }).prepare(vars({ a: '{{b}}', b: '{{a}}' }))).toThrow(/refer to each other/);
+  });
+  it('안쪽 변수가 없으면 그 이름을 알린다', () => {
+    expect(() => req({ url: '{{base}}/x' }).prepare(vars({ base: 'http://{{host}}' }))).toThrow(/\{\{host\}\}/);
+  });
+  it('{{$guid}} {{$timestamp}} {{$randomInt}} 같은 동적 변수는 보낼 때마다 새로 만든다', () => {
+    const r = req({ url: 'http://x/{{$guid}}', method: 'POST', body: { kind: 'json', text: '{"t":{{$timestamp}},"i":"{{$isoTimestamp}}","n":{{$randomInt}}}' } });
+    const p = r.prepare(vars({}), new Set(), { now: () => Date.parse('2026-11-14T00:00:00Z'), uuid: () => 'u-1', random: () => 0.5 });
+    expect(p.url).toBe('http://x/u-1');
+    expect(JSON.parse(p.body as string)).toEqual({ t: 1794614400, i: '2026-11-14T00:00:00.000Z', n: 500 });
+  });
+  it('모르는 동적 변수는 이름을 알린다', () => {
+    expect(() => req({ url: 'http://x/{{$nope}}' }).prepare(vars({}))).toThrow(/\{\{\$nope\}\}/);
+  });
+});
+
+describe('주소 앞 http:// 생략', () => {
+  it('localhost:3000/x 처럼 쓰면 http:// 를 붙인다', () => {
+    expect(req({ url: 'localhost:3000/x' }).prepare(vars({})).url).toBe('http://localhost:3000/x');
+    expect(req({ url: '{{host}}/x' }).prepare(vars({ host: 'api.test' })).url).toBe('http://api.test/x');
+    expect(req({ url: 'api.test:8080/x' }).prepare(vars({})).url).toBe('http://api.test:8080/x');
+    expect(req({ url: 'file:///etc/passwd' }).prepare(vars({})).url).toBe('file:///etc/passwd');
+  });
+});

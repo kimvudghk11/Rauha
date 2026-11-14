@@ -128,12 +128,13 @@ describe('OpenAPI 가져오기', () => {
     expect(c.groups.map((g) => g.name)).toEqual(['pets']);
     expect(c.groups[0]?.requests.map((r) => r.name)).toEqual(['List pets', 'addPet', 'Remove']);
   });
-  it('서버 URL은 base_url 변수이고, 요청은 {{base_url}}과 {{id}}를 쓴다', () => {
+  it('서버 URL은 base_url 변수이고, 경로의 {id} 는 경로 변수 :id 가 된다(환경 변수를 늘리지 않는다)', () => {
     const c = parseOpenApi(JSON.stringify(doc), nid);
     expect(c.variables).toContainEqual({ name: 'base_url', value: 'https://pets.test/v1' });
     const del = c.groups[0]?.requests[2];
-    expect(del?.props.url).toBe('{{base_url}}/pets/{{id}}');
-    expect(c.variables.map((v) => v.name)).toContain('id');
+    expect(del?.props.url).toBe('{{base_url}}/pets/:id');
+    expect(del?.props.pathVars.map((v) => v.key)).toEqual(['id']);
+    expect(c.variables.map((v) => v.name)).not.toContain('id');
   });
   it('Bearer 인증은 {{token}} 변수를 가리키고, 본문은 스키마로 예시를 만든다', () => {
     const c = parseOpenApi(JSON.stringify(doc), nid);
@@ -147,6 +148,7 @@ describe('OpenAPI 가져오기', () => {
   });
   it('OpenAPI가 아니거나 JSON이 아니면 오류다', () => {
     expect(() => parseOpenApi('{', nid)).toThrow('JSON');
-    expect(() => parseOpenApi('{"swagger":"2.0"}', nid)).toThrow('3.x');
+    expect(() => parseOpenApi('{"swagger":"1.2"}', nid)).toThrow('3.x');
+    expect(() => parseOpenApi('{"swagger":"2.0"}', nid)).toThrow('no paths');
   });
 });

@@ -11,6 +11,7 @@ import { ApiProjectsStore, CollectionsStore, EnvironmentsStore, HistoryStore } f
 import { ApiTestService } from './api-test-service.js';
 import { FsProjectReader } from './project-reader.js';
 import { probeServer } from './server-probe.js';
+import { yamlToJson } from './yaml-text.js';
 
 /** AI 시험에 쓰는 시간 제한(로컬 서버라 짧게) */
 const TEST_TIMEOUT_MS = 15_000;
@@ -55,6 +56,7 @@ export function registerApiIpc(ipc: Pick<IpcMain, 'handle'>, deps: ApiIpcDeps): 
     history: new HistoryStore(join(deps.dataDir, 'api-history.json')),
     send: (prepared, signal, cookies) => sendPrepared(prepared, { signal, resolve, cookies, readFile: readUploadFile, userAgent: deps.userAgent }),
     saveBytes: deps.saveBytes,
+    yamlToJson,
     newId: () => randomUUID(),
     now: () => new Date(),
     saveFile: deps.saveFile,
@@ -95,5 +97,7 @@ export function registerApiIpc(ipc: Pick<IpcMain, 'handle'>, deps: ApiIpcDeps): 
   ipc.handle(API_IPC.cookiesClear, (_e, domain: unknown) => service.clearCookies(domain));
   ipc.handle(API_IPC.saveBody, (_e, id: unknown) => service.saveBody(id));
   ipc.handle(API_IPC.pickFile, () => deps.pickFile());
+  ipc.handle(API_IPC.runFolder, (_e, req: unknown) => service.runFolder(req));
+  ipc.handle(API_IPC.runCancel, () => service.cancelRun());
   return service;
 }

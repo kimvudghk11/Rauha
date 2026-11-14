@@ -50,7 +50,8 @@ export function parseHttpFile(text: string, newId: () => string): HttpFileConten
     if (i >= lines.length) continue;
     const first = (lines[i++] as string).trim();
     const m = /^(?:([A-Za-z]+)\s+)?(\S+)(?:\s+HTTP\/[\d.]+)?$/.exec(first);
-    if (m === null) throw new ApiError(`Cannot read the request line: ${first.slice(0, 60)}`);
+    // 주소처럼 생기지 않은 줄(JSON 등)은 요청으로 만들지 않는다
+    if (m === null || !/^(https?:\/\/|\{\{|\/|[A-Za-z0-9][\w.-]*(:\d+)?(\/|$))/i.test(m[2] as string)) throw new ApiError(`Cannot read the request line: ${first.slice(0, 60)}. Each request starts with a line like GET https://host/path.`);
     const method = (m[1] ?? 'GET').toUpperCase();
     if (!API_METHODS.includes(method as ApiMethod)) throw new ApiError(`The method ${method} is not supported.`);
     let url = m[2] as string;

@@ -448,7 +448,9 @@ export const SendRequestDto = {
   },
 };
 
-export type ImportFormat = 'curl' | 'http' | 'openapi';
+/** auto 는 글을 보고 알아본다(detectImportFormat) */
+export type ImportFormat = 'curl' | 'http' | 'openapi' | 'postman' | 'auto';
+const IMPORT_FORMATS: readonly string[] = ['curl', 'http', 'openapi', 'postman', 'auto'];
 
 export interface ImportRequestJson {
   readonly format: ImportFormat;
@@ -460,8 +462,8 @@ export const ImportRequestDto = {
   from(value: unknown): ImportRequestJson {
     assertPlain(value);
     const o = obj(value, 'import');
-    if (o['format'] !== 'curl' && o['format'] !== 'http' && o['format'] !== 'openapi') throw new ApiError('Import format must be curl, http or openapi.');
-    return { format: o['format'], text: text(o['text'], 'text', DTO_LIMITS.import), parentId: parentOf(o['parentId']) };
+    if (typeof o['format'] !== 'string' || !IMPORT_FORMATS.includes(o['format'])) throw new ApiError('Import format must be auto, curl, http, openapi or postman.');
+    return { format: o['format'] as ImportFormat, text: text(o['text'], 'text', DTO_LIMITS.import), parentId: parentOf(o['parentId']) };
   },
 };
 
@@ -470,6 +472,21 @@ export interface ExportRequestJson {
   /** 요청 또는 폴더의 id */
   readonly id: string;
 }
+
+/** 폴더 일괄 실행 요청 */
+export interface RunFolderJson {
+  readonly folderId: string;
+  /** 하나라도 실패하면 남은 요청은 보내지 않는다 */
+  readonly stopOnFail: boolean;
+}
+
+export const RunFolderDto = {
+  from(value: unknown): RunFolderJson {
+    assertPlain(value);
+    const o = obj(value, 'run');
+    return { folderId: idOf(o['folderId'], 'folderId'), stopOnFail: flag(o['stopOnFail'], 'stopOnFail', false) };
+  },
+};
 
 export const ExportRequestDto = {
   from(value: unknown): ExportRequestJson {

@@ -1,5 +1,11 @@
 # 릴리스 점검표 (2026-11-09 월요일용)
 
+## v0.2.2 (2026-11-14) — API 탭 2차: Runner·Postman/Swagger/YAML 가져오기·변수
+
+- v0.2.1 태그는 윈도우 CI 의 `smoke:features` 5b(docker 엔진 응답 시간 초과, 러너 쪽 문제)로 실패해 설치 파일이 없다. 5b 는 시간 초과를 "docker 찾음"으로 보도록 고쳤고, 0.2.1 내용은 0.2.2 에 모두 들어 있다.
+- **실제 앱으로 확인함**: 폴더 Runner(로그인 → 토큰 저장 → 내 정보 → `:id={{uid}}` 연쇄, 실패 먼저 보이는 결과 화면, stop at first failure), Postman v2.1 가져오기(테스트 스크립트 → 저장·검증 규칙), Swagger 2.0·OpenAPI YAML 가져오기와 형식 자동 감지, 중첩 변수(`http://{{host}}:4510`), 동적 변수(`{{$guid}}` 등), `localhost:4510/x` 의 http:// 자동, 주소의 `?a=1` → Params, .http 에 JSON 을 넣으면 거절(전에는 쓰레기 요청이 생김).
+- **보안 규칙 바뀜**: 변수 안 변수는 풀되 비밀 변수는 요청에 직접 쓴 곳에서만 채운다(응답에서 저장한 값이 `{{password}}` 를 끌어오지 못하게).
+
 ## v0.2.1 (2026-11-14) — API 탭 Postman·APIdog 급
 
 - **실제 앱으로 확인함**(시험 서버 + Electron 개발 빌드, `window.rauha.api` 로 51개 시나리오): 메서드 7종, 쿼리 한글 인코딩, Bearer·Basic·API key, 302·307·출처 바뀌는 리다이렉트(인증 떼기), gzip·br, EUC-KR, 204·422·500, SSE, 취소, 기록 마스킹, cURL 가져오기·내보내기, **쿠키 저장소**(로그인 쿠키로 /me 200), **응답 뒤 변수 저장**(토큰 → 다음 요청 Bearer), **검증**(통과·실패 표시), **경로 변수**(`:id` ← `{{uid}}`), **multipart 실제 파일 업로드**, 이미지 미리보기, 한글 헤더 안내, User-Agent `rauha/0.2.1`. 화면(After response 탭·multipart 표·Checks 결과)도 스크린샷으로 확인.

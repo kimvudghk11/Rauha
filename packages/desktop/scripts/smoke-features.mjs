@@ -169,7 +169,9 @@ const found = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['dock
 const dockerDir = found.status === 0 ? dirname(found.stdout.split(/\r?\n/)[0].trim()) : null;
 if (dockerDir !== null && existsSync(dockerDir)) {
   const d = await launch('docker', `(async () => window.rauha.docker.status())()`, { PATH: [noDockerPath, dockerDir].join(delimiter) });
-  check('5b docker 있으면 절대 경로로 찾음', d.value !== null && (d.value.clientVersion !== null || d.value.ready === true), JSON.stringify(d.value)?.slice(0, 240));
+  // GitHub 윈도우 러너의 Docker 엔진은 가끔 제시간에 답하지 않는다(v0.2.1 에서 이것만으로 실패). 시간 초과는 docker 를 찾아 실행까지 했다는 뜻이라 "찾음"으로 본다.
+  // "설치되지 않음" 같은 다른 실패는 그대로 실패다.
+  check('5b docker 있으면 절대 경로로 찾음', d.value !== null && (d.value.clientVersion !== null || d.value.ready === true || d.value.failure?.kind === 'timeout'), JSON.stringify(d.value)?.slice(0, 240));
 }
 
 // 4: 이미지 첨부 — 허락을 기다리는 일에 이미지를 붙이고, 임시 폴더가 생기는지·읽히는지·일이 멈추면 지워지는지 본다

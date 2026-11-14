@@ -206,3 +206,15 @@
 .api-cookies { width: min(640px, 92vw); max-height: 80vh; display: flex; flex-direction: column; gap: var(--s2); }
 .api-cookie-list { overflow: auto; min-height: 60px; }
 .api-cookie-domain { margin-top: var(--s2); }
+
+/* 폴더 일괄 실행 결과 */
+.api-run { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+.api-run-list { display: flex; flex-direction: column; gap: 2px; padding: var(--s2) var(--s3); }
+.api-run-row { padding: 4px var(--s2); border-radius: var(--r-sm); cursor: pointer; }
+.api-run-row:hover, .api-run-row:focus-visible { outline: 1px solid var(--border2); }
+.api-run-row.pass { background: color-mix(in srgb, var(--green) 6%, transparent); }
+.api-run-row.fail { background: color-mix(in srgb, var(--red) 9%, transparent); }
+.api-run-row.skipped { opacity: .65; }
+.api-run-row.pass .api-check-mark { color: var(--green); }
+.api-run-row.fail .api-check-mark { color: var(--red); }
+.api-run-note { padding-left: 24px; overflow-wrap: anywhere; }

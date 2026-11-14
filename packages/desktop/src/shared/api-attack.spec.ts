@@ -90,10 +90,11 @@ describe('헤더 주입(CRLF)', () => {
 });
 
 describe('변수 치환 우회', () => {
-  it('변수 값 안의 {{다른변수}}는 다시 풀리지 않는다(비밀을 끌어오는 연쇄 치환 금지)', () => {
-    const p = req({ url: 'http://localhost/{{a}}' }).prepare(vars({ a: '{{secret}}', secret: FAKE }));
-    expect(p.url).toBe('http://localhost/{{secret}}');
-    expect(p.url).not.toContain(FAKE);
+  it('변수 값 안의 {{비밀 변수}}는 풀지 않는다(응답에서 저장한 값 등이 비밀을 끌어오는 연쇄 치환 금지)', () => {
+    expect(() => req({ url: 'http://localhost/{{a}}' }).prepare(vars({ a: '{{secret}}', secret: FAKE }), new Set(['secret']))).toThrow(/secret/);
+  });
+  it('비밀이 아닌 변수끼리는 안쪽 변수도 푼다', () => {
+    expect(req({ url: '{{a}}/x' }).prepare(vars({ a: 'http://{{h}}', h: 'localhost' }), new Set(['secret'])).url).toBe('http://localhost/x');
   });
   it('__proto__·constructor 같은 이름은 환경 변수 이름으로 쓸 수 없다', () => {
     for (const name of ['__proto__', 'constructor', 'prototype']) {

@@ -1,6 +1,6 @@
 {
   "name": "@rauha/desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "rauha desktop: give work to Delfi and watch the team work side by side",
   "type": "module",
@@ -59,7 +59,8 @@
     "pg": "^8.23.1",
     "png2icons": "^2.0.1",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "yaml": "2.6.1"
   },
   "author": "rauha"
 }

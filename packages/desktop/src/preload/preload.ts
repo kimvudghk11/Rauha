@@ -222,6 +222,8 @@ const api: RauhaApi = {
     },
     saveBody: (historyId) => ipcRenderer.invoke(API_IPC.saveBody, historyId),
     pickFile: () => ipcRenderer.invoke(API_IPC.pickFile),
+    runFolder: (req) => ipcRenderer.invoke(API_IPC.runFolder, req),
+    cancelRun: () => ipcRenderer.invoke(API_IPC.runCancel),
   },
   update: {
     state: () => ipcRenderer.invoke(IPC.updateState),

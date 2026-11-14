@@ -3,6 +3,7 @@ import { CollectionsDto, type CollectionsJson, type EnvironmentsView, type Histo
 import { EnvBar } from '../shared/api-env.js';
 import type { ApiSource } from '../shared/api-extract.js';
 import type { ApiApi, CollectionResult, ProjectList, ProjectRow, SendResult } from '../shared/api-ipc.js';
+import { splitQuery } from '../shared/api-curl.js';
 import { API_METHODS, ApiRequest, variablesIn, type ApiMethod, type ApiRequestProps } from '../shared/api-request.js';
 import type { HistoryEntry } from '../shared/api-response.js';
 import { el, isEnterKey } from './dom.js';
@@ -11,6 +12,7 @@ import { buildRequestEditor } from './api-editor.js';
 import { openEnvDialog } from './api-env-dialog.js';
 import { askText, METHOD_CLASS } from './api-parts.js';
 import { buildResponseView } from './api-response-view.js';
+import { buildRunPanel } from './api-run-view.js';
 import { buildTestPanel } from './api-test-view.js';
 import { paintCollections, paintHistory, type TreeActions } from './api-tree.js';
 import { button, confirmDialog, select } from './todo-parts.js';
@@ -112,11 +114,24 @@ export function buildApi(deps: ApiViewDeps) {
   urlInput.setAttribute('aria-label', 'Request URL');
   urlInput.addEventListener('input', () => (edit({ url: urlInput.value }), editor.setUrl(urlInput.value), paintVars()));
   urlInput.addEventListener('keydown', (e) => {
-    if (isEnterKey(e)) {
+    // Ctrl/⌘+Enter 는 탭 전체 단축키가 맡는다(두 번 처리하면 보내자마자 취소된다)
+    if (isEnterKey(e) && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       void send();
     }
   });
+  // 주소에 적은 ?a=1&b=2 는 Params 표로 옮긴다(APIdog 처럼: 같은 값이 두 곳에 있지 않게)
+  urlInput.addEventListener('change', () => liftQuery());
+  function liftQuery(): void {
+    const s = splitQuery(urlInput.value);
+    if (s.query.length === 0) return;
+    draft = editor.read({ ...draft, url: s.url });
+    draft = { ...draft, query: [...draft.query, ...s.query] };
+    urlInput.value = s.url;
+    editor.load(draft);
+    paintVars();
+    markDirty();
+  }
   const sendBtn = button('Send', 'btn run api-send', () => (sending ? void cancel() : void send()));
   sendBtn.setAttribute('data-repeat-ok', '');
   const saveBtn = button('Save', 'btn', () => void saveDraft());
@@ -171,7 +186,43 @@ export function buildApi(deps: ApiViewDeps) {
     },
   });
   testPanel.root.hidden = true;
-  responsePane.append(response.root, testPanel.root);
+  // 폴더 일괄 실행 결과 칸(응답 칸 자리에 잠깐 보인다)
+  const runPanel = buildRunPanel({
+    copy: deps.copy,
+    say,
+    cancel: () => void deps.api.cancelRun(),
+    close: () => closeRun(),
+    open: (id) => {
+      const r = collections.request(id);
+      if (r !== undefined) leave(() => loadDraft(r.props, true));
+    },
+  });
+  runPanel.root.hidden = true;
+  function closeRun(): void {
+    runPanel.root.hidden = true;
+    response.root.hidden = false;
+  }
+  async function runFolder(id: string, name: string, stopOnFail: boolean): Promise<void> {
+    if (sending) return say('Wait for the current request to finish first.');
+    const count = collections.tree(id).flatMap(function flat(t): string[] {
+      return t.kind === 'request' ? [t.id] : t.children.flatMap(flat);
+    }).length;
+    testPanel.root.hidden = true;
+    response.root.hidden = true;
+    runPanel.root.hidden = false;
+    root.classList.remove('testing');
+    runPanel.running(name, count);
+    const r = await deps.api.runFolder({ folderId: id, stopOnFail });
+    if (r.ok) {
+      envs = r.envs;
+      cookieCount = (await deps.api.cookies.get()).count;
+      paintEnv();
+      history = await deps.api.history.get();
+      if (side === 'history') paintSide();
+    }
+    if (!runPanel.root.hidden) runPanel.show(r);
+  }
+  responsePane.append(response.root, testPanel.root, runPanel.root);
 
   function startTest(): void {
     draft = editor.read({ ...draft, url: urlInput.value });
@@ -190,6 +241,19 @@ export function buildApi(deps: ApiViewDeps) {
   const body = el('div', 'api-body');
   body.append(sidePane, mainCol);
   root.append(head, envHost, body);
+  // 단축키: Ctrl/⌘+Enter 보내기(보내는 중이면 취소), Ctrl/⌘+S 저장
+  root.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.isComposing) return;
+    if (isEnterKey(e)) {
+      e.preventDefault();
+      void (sending ? cancel() : send());
+    } else if (e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      void saveDraft();
+    }
+  });
+  sendBtn.title = 'Send (Ctrl+Enter)';
+  saveBtn.title = 'Save (Ctrl+S)';
 
   // ── 상태 ──
   function markDirty(): void {
@@ -213,8 +277,9 @@ export function buildApi(deps: ApiViewDeps) {
     nameInput.value = request.name;
     editor.load(request);
     paintVars();
-    // 다른 요청으로 옮기면 AI 시험 칸은 닫고 응답 칸으로 돌아간다
+    // 다른 요청으로 옮기면 AI 시험·폴더 실행 칸은 닫고 응답 칸으로 돌아간다
     testPanel.root.hidden = true;
+    runPanel.root.hidden = true;
     response.root.hidden = false;
     root.classList.remove('testing');
     saveBtn.textContent = saved ? 'Save changes' : 'Save to collection';
@@ -431,6 +496,7 @@ export function buildApi(deps: ApiViewDeps) {
       if (!r.ok) return say(r.error);
       say(r.saved === null ? 'Export cancelled.' : `Saved ${r.fileName}. Secrets are written as {{variables}}.`);
     },
+    runFolder: (id, name, stopOnFail) => void runFolder(id, name, stopOnFail),
     removeHistory: async (id) => {
       history = await deps.api.history.remove(id);
       paintSide();
@@ -448,6 +514,7 @@ export function buildApi(deps: ApiViewDeps) {
 
   async function send(): Promise<void> {
     if (sending) return;
+    liftQuery();
     draft = editor.read({ ...draft, url: urlInput.value });
     setSending(true);
     response.sending();
@@ -532,24 +599,30 @@ export function buildApi(deps: ApiViewDeps) {
   }
 
   async function importDialog(): Promise<void> {
-    let format: 'curl' | 'http' | 'openapi' = 'curl';
-    const hints = { curl: 'Paste a curl command (one line or several lines).', http: 'Paste the contents of a .http file (VS Code REST Client format).', openapi: 'Paste an OpenAPI 3.x JSON document. Paths become requests and the server URL becomes {{base_url}}.' };
+    let format: 'auto' | 'curl' | 'http' | 'openapi' | 'postman' = 'auto';
+    const hints = {
+      auto: 'Paste a cURL command, a .http file, an OpenAPI / Swagger document (JSON or YAML) or a Postman collection (v2.1). The format is detected for you.',
+      curl: 'Paste a curl command (one line or several lines).',
+      http: 'Paste the contents of a .http file (VS Code REST Client format).',
+      openapi: 'Paste an OpenAPI 3.x or Swagger 2.0 document (JSON or YAML). Paths become requests and the server URL becomes {{base_url}}.',
+      postman: 'Paste a Postman collection (Export → Collection v2.1). Folders, variables, auth and simple test scripts come along.',
+    };
     const text = await askText({
       title: 'Import',
-      hint: hints.curl,
+      hint: hints.auto,
       multiline: true,
       placeholder: "curl -X POST https://api.example.com/users -H 'Content-Type: application/json' -d '{\"name\":\"kim\"}'",
       ok: 'Import',
       extra: (field) => {
         const wrap = el('div', 'bar');
         const hint = field.parentElement?.querySelector('.hint');
-        const kind = select([['curl', 'cURL command'], ['http', '.http file'], ['openapi', 'OpenAPI JSON']] as const, 'curl', (v) => {
+        const kind = select([['auto', 'Detect automatically'], ['curl', 'cURL command'], ['http', '.http file'], ['openapi', 'OpenAPI / Swagger'], ['postman', 'Postman collection']] as const, 'auto', (v) => {
           format = v;
           if (hint !== null && hint !== undefined) hint.textContent = hints[v];
         });
         const file = el('input');
         file.type = 'file';
-        file.accept = '.http,.rest,.json,.txt,.sh';
+        file.accept = '.http,.rest,.json,.yaml,.yml,.txt,.sh';
         file.hidden = true;
         file.addEventListener('change', async () => {
           const f = file.files?.[0];
@@ -557,7 +630,7 @@ export function buildApi(deps: ApiViewDeps) {
           if (f.size > 5_000_000) return void say('That file is too large to import (5 MB limit).');
           field.value = await f.text();
           if (/\.(http|rest)$/i.test(f.name)) (kind.value = 'http'), (format = 'http');
-          else if (/\.json$/i.test(f.name)) (kind.value = 'openapi'), (format = 'openapi');
+          else (kind.value = 'auto'), (format = 'auto');
         });
         wrap.append(kind, button('Choose file', 'btn', () => file.click()), file);
         return wrap;
@@ -574,7 +647,7 @@ export function buildApi(deps: ApiViewDeps) {
         paintSide();
       } else if (first?.kind === 'request') leave(() => loadDraft(first.request.props, true));
     }
-    say(`Imported. ${format === 'curl' ? '' : 'Fill in the variables in Manage (for example {{token}}).'}`.trim());
+    say(r.envs !== null ? 'Imported. Check the variables in Manage (for example {{token}}).' : 'Imported.');
   }
 
   // ── 시작 ──

@@ -97,13 +97,41 @@ function replacePathVars(url: string, get: (name: string) => string | undefined)
 // eslint-disable-next-line no-control-regex
 const NON_LATIN1_RE = /[^\u0000-ÿ]/;
 
-const VAR_RE = /\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}/g;
-const WHOLE_VAR_RE = /^\s*\{\{\s*[A-Za-z_][\w.-]*\s*\}\}\s*$/;
+const VAR_RE = /\{\{\s*(\$?[A-Za-z_][\w.-]*)\s*\}\}/g;
+const WHOLE_VAR_RE = /^\s*\{\{\s*\$?[A-Za-z_][\w.-]*\s*\}\}\s*$/;
 
-/** 글 안의 `{{name}}` 이름들(중복 없이, 나온 순서) */
+/** 글 안의 `{{name}}` 이름들(중복 없이, 나온 순서). `{{$guid}}` 같은 동적 변수는 빼고 */
 export function variablesIn(text: string): string[] {
-  return [...new Set([...text.matchAll(VAR_RE)].map((m) => m[1] as string))];
+  return [...new Set([...text.matchAll(VAR_RE)].map((m) => m[1] as string).filter((n) => !n.startsWith('$')))];
 }
+
+/** 동적 변수(`{{$guid}}` 등)를 만드는 재료. 시험에서 바꿔 넣는다 */
+export interface DynamicSource {
+  now(): number;
+  uuid(): string;
+  random(): number;
+}
+const DEFAULT_DYNAMIC: DynamicSource = { now: () => Date.now(), uuid: () => globalThis.crypto.randomUUID(), random: () => Math.random() };
+export const DYNAMIC_VARIABLES = ['$guid', '$randomUUID', '$timestamp', '$isoTimestamp', '$randomInt'] as const;
+
+function dynamicValue(name: string, d: DynamicSource): string | undefined {
+  switch (name) {
+    case '$guid':
+    case '$randomUUID':
+      return d.uuid();
+    case '$timestamp':
+      return String(Math.floor(d.now() / 1000));
+    case '$isoTimestamp':
+      return new Date(d.now()).toISOString();
+    case '$randomInt':
+      return String(Math.floor(d.random() * 1000));
+    default:
+      return undefined;
+  }
+}
+
+/** 변수 안의 변수는 이만큼 깊이까지 */
+const NEST_LIMIT = 10;
 
 /** 값 전체가 `{{name}}` 하나이거나 비어 있으면 "비밀이 들어 있지 않다" */
 export const isVariableRef = (value: string): boolean => value.trim() === '' || WHOLE_VAR_RE.test(value);
@@ -132,18 +160,33 @@ const slug = (text: string): string => {
   return s === '' ? 'x' : s.slice(0, 24);
 };
 
-/** 보낼 때 `{{name}}`을 채운다. 없는 변수 이름은 모아 둔다. */
-function fill(text: string, vars: ReadonlyMap<string, string>, missing: Set<string>, used: Set<string>): string {
+/**
+ * 보낼 때 `{{name}}`을 채운다. 값 안의 `{{변수}}`도 채우고(서로 부르면 멈춘다), `{{$guid}}` 같은 동적 변수는 새로 만든다.
+ * 없는 변수 이름은 모아 둔다.
+ */
+function fill(text: string, vars: ReadonlyMap<string, string>, missing: Set<string>, used: Set<string>, dyn: DynamicSource, secrets: ReadonlySet<string>, chain: readonly string[] = []): string {
   return text.replace(VAR_RE, (_m, name: string) => {
+    if (name.startsWith('$')) {
+      const d = dynamicValue(name, dyn);
+      if (d === undefined) missing.add(name);
+      return d ?? '';
+    }
+    if (chain.includes(name) || chain.length >= NEST_LIMIT) throw new ApiError(`Variables ${[...chain, name].map((n) => `{{${n}}}`).join(' → ')} refer to each other. Change one of them to a plain value.`);
+    // 비밀은 요청이 직접 쓴 곳에서만 채운다(다른 변수 값 — 응답에서 저장한 값 등 — 이 비밀을 끌어오지 못하게)
+    if (chain.length > 0 && secrets.has(name)) throw new ApiError(`{{${chain[chain.length - 1]}}} has {{${name}}} inside, but ${name} is a secret. Use {{${name}}} directly in the request instead.`);
     const v = vars.get(name);
     if (v === undefined) {
       missing.add(name);
       return '';
     }
     used.add(name);
-    return v;
+    return v.includes('{{') ? fill(v, vars, missing, used, dyn, secrets, [...chain, name]) : v;
   });
 }
+
+/** `localhost:3000/x` · `api.test/x` 처럼 http:// 를 빼고 쓴 주소 */
+const NO_SCHEME_RE = /^[A-Za-z0-9][\w.-]*(:\d+)?([/?#]|$)/;
+const HAS_SCHEME_RE = /^([A-Za-z][A-Za-z0-9+.-]*:\/\/|(file|data|javascript|mailto|about|blob|ftp|ws|wss|vbscript):)/i;
 
 const safeDecode = (s: string): string => {
   try {
@@ -226,13 +269,14 @@ export class ApiRequest {
    * 변수를 채워 보낼 요청을 만든다. 없는 변수가 있으면 이름을 모두 알리며 실패한다.
    * 켜진 쿼리만 URL에 붙고, 인증은 헤더(또는 쿼리)로 풀린다. GET·HEAD에는 본문을 싣지 않는다.
    */
-  prepare(vars: ReadonlyMap<string, string>, secretNames: ReadonlySet<string> = new Set()): PreparedRequest {
+  prepare(vars: ReadonlyMap<string, string>, secretNames: ReadonlySet<string> = new Set(), dyn: DynamicSource = DEFAULT_DYNAMIC): PreparedRequest {
     const p = this.props;
     const missing = new Set<string>();
     const used = new Set<string>();
-    const f = (t: string): string => fill(t, vars, missing, used);
+    const f = (t: string): string => fill(t, vars, missing, used, dyn, secretNames);
 
     let url = f(p.url).trim();
+    if (url !== '' && !HAS_SCHEME_RE.test(url) && NO_SCHEME_RE.test(url)) url = `http://${url}`;
     const pathVals = new Map(p.pathVars.filter((v) => v.enabled && v.key !== '').map((v) => [v.key, f(v.value)]));
     const emptyPath = pathVariableNames(url).filter((n) => (pathVals.get(n) ?? '') === '');
     url = replacePathVars(url, (n) => {

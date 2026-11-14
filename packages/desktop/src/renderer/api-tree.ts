@@ -15,6 +15,8 @@ export interface TreeActions {
   copyCurl(id: string): void;
   exportHttp(id: string): void;
   removeHistory(id: string): void;
+  /** 폴더의 요청을 위에서부터 차례로 보낸다 */
+  runFolder(id: string, name: string, stopOnFail: boolean): void;
 }
 
 const dots = (anchor: HTMLElement, label: string, items: () => MenuItem[]): HTMLElement => {
@@ -52,6 +54,9 @@ export function paintCollections(host: HTMLElement, c: ApiCollections, open: Set
         const isOpen = open.has(item.id);
         row.append(el('span', 'api-chev', isOpen ? '▾' : '▸'), el('span', 'api-name grow', item.name), el('span', 'dim api-count', String(countRequests(item))));
         const menuItems = (): MenuItem[] => [
+          { label: 'Run folder', pick: () => actions.runFolder(item.id, item.name, false) },
+          { label: 'Run folder (stop at first failure)', pick: () => actions.runFolder(item.id, item.name, true) },
+          'sep',
           { label: 'New request here', pick: () => actions.newRequest(item.id) },
           { label: 'New folder here', pick: () => actions.newFolder(item.id) },
           'sep',

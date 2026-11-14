@@ -1,6 +1,7 @@
 import type { CapturedValue, CheckResult } from './api-after.js';
 import type { SyncReport } from './api-collections.js';
 import type { CookieView } from './api-cookies.js';
+import type { RunStep, RunSummary } from './api-runner.js';
 import type { CollectionsJson, EnvironmentsView, HistoryJson } from './api-dto.js';
 import type { ApiSource } from './api-extract.js';
 import type { ProjectRecord } from './api-project.js';
@@ -29,7 +30,21 @@ export const API_IPC = {
   cookiesClear: 'api:cookies:clear',
   saveBody: 'api:save-body',
   pickFile: 'api:pick-file',
+  runFolder: 'api:run-folder',
+  runCancel: 'api:run-cancel',
 } as const;
+
+/** 폴더 일괄 실행 결과(주소는 {{변수}} 그대로, 비밀 값 없음) */
+export type RunFolderResult =
+  | {
+      readonly ok: true;
+      readonly report: { readonly folder: string; readonly steps: readonly RunStep[]; readonly at: string };
+      readonly summary: RunSummary;
+      readonly markdown: string;
+      /** 실행 중 저장한 변수가 반영된 환경 목록(값 없이) */
+      readonly envs: EnvironmentsView;
+    }
+  | { readonly ok: false; readonly error: string };
 
 export type SendFail = 'invalid' | 'missing' | 'blocked' | 'busy' | 'timeout' | 'cancelled' | 'network';
 
@@ -144,4 +159,8 @@ export interface ApiApi {
   saveBody(historyId: string): Promise<SaveBodyResult>;
   /** multipart 파일 필드에 넣을 파일 고르기(취소하면 null) */
   pickFile(): Promise<string | null>;
+  /** 폴더의 요청을 위에서부터 차례로 보낸다({ folderId, stopOnFail? }) */
+  runFolder(req: unknown): Promise<RunFolderResult>;
+  /** 실행 중인 폴더 실행을 멈춘다 */
+  cancelRun(): Promise<boolean>;
 }

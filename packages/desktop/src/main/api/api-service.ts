@@ -1,10 +1,12 @@
 import { ApiCollections, type ImportedCollection } from '../../shared/api-collections.js';
 import { parseCurl, toCurl } from '../../shared/api-curl.js';
-import { CollectionOpDto, CollectionsDto, EnvOpDto, EnvironmentsDto, ExportRequestDto, HistoryDto, ImportRequestDto, SendRequestDto, type CollectionsJson, type EnvironmentsView, type HistoryJson } from '../../shared/api-dto.js';
+import { CollectionOpDto, CollectionsDto, EnvOpDto, EnvironmentsDto, ExportRequestDto, HistoryDto, ImportRequestDto, RunFolderDto, SendRequestDto, type CollectionsJson, type RunFolderJson, type EnvironmentsView, type HistoryJson } from '../../shared/api-dto.js';
 import { ApiEnvironment, type ApiEnvironments } from '../../shared/api-env.js';
 import { parseHttpFile, toHttpFile } from '../../shared/api-http-file.js';
 import type { CollectionResult, EnvResult, ExportResult, SendResult } from '../../shared/api-ipc.js';
+import { detectImportFormat } from '../../shared/api-import-format.js';
 import { parseOpenApi } from '../../shared/api-openapi.js';
+import { parsePostman } from '../../shared/api-postman.js';
 import { ApiError, ApiRequest } from '../../shared/api-request.js';
 import { ApiHistory, ResponseSummary, type HistoryEntry } from '../../shared/api-response.js';
 import { checkTarget } from '../../shared/api-guard.js';
@@ -12,7 +14,8 @@ import { ApiProjects, ProjectApiSpec, ProjectStack, ProjectSyncRequestDto, Stack
 import type { ProjectList, ProjectSyncResult } from '../../shared/api-ipc.js';
 import { AfterRules } from '../../shared/api-after.js';
 import { CookieJar } from '../../shared/api-cookies.js';
-import type { AfterView, CookiesView, SaveBodyResult } from '../../shared/api-ipc.js';
+import type { AfterView, CookiesView, RunFolderResult, SaveBodyResult } from '../../shared/api-ipc.js';
+import { RunReport, type RunStep } from '../../shared/api-runner.js';
 import type { CookieHooks, SendOutcome } from './api-sender.js';
 import type { ApiStorePort } from './api-store.js';
 import type { ProjectReaderPort } from './project-reader.js';
@@ -22,6 +25,8 @@ export interface ApiServiceDeps {
   readonly envs: ApiStorePort<ApiEnvironments>;
   readonly history: ApiStorePort<ApiHistory>;
   readonly send: (prepared: ReturnType<ApiRequest['prepare']>, signal: AbortSignal, cookies: CookieHooks) => Promise<SendOutcome>;
+  /** YAML 글을 JSON 글로(OpenAPI·Swagger YAML 가져오기). 없으면 JSON 만 받는다. 읽지 못하면 ApiError */
+  readonly yamlToJson?: (text: string) => string;
   /** 응답 본문을 저장 위치를 물어 파일로 쓴다. 취소하면 null(없으면 저장 기능이 꺼진다) */
   readonly saveBytes?: (fileName: string, bytes: Uint8Array) => Promise<string | null>;
   readonly newId: () => string;
@@ -49,6 +54,9 @@ export class ApiService {
   /** 지금 읽는 중인 프로젝트 루트 */
   private readonly syncing = new Set<string>();
   private queue: Promise<unknown> = Promise.resolve();
+  /** 폴더 실행 중(한 번에 하나) */
+  private running = false;
+  private runCancelled = false;
   /** 쿠키 저장소(메모리에만: 앱을 끄면 사라진다) */
   private jar = CookieJar.empty();
   /** 마지막 응답의 바이트(파일로 저장용, 하나만 들고 있는다) */
@@ -142,6 +150,61 @@ export class ApiService {
       envs: cap.changed ? EnvironmentsDto.view(cap.envs) : null,
       hidden,
     };
+  }
+
+  // ── 폴더 일괄 실행 ──
+
+  /**
+   * 폴더의 요청을 화면 순서(위에서 아래, 안쪽 폴더 포함)대로 보낸다. 보내기는 Send 와 같은 길(send)이라
+   * 쿠키·응답 뒤 규칙이 그대로 돌고, 앞 요청에서 저장한 변수를 다음 요청이 쓴다.
+   */
+  async runFolder(raw: unknown): Promise<RunFolderResult> {
+    let req: RunFolderJson;
+    try {
+      req = RunFolderDto.from(raw);
+    } catch (e) {
+      return { ok: false, error: message(e) };
+    }
+    if (this.running) return { ok: false, error: 'A run is already going. Stop it first.' };
+    const c = await this.serial(async () => this.deps.collections.load());
+    const folder = c.node(req.folderId);
+    if (folder === undefined || folder.kind !== 'folder') return { ok: false, error: 'That folder no longer exists.' };
+    const requests = c.tree(folder.id).flatMap(function flat(t): string[] {
+      return t.kind === 'request' ? [t.id] : t.children.flatMap(flat);
+    });
+    if (requests.length === 0) return { ok: false, error: 'That folder has no requests to run.' };
+    this.running = true;
+    this.runCancelled = false;
+    const steps: RunStep[] = [];
+    let stop = false;
+    try {
+      for (const id of requests) {
+        const r = c.request(id) as ApiRequest;
+        const base = { id, name: r.name, method: r.props.method, url: r.withSecretsAsVariables().request.props.url };
+        if (stop || this.runCancelled) {
+          steps.push({ ...base, status: null, ms: 0, error: null, checks: [], saved: [], skipped: true });
+          continue;
+        }
+        const res = await this.send({ key: `run-${id}`, request: r.props });
+        const step: RunStep = res.ok
+          ? { ...base, status: res.response.status, ms: res.response.ms, error: null, checks: res.after?.checks ?? [], saved: (res.after?.captured ?? []).filter((x) => x.found).map((x) => x.name), skipped: false }
+          : { ...base, status: null, ms: 0, error: res.error, checks: [], saved: [], skipped: false };
+        steps.push(step);
+        if (req.stopOnFail && !RunReport.passed(step)) stop = true;
+      }
+    } finally {
+      this.running = false;
+    }
+    const report = RunReport.of(folder.name, steps, this.deps.now().toISOString());
+    return { ok: true, report: { folder: report.folder, steps: report.steps, at: report.at }, summary: report.summary(), markdown: report.toMarkdown(), envs: EnvironmentsDto.view(await this.deps.envs.load()) };
+  }
+
+  /** 폴더 실행을 멈춘다: 지금 가는 요청도 끊는다 */
+  cancelRun(): boolean {
+    if (!this.running) return false;
+    this.runCancelled = true;
+    for (const [key, ctrl] of this.inflight) if (key.startsWith('run-')) ctrl.abort();
+    return true;
   }
 
   cookies(): CookiesView {
@@ -320,7 +383,11 @@ export class ApiService {
   async importText(raw: unknown): Promise<CollectionResult> {
     return this.serial(async () => {
       try {
-        const req = ImportRequestDto.from(raw);
+        const dto = ImportRequestDto.from(raw);
+        const format = dto.format === 'auto' ? detectImportFormat(dto.text) : dto.format;
+        // YAML OpenAPI·Swagger 는 바깥(main)에서 JSON 으로 바꿔 같은 읽기로 넘긴다
+        const textIn = format === 'openapi' && !dto.text.trimStart().startsWith('{') && this.deps.yamlToJson !== undefined ? this.deps.yamlToJson(dto.text) : dto.text;
+        const req = { ...dto, format, text: textIn };
         let c = await this.deps.collections.load();
         const newId = this.deps.newId;
         let envs = await this.deps.envs.load();
@@ -346,8 +413,9 @@ export class ApiService {
           c = c.addImport(imp, newId);
           focusId = c.nodes[c.nodes.length - 1]?.id ?? null;
         } else {
-          const imp = parseOpenApi(req.text, newId);
-          envs = envs.withSecrets(imp.variables.filter((v) => !SECRET_VAR_RE.test(v.name)), newId, false).withSecrets(imp.variables.filter((v) => SECRET_VAR_RE.test(v.name)), newId, true);
+          const imp = req.format === 'postman' ? parsePostman(req.text, newId) : parseOpenApi(req.text, newId);
+          const secretName = (n: string): boolean => SECRET_VAR_RE.test(n) || CAMEL_SECRET_RE.test(n);
+          envs = envs.withSecrets(imp.variables.filter((v) => !secretName(v.name)), newId, false).withSecrets(imp.variables.filter((v) => secretName(v.name)), newId, true);
           touchedEnvs = imp.variables.length > 0;
           c = c.addImport(imp, newId);
           focusId = c.nodes.find((n) => n.kind === 'folder' && n.parentId === null && n.name.startsWith(imp.name))?.id ?? null;
@@ -457,7 +525,8 @@ export class ApiService {
         const [file] = await reader.read(root, [path]);
         if (file === undefined) continue;
         try {
-          spec = ProjectApiSpec.fromOpenApi(root, row.name, file.text);
+          const docText = /\.ya?ml$/i.test(path) && this.deps.yamlToJson !== undefined ? this.deps.yamlToJson(file.text) : file.text;
+          spec = ProjectApiSpec.fromOpenApi(root, row.name, docText);
           if (!spec.isEmpty()) break;
         } catch {
           /* 읽지 못하는 문서(YAML·Swagger 2 등)는 건너뛰고 코드에서 읽는다 */
