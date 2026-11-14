@@ -174,3 +174,24 @@
 .app[data-tier=xs] .db-form-result { margin-left: 0; }
 .db-check { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--fs-sm); color: var(--text); cursor: pointer; }
 .db-row .chip { flex: none; }
+
+/* 연결 정리: 거르기 칸 · 그룹 머리 · 환경 색 띠(prod 빨강 · staging 주황 · dev 파랑 · local 초록) */
+.db-conn-filter { margin: 0 var(--s2) var(--s1); }
+.db-group-head { display: flex; align-items: center; gap: var(--s1); width: 100%; padding: 4px var(--s2); border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; text-align: left; }
+.db-group-head:hover { color: var(--bright); background: var(--row-hover); }
+.db-group-chev { width: 12px; flex: none; }
+.db-conn.in-group { padding-left: calc(var(--s2) + 8px); }
+.db-conn { border-left: 3px solid transparent; }
+.db-conn.env-prod { border-left-color: var(--red); }
+.db-conn.env-staging { border-left-color: var(--yellow); }
+.db-conn.env-dev { border-left-color: var(--accent); }
+.db-conn.env-local { border-left-color: var(--green); }
+.db-conn.env-guessed { border-left-style: dashed; }
+.db-env-chip { flex: none; font-size: var(--fs-xs); font-weight: 700; padding: 0 6px; border-radius: 999px; text-transform: uppercase; }
+.db-env-chip.prod { color: var(--red); background: color-mix(in srgb, var(--red) 15%, transparent); }
+.db-env-chip.staging { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 15%, transparent); }
+.db-env-chip.guessed { opacity: .75; }
+.db-retag { width: min(460px, 92vw); display: flex; flex-direction: column; gap: var(--s2); }
+.db-retag-row { display: flex; align-items: center; gap: var(--s2); }
+.db-retag-row .lbl { width: 96px; flex: none; }
+.db-retag-row input, .db-retag-row select { flex: 1; min-width: 0; }

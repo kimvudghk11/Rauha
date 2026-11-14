@@ -156,6 +156,7 @@ const api: RauhaApi = {
     testServer: (req) => ipcRenderer.invoke(DB_IPC.testServer, req),
     unlock: (req) => ipcRenderer.invoke(DB_IPC.unlock, req),
     remove: (id) => ipcRenderer.invoke(DB_IPC.remove, id),
+    retag: (req) => ipcRenderer.invoke(DB_IPC.retag, req),
     tables: (id) => ipcRenderer.invoke(DB_IPC.tables, id),
     detail: (req) => ipcRenderer.invoke(DB_IPC.detail, req),
     graph: (id) => ipcRenderer.invoke(DB_IPC.graph, id),

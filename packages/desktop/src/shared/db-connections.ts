@@ -2,6 +2,7 @@ import { ConnectionId, DbFilePath, DbInputError } from './db-names.js';
 import { ConnectionLabel, SavedPassword, ServerTarget, type DbKind, type ServerKind, type SslMode } from './db-server.js';
 import type { DbVia } from './db-failover.js';
 import type { SqlDialect } from './db-sql.js';
+import { ConnectionTag, type DbEnv } from './db-organize.js';
 
 export const MAX_CONNECTIONS = 30;
 
@@ -30,6 +31,10 @@ export interface DbConnectionView {
   readonly server: DbServerFields | null;
   /** 이번 실행에서 마지막으로 붙은 주소(서버 연결만, 아직 열지 않았으면 null) */
   readonly via: DbVia | null;
+  /** 사이드바 그룹(폴더) 이름. '' 이면 그룹 없음 */
+  readonly group: string;
+  /** 사용자가 정한 환경(local·dev·staging·prod). 정하지 않았으면 null(화면이 이름·주소로 추정) */
+  readonly env: DbEnv | null;
 }
 
 /** 연결 id 로 찾은 "어디에 연결할지" */
@@ -37,15 +42,15 @@ export type DbLocation = { readonly kind: 'file'; readonly path: DbFilePath } | 
 
 /** 저장·복원용 항목(DTO 가 이미 검사한 값만 온다) */
 export type StoredConnection =
-  | { readonly kind: 'file'; readonly id: string; readonly path: DbFilePath; readonly lastUsed: number }
-  | { readonly kind: 'server'; readonly id: string; readonly label: ConnectionLabel; readonly target: ServerTarget; readonly password: SavedPassword; readonly lastUsed: number };
+  | { readonly kind: 'file'; readonly id: string; readonly path: DbFilePath; readonly lastUsed: number; readonly tag: ConnectionTag }
+  | { readonly kind: 'server'; readonly id: string; readonly label: ConnectionLabel; readonly target: ServerTarget; readonly password: SavedPassword; readonly lastUsed: number; readonly tag: ConnectionTag };
 
 /** 같은 파일인지 볼 때 쓰는 열쇠: 구분 기호와 대소문자 차이를 없앤다(윈도우·맥 기본 파일 시스템은 대소문자를 구분하지 않는다) */
 const sameKey = (path: string): string => path.replace(/\\/g, '/').toLowerCase();
 
 type Item =
-  | { readonly kind: 'file'; readonly id: string; readonly path: DbFilePath; lastUsed: number }
-  | { readonly kind: 'server'; readonly id: string; label: ConnectionLabel; target: ServerTarget; password: SavedPassword; lastUsed: number };
+  | { readonly kind: 'file'; readonly id: string; readonly path: DbFilePath; lastUsed: number; tag: ConnectionTag }
+  | { readonly kind: 'server'; readonly id: string; label: ConnectionLabel; target: ServerTarget; password: SavedPassword; lastUsed: number; tag: ConnectionTag };
 
 /** 저장한 연결 목록(엔티티): SQLite 파일과 MySQL·PostgreSQL 서버. 화면은 경로·주소가 아니라 id 로 고른다. */
 export class DbConnections {
@@ -74,7 +79,7 @@ export class DbConnections {
     }
     this.assertRoom();
     ConnectionId.parse(id);
-    const item: Item = { kind: 'file', id, path, lastUsed: now };
+    const item: Item = { kind: 'file', id, path, lastUsed: now, tag: ConnectionTag.none() };
     this.items.push(item);
     return view(item);
   }
@@ -90,7 +95,7 @@ export class DbConnections {
     }
     this.assertRoom();
     ConnectionId.parse(id);
-    const item: Item = { kind: 'server', id, label, target, password, lastUsed: now };
+    const item: Item = { kind: 'server', id, label, target, password, lastUsed: now, tag: ConnectionTag.none() };
     this.items.push(item);
     return view(item);
   }
@@ -138,6 +143,19 @@ export class DbConnections {
     return item?.kind === 'server' ? item.target.kind : 'sqlite';
   }
 
+  /** 그룹·환경을 바꾼다(파일·서버 모두). 모르는 id 면 거절한다 */
+  retag(id: string, tag: ConnectionTag): DbConnectionView {
+    const item = this.items.find((i) => i.id === id);
+    if (item === undefined) throw new DbInputError('That connection is not in your list.');
+    item.tag = tag;
+    return view(item);
+  }
+
+  /** 지금 쓰는 그룹 이름들(이름순) */
+  groups(): readonly string[] {
+    return [...new Set(this.items.map((i) => i.tag.group).filter((g) => g !== ''))].sort((a, b) => a.localeCompare(b));
+  }
+
   touch(id: string, now: number): void {
     const item = this.items.find((i) => i.id === id);
     if (item !== undefined) item.lastUsed = now;
@@ -165,8 +183,8 @@ export class DbConnections {
 
 const view = (i: Item): DbConnectionView =>
   i.kind === 'file'
-    ? { id: i.id, kind: 'sqlite', name: i.path.fileName(), path: i.path.value, lastUsed: i.lastUsed, savedPassword: null, server: null, via: null }
-    : { id: i.id, kind: i.target.kind, name: i.label.value, path: i.target.address(), lastUsed: i.lastUsed, savedPassword: i.password.isSaved(), server: i.target.toJSON(), via: null };
+    ? { id: i.id, kind: 'sqlite', name: i.path.fileName(), path: i.path.value, lastUsed: i.lastUsed, savedPassword: null, server: null, via: null, ...i.tag.toJSON() }
+    : { id: i.id, kind: i.target.kind, name: i.label.value, path: i.target.address(), lastUsed: i.lastUsed, savedPassword: i.password.isSaved(), server: i.target.toJSON(), via: null, ...i.tag.toJSON() };
 
 type Obj = Readonly<Record<string, unknown>>;
 
@@ -203,14 +221,14 @@ export class ConnectionsDto {
           const key = `file:${sameKey(path.value)}`;
           if (seen.has(key)) throw new DbInputError('duplicate');
           seen.add(key);
-          out.push({ kind: 'file', id, path, lastUsed });
+          out.push({ kind: 'file', id, path, lastUsed, tag: ConnectionTag.restore(o) });
         } else {
           const target = ServerTarget.parse(o);
           if (servers.some((s) => s.sameServer(target))) throw new DbInputError('duplicate');
           const label = ConnectionLabel.parse(o['name'], target);
           const password = SavedPassword.restore(o['sealedPassword']);
           servers.push(target);
-          out.push({ kind: 'server', id, label, target, password, lastUsed });
+          out.push({ kind: 'server', id, label, target, password, lastUsed, tag: ConnectionTag.restore(o) });
         }
         seen.add(id);
       } catch {
@@ -232,9 +250,11 @@ export class ConnectionsDto {
     return {
       version: 3,
       items: this.items.map((i) => {
-        if (i.kind === 'file') return { id: i.id, kind: 'sqlite', path: i.path.value, lastUsed: i.lastUsed };
+        const tag = i.tag.toJSON();
+        const extra = { ...(tag.group === '' ? {} : { group: tag.group }), ...(tag.env === null ? {} : { env: tag.env }) };
+        if (i.kind === 'file') return { id: i.id, kind: 'sqlite', path: i.path.value, lastUsed: i.lastUsed, ...extra };
         const sealed = i.password.sealedText();
-        return { id: i.id, ...i.target.toJSON(), name: i.label.value, ...(sealed === null ? {} : { sealedPassword: sealed }), lastUsed: i.lastUsed };
+        return { id: i.id, ...i.target.toJSON(), name: i.label.value, ...(sealed === null ? {} : { sealedPassword: sealed }), lastUsed: i.lastUsed, ...extra };
       }),
     };
   }

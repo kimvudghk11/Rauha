@@ -73,6 +73,14 @@ describe.skipIf(!hasSqlite())('DB 서비스', () => {
     expect(q.rows).toEqual([[3]]);
   });
 
+  it('그룹·환경을 바꾸면 목록에 실리고, 틀린 값은 이유와 함께 거절한다', async () => {
+    const s = newService();
+    const { id } = data(await s.addPath({ path: shop }));
+    expect(data(await s.retag({ id, group: '개인', env: 'local' })).connections[0]).toMatchObject({ group: '개인', env: 'local' });
+    expect(data(await s.list()).connections[0]).toMatchObject({ group: '개인', env: 'local' });
+    expect(bad(await s.retag({ id, group: '', env: 'production' })).kind).toBe('bad-input');
+  });
+
   it('지우면 목록에서 빠지고 그 id 로는 더 못 쓴다', async () => {
     const s = newService();
     const { id } = data(await s.addPath({ path: shop }));

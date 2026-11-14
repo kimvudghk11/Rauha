@@ -194,6 +194,17 @@ export class DbService {
     });
   }
 
+  /** 연결의 그룹·환경을 바꾼다(사이드바 정리) */
+  retag(raw: unknown): Promise<DbResult<DbConnectionList>> {
+    return this.guarded(async () => {
+      const req = DbRequest.retag(raw);
+      const connections = await this.deps.store.load();
+      connections.retag(req.id.value, req.tag);
+      await this.deps.store.save(connections);
+      return ok(this.listOf(connections));
+    });
+  }
+
   /** 저장된 연결로 실행 대상을 찾는다: 파일은 다시 확인한 진짜 경로(화면이 보낸 경로가 아니다), 서버는 대상 + 비밀번호 */
   private async targetOf(rawId: unknown): Promise<DbResult<Target>> {
     const id = DbRequest.connection(rawId).value;

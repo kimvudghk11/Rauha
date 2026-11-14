@@ -5,6 +5,7 @@ import type { DbConnectionView } from './db-connections.js';
 import type { DbSchemaGraph } from './db-diagram.js';
 import type { DbVia } from './db-failover.js';
 import { ConnectionId, DbFilePath, DbInputError, PageNumber, SortSpec, TableName } from './db-names.js';
+import { ConnectionTag, type DbEnv } from './db-organize.js';
 import { ConnectionLabel, DbPassword, ServerTarget } from './db-server.js';
 import { SqlStatement, type SqlDialect, type SqlKind } from './db-sql.js';
 
@@ -18,6 +19,7 @@ export const DB_IPC = {
   testServer: 'db:test-server',
   unlock: 'db:unlock',
   remove: 'db:remove',
+  retag: 'db:retag',
   tables: 'db:tables',
   detail: 'db:detail',
   graph: 'db:graph',
@@ -229,6 +231,8 @@ export interface DbApi {
   /** 저장한 비밀번호가 없는 서버 연결에 비밀번호를 준다(이번 실행 동안 기억, savePassword 면 암호화해 저장) */
   unlock(req: { readonly id: string; readonly password: string; readonly savePassword: boolean }): Promise<DbResult<DbConnectionView>>;
   remove(id: string): Promise<DbResult<DbConnectionList>>;
+  /** 연결의 그룹(폴더)·환경(local·dev·staging·prod, null 이면 추정)을 바꾼다 */
+  retag(req: { readonly id: string; readonly group: string; readonly env: DbEnv | null }): Promise<DbResult<DbConnectionList>>;
   tables(id: string): Promise<DbResult<readonly DbTableInfo[]>>;
   detail(req: { readonly id: string; readonly table: string }): Promise<DbResult<DbTableDetail>>;
   /** 테이블 시각화(ERD) 재료: 테이블·열·PK·FK */
@@ -269,6 +273,11 @@ export const DbRequest = {
   },
   addPath(raw: unknown): DbFilePath {
     return DbFilePath.parse(obj(raw)['path']);
+  },
+  /** 그룹·환경 바꾸기 { id, group, env } */
+  retag(raw: unknown): { readonly id: ConnectionId; readonly tag: ConnectionTag } {
+    const o = obj(raw);
+    return { id: ConnectionId.parse(o['id']), tag: ConnectionTag.of(o['group'], o['env']) };
   },
   detail(raw: unknown): { readonly id: ConnectionId; readonly table: TableName } {
     const o = obj(raw);

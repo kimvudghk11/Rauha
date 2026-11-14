@@ -4,6 +4,7 @@ import { toCsv } from '../shared/db-csv.js';
 import type { DbSchemaGraph } from '../shared/db-diagram.js';
 import { QueryHistory } from '../shared/db-history.js';
 import { DbInputError } from '../shared/db-names.js';
+import { envOf, groupConnections, guessEnv, type DbEnv } from '../shared/db-organize.js';
 import type { DbKind } from '../shared/db-server.js';
 import { SqlStatement } from '../shared/db-sql.js';
 import { statementAt } from '../shared/db-sql-pick.js';
@@ -35,6 +36,8 @@ const TIMEOUTS: readonly (readonly [string, string])[] = [
 ];
 const LAST_KEY = 'rauha.db.last';
 const HISTORY_KEY = 'rauha.db.history';
+/** 접어 둔 연결 그룹 이름들 */
+const CLOSED_GROUPS_KEY = 'rauha.db.closedGroups';
 /** 편집기에 처음 넣어 두는 예시(연결 종류마다) */
 const SAMPLES: Readonly<Record<DbKind, string>> = {
   sqlite: 'SELECT name, type FROM sqlite_schema ORDER BY name;',
@@ -201,6 +204,31 @@ export function buildDb(deps: DbViewDeps) {
   const newConn = button('+ New connection', 'btn sm', () => openForm('new'));
   newConn.title = 'Connect to PostgreSQL or MySQL, or open a SQLite file';
   filesHead.append(el('b', 'grow', 'Connections'), newConn);
+  // 연결이 많아지면: 이름·주소·그룹·환경으로 거르는 칸(5개 이상일 때만 보인다)
+  let connQuery = '';
+  const connFilter = el('input', 'sm db-conn-filter');
+  connFilter.placeholder = 'Filter connections (name, host, group, prod…)';
+  connFilter.spellcheck = false;
+  connFilter.setAttribute('aria-label', 'Filter connections');
+  connFilter.addEventListener('input', () => {
+    connQuery = connFilter.value;
+    paintFiles();
+  });
+  connFilter.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && connFilter.value !== '') {
+      e.stopPropagation();
+      connFilter.value = connQuery = '';
+      paintFiles();
+    }
+  });
+  const closedGroups = new Set<string>(((): string[] => {
+    try {
+      const v: unknown = JSON.parse(store.get(CLOSED_GROUPS_KEY) ?? '[]');
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 100) : [];
+    } catch {
+      return [];
+    }
+  })());
   const tablesHead = el('div', 'ph');
   const tablesTitle = el('b', 'grow', 'Tables');
   const tablesReload = button('↻', 'btn icon sm ghost', () => void reloadTables());
@@ -209,7 +237,7 @@ export function buildDb(deps: DbViewDeps) {
   tablesHead.append(tablesTitle, tablesReload);
   const filterWrap = el('div', 'db-filterbar');
   filterWrap.append(tableFilter);
-  side.append(filesHead, fileList, tablesHead, filterWrap, tableList);
+  side.append(filesHead, connFilter, fileList, tablesHead, filterWrap, tableList);
 
   // ── 가운데: 탭(SQL · Diagram) ──
   const tabsRow = el('div', 'tabs');
@@ -341,14 +369,96 @@ export function buildDb(deps: DbViewDeps) {
   diagramPanel.append(diagramMsg, diagram.root);
 
   // ── 그리기 ──
+  /** 그룹·환경 고치기: 그룹 이름(있는 그룹에서 고르거나 새로 적기)과 환경(비우면 이름·주소로 추정) */
+  function openRetag(c: DbConnectionView): void {
+    const veil = el('div', 'veil');
+    const box = el('div', 'dialog db-retag');
+    box.setAttribute('role', 'dialog');
+    const close = (): void => {
+      veil.remove();
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') (e.stopPropagation(), close());
+    };
+    const groupIn = el('input');
+    groupIn.value = c.group;
+    groupIn.placeholder = 'e.g. Company A, Personal (empty = no group)';
+    groupIn.spellcheck = false;
+    const listId = `db-groups-${Date.now()}`;
+    groupIn.setAttribute('list', listId);
+    const dl = el('datalist');
+    dl.id = listId;
+    for (const g of [...new Set(connections.map((x) => x.group).filter((g) => g !== ''))].sort()) {
+      const o = el('option');
+      o.value = g;
+      dl.append(o);
+    }
+    const guessed = guessEnv(c);
+    const envSel = select([['', `Guess from the name${guessed === null ? '' : ` (${guessed})`}`], ['local', 'local'], ['dev', 'dev'], ['staging', 'staging'], ['prod', 'prod — be careful']] as const, c.env ?? '', () => undefined);
+    const err = el('div', 'err');
+    const save = async (): Promise<void> => {
+      const r = await api.retag({ id: c.id, group: groupIn.value, env: envSel.value === '' ? null : (envSel.value as DbEnv) });
+      if (!r.ok) return void (err.textContent = r.failure.message);
+      connections = r.data.connections;
+      paintFiles();
+      close();
+    };
+    groupIn.addEventListener('keydown', (e) => {
+      if (isEnterKey(e)) (e.preventDefault(), void save());
+    });
+    const row = (label: string, input: HTMLElement): HTMLElement => {
+      const l = el('label', 'db-retag-row');
+      l.append(el('span', 'lbl', label), input);
+      return l;
+    };
+    const btns = el('div', 'btns end');
+    btns.append(button('Cancel', 'btn', close), button('Save', 'btn primary', () => void save()));
+    box.append(el('b', undefined, `Group & environment — ${c.name}`), el('div', 'hint', 'Groups fold the list into sections. The environment colors the row so production stands out.'), row('Group', groupIn), dl, row('Environment', envSel), err, btns);
+    veil.append(box);
+    veil.addEventListener('mousedown', (e) => {
+      if (e.target === veil) close();
+    });
+    document.addEventListener('keydown', onKey, true);
+    document.body.append(veil);
+    groupIn.focus();
+  }
+
   function paintFiles(): void {
     fileList.replaceChildren();
+    connFilter.hidden = connections.length < 5 && connQuery === '';
     if (connections.length === 0) {
       fileList.append(el('div', 'hint db-pad', 'No connections yet. Add a MySQL / PostgreSQL server, or type the path of a SQLite file.'));
       return;
     }
-    for (const c of connections) {
-      const row = el('div', c.id === current?.id ? 'row-item db-row db-conn on' : 'row-item db-row db-conn');
+    const groups = groupConnections(connections, connQuery);
+    if (groups.length === 0) fileList.append(el('div', 'hint db-pad', `No connection matches “${connQuery.trim()}”.`));
+    for (const g of groups) {
+      // 그룹 머리(그룹을 하나도 쓰지 않으면 머리 없이 한 묶음). 검색 중에는 접힌 그룹도 펼쳐 보인다
+      const closed = g.name !== '' && connQuery.trim() === '' && closedGroups.has(g.name);
+      if (g.name !== '') {
+        const head = el('button', 'db-group-head');
+        head.type = 'button';
+        head.setAttribute('aria-expanded', String(!closed));
+        const prod = g.items.filter((c) => envOf(c).env === 'prod').length;
+        head.append(el('span', 'db-group-chev', closed ? '▸' : '▾'), el('span', 'grow', g.name), ...(prod > 0 ? [el('span', 'db-env-chip prod', `${prod} prod`)] : []), el('span', 'dim', String(g.items.length)));
+        head.addEventListener('click', () => {
+          if (closedGroups.has(g.name)) closedGroups.delete(g.name);
+          else closedGroups.add(g.name);
+          store.set(CLOSED_GROUPS_KEY, JSON.stringify([...closedGroups]));
+          paintFiles();
+        });
+        fileList.append(head);
+      }
+      if (closed) continue;
+      for (const c of g.items) paintConnRow(c, g.name !== '');
+    }
+  }
+
+  function paintConnRow(c: DbConnectionView, inGroup: boolean): void {
+    {
+      const env = envOf(c);
+      const row = el('div', `row-item db-row db-conn${c.id === current?.id ? ' on' : ''}${env.env !== null ? ` env-${env.env}` : ''}${env.guessed ? ' env-guessed' : ''}${inGroup ? ' in-group' : ''}`);
       row.tabIndex = 0;
       row.title = `${KIND_LABEL[c.kind]} · ${c.path}${c.via !== null ? `\n${viaLine(c.via)}` : ''}`;
       const badge = el('span', `db-badge ${c.kind}`, KIND_BADGE[c.kind]);
@@ -360,7 +470,14 @@ export function buildDb(deps: DbViewDeps) {
       const st = status.get(c.id);
       const dot = el('span', `db-state ${st ?? ''}`);
       dot.title = st === 'ok' ? 'Connected' : st === 'error' ? 'Last attempt failed' : st === 'busy' ? 'Connecting…' : 'Not opened yet';
-      row.append(badge, text, dot);
+      row.append(badge, text);
+      // 운영·스테이징은 글자 칩으로도(색만으로 구분하지 않게)
+      if (env.env === 'prod' || env.env === 'staging') {
+        const chip = el('span', `db-env-chip ${env.env}${env.guessed ? ' guessed' : ''}`, env.env);
+        chip.title = env.guessed ? `Looks like ${env.env} from the name or host. Set it in Group & environment…` : `Environment: ${env.env}`;
+        row.append(chip);
+      }
+      row.append(dot);
       const actions = el('span', 'db-conn-actions');
       const act = (label: string, title: string, run: () => void): HTMLButtonElement => {
         const b = button(label, 'btn icon sm ghost', run);
@@ -372,6 +489,7 @@ export function buildDb(deps: DbViewDeps) {
       if (c.server !== null) {
         actions.append(act('✎', `Edit ${c.name}`, () => openForm('edit', c)), act('⧉', `Duplicate ${c.name}`, () => openForm('copy', c)));
       }
+      actions.append(act('⚑', `Group & environment of ${c.name}`, () => openRetag(c)));
       actions.append(act('×', c.kind === 'sqlite' ? `Remove ${c.name} from this list (the file is not deleted)` : `Remove ${c.name} from this list (the database is not changed${c.savedPassword === true ? ', the saved password is deleted' : ''})`, () => void removeFile(c)));
       row.append(actions);
       row.addEventListener('click', () => void openFile(c));
@@ -383,6 +501,7 @@ export function buildDb(deps: DbViewDeps) {
         showMenu({ x: e.clientX, y: e.clientY }, [
           { label: 'Open', pick: () => void openFile(c) },
           ...(c.server === null ? [] : [{ label: 'Edit…', pick: () => openForm('edit', c) }, { label: 'Duplicate…', pick: () => openForm('copy', c) }]),
+          { label: 'Group & environment…', pick: () => openRetag(c) },
           { label: 'Copy address', pick: () => void copy(c.path).then((ok) => say(ok ? 'Copied the address (no password).' : 'Could not copy to the clipboard.')) },
           'sep',
           { label: 'Remove from list', danger: true, pick: () => void removeFile(c) },

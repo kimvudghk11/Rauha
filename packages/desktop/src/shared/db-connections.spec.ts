@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConnectionsDto, DbConnections, MAX_CONNECTIONS } from './db-connections.js';
 import { DbFilePath, DbInputError } from './db-names.js';
+import { ConnectionTag } from './db-organize.js';
 import { ConnectionLabel, DbPassword, SavedPassword, ServerTarget } from './db-server.js';
 
 const p = (v: string) => DbFilePath.parse(v);
@@ -57,7 +58,7 @@ describe('목록 JSON(DTO)', () => {
   });
   it('예전(version 1) SQLite 목록은 그대로 읽혀 SQLite 파일로 보인다', () => {
     const list = ConnectionsDto.from({ version: 1, items: [{ id: 'old1', path: 'C:\\data\\app.db', lastUsed: 5 }] }).toEntity().list();
-    expect(list).toEqual([{ id: 'old1', kind: 'sqlite', name: 'app.db', path: 'C:\\data\\app.db', lastUsed: 5, savedPassword: null, server: null, via: null }]);
+    expect(list).toEqual([{ id: 'old1', kind: 'sqlite', name: 'app.db', path: 'C:\\data\\app.db', lastUsed: 5, savedPassword: null, server: null, via: null, group: '', env: null }]);
   });
 });
 
@@ -68,7 +69,7 @@ describe('서버 연결 목록', () => {
   it('서버 연결을 더하면 종류·이름·비밀번호 없는 주소가 보인다', () => {
     const c = DbConnections.empty();
     const v = c.addServer(target(), ConnectionLabel.parse('Shop', target()), sealed('x'), 's1', 10);
-    expect(v).toEqual({ id: 's1', kind: 'mysql', name: 'Shop', path: 'app@db.local:3306/shop', lastUsed: 10, savedPassword: true, server: { kind: 'mysql', addresses: [{ host: 'db.local', port: 3306, label: null }], user: 'app', database: 'shop', ssl: 'off' }, via: null });
+    expect(v).toEqual({ id: 's1', kind: 'mysql', name: 'Shop', path: 'app@db.local:3306/shop', lastUsed: 10, savedPassword: true, server: { kind: 'mysql', addresses: [{ host: 'db.local', port: 3306, label: null }], user: 'app', database: 'shop', ssl: 'off' }, via: null, group: '', env: null });
     c.add(p('/a.db'), 'f1', 20);
     expect(c.list().map((x) => x.kind)).toEqual(['sqlite', 'mysql']);
   });
@@ -195,5 +196,24 @@ describe('서버 연결 고치기', () => {
   it('파일 연결은 폼에 채울 서버 값이 없다', () => {
     const c = DbConnections.empty();
     expect(c.add(p('/a.db'), 'f1', 1).server).toBeNull();
+  });
+});
+
+describe('연결의 그룹·환경', () => {
+  it('그룹·환경을 바꾸면 보이는 모양에 실리고, 저장했다 읽어도 그대로다', () => {
+    const c = DbConnections.empty();
+    c.add(p('C:/data/app.db'), 'f1', 1);
+    const v = c.retag('f1', ConnectionTag.of('개인', 'local'));
+    expect(v).toMatchObject({ group: '개인', env: 'local' });
+    const back = ConnectionsDto.from(JSON.parse(JSON.stringify(ConnectionsDto.fromEntity(c).toJSON()))).toEntity();
+    expect(back.find('f1')).toMatchObject({ group: '개인', env: 'local' });
+    expect(back.groups()).toEqual(['개인']);
+  });
+  it('새 연결은 그룹 없음·환경 없음이고, 옛 저장 파일(그룹 칸 없음)도 읽힌다', () => {
+    const c = ConnectionsDto.from({ version: 3, items: [{ id: 'f1', kind: 'sqlite', path: 'C:/data/app.db', lastUsed: 1 }] }).toEntity();
+    expect(c.find('f1')).toMatchObject({ group: '', env: null });
+  });
+  it('모르는 연결은 바꿀 수 없다', () => {
+    expect(() => DbConnections.empty().retag('nope', ConnectionTag.none())).toThrow(DbInputError);
   });
 });
