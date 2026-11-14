@@ -11,6 +11,7 @@ import type { Effort, MemberDefaults, MemberSetting, Tier, TeamSettingsJson } fr
 import type { CommandBookJson } from './command-dto.js';
 import type { UpdateView } from './update-record.js';
 import type { RecordsApi, TodoApi } from './data-api.js';
+import type { ClaudeHistoryApi } from './claude-history-ipc.js';
 import type { BlogApi } from './blog-dto.js';
 import type { CodeApi } from './code-api.js';
 import type { TerminalApi } from './terminal-api.js';
@@ -238,6 +239,8 @@ export interface RauhaApi {
   readonly update: UpdateApi;
   readonly todo: TodoApi;
   readonly records: RecordsApi;
+  /** 이 컴퓨터의 Claude Code 대화 내역(rauha 밖에서 한 대화 포함, 읽기만) */
+  readonly claudeHistory: ClaudeHistoryApi;
   /** 기록 탭의 블로그 글: 가림 이름 받기·초안 쓰기(모델 한 번)·.md 저장 */
   readonly blog: BlogApi;
   /** 코드 탭: 파일 탐색·읽기·저장(main이 한다) */

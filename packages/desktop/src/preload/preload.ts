@@ -9,6 +9,7 @@ import { CONNECTOR_IPC, type ConnectorListView } from '../shared/connector-api.j
 import { PLUGIN_IPC } from '../shared/plugin-api.js';
 import { DOCKER_IPC, type DockerLogEvent } from '../shared/docker-api.js';
 import { DATA_IPC } from '../shared/data-api.js';
+import { CLAUDE_HISTORY_IPC } from '../shared/claude-history-ipc.js';
 import { BLOG_IPC } from '../shared/blog-dto.js';
 import { CODE_IPC } from '../shared/code-api.js';
 import { NAV_IPC } from '../shared/ts-nav.js';
@@ -81,6 +82,10 @@ const api: RauhaApi = {
     onChange: (listener) => {
       ipcRenderer.on(DATA_IPC.recordsChanged, (_e, book) => listener(book));
     },
+  },
+  claudeHistory: {
+    list: () => ipcRenderer.invoke(CLAUDE_HISTORY_IPC.list),
+    open: (id) => ipcRenderer.invoke(CLAUDE_HISTORY_IPC.open, id),
   },
   blog: {
     context: () => ipcRenderer.invoke(BLOG_IPC.context),

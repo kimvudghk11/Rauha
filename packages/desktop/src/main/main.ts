@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { cpus, homedir, release, userInfo } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve as resolvePath } from 'node:path';
+import { CLAUDE_HISTORY_IPC } from '../shared/claude-history-ipc.js';
+import { ClaudeHistoryService } from './history/claude-history-service.js';
 import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -881,6 +883,18 @@ void app.whenReady().then(async () => {
     if (agentEnv['CLAUDE_CONFIG_DIR'] !== undefined) mkdirSync(agentEnv['CLAUDE_CONFIG_DIR'], { recursive: true });
     return { ...(process.env as Record<string, string>), ...agentEnv };
   };
+  // Claude 대화 내역: 기본 ~/.claude 와 지금 rauha 계정의 설정 폴더(다르면 둘 다). 대화 파일(projects/*/*.jsonl)만 읽는다
+  const history = new ClaudeHistoryService({
+    roots: async () => {
+      const base = process.env['CLAUDE_CONFIG_DIR'] ?? join(homedir(), '.claude');
+      const account = (await accountEnv())['CLAUDE_CONFIG_DIR'];
+      const out = [{ dir: base, label: base === join(homedir(), '.claude') ? '~/.claude' : base }];
+      if (account !== undefined && resolvePath(account).toLowerCase() !== resolvePath(base).toLowerCase()) out.push({ dir: account, label: `rauha account (${basename(account)})` });
+      return out;
+    },
+  });
+  ipcMain.handle(CLAUDE_HISTORY_IPC.list, () => history.list());
+  ipcMain.handle(CLAUDE_HISTORY_IPC.open, (_e, id: unknown) => history.open(id));
   connectorService = registerConnectorIpc(ipcMain, {
     file: join(dataDir, 'connectors.json'),
     env: accountEnv,

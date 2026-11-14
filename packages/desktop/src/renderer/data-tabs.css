@@ -77,3 +77,32 @@
 /* 기록 상세: 제목 아래 칩 줄, 단추 아래 안내 글 간격 */
 .rcdet .tchips, .rcdet .rtags { margin-top: var(--s2); }
 .rsec > .hint { margin-top: var(--s2); }
+
+/* Records 위 전환(rauha 기록 ↔ Claude 대화)과 Claude 대화 내역 */
+.records-switch { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.records-tabs { padding: var(--s2) var(--page-pad) 0; }
+.records-host { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.chist { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; }
+.chist-tools-bar { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+.chist-tools-bar input { flex: 1 1 220px; min-width: 0; }
+.chist-tools-bar select { max-width: 280px; }
+.chist-body { flex: 1; display: grid; grid-template-columns: minmax(240px, 34%) minmax(0, 1fr); gap: var(--s3); min-height: 0; }
+.chist-list, .chist-detail { overflow: auto; min-height: 0; }
+.chist-detail { padding: 0 var(--s3) var(--s3); }
+.chist-row { display: flex; flex-direction: column; gap: 2px; padding: var(--s2); border-radius: 6px; cursor: pointer; min-width: 0; }
+.chist-row:hover { background: var(--row-hover); }
+.chist-row.on { background: var(--sel); }
+.chist-foot { padding-top: var(--s1); }
+.app[data-tier=xs] .chist-body { grid-template-columns: 1fr; }
+.chist-title { color: var(--bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chist-meta { font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chist-head { position: sticky; top: 0; background: var(--bg); padding-top: var(--s2); z-index: 1; }
+.chist-sub { margin-bottom: var(--s2); }
+.chist-msgs { display: flex; flex-direction: column; gap: var(--s2); }
+.chist-msg { border-radius: 8px; padding: var(--s2) var(--s3); max-width: 92%; }
+.chist-msg.user { align-self: flex-end; background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.chist-msg.assistant { align-self: flex-start; background: var(--panel, color-mix(in srgb, var(--text) 5%, transparent)); }
+.chist-who { font-size: var(--fs-xs); color: var(--muted); margin-bottom: 2px; }
+.chist-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--fs-sm); line-height: 1.55; }
+.chist-tools { margin-top: var(--s1); font-size: var(--fs-xs); color: var(--muted); }
+.chist-auto { display: flex; align-items: center; gap: var(--s1); white-space: nowrap; }
