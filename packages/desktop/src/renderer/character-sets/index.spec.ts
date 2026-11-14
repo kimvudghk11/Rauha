@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHARACTER_SET_IDS } from '../../shared/character-set-ids.js';
 import { CHARACTER_ROLES, spriteFor, leadName, useCharacterSet, useLooks, defaultSprite } from '../characters.js';
-import { CHARACTER_SETS, characterSetById, DEFAULT_SET, FARM_SET, FOREST_SET, OCEAN_SET, SPACE_SET } from './index.js';
+import { CAFE_SET, CHARACTER_SETS, characterSetById, DEFAULT_SET, FANTASY_SET, FARM_SET, FOREST_SET, OCEAN_SET, OFFICE_SET, SCHOOL_SET, SPACE_SET } from './index.js';
 import { setProblems } from './resolve.js';
 
 describe('캐릭터 테마 레지스트리', () => {
@@ -42,7 +42,7 @@ describe('숲속 친구들과 바다 친구들 사이', () => {
 
 describe('새 컨셉 세트(농장·우주)', () => {
   it('22역할을 모두 가진다(바다 그림으로 되돌아가 섞이지 않게)', () => {
-    for (const set of [FARM_SET, SPACE_SET]) for (const r of CHARACTER_ROLES) expect(set.characters[r], `${set.id}.${r}`).toBeDefined();
+    for (const set of [FARM_SET, SPACE_SET, OFFICE_SET, FANTASY_SET, SCHOOL_SET, CAFE_SET]) for (const r of CHARACTER_ROLES) expect(set.characters[r], `${set.id}.${r}`).toBeDefined();
   });
   it('세트끼리 이름·동물이 겹치지 않는다', () => {
     const seen = new Map<string, string>();
