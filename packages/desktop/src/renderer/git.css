@@ -81,6 +81,29 @@ textarea.ginput, input.ginput { width: 100%; }
 .gbm > input { position: sticky; top: 0; flex: none; margin: 0 0 var(--s1); }
 .gbm > button .grow { overflow: hidden; text-overflow: ellipsis; }
 .gbm > .gbm-create { background: var(--sel); color: var(--bright); }
+/* Actions 탭: 왼쪽 실행 목록 · 오른쪽 작업과 단계 · 실패한 작업은 로그 끝부분 */
+.gact { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.gact-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 2fr) minmax(0, 3fr); gap: var(--s2); }
+.app[data-tier=xs] .gact-body, .app[data-tier=s] .gact-body { grid-template-columns: 1fr; }
+.gact-runs, .gact-detail { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.gact-run { display: flex; align-items: center; gap: var(--s2); padding: 6px var(--s2); border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.gact-run:hover { background: var(--row-hover); }
+.gact-run.on { background: var(--sel); }
+.gact-rtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.gact-rtext b, .gact-rtext .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gact-rtext b { color: var(--bright); font-weight: 600; }
+.gact-rside { flex: none; display: flex; flex-direction: column; align-items: flex-end; }
+.gact-mark { flex: none; width: 16px; text-align: center; font-weight: 700; }
+.gact-mark.success { color: var(--green); }
+.gact-mark.failure { color: var(--red); }
+.gact-mark.running, .gact-mark.queued { color: var(--yellow); }
+.gact-mark.cancelled, .gact-mark.skipped { color: var(--muted); }
+.gact-dtop, .gact-jhead { display: flex; align-items: center; gap: var(--s2); }
+.gact-job { border: 1px solid var(--border2); border-radius: 8px; padding: var(--s2); margin-top: var(--s2); display: flex; flex-direction: column; gap: 4px; }
+.gact-job.failure { border-color: color-mix(in srgb, var(--red) 55%, var(--border2)); }
+.gact-step { display: flex; align-items: center; gap: var(--s2); padding-left: var(--s3); font-size: var(--fs-sm); }
+.gact-step.failure { color: var(--red); }
+.gact-log { max-height: 260px; overflow: auto; background: var(--well); border: 1px solid var(--border); border-radius: 6px; padding: var(--s2); font-family: var(--mono); font-size: var(--fs-xs); white-space: pre-wrap; word-break: break-all; }
 .gmsg .gfix { margin-left: var(--s2); vertical-align: middle; }
 .gbm > .gbm-why { padding: 4px var(--s2); font-size: var(--fs-sm); }
 

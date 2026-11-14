@@ -12,6 +12,7 @@ import { knownGitError, knownLocalGitError, pullDoneMessage } from '../../shared
 import { assertPlainFile } from './safe-file.js';
 import { belongsToRepo } from './worktree-owner.js';
 import { GitFailure, mustGit, runGit } from './git-run.js';
+import { GithubRepo } from '../../shared/gh-actions.js';
 
 const ok = (message: string, extra: Partial<Done> = {}): Done => ({ message, ...extra });
 const NO_COMMIT = /^[0-9a-f]{4,64}$/;
@@ -421,6 +422,15 @@ export class GitRepo {
   }
 
   /** GitHub 비교 주소(PR 만들기 화면). GitHub 원격이 아니면 실패한다. */
+  /** 이 레포의 GitHub 원격(owner/repo). 원격이 없거나 GitHub 가 아니면 이유를 던진다 */
+  async githubRepo(): Promise<GithubRepo> {
+    const remote = await this.remoteName();
+    if (remote === null) throw new GitFailure('BLOCKED', 'This repo has no remote, so there are no GitHub Actions to show.');
+    const gh = GithubRepo.fromRemote((await this.git(['remote', 'get-url', remote])).trim());
+    if (gh === null) throw new GitFailure('BLOCKED', 'The remote is not on github.com, so there are no GitHub Actions to show.');
+    return gh;
+  }
+
   async prUrl(base: string): Promise<{ url: string }> {
     const b = BranchName.parse(base).value;
     const branch = await this.currentBranch();

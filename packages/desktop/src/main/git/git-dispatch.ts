@@ -2,6 +2,7 @@ import { GIT_FUNCTIONS, type GitErrorCode, type GitFn, type GitResult } from '..
 import { conventionsView } from '../../shared/git-conventions-view.js';
 import { readConventions } from '../workspace/git-worktree.js';
 import { GitIdentity, GitInputError, StashRef } from '../../shared/git-guard.js';
+import type { ActionsClient } from '../github/actions-client.js';
 import { GitRepo } from './git-repo.js';
 import { GitFailure } from './git-run.js';
 import type { RepoGate } from './repo-gate.js';
@@ -11,6 +12,8 @@ export interface GitContext {
   readonly protectedBranches: () => readonly string[];
   /** 기본 브라우저로 연다. https 주소만 받는다. */
   readonly openExternal: (url: string) => Promise<void>;
+  /** GitHub Actions 읽기(없으면 Actions 함수는 거절) */
+  readonly actions?: ActionsClient;
 }
 
 const str = (v: unknown): string => {
@@ -42,6 +45,14 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
   const repo = GitRepo.open(checked, ctx.protectedBranches());
   const a = obj(rawArg);
   const confirm = { confirmed: a['confirmed'] === true };
+  const actions = (): ActionsClient => {
+    if (ctx.actions === undefined) throw new GitFailure('INVALID', 'GitHub Actions are not available here.');
+    return ctx.actions;
+  };
+  const ghId = (v: unknown): number => {
+    if (typeof v !== 'number' || !Number.isSafeInteger(v) || v <= 0) throw new GitInputError('Not a GitHub run or job id.');
+    return v;
+  };
   try {
     const run: Record<GitFn, () => Promise<unknown>> = {
       overview: () => repo.overview(),
@@ -77,6 +88,12 @@ export async function dispatchGit(ctx: GitContext, fn: unknown, root: unknown, r
       stashPop: () => repo.stashPop(StashRef.parse({ index: a['index'], hash: a['hash'] })),
       stashDrop: () => repo.stashDrop(StashRef.parse({ index: a['index'], hash: a['hash'] })),
       setIdentity: () => repo.setIdentity(GitIdentity.parse(a), a['scope'] === 'repo' ? 'repo' : 'global'),
+      actionsRuns: async () => {
+        const gh = await repo.githubRepo();
+        return { slug: gh.slug, ...(await actions().runs(gh)) };
+      },
+      actionsJobs: async () => actions().jobs(await repo.githubRepo(), ghId(a['runId'])),
+      actionsLog: async () => actions().log(await repo.githubRepo(), ghId(a['jobId'])),
       openPr: async () => {
         const { url } = await repo.prUrl(str(a['base']));
         if (!url.startsWith('https://')) throw new GitFailure('INVALID', 'Only https addresses can be opened.');

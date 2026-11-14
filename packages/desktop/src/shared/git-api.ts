@@ -1,4 +1,5 @@
 import type { FileChangeView } from './git-changes.js';
+import type { JobView, LogLine, RunView } from './gh-actions.js';
 import type { Hunk, PatchMode, Selection } from './git-diff.js';
 import type { ConventionsView } from './git-conventions-view.js';
 import type { BranchView, LogRow } from './git-lists.js';
@@ -11,6 +12,7 @@ export const GIT_FUNCTIONS = [
   'branches', 'createBranch', 'switchBranch', 'merge', 'deleteBranch', 'fetch', 'pull', 'push',
   'conventions', 'undoCommit', 'log', 'commitDiff', 'mergeState', 'resolveSide', 'readConflict', 'writeConflict', 'markResolved', 'finishMerge', 'abortMerge', 'openPr', 'worktrees',
   'stashList', 'stash', 'stashApply', 'stashPop', 'stashDrop', 'setIdentity',
+  'actionsRuns', 'actionsJobs', 'actionsLog',
 ] as const;
 export type GitFn = (typeof GIT_FUNCTIONS)[number];
 
@@ -90,6 +92,10 @@ export interface GitCalls {
   stash: [{ message?: string; includeUntracked?: boolean }, Done];
   /** 커밋에 적힐 이름·이메일을 정한다. global 이면 이 컴퓨터의 모든 레포, repo 면 이 레포만 */
   setIdentity: [{ name: string; email: string; scope: 'global' | 'repo' }, Done];
+  /** GitHub Actions(읽기 전용): 이 레포의 GitHub 원격에서 최근 실행 30개 */
+  actionsRuns: [void, { slug: string; signedIn: boolean; runs: readonly RunView[] }];
+  actionsJobs: [{ runId: number }, readonly JobView[]];
+  actionsLog: [{ jobId: number }, { lines: readonly LogLine[]; needsLogin: boolean }];
   stashApply: [StashTarget, Done];
   stashPop: [StashTarget, Done];
   /** 되돌릴 수 없는 동작: 화면은 확인 창을 거친다 */

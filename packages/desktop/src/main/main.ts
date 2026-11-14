@@ -24,6 +24,7 @@ import { ConversationResetDto, type ConversationResetResult } from '../shared/co
 import { RepoConversations } from './team/repo-conversations.js';
 import { WorktreeLedger } from './workspace/worktree-ledger.js';
 import { dispatchGit } from './git/git-dispatch.js';
+import { ghCliToken, GithubActionsClient } from './github/actions-client.js';
 import { CHECKPOINT_IPC } from '../shared/checkpoint-api.js';
 import { dispatchCheckpoint } from './team/checkpoint-dispatch.js';
 import { RepoGate } from './git/repo-gate.js';
@@ -831,8 +832,10 @@ void app.whenReady().then(async () => {
   });
   // git 탭: 앱이 작업 폴더에서 찾은 레포의 루트에서만 git을 돌린다
   const gitGate = new RepoGate(async () => (await scanWorkFolder(currentWorkDir())).filter((e) => e.kind === 'repo').map((e) => e.root));
+  // GitHub Actions 보기(읽기 전용). 토큰은 GitHub CLI 로그인이 있을 때만 main 안에서 쓴다.
+  const githubActions = GithubActionsClient.create({ fetch: (u, i) => fetch(u, i), ghToken: ghCliToken, userAgent: `rauha/${app.getVersion()}` });
   ipcMain.handle(IPC.gitCall, (_e, fn: unknown, root: unknown, arg: unknown) =>
-    dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => openSafe(url) }, fn, root, arg),
+    dispatchGit({ gate: gitGate, protectedBranches: () => settings.protectedBranches, openExternal: (url) => openSafe(url), actions: githubActions }, fn, root, arg),
   );
   ipcMain.handle(CHECKPOINT_IPC.call, async (_e, fn: unknown, arg: unknown) => {
     await checkpointsReady;
