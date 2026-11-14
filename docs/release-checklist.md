@@ -9,6 +9,14 @@
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
+## v0.2.6 (2026-11-14) — Kiro · ChatGPT(Codex) 연결
+
+- **채팅**: Main 옆 메뉴에서 Claude team / Kiro / ChatGPT (Codex). 바깥 AI 는 한 번 묻기·읽기 전용(Kiro 도구 미리 허락 없음, Codex read-only 샌드박스·기록 없음). 답 아래 "누가 · 몇 초 · read-only".
+- **Extensions > AI accounts**: 설치·로그인 상태와 계정, Sign in / Switch account(새 터미널 창), Sign out. rauha 는 토큰을 읽지 않는다(로그인은 각 CLI).
+- 무료 한도 문구("Monthly request limit reached")를 쉬운 말로. Windows 는 codex.cmd 로 실행해 PowerShell 실행 정책 문제를 피함.
+- 전체 테스트: checkpoint-keeper 3개가 부하 때 시간 초과(혼자 돌리면 23개 통과) — 이번 변경과 무관.
+- Codex 실제 답은 사용자 로그인 뒤 한 번 확인 예정. v0.2.5 설치 파일 3개 올라감(exe 218MB · arm64 236MB · x64 248MB).
+
 ## v0.2.5 (2026-11-14) — Git 탭 고도화·Actions 탭·커밋 초안
 
 - **저장소 막대**: 원격과의 사이를 한 문장으로("1 ahead · 3 behind origin/main", "Not on the remote yet"), 원격에 없는 브랜치는 Publish branch 가 파란 단추.
