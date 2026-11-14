@@ -31,10 +31,8 @@ export interface SettingsApi {
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown>; install(): Promise<unknown> };
   /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
   team?: { build(): HTMLElement };
-  /** 커넥터(노션·컨플루언스 …). 없으면 그 구역을 그리지 않는다. */
-  connectors?: { build(): HTMLElement };
-  /** 플러그인·스킬. 없으면 그 구역을 그리지 않는다. */
-  plugins?: { build(): HTMLElement };
+  /** 커넥터·MCP·플러그인은 확장 탭으로 옮겼다: 설정에는 그리로 가는 단추만 */
+  openExtensions?: () => void;
   /** 캐릭터 테마가 바뀌었을 때(화면의 캐릭터에 바로 반영) */
   onCharacterSet?: (id: string) => void;
   /** 진단 정보 복사(없으면 도움말 구역을 그리지 않는다) */
@@ -227,8 +225,11 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     const picker = buildThemePicker(s.characterSet, (id) => void api.update({ characterSet: id }).then((next) => api.onCharacterSet?.(next.characterSet)));
     root.appendChild(section('Character theme', picker, el('div', 'hint pad', `${CHARACTER_SETS.length} concepts. Changing it switches all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.`)));
 
-    if (api.connectors !== undefined) root.appendChild(section('Connectors', api.connectors.build()));
-    if (api.plugins !== undefined) root.appendChild(section('Plugins & skills', api.plugins.build()));
+    if (api.openExtensions !== undefined) {
+      const go = el('button', 'btn', 'Open Extensions');
+      go.addEventListener('click', () => api.openExtensions?.());
+      root.appendChild(section('Connectors, MCP & plugins', el('div', 'hint pad', 'These moved to the Extensions tab (puzzle icon on the left): connect Notion · Confluence · other MCP servers, and install Claude Code plugins.'), go));
+    }
     if (api.team !== undefined) root.appendChild(section('Team settings', api.team.build()));
     root.appendChild(section('Data storage', el('div', 'dim pad', 'Records are stored only on this computer for now (Records tab). Sending summaries to your AWS (S3) will open later.')));
     if (api.diagnostics !== undefined) {

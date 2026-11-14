@@ -67,3 +67,44 @@
 .theme-slot .sp { image-rendering: pixelated; transition: transform .2s ease-out; }
 .theme-name { font-size: var(--fs-xs); color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .theme-slot .sp { transition: none; } }
+
+/* 확장 탭: 왼쪽 분류 · 오른쪽 카드(아이콘·분류 칩·상태·버튼) */
+.ext { flex: 1; display: flex; flex-direction: column; gap: var(--s2); padding: var(--page-pad); min-width: 0; min-height: 0; }
+.ext-body { flex: 1; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: var(--s3); min-height: 0; }
+.app[data-tier=xs] .ext-body, .app[data-tier=s] .ext-body { grid-template-columns: 1fr; }
+.ext-nav { display: flex; flex-direction: column; gap: 2px; }
+.app[data-tier=xs] .ext-nav, .app[data-tier=s] .ext-nav { flex-direction: row; flex-wrap: wrap; }
+.ext-nav-item { display: flex; align-items: center; gap: var(--s2); padding: 6px var(--s2); border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.ext-nav-item:hover { background: var(--row-hover); }
+.ext-nav-item.on { background: var(--sel); color: var(--bright); }
+.ext-nav-icon { width: 18px; height: 18px; flex: none; display: inline-flex; }
+.ext-nav-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ext-main { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: var(--s2); padding-right: var(--s1); }
+.ext-title { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; }
+.ext-title .hint { flex: 1; }
+.ext-h { margin-top: var(--s2); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s2); }
+.ext-card { display: flex; flex-direction: column; gap: var(--s1); padding: var(--s3); border: 1px solid var(--border2); border-radius: 10px; background: color-mix(in srgb, var(--text) 3%, transparent); min-width: 0; }
+.ext-card.busy { border-color: var(--accent); }
+.ext-card-top { display: flex; align-items: flex-start; gap: var(--s2); min-width: 0; }
+.ext-avatar { flex: none; width: 36px; height: 36px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--bright); font-weight: 700; text-shadow: 0 1px 1px rgba(0,0,0,.35); font-size: var(--fs-md); }
+.ext-card-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ext-card-title b { color: var(--bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ext-kind { align-self: flex-start; font-size: var(--fs-xs); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 999px; padding: 0 8px; }
+.ext-sub { font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ext-pill { flex: none; font-size: var(--fs-xs); font-weight: 600; border-radius: 999px; padding: 1px 8px; }
+.ext-pill.ok { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.ext-pill.warn { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 14%, transparent); }
+.ext-pill.bad { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+.ext-pill.off { color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); }
+.ext-desc { font-size: var(--fs-sm); color: var(--text); line-height: 1.45; }
+.ext-result { font-size: var(--fs-sm); border-radius: 6px; padding: 4px var(--s2); }
+.ext-result.ok { color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.ext-result.bad { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+.ext-actions { display: flex; gap: var(--s1); justify-content: flex-end; margin-top: auto; flex-wrap: wrap; }
+.ext-form { display: flex; flex-direction: column; gap: var(--s1); max-width: 520px; padding: var(--s3); border: 1px dashed var(--border2); border-radius: 10px; }
+.ext-form .btn { align-self: flex-start; }
+.ext-search { max-width: 420px; }
+.ext-toast { padding: var(--s2) var(--s3); border-radius: 8px; font-size: var(--fs-sm); }
+.ext-toast.ok { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.ext-toast.bad { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
