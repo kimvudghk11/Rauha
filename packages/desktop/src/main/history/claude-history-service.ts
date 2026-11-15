@@ -27,7 +27,9 @@ const HEAD_BYTES = 256 * 1024;
 const MAX_SESSIONS = 1500;
 const MAX_ENTRIES = 4000;
 const MAX_FILE = 200 * 1024 * 1024;
-const SESSION_FILE = /^[A-Za-z0-9._-]{1,200}\.jsonl$/;
+/** 한 번에 같이 읽는 대화 파일 수 */
+const READ_AT_ONCE = 16;
+const SESSION_FILE =/^[A-Za-z0-9._-]{1,200}\.jsonl$/;
 
 export interface ClaudeHistoryDeps {
   /** 대화 내역을 찾을 Claude 설정 폴더들(기본 ~/.claude 와 지금 계정의 CLAUDE_CONFIG_DIR). 같은 폴더는 한 번만 */
@@ -41,7 +43,18 @@ export interface ClaudeHistoryDeps {
  * 로그인 정보·설정 파일은 열지 않는다. 화면은 목록에서 받은 id 로만 세션을 연다(경로를 보내지 않는다).
  */
 export class ClaudeHistoryService {
+  /** 파일 경로 → 앞부분 요약. 크기·수정 시각이 같으면 다시 읽지 않는다(목록을 열 때마다 수백 개를 읽던 것) */
+  private readonly summaries = new Map<string, { readonly size: number; readonly mtimeMs: number; readonly summary: ReturnType<typeof sessionSummary> }>();
+
   constructor(private readonly deps: ClaudeHistoryDeps) {}
+
+  private async summaryOf(path: string, st: { size: number; mtimeMs: number }, read: () => Promise<ReturnType<typeof sessionSummary>>): Promise<ReturnType<typeof sessionSummary>> {
+    const hit = this.summaries.get(path);
+    if (hit !== undefined && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.summary;
+    const summary = await read();
+    this.summaries.set(path, { size: st.size, mtimeMs: st.mtimeMs, summary });
+    return summary;
+  }
 
   async list(): Promise<HistoryResult<{ readonly sessions: readonly ClaudeSessionRow[]; readonly roots: readonly string[] }>> {
     try {
@@ -53,20 +66,23 @@ export class ClaudeHistoryService {
         for (const p of projects) {
           if (!p.isDirectory()) continue;
           const files = await readdir(join(projectsDir, p.name), { withFileTypes: true }).catch(() => []);
-          for (const f of files) {
-            if (!f.isFile() || !SESSION_FILE.test(f.name)) continue;
+          const one = async (name: string): Promise<ClaudeSessionRow | null> => {
             let id: HistoryId;
             try {
-              id = HistoryId.of(ri, p.name, f.name.slice(0, -'.jsonl'.length));
+              id = HistoryId.of(ri, p.name, name.slice(0, -'.jsonl'.length));
             } catch {
-              continue;
+              return null;
             }
-            const path = join(projectsDir, p.name, f.name);
+            const path = join(projectsDir, p.name, name);
             const st = await stat(path).catch(() => null);
-            if (st === null || st.size === 0) continue;
-            const head = sessionSummary(await readHead(path));
-            if (head.title === '') continue;
-            rows.push({ id: id.toString(), title: head.title, cwd: head.cwd || p.name, startedAt: head.startedAt, updatedAt: st.mtime.toISOString(), bytes: st.size, source: root.label, automated: head.automated });
+            if (st === null || st.size === 0) return null;
+            const head = await this.summaryOf(path, st, async () => sessionSummary(await readHead(path)));
+            if (head.title === '') return null;
+            return { id: id.toString(), title: head.title, cwd: head.cwd || p.name, startedAt: head.startedAt, updatedAt: st.mtime.toISOString(), bytes: st.size, source: root.label, automated: head.automated };
+          };
+          const names = files.filter((f) => f.isFile() && SESSION_FILE.test(f.name)).map((f) => f.name);
+          for (let i = 0; i < names.length; i += READ_AT_ONCE) {
+            for (const r of await Promise.all(names.slice(i, i + READ_AT_ONCE).map(one))) if (r !== null) rows.push(r);
           }
         }
       }

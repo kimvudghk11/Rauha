@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -38,6 +38,28 @@ describe('Claude 대화 내역', () => {
       { role: 'user', text: 'DB 고쳐 줘', at: '2026-11-14T00:00:00Z' },
       { role: 'assistant', text: '고칠게요', tools: ['Edit a.ts'], at: '2026-11-14T00:00:01Z' },
     ]);
+  });
+  it('목록을 다시 열 때 바뀌지 않은 대화 파일은 다시 읽지 않고, 바뀐 파일만 새로 읽는다', async () => {
+    const a = mkdtempSync(join(tmpdir(), 'rauha-hist-c-'));
+    mkdirSync(join(a, 'projects', 'p'), { recursive: true });
+    const file = join(a, 'projects', 'p', 's.jsonl');
+    const ask = (t: string) => line({ type: 'user', cwd: 'c:\\p', timestamp: '2026-11-14T00:00:00Z', message: { content: t } });
+    writeFileSync(file, ask('첫 질문'));
+    const old = new Date('2026-11-01T00:00:00Z');
+    utimesSync(file, old, old);
+    const svc = new ClaudeHistoryService({ roots: async () => [{ dir: a, label: '~/.claude' }] });
+    const titles = async () => {
+      const r = await svc.list();
+      return r.ok ? r.data.sessions.map((s) => s.title) : [];
+    };
+    expect(await titles()).toEqual(['첫 질문']);
+    // 크기·수정 시각이 같으면 앞서 읽은 요약을 그대로 쓴다
+    writeFileSync(file, ask('딴 질문'));
+    utimesSync(file, old, old);
+    expect(await titles()).toEqual(['첫 질문']);
+    // 수정 시각이 바뀌면 다시 읽는다
+    writeFileSync(file, ask('새 질문'));
+    expect(await titles()).toEqual(['새 질문']);
   });
   it('경로를 꾸민 id·없는 뿌리는 열지 않는다', async () => {
     const { svc } = setup();
