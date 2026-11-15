@@ -255,12 +255,14 @@
 .hr-text { flex: 1; min-width: 0; }
 .hr-inline { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .hr-col { display: flex; flex-direction: column; gap: var(--s2); }
-.hr-dbs { display: flex; flex-wrap: wrap; gap: 6px; }
-.hr-db { font: inherit; font-size: var(--fs-sm); padding: 3px 10px; border-radius: var(--r-pill); border: 1px solid var(--border2); background: transparent; color: var(--muted); cursor: pointer; }
-.hr-db:hover { border-color: var(--delfi); color: var(--text); }
-.hr-db.on { color: var(--bright); border-color: var(--delfi); background: color-mix(in srgb, var(--delfi) 20%, transparent); }
-.hr-db.git::after { content: " · git"; color: var(--dim); font-size: var(--fs-xs); }
-.hr-db:focus-visible { outline: 2px solid var(--accentfg); outline-offset: 1px; }
+.hr-dbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px var(--s2); max-height: 220px; overflow: auto; }
+.hr-db { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 4px; border-radius: 4px; font-size: var(--fs-sm); color: var(--muted); cursor: pointer; }
+.hr-db:hover { background: color-mix(in srgb, var(--delfi) 10%, transparent); color: var(--text); }
+.hr-db.on { color: var(--bright); }
+.hr-db input { flex: none; margin: 0; accent-color: var(--delfi); cursor: pointer; }
+.hr-db-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hr-db-git { flex: none; font-size: var(--fs-xs); color: var(--dim); }
+.hr-db:has(input:focus-visible) { outline: 2px solid var(--accentfg); outline-offset: 1px; }
 .hr-stack-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow: auto; font-size: var(--fs-sm); }
 .hr-stack-row { display: flex; gap: var(--s2); min-width: 0; }
 .hr-stack-row b { flex: none; color: var(--text); }

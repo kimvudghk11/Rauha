@@ -226,7 +226,7 @@ export function buildInterview(deps: { readonly api: InterviewApi; readonly open
     hub.replaceChildren(face('me', 0, 3, running ? 'read' : 'idle'), el('b', undefined, 'Me'), lines, edit);
   }
 
-  /** My profile 창: 항목 이름 | 입력 두 열, DB 칩은 줄바꿈, 레포별 git 스택 목록 */
+  /** My profile 창: 항목 이름 | 입력 두 열, DB 는 체크박스 격자, 레포별 git 스택 목록 */
   function openProfile(focusYears = false): void {
     const veil = el('div', 'veil');
     const box = el('div', 'dialog hr-profile');
@@ -302,17 +302,21 @@ export function buildInterview(deps: { readonly api: InterviewApi; readonly open
       const found = syncFoundDbs();
       dbs.replaceChildren();
       for (const d of [...new Set([...DB_CHOICES, ...me.dbs])]) {
-        const chip = el('button', `hr-db${me.dbs.includes(d) ? ' on' : ''}${found.includes(d) ? ' git' : ''}`, d);
-        chip.type = 'button';
-        chip.setAttribute('aria-pressed', String(me.dbs.includes(d)));
-        chip.title = found.includes(d) ? 'Found in your repos (git)' : 'Click if you use it';
-        chip.addEventListener('click', () => {
+        // 체크박스 + 이름 + git 표시: 칸 폭이 좁아도 줄 단위로 정렬돼 깨지지 않는다
+        const item = el('label', `hr-db${me.dbs.includes(d) ? ' on' : ''}`);
+        item.title = found.includes(d) ? 'Found in your repos (git)' : 'Check if you use it';
+        const box = el('input');
+        box.type = 'checkbox';
+        box.checked = me.dbs.includes(d);
+        box.addEventListener('change', () => {
           dbsTouched = true;
           me.dbs = me.dbs.includes(d) ? me.dbs.filter((x) => x !== d) : [...me.dbs, d].slice(0, 12);
           saveMe(me);
           paintDbs();
         });
-        dbs.append(chip);
+        item.append(box, el('span', 'hr-db-name', d));
+        if (found.includes(d)) item.append(el('span', 'hr-db-git', 'git'));
+        dbs.append(item);
       }
     };
     paintDbs();
