@@ -304,15 +304,17 @@ export function buildInterview(deps: { readonly api: InterviewApi; readonly open
       for (const d of [...new Set([...DB_CHOICES, ...me.dbs])]) {
         // 체크박스 + 이름 + git 표시: 칸 폭이 좁아도 줄 단위로 정렬돼 깨지지 않는다
         const item = el('label', `hr-db${me.dbs.includes(d) ? ' on' : ''}`);
-        item.title = found.includes(d) ? 'Found in your repos (git)' : 'Check if you use it';
+        item.title = found.includes(d) ? `${d} · found in your repos (git)` : d;
         const box = el('input');
         box.type = 'checkbox';
         box.checked = me.dbs.includes(d);
+        // 목록을 다시 그리지 않고 이 줄만 바꾼다(키보드 포커스가 그대로 남는다). 12개가 다 차면 더 체크되지 않는다.
         box.addEventListener('change', () => {
           dbsTouched = true;
-          me.dbs = me.dbs.includes(d) ? me.dbs.filter((x) => x !== d) : [...me.dbs, d].slice(0, 12);
+          if (box.checked && !me.dbs.includes(d) && me.dbs.length >= 12) box.checked = false;
+          me.dbs = box.checked ? [...me.dbs.filter((x) => x !== d), d] : me.dbs.filter((x) => x !== d);
+          item.classList.toggle('on', box.checked);
           saveMe(me);
-          paintDbs();
         });
         item.append(box, el('span', 'hr-db-name', d));
         if (found.includes(d)) item.append(el('span', 'hr-db-git', 'git'));

@@ -236,7 +236,7 @@ if (TABS.includes('api')) {
 
 const q = (sel) => `document.querySelector(${JSON.stringify(sel)})?.click()`;
 const byText = (sel, text) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find((n) => n.textContent.includes(${JSON.stringify(text)}))?.click()`;
-const TAB = { chat: 0, code: 1, todo: 2, api: 3, docker: 4, db: 5, records: 6, git: 7, commands: 8, rules: 9, settings: 10 };
+const TAB = { chat: 0, code: 1, todo: 2, api: 3, docker: 4, db: 5, records: 6, git: 7, commands: 8, rules: 9, extensions: 10, interview: 11, settings: 12 };
 // [이름, 탭, 그 탭에서 먼저 할 클릭들(CSS 선택자 또는 완성된 JS)]
 // 레포 이름으로 git 탭의 레포를 고른다(기억된 레포가 장면마다 달라지지 않게 장면마다 먼저 고른다)
 const pickRepo = (name) => `(async () => { const sleep = (ms) => new Promise((r) => setTimeout(r, ms)); let s = null; for (let i = 0; i < 80 && !(s = document.querySelector('.gselect')); i++) await sleep(100); if (!s) throw new Error('git 탭의 .gselect(레포 고르기)가 8초 안에 나타나지 않았어요'); const o = [...s.options].find((o) => o.text.startsWith(${JSON.stringify(name)})); s.value = o.value; s.dispatchEvent(new Event('change')); await sleep(300); for (let i = 0; i < 80 && !document.querySelector('.gcommit'); i++) await sleep(100); await sleep(400); })() /* querySelector */`;
@@ -244,6 +244,7 @@ const pickRepo = (name) => `(async () => { const sleep = (ms) => new Promise((r)
 const CLEAN = "(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); if (['s', 'xs'].includes(document.querySelector('.app').dataset.tier)) document.querySelector('.code').classList.add('explorer-open'); })() /* querySelector */";
 // 터미널 칸을 열고(접혀 있으면) 터미널이 n개 이상 되게 하며, 폴더 목록·찾기 줄은 닫아 둔다
 const TERM_ENSURE = (n) => `(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); const t = document.querySelector('.term'); if (t.hidden) { document.querySelector('.code-termbtn').click(); await w(500); } while (document.querySelectorAll('.term-tab').length < ${n}) { [...document.querySelectorAll('.term-bar .btn')].find((b) => b.textContent === '+').click(); await w(200); [...document.querySelectorAll('.term-menu button')].find((b) => b.textContent.includes('Work folder')).click(); await w(2500); } document.querySelectorAll('.term-menu').forEach((x) => x.remove()); const f = document.querySelector('.term-find'); if (!f.hidden) f.querySelector('button:last-child').click(); await w(300); })()`;
+const ESC = "(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); })() /* querySelector */";
 const WAIT = "(() => new Promise((r) => setTimeout(r, 1200)))() /* querySelector */";
 // 팀이 일하는 레포의 파일을 바꾸려 하면 뜨는 "작업 중인 레포예요" 경고만 넘긴다(다른 대화상자는 그대로 둔다)
 const WARNOK = "(() => { const d = document.querySelector('.dialog'); if (d?.querySelector('b')?.textContent.includes('작업 중인 레포')) d.querySelector('.btn.primary').click(); })() /* querySelector */";
@@ -431,6 +432,13 @@ const SCENES = [
   // 최근 폴더를 고르면 허락 창이 뜬다(허락 없이 작업 폴더가 바뀌지 않는다)
   ['settings-recent-allow', 'settings', ["(() => { document.querySelector('.recent .item:not(.off) .btn')?.click(); })() /* querySelector */"]],
   ['settings-autosave', 'settings', ["(() => { const s = [...document.querySelectorAll('.srow')].find((r) => r.textContent.includes('Auto save'))?.querySelector('select'); s.value = 'delay'; s.dispatchEvent(new Event('change')); })() /* querySelector */"]],
+  // 채용 검토실: 기본 화면 · My profile 창(DB 체크박스 격자) · 체크하고 긴 이름 DB 추가 · 지난 검토 · 보내기(계정 없음 안내) · 실제 공고 갱신(가짜)
+  ['interview', 'interview', [ESC, WAIT]],
+  ['interview-profile', 'interview', [ESC, WAIT, byText('.btn', 'Edit my profile')]],
+  ['interview-profile-checked', 'interview', [ESC, WAIT, byText('.btn', 'Edit my profile'), "(() => { for (const b of [...document.querySelectorAll('.hr-db input')].slice(0, 3)) b.click(); })() /* querySelector */", typeInto('#hr-db-other', 'Amazon Aurora PostgreSQL Serverless v2 x'), byText('.hr-profile .btn', 'Add'), typeInto('#hr-years', '4')]],
+  ['interview-history', 'interview', [ESC, WAIT, byText('.btn', 'Review history')]],
+  ['interview-send', 'interview', [ESC, WAIT, byText('.btn', 'Send my resume'), WAIT]],
+  ['interview-market', 'interview', [ESC, WAIT, byText('.btn', 'real job posts'), WAIT]],
 ];
 const SCENE_FILTER = process.env.MEASURE_SCENES ? process.env.MEASURE_SCENES.split(',') : null;
 
@@ -524,12 +532,18 @@ async function run(win) {
     await sleep(6500);
     for (const [name, tab, clicks] of SCENES) {
       if (!TABS.includes(tab) || (SCENE_FILTER && !SCENE_FILTER.includes(name))) continue;
+      if (name === 'git-big' && !process.env.MEASURE_BIG) continue; // 큰 레포는 MEASURE_BIG=1 일 때만 만든다
       for (const width of WIDTHS) {
         await resize(width);
         await ev("document.querySelectorAll('.veil, .menu').forEach((n) => n.remove())"); // 앞 장면의 확인 창·메뉴가 남지 않게
         process.env.FAKE_DOCKER_MODE = 'ok';
         await ev(`document.querySelectorAll('#tabs button')[${TAB[tab]}].click()`);
         await sleep(1200);
+        // 기록 탭은 "All conversations" 로 열린다. 기록 장면은 rauha 작업 기록 칸으로 넘긴다
+        if (tab === 'records') {
+          await ev(byText('.tab', 'rauha task records'));
+          await sleep(700);
+        }
         for (const c of clicks) {
           if (typeof c === 'function') {
             c();
