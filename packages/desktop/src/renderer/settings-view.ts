@@ -147,7 +147,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     root.appendChild(section('Editor', row('Auto save', autoSave), el('div', 'hint pad', 'Saves open files in the Repo tab for you. Read-only files and secret files are never saved, and a file that changed on disk is left for you to decide.')));
 
     // 알림
-    const toggles = [['choice', 'When I need to allow or choose'], ['done', 'When a job finishes'], ['limit', 'When a limit reaches 90%'], ['step', 'When a job moves to the next step (off by default)']] as const;
+    const toggles = [['choice', 'When I need to allow or choose'], ['done', 'When a job finishes or stops on its own'], ['limit', 'When a limit reaches 90% and when it runs out'], ['step', 'When a job moves to the next step (off by default)']] as const;
     const notify = toggles.map(([key, label]) => {
       const box = el('input');
       box.type = 'checkbox';

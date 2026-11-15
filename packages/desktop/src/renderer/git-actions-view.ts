@@ -1,4 +1,5 @@
 import { durationText, type JobView, type RunView, type Verdict } from '../shared/gh-actions.js';
+import { actionsNotice } from '../shared/notice-text.js';
 import { el } from './dom.js';
 import type { GitCtx } from './git-common.js';
 import { ago } from './git-format.js';
@@ -96,7 +97,8 @@ export function buildActions(ctx: GitCtx) {
       const text = `${r.workflow} · ${r.branch} ${VERDICT_WORD[r.verdict].toLowerCase()} in ${durationText(r.durationSec)}`;
       ctx.say(text, r.verdict === 'failure');
       try {
-        new Notification('GitHub Actions', { body: text, silent: true });
+        const notice = actionsNotice(r);
+        new Notification(notice.title, { body: notice.body, silent: r.verdict !== 'failure' });
       } catch {
         /* 알림을 못 띄워도 화면 줄은 남는다 */
       }

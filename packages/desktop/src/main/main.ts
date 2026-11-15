@@ -9,6 +9,7 @@ import { ExternalAiService } from './ai/external-ai-service.js';
 import { MY_WORK_IPC } from '../shared/my-work-ipc.js';
 import { GitAccounts, resumeNote, summarizeWork, type WorkCommit } from '../shared/my-work.js';
 import { INTERVIEW_IPC, type WorkFacts } from '../shared/interview-ipc.js';
+import { approvalNotice, jobOverNotice, limitNotice } from '../shared/notice-text.js';
 import { workFacts } from '../shared/hiring-banter.js';
 import { hiringInputOf } from '../shared/hiring-input.js';
 import { HiringHistory } from '../shared/hiring-history.js';
@@ -17,7 +18,8 @@ import { GithubWorkService, type RemoteWork } from './github/github-work-service
 import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, safeStorage, screen, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
+import { trayView } from './platform/tray-menu.js';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
@@ -136,7 +138,8 @@ app.on('web-contents-created', (_event, contents) => {
     }
   });
 });
-let limitNotified = false;
+/** 한도 알림을 마지막으로 띄운 단계(90% 근처 / 다 씀). 같은 단계는 한 번만 알린다. */
+let limitNotified: 'near' | 'full' | null = null;
 
 /** 앱 오류 로그: 처리 안 된 오류와 화면(renderer)의 콘솔 error를 가려서 최근 200줄 + userData/logs/app.log에 쌓는다. 진단 정보 복사가 쓴다. */
 const userName = (): string => {
@@ -216,12 +219,12 @@ const usage = new UsageService({
   now: () => Date.now(),
   onChange: (snap) => {
     window?.webContents.send(USAGE_IPC.changed, toUsageView(snap));
-    const pct = Math.max(snap.plan?.session?.percent ?? 0, snap.plan?.weekly?.percent ?? 0);
-    if (pct >= 90 && !limitNotified && settings.notify.limit && Notification.isSupported()) {
-      limitNotified = true;
-      new Notification({ title: '한도가 90%에 닿았어요', body: '새 작업을 아껴 쓰는 게 좋아요.' }).show();
+    const notice = limitNotice({ session: snap.plan?.session ?? null, weekly: snap.plan?.weekly ?? null, now: new Date() });
+    if (notice === null) limitNotified = null;
+    else if (notice.level !== limitNotified && settings.notify.limit && Notification.isSupported()) {
+      limitNotified = notice.level;
+      new Notification({ title: notice.title, body: notice.body }).show();
     }
-    if (pct < 90) limitNotified = false;
   },
 });
 
@@ -237,13 +240,15 @@ const approvals = new Approvals({
   now: () => new Date().toISOString(),
   onChange: (pending) => {
     window?.webContents.send(IPC.approvals, pending.map((p) => approvalView(p, settings.protectedBranches)));
+    refreshTray();
   },
 });
 
 /** 허락이 새로 오면 Windows 알림으로도 알린다. 누르면 그 작업의 팀 상세(정리 보기)로 간다. */
-function notifyApproval(jobId: string, headline: string, title = '허락이 필요해요'): void {
+function notifyApproval(jobId: string, headline: string, kind: 'approval' | 'choice' = 'approval'): void {
   if (!settings.notify.choice || !Notification.isSupported() || window?.isFocused() === true) return;
-  const n = new Notification({ title, body: headline });
+  const notice = approvalNotice({ kind, headline, request: runnerRef?.board.find(jobId)?.request ?? null, waiting: approvals.pending().length });
+  const n = new Notification({ title: notice.title, body: notice.body });
   n.on('click', () => {
     window?.show();
     window?.focus();
@@ -389,6 +394,7 @@ async function startRunner(): Promise<JobRunner> {
     onChange: (board) => {
       const view = boardView(board, threads);
       window?.webContents.send(IPC.board, view);
+      refreshTray(board.jobs);
       void chatHistoryReady.then(() => chatHistory.observe(view.jobs));
       for (const job of board.jobs) {
         if (!job.isOver) continue;
@@ -398,9 +404,9 @@ async function startRunner(): Promise<JobRunner> {
           usageOverSeen.add(job.id);
           void usage.refresh('job-over');
         }
-        if (job.status === 'done' && !doneNotified.has(job.id)) {
+        if (!doneNotified.has(job.id)) {
           doneNotified.add(job.id);
-          notifyDone(job.id, job.request);
+          notifyDone(job);
         }
       }
     },
@@ -455,7 +461,7 @@ const recorded = new Set<string>();
 const askCard = askCardFlow({
   approvals,
   trail,
-  notify: (jobId, headline) => notifyApproval(jobId, headline, '내 선택이 필요해요'),
+  notify: (jobId, headline) => notifyApproval(jobId, headline, 'choice'),
   isOver: (jobId) => runnerRef?.board.find(jobId)?.isOver === true,
 });
 
@@ -494,10 +500,13 @@ function onJobOver(job: Parameters<typeof jobView>[0]): void {
   void todoService.jobFinished(job.id, job.status === 'done' ? 'done' : 'stopped');
 }
 
-/** 작업이 끝나면(창이 가려져 있을 때만) 알린다. 누르면 그 작업의 팀 상세로 간다. */
-function notifyDone(jobId: string, request: string): void {
+/** 작업이 끝나거나(내가 멈춘 것 말고) 멈추면 창이 가려져 있을 때만 알린다. 누르면 그 작업의 팀 상세로 간다. */
+function notifyDone(job: Parameters<typeof jobView>[0]): void {
   if (!settings.notify.done || !Notification.isSupported() || window?.isFocused() === true) return;
-  const n = new Notification({ title: '작업이 끝났어요', body: request.length > 60 ? `${request.slice(0, 59)}…` : request });
+  const notice = jobOverNotice({ request: job.request, status: job.status === 'done' ? 'done' : 'stopped', stopReason: job.stopReason, queuedAt: job.queuedAt, endedAt: job.endedAt, deep: job.deep, knowledgeMissing: job.resultMeta.knowledgeMissing });
+  if (notice === null) return;
+  const jobId = job.id;
+  const n = new Notification({ title: notice.title, body: notice.body });
   n.on('click', () => {
     window?.show();
     window?.focus();
@@ -534,6 +543,65 @@ const readWindows = () => {
     return {};
   }
 };
+
+// ── 메뉴 막대(맥 오른쪽 위)·알림 영역(Windows) 아이콘: 도는 작업 수·허락 기다림·최근 작업, 눌러서 창 열기 ──
+let tray: Tray | null = null;
+let trayKey = '';
+
+/** 맥은 검정+투명 템플릿(메뉴 막대 밝기에 맞춰 색이 바뀐다), Windows 는 앱 아이콘 */
+function trayIcon(): Electron.NativeImage {
+  const dir = join(app.getAppPath(), 'build');
+  if (process.platform !== 'darwin') return nativeImage.createFromPath(join(dir, 'icon.png')).resize({ width: 16, height: 16 });
+  const img = nativeImage.createFromPath(join(dir, 'trayTemplate.png'));
+  img.setTemplateImage(true);
+  return img;
+}
+
+/** 창을 앞으로(닫혀 있으면 새로 열고), 작업 id 가 있으면 그 작업의 팀 상세로 */
+function showFromTray(jobId: string | null): void {
+  const fresh = window === null && runnerRef !== null;
+  if (fresh) open(runnerRef!);
+  const w = window;
+  if (w === null) return;
+  if (w.isMinimized()) w.restore();
+  w.show();
+  w.focus();
+  if (jobId === null) return;
+  if (fresh || w.webContents.isLoading()) w.webContents.once('did-finish-load', () => w.webContents.send(IPC.openJob, jobId));
+  else w.webContents.send(IPC.openJob, jobId);
+}
+
+function refreshTray(jobs: readonly { id: string; request: string; status: 'queued' | 'running' | 'waiting' | 'done' | 'stopped' }[] | null = null): void {
+  if (tray === null) return;
+  const list = jobs ?? runnerRef?.board.jobs ?? [];
+  const view = trayView({ jobs: list.map((j) => ({ id: j.id, request: j.request, status: j.status })), pending: approvals.pending().length });
+  const key = JSON.stringify(view);
+  if (key === trayKey) return;
+  trayKey = key;
+  if (process.platform === 'darwin') tray.setTitle(view.title === '' ? '' : ` ${view.title}`);
+  tray.setToolTip(view.tooltip);
+  const items = view.items.map((i): MenuItemConstructorOptions => {
+    if (i.kind === 'label') return { label: i.text, enabled: false };
+    if (i.kind === 'open') return { label: 'rauha 열기', click: () => showFromTray(null) };
+    if (i.kind === 'job') return { label: i.text, click: () => showFromTray(i.id) };
+    if (i.kind === 'separator') return { type: 'separator' };
+    return { role: 'quit', label: 'rauha 종료' };
+  });
+  tray.setContextMenu(Menu.buildFromTemplate(items));
+}
+
+/** 시험 실행(가짜 팀)에서는 아이콘을 만들지 않는다(RAUHA_TRAY=1 이면 만든다) */
+function startTray(): void {
+  if (tray !== null || (isAutomatedRun(process.env) && process.env['RAUHA_TRAY'] !== '1')) return;
+  try {
+    tray = new Tray(trayIcon());
+  } catch {
+    return; // 아이콘을 못 띄우는 환경(일부 리눅스)에서는 없이 간다
+  }
+  // Windows 는 왼쪽 클릭으로 창을 연다(메뉴는 오른쪽 클릭). 맥은 누르면 메뉴가 열린다.
+  if (process.platform !== 'darwin') tray.on('click', () => showFromTray(null));
+  refreshTray();
+}
 
 function open(runner: JobRunner): void {
   // 확인용: RAUHA_DISPLAY=2 처럼 정하면 창을 그 모니터(1이 주 모니터)에 띄운다. 쓰는 모니터를 가리지 않고 눈으로 따라가 볼 때 쓴다.
@@ -1336,6 +1404,7 @@ void app.whenReady().then(async () => {
   ipcMain.handle(IPC.diagnosticsCopy, copyDiagnostics);
   startUpdates();
   open(runner);
+  startTray();
 }).catch(reportStartupFailure);
 app.on('window-all-closed', () => {
   if (quitWhenAllClosed(process.platform)) app.quit();
