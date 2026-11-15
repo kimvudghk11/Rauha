@@ -1,4 +1,5 @@
 import type { ApprovalView, BoardView, RauhaApi, UsageView } from '../shared/ipc.js';
+import { NEW_TASK_TAB } from '../shared/ui-commands.js';
 import { buildChat } from './chat-view.js';
 import { offerTerminalCleanup, runWizard } from './first-run.js';
 import { el, icon } from './dom.js';
@@ -272,6 +273,7 @@ const chat = buildChat({
   saveTodo: (text) => addTodo(window.rauha.todo, TodoDto.draftFromChat(text)),
   stop: (id) => window.rauha.stop(id),
   deeper: (id) => window.rauha.goDeeper(id),
+  limitRetry: { schedule: (id) => window.rauha.retryAtReset(id), cancel: (id) => window.rauha.cancelRetry(id), now: () => window.rauha.retriesNow(), on: (l) => window.rauha.onRetries(l) },
   answer: (id, choice) => window.rauha.answerApproval(id, choice),
   review: (id) => window.rauha.reviewApproval(id),
   resetConversation: () => window.rauha.resetConversation(null),
@@ -354,6 +356,11 @@ window.rauha.onBoard((view) => {
 });
 window.rauha.onApprovals(onApprovals);
 window.rauha.onOpenTab((tab) => {
+  if (tab === NEW_TASK_TAB) {
+    show('chat');
+    chat.focus();
+    return;
+  }
   const id = resolveTab(tab);
   if (id !== null) show(id);
 });

@@ -10,6 +10,8 @@ import { MY_WORK_IPC } from '../shared/my-work-ipc.js';
 import { GitAccounts, resumeNote, summarizeWork, type WorkCommit } from '../shared/my-work.js';
 import { INTERVIEW_IPC, type WorkFacts } from '../shared/interview-ipc.js';
 import { approvalNotice, jobOverNotice, limitNotice } from '../shared/notice-text.js';
+import { NEW_TASK_TAB } from '../shared/ui-commands.js';
+import { isLimitStop, LimitRetries, retryTime } from '../shared/limit-retry.js';
 import { workFacts } from '../shared/hiring-banter.js';
 import { hiringInputOf } from '../shared/hiring-input.js';
 import { HiringHistory } from '../shared/hiring-history.js';
@@ -48,7 +50,7 @@ import { reviewChanges } from './team/git-review.js';
 import { Approvals } from './team/approvals.js';
 import { answerFor, approvalView } from './team/approval-view.js';
 import { accountNames, composeSession, liveProfileResolver, profileResolver } from './team/compose.js';
-import { fakeTeam } from './team/fake-team.js';
+import { fakeTeam, fakeUsage } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { resolveMentions } from './team/mention-context.js';
 import { AttachmentStore, type StagedImages } from './team/attachment-store.js';
@@ -212,7 +214,7 @@ const claudeExecutable = (): string | undefined => claudeBinaryPath(resourceEnv(
 /** 구독 한도를 읽는 유일한 곳(상태 줄·설정·새 작업 판단이 같은 값을 받는다). 확인용 가짜 팀 실행에서는 읽지 않는다. */
 const usage = new UsageService({
   read: async () => {
-    if (FAKE) return null;
+    if (FAKE) return fakeUsage();
     const profile = (await profileResolver(home, settings.account))(currentWorkDir());
     return readPlanUsage({ ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, undefined, claudeExecutable());
   },
@@ -223,8 +225,9 @@ const usage = new UsageService({
     if (notice === null) limitNotified = null;
     else if (notice.level !== limitNotified && settings.notify.limit && Notification.isSupported()) {
       limitNotified = notice.level;
-      new Notification({ title: notice.title, body: notice.body }).show();
+      showNotice(notice, null);
     }
+    refreshTray();
   },
 });
 
@@ -248,12 +251,23 @@ const approvals = new Approvals({
 function notifyApproval(jobId: string, headline: string, kind: 'approval' | 'choice' = 'approval'): void {
   if (!settings.notify.choice || !Notification.isSupported() || window?.isFocused() === true) return;
   const notice = approvalNotice({ kind, headline, request: runnerRef?.board.find(jobId)?.request ?? null, waiting: approvals.pending().length });
+  showNotice(notice, jobId);
+}
+
+/** 떠 있는 알림. 참조가 없으면 가비지 수거되어 눌러도 click 이 오지 않는다(Windows) */
+const liveNotices = new Set<Notification>();
+
+/** 알림을 띄우고, 누르면 창을 앞으로(닫혀 있으면 새로 열고) 그 작업으로 간다 */
+function showNotice(notice: { title: string; body: string }, jobId: string | null): void {
   const n = new Notification({ title: notice.title, body: notice.body });
+  liveNotices.add(n);
+  const drop = () => liveNotices.delete(n);
   n.on('click', () => {
-    window?.show();
-    window?.focus();
-    window?.webContents.send(IPC.openJob, jobId);
+    drop();
+    showFromTray(jobId === null ? null : { job: jobId });
   });
+  n.on('close', drop);
+  n.on('failed', drop);
   n.show();
 }
 
@@ -506,13 +520,7 @@ function notifyDone(job: Parameters<typeof jobView>[0]): void {
   const notice = jobOverNotice({ request: job.request, status: job.status === 'done' ? 'done' : 'stopped', stopReason: job.stopReason, queuedAt: job.queuedAt, endedAt: job.endedAt, deep: job.deep, knowledgeMissing: job.resultMeta.knowledgeMissing });
   if (notice === null) return;
   const jobId = job.id;
-  const n = new Notification({ title: notice.title, body: notice.body });
-  n.on('click', () => {
-    window?.show();
-    window?.focus();
-    window?.webContents.send(IPC.openJob, jobId);
-  });
-  n.show();
+  showNotice(notice, jobId);
 }
 
 function askWithNotice(jobId: string, request: Parameters<Approvals['ask']>[1]) {
@@ -557,8 +565,8 @@ function trayIcon(): Electron.NativeImage {
   return img;
 }
 
-/** 창을 앞으로(닫혀 있으면 새로 열고), 작업 id 가 있으면 그 작업의 팀 상세로 */
-function showFromTray(jobId: string | null): void {
+/** 창을 앞으로(닫혀 있으면 새로 열고), 작업이면 그 작업의 팀 상세로, 탭이면 그 탭으로 */
+function showFromTray(target: { job: string } | { tab: string } | null): void {
   const fresh = window === null && runnerRef !== null;
   if (fresh) open(runnerRef!);
   const w = window;
@@ -566,15 +574,16 @@ function showFromTray(jobId: string | null): void {
   if (w.isMinimized()) w.restore();
   w.show();
   w.focus();
-  if (jobId === null) return;
-  if (fresh || w.webContents.isLoading()) w.webContents.once('did-finish-load', () => w.webContents.send(IPC.openJob, jobId));
-  else w.webContents.send(IPC.openJob, jobId);
+  if (target === null) return;
+  const send = () => ('job' in target ? w.webContents.send(IPC.openJob, target.job) : w.webContents.send(IPC.openTab, target.tab));
+  if (fresh || w.webContents.isLoading()) w.webContents.once('did-finish-load', send);
+  else send();
 }
 
 function refreshTray(jobs: readonly { id: string; request: string; status: 'queued' | 'running' | 'waiting' | 'done' | 'stopped' }[] | null = null): void {
   if (tray === null) return;
   const list = jobs ?? runnerRef?.board.jobs ?? [];
-  const view = trayView({ jobs: list.map((j) => ({ id: j.id, request: j.request, status: j.status })), pending: approvals.pending().length });
+  const view = trayView({ jobs: list.map((j) => ({ id: j.id, request: j.request, status: j.status })), pending: approvals.pending().length, usage: usage.current().plan, now: new Date() });
   const key = JSON.stringify(view);
   if (key === trayKey) return;
   trayKey = key;
@@ -583,7 +592,8 @@ function refreshTray(jobs: readonly { id: string; request: string; status: 'queu
   const items = view.items.map((i): MenuItemConstructorOptions => {
     if (i.kind === 'label') return { label: i.text, enabled: false };
     if (i.kind === 'open') return { label: 'rauha 열기', click: () => showFromTray(null) };
-    if (i.kind === 'job') return { label: i.text, click: () => showFromTray(i.id) };
+    if (i.kind === 'new') return { label: '새 작업 맡기기…', click: () => showFromTray({ tab: NEW_TASK_TAB }) };
+    if (i.kind === 'job') return { label: i.text, click: () => showFromTray({ job: i.id }) };
     if (i.kind === 'separator') return { type: 'separator' };
     return { role: 'quit', label: 'rauha 종료' };
   });
@@ -1354,6 +1364,49 @@ void app.whenReady().then(async () => {
     if (staged !== null) jobImages.set(job.id, staged);
     return boardView(runner.board, threads).jobs.find((j) => j.id === job.id) ?? null;
   });
+  // 한도 풀리면 다시 맡기기: rauha 가 켜져 있는 동안만(앱을 끄면 예약도 사라진다). 30초마다 때가 됐는지 본다
+  let limitRetries = LimitRetries.empty();
+  const sendRetries = () => window?.webContents.send(IPC.retries, limitRetries.view());
+  ipcMain.handle(IPC.retryAtReset, (_e, id: unknown) => {
+    const job = typeof id !== 'string' ? null : (runner.board.find(id) ?? chatHistory.restored().find((v) => v.id === id) ?? null);
+    if (job === null || job.status !== 'stopped' || !isLimitStop(job.stopReason)) return { ok: false, error: 'Only a job stopped by the usage limit can wait for the reset.' };
+    const at = retryTime(usage.current().plan, new Date());
+    if (at === null) return { ok: false, error: 'Could not tell when the limit resets. Retry by hand later.' };
+    limitRetries = limitRetries.schedule(job.id, job.request, at);
+    sendRetries();
+    return { ok: true, at: at.toISOString() };
+  });
+  ipcMain.handle(IPC.retryCancel, (_e, id: unknown) => {
+    if (typeof id !== 'string') return;
+    limitRetries = limitRetries.cancel(id);
+    sendRetries();
+  });
+  ipcMain.handle(IPC.retriesNow, () => limitRetries.view());
+  let retrying = false;
+  setInterval(() => {
+    if (retrying || limitRetries.size === 0 || limitRetries.due(new Date()).due.length === 0) return;
+    retrying = true;
+    // 맡기기 전에 한도를 다시 읽는다: 아직 다 썼으면(풀리는 때가 밀림) 그때로 다시 미룬다
+    void usage
+      .refresh('interval')
+      .catch(() => null)
+      .then(() => {
+        const now = new Date();
+        const { due, rest } = limitRetries.due(now);
+        limitRetries = rest;
+        const later = retryTime(usage.current().plan, now);
+        for (const d of due) {
+          if (later !== null && later.getTime() > now.getTime()) {
+            limitRetries = limitRetries.schedule(d.jobId, d.request, later);
+            continue;
+          }
+          const next = submitJob(d.request);
+          if (next !== null && settings.notify.done && Notification.isSupported()) showNotice({ title: '한도가 풀려 작업을 다시 맡겼어요', body: d.request.split('\n')[0]!.slice(0, 60) }, next.id);
+        }
+        sendRetries();
+      })
+      .finally(() => (retrying = false));
+  }, 30_000).unref();
   ipcMain.handle(IPC.deeper, (_e, id: unknown) => {
     const done = typeof id === 'string' ? runner.board.find(id) : null;
     if (done === null || !done.resultMeta.canGoDeeper) return null;

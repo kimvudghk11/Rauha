@@ -42,6 +42,14 @@ const FAKE_APPROVAL_CARD: ApprovalCard = {
   docPath: 'docs/analysis/2026-11-08-가짜-분석.md',
 };
 
+/** 확인용 가짜 한도(RAUHA_FAKE_USAGE=full): 앱을 켠 뒤 40초 동안 세션 100%, 그 뒤 풀림 */
+const FAKE_LIMIT_UNTIL = Date.now() + 40_000;
+const limitPassed = (): boolean => Date.now() > FAKE_LIMIT_UNTIL;
+export function fakeUsage(): { plan: null; session: { percent: number; resetsAt: string }; weekly: null } | null {
+  if (process.env['RAUHA_FAKE_USAGE'] !== 'full') return null;
+  return { plan: null, session: { percent: limitPassed() ? 5 : 100, resetsAt: new Date(FAKE_LIMIT_UNTIL).toISOString() }, weekly: null };
+}
+
 /**
  * 확인용 가짜 팀(RAUHA_FAKE_TEAM=1). 실제 Claude를 부르지 않고 단계·역할·허락 요청을 흉내 낸다.
  * 요청에 "허락"이 들어 있으면 중간에 main push 허락을 묻는다.
@@ -56,6 +64,8 @@ export function fakeTeam(io: TeamIo, request: string, root?: string): TeamSessio
       await sleep(900, io.signal);
       step('tester', '재현 테스트를 쓰는 중');
       await sleep(1400, io.signal);
+      // 확인용: 요청에 [limit] 이 있으면 구독 한도에 걸린 것처럼 멈춘다(한도 풀리면 다시 맡기기 확인)
+      if (request.includes('[limit]') && !limitPassed()) throw new Error("You've hit your usage limit");
       step('implementer', '고치는 중: retry.policy.ts');
       if (root !== undefined && process.env['RAUHA_FAKE_EDIT'] === '1' && request.includes('[edit]')) fakeEdits(root);
       await sleep(1400, io.signal);

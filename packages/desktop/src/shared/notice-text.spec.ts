@@ -88,7 +88,7 @@ describe('한도 알림', () => {
   });
 
   it('100%면 새 작업이 막혔다고 한다', () => {
-    expect(limitNotice({ session: { percent: 100, resetsAt: at(30) }, weekly: null, now })).toEqual({ level: 'full', title: '이번 세션 한도를 다 썼어요', body: '30분 뒤에 풀려요. 그때까지 새 작업은 시작되지 않아요.' });
+    expect(limitNotice({ session: { percent: 100, resetsAt: at(30) }, weekly: null, now })).toEqual({ level: 'full', title: '이번 세션 한도를 다 썼어요', body: '30분 뒤에 풀려요. 그때까지 맡긴 작업은 한도에 걸려 멈춰요.' });
   });
 
   it('풀리는 때를 모르면 그 말은 빼고 알린다', () => {

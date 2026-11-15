@@ -27,6 +27,7 @@ import { canRevise, composerHeight, replyWho, roomLogLine, stopReasonText } from
 import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { mountStage, paintOnce } from './stage.js';
 import { changesPanel } from './changes-view.js';
+import { isLimitStop } from '../shared/limit-retry.js';
 
 const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
   queued: 'Queued',
@@ -54,6 +55,13 @@ export interface ChatActions {
   readonly ai?: AiBarDeps;
   readonly stop: (id: string) => void;
   readonly deeper: (id: string) => Promise<JobView | null>;
+  /** 한도에 걸려 멈춘 작업을 한도가 풀리면 다시 맡기기. 없으면 단추를 숨긴다 */
+  readonly limitRetry?: {
+    readonly schedule: (id: string) => Promise<{ readonly ok: true; readonly at: string } | { readonly ok: false; readonly error: string }>;
+    readonly cancel: (id: string) => Promise<void>;
+    readonly now: () => Promise<Readonly<Record<string, string>>>;
+    readonly on: (listener: (retries: Readonly<Record<string, string>>) => void) => void;
+  };
   /** 보낸 일을 할 일로 담는다 */
   readonly saveTodo?: (text: string) => Promise<{ readonly ok: true } | { readonly ok: false; readonly error: string }>;
   readonly answer: (id: string, choice: ApprovalChoice) => void;
@@ -330,6 +338,52 @@ export function buildChat(actions: ChatActions) {
     input.focus();
   };
   /** 입력 글을 팀에 넘기고 카드를 단다. main이 받지 않으면(폴더 허락 전) null. */
+  // ── 한도 풀리면 다시 맡기기: 작업 id → 다시 맡길 시각. main 이 예약이 바뀔 때마다 알려 준다 ──
+  let retries: Readonly<Record<string, string>> = {};
+  /** 내가 취소한 예약(빠졌을 때 "다시 맡겼어요"로 보이지 않게) */
+  const cancelling = new Set<string>();
+  const paintRetry = (b: HTMLButtonElement, id: string, before: Readonly<Record<string, string>>): void => {
+    const at = retries[id];
+    if (at === undefined && before[id] !== undefined && !cancelling.has(id)) {
+      b.textContent = 'Sent again after the limit reset ✓';
+      b.disabled = true;
+      return;
+    }
+    cancelling.delete(id);
+    b.textContent = at === undefined ? 'Retry when the limit resets' : `Retrying at ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · Cancel`;
+    b.title = at === undefined ? 'rauha sends the same request again once the limit resets (while rauha is running)' : 'Cancel the scheduled retry';
+  };
+  const takeRetries = (next: Readonly<Record<string, string>>): void => {
+    const before = retries;
+    retries = next;
+    for (const b of document.querySelectorAll<HTMLButtonElement>('.retry-later')) paintRetry(b, b.dataset['job'] ?? '', before);
+  };
+  if (actions.limitRetry !== undefined) {
+    actions.limitRetry.on(takeRetries);
+    void actions.limitRetry.now().then(takeRetries).catch(() => undefined);
+  }
+  const retryLaterButton = (id: string): HTMLButtonElement => {
+    const b = el('button', 'btn sm ghost retry-later');
+    b.dataset['job'] = id;
+    paintRetry(b, id, {});
+    b.addEventListener('click', () => {
+      const api = actions.limitRetry;
+      if (b.disabled || api === undefined) return;
+      b.disabled = true;
+      const done = () => (b.disabled = false);
+      if (retries[id] !== undefined) {
+        cancelling.add(id);
+        void api.cancel(id).finally(done);
+      } else
+        void api
+          .schedule(id)
+          .then((r) => {
+            if (!r.ok) b.textContent = r.error;
+          })
+          .finally(done);
+    });
+    return b;
+  };
   const handIn = async (text: string, images?: readonly Uint8Array[]): Promise<JobView | null> => {
     const job = await actions.submit(text, images);
     if (job !== null) {
@@ -564,7 +618,12 @@ export function buildChat(actions: ChatActions) {
           again.disabled = next !== null;
         });
       });
-      card.appendChild(again);
+      // 한도에 걸려 멈춘 일은 한도가 풀리면 다시 맡기기를 옆에 둔다
+      if (actions.limitRetry !== undefined && isLimitStop(job.stopReason)) {
+        const row = el('div', 'retry-row');
+        row.append(again, retryLaterButton(job.id));
+        card.appendChild(row);
+      } else card.appendChild(again);
     }
     // 가볍게 답한 질문만 더 깊게 다시 답할 수 있다
     if (job.canGoDeeper) {

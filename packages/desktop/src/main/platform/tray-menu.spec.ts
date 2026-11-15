@@ -40,4 +40,26 @@ describe('메뉴 막대 아이콘', () => {
     expect(kinds).toContain('open');
     expect(kinds[kinds.length - 1]).toBe('quit');
   });
+
+  it('열기 바로 아래에 새 작업 맡기기가 있다', () => {
+    const kinds = trayView({ jobs: [], pending: 0 }).items.map((i) => i.kind);
+    expect(kinds.indexOf('new')).toBe(kinds.indexOf('open') + 1);
+  });
+
+  it('한도를 알면 세션·주간 사용률과 세션이 풀리는 때를 한 줄로 보인다', () => {
+    const now = new Date('2026-11-15T10:00:00Z');
+    const v = trayView({ jobs: [], pending: 0, usage: { session: { percent: 42.6, resetsAt: '2026-11-15T12:10:00Z' }, weekly: { percent: 30, resetsAt: null } }, now });
+    expect(v.items).toContainEqual({ kind: 'label', text: '한도: 세션 42% · 이번 주 30% · 세션은 2시간 10분 뒤 풀려요' });
+  });
+
+  it('한도가 90% 넘으면 한도 줄 앞에 경고 표시를 붙이고 툴팁에도 알린다', () => {
+    const v = trayView({ jobs: [], pending: 0, usage: { session: { percent: 95, resetsAt: null }, weekly: null }, now: new Date() });
+    expect(v.items).toContainEqual({ kind: 'label', text: '⚠ 한도: 세션 95%' });
+    expect(v.tooltip).toBe('rauha · 쉬는 중 · 세션 한도 95%');
+  });
+
+  it('한도를 모르면 한도 줄을 넣지 않는다', () => {
+    const v = trayView({ jobs: [], pending: 0, usage: null, now: new Date() });
+    expect(v.items.some((i) => i.kind === 'label' && i.text.includes('한도'))).toBe(false);
+  });
 });

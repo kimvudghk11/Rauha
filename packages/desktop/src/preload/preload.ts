@@ -39,6 +39,12 @@ const api: RauhaApi = {
   submit: (text, images) => ipcRenderer.invoke(IPC.submit, text, images),
   stop: (id) => ipcRenderer.send(IPC.stop, id),
   goDeeper: (id) => ipcRenderer.invoke(IPC.deeper, id),
+  retryAtReset: (id) => ipcRenderer.invoke(IPC.retryAtReset, id),
+  cancelRetry: (id) => ipcRenderer.invoke(IPC.retryCancel, id),
+  retriesNow: () => ipcRenderer.invoke(IPC.retriesNow),
+  onRetries: (listener) => {
+    ipcRenderer.on(IPC.retries, (_e, retries: Readonly<Record<string, string>>) => listener(retries));
+  },
   followUp: (parentId, text, inTask) => ipcRenderer.invoke(IPC.followUp, parentId, text, inTask === true),
   onBoard: (listener) => {
     ipcRenderer.on(IPC.board, (_e, board: BoardView) => listener(board));

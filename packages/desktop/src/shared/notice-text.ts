@@ -1,4 +1,5 @@
 import type { Verdict } from './gh-actions.js';
+import { isLimitStop } from './limit-retry.js';
 
 /** 운영체제 알림 한 건(제목 + 본문, 본문은 두 줄까지) */
 export interface Notice {
@@ -17,7 +18,7 @@ function short(text: string, max = REQUEST_MAX): string {
 }
 
 /** 분 단위 길이를 "1시간 5분" / "12분" 으로 */
-function minutesText(min: number): string {
+export function minutesText(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return h === 0 ? `${m}분` : m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
@@ -46,7 +47,7 @@ export function jobOverNotice(j: JobOverInput): Notice | null {
   if (j.status === 'stopped') {
     const reason = (j.stopReason ?? '').trim();
     if (reason === STOPPED_BY_USER) return null;
-    if (/limit|한도|rate.?limit|quota|usage/i.test(reason)) return { title: '한도에 걸려 작업이 멈췄어요', body: `${request}\n한도가 풀리면 다시 맡겨 주세요.` };
+    if (isLimitStop(reason)) return { title: '한도에 걸려 작업이 멈췄어요', body: `${request}\n한도가 풀리면 다시 맡겨 주세요.` };
     if (/log.?in|로그인|auth|unauthori[sz]ed|401/i.test(reason)) return { title: '로그인이 풀려 작업이 멈췄어요', body: `${request}\nSettings › Account 에서 다시 로그인해 주세요.` };
     return { title: '작업이 중간에 멈췄어요', body: reason === '' ? request : `${request}\n이유: ${short(reason, 80)}` };
   }
@@ -90,7 +91,7 @@ export function limitNotice(u: { session: LimitWindow | null; weekly: LimitWindo
   if (pick === undefined || pick.w.percent < 90) return null;
   const left = pick.w.resetsAt === null ? NaN : Math.round((Date.parse(pick.w.resetsAt) - u.now.getTime()) / 60_000);
   const when = Number.isFinite(left) && left > 0 ? `${minutesText(left)} 뒤에 풀려요. ` : '';
-  if (pick.w.percent >= 100) return { level: 'full', title: `${pick.name} 한도를 다 썼어요`, body: `${when}그때까지 새 작업은 시작되지 않아요.` };
+  if (pick.w.percent >= 100) return { level: 'full', title: `${pick.name} 한도를 다 썼어요`, body: `${when}그때까지 맡긴 작업은 한도에 걸려 멈춰요.` };
   return { level: 'near', title: `${pick.name} 한도 ${Math.floor(pick.w.percent)}% 썼어요`, body: `${when}새 작업은 꼭 필요한 것만 맡기세요.` };
 }
 

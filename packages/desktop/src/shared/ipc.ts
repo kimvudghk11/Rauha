@@ -35,6 +35,11 @@ export const IPC = {
   stop: 'job:stop',
   /** 같은 질문을 깊게 다시 답해 달라("더 깊게") */
   deeper: 'job:deeper',
+  /** 한도에 걸려 멈춘 작업을 한도가 풀리면 다시 맡기기 / 취소 / 지금 예약 목록, main → 화면: 예약이 바뀜 */
+  retryAtReset: 'job:retry-at-reset',
+  retryCancel: 'job:retry-cancel',
+  retriesNow: 'job:retries-now',
+  retries: 'job:retries',
   /** 화면 → main: 끝난(또는 도는) 작업에 이어서 묻기(답장·후속 질문). 같은 레포에서 앞 맥락을 붙인 새 작업 */
   followUp: 'job:follow-up',
   /** main → 화면: 작업판이 바뀔 때마다 보낸다 */
@@ -82,7 +87,7 @@ export const IPC = {
   rulesUpdate: 'rules:update',
   /** main → 화면: 알림을 눌러 그 작업의 팀 상세를 열어 달라 */
   openJob: 'ui:open-job',
-  /** main → 화면: 앱 메뉴(Cmd+,)에서 탭을 열어 달라 */
+  /** main → 화면: 앱 메뉴(Cmd+,)에서 탭을 열어 달라. NEW_TASK_TAB 이면 채팅을 열고 입력칸에 커서 */
   openTab: 'ui:open-tab',
   /** main → 화면: 전체 화면에 들어가거나 나왔다(맥 신호등이 사라지는 때) */
   fullScreen: 'ui:fullscreen',
@@ -200,6 +205,12 @@ export interface RauhaApi {
   stop(id: string): void;
   /** 끝난 작업의 질문을 깊게 다시 묻는 새 작업을 만든다 */
   goDeeper(id: string): Promise<JobView | null>;
+  /** 한도에 걸려 멈춘 작업을 한도가 풀리면(rauha 가 켜져 있는 동안) 같은 요청으로 다시 맡긴다 */
+  retryAtReset(id: string): Promise<{ readonly ok: true; readonly at: string } | { readonly ok: false; readonly error: string }>;
+  cancelRetry(id: string): Promise<void>;
+  /** 작업 id → 다시 맡길 시각(ISO) */
+  retriesNow(): Promise<Readonly<Record<string, string>>>;
+  onRetries(listener: (retries: Readonly<Record<string, string>>) => void): void;
   /** 작업 id 에 이어서 묻는다(같은 레포, 앞 요청·결과를 맥락으로). 받지 못하면 null */
   followUp(parentId: string, text: string, inTask?: boolean): Promise<JobView | null>;
   onBoard(listener: (board: BoardView) => void): void;
