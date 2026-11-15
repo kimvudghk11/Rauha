@@ -18,7 +18,7 @@ import { needLabel } from '../shared/ask-form.js';
 import { el, isEnterKey } from './dom.js';
 import { needsLogin } from '../shared/claude-login.js';
 import { loginCard } from './login-view.js';
-import { roomSplit } from '../shared/room-split.js';
+import { teamBoard } from '../shared/team-board.js';
 import { characterStateOf, elapsedText } from './room.js';
 import { askDialog } from './git-common.js';
 import { flash } from './record-parts.js';
@@ -76,7 +76,8 @@ export interface ChatActions {
 
 interface RoomEl {
   readonly root: HTMLElement;
-  readonly update: (job: JobView, approvals: readonly ApprovalView[]) => void;
+  /** turns: 그 태스크의 대화 차례 수(이어서 물었으면 2 이상) */
+  readonly update: (job: JobView, approvals: readonly ApprovalView[], turns: number) => void;
 }
 
 /**
@@ -87,6 +88,8 @@ export function buildChat(actions: ChatActions) {
   const jobs = new Map<string, JobView>();
   let approvals: readonly ApprovalView[] = [];
   let openId: string | null = null;
+  /** 팀 목록에 올릴 태스크의 시작점: 이 화면을 연 때(그 전 일은 Main 대화에만, 도는 일은 남는다) */
+  const boardSince = new Date(Date.now() - 2000).toISOString();
   let detailTab: 'summary' | 'log' = 'summary';
 
   const root = el('section', 'chat');
@@ -657,7 +660,9 @@ export function buildChat(actions: ChatActions) {
     const steps = el('div', 'steps');
     const stepLabels = el('div', 'stepl');
     const log = el('div', 'log');
-    room.append(rh, stageBox, steps, stepLabels, log);
+    const follow = el('div', 'room-follow');
+    follow.hidden = true;
+    room.append(rh, follow, stageBox, steps, stepLabels, log);
     let current = job;
     mountStage(canvas, {
       scale: 3,
@@ -669,10 +674,14 @@ export function buildChat(actions: ChatActions) {
     });
     return {
       root: room,
-      update(next, pend) {
+      update(next, pend, turns) {
         current = next;
         dot.className = `dot ${next.status}`;
-        title.textContent = short(next.request, 28);
+        // 제목은 처음 태스크, 이어서 물었으면 그 말을 아래 줄에(Main 에 안 보여도 여기서 따라간다)
+        const first = jobs.get(rootIdOf(next.id)) ?? next;
+        title.textContent = short(first.request, 28);
+        follow.hidden = turns < 2;
+        follow.textContent = turns < 2 ? '' : `↩ ${short(next.request, 60)} · turn ${turns}`;
         const mineAsks = pend.filter((p) => p.jobId === next.id);
         const need = mineAsks.length > 0;
         time.textContent = need ? needLabel(mineAsks) : next.status === 'queued' ? 'Queued' : elapsedText(next.queuedAt, next.endedAt, Date.now());
@@ -694,31 +703,63 @@ export function buildChat(actions: ChatActions) {
     return Date.now() - Date.parse(job.endedAt) < ROOM_LINGER_MS;
   };
 
+  /** 기다리는 팀 칸(일이 들어오면 위 칸부터 태스크 팀으로 바뀐다) */
+  const idleEls = new Map<number, HTMLElement>();
+  function idleRoom(n: number): HTMLElement {
+    let box = idleEls.get(n);
+    if (box !== undefined) return box;
+    box = el('div', 'pane room idle');
+    const rh = el('div', 'ph');
+    rh.append(el('span', 'dot idle'), el('b', undefined, `Team ${n}`), el('span', 'time', 'Ready'));
+    const face = el('canvas', 'sp');
+    paintOnce(face, 'intake', 2, 'idle');
+    const body = el('div', 'idle-body');
+    body.append(face, el('span', undefined, 'Waiting for work'));
+    box.append(rh, body);
+    idleEls.set(n, box);
+    return box;
+  }
+
   function renderRooms(): void {
-    // 팀 방은 태스크마다 하나: 이어서 물은 차례가 돌면 같은 방에서 같은 팀이 다시 움직인다
-    const shown = [...jobs.values()]
-      .filter((j) => j.thread === null)
-      .map((first) => ({ key: first.id, job: threadJobs(first.id).at(-1) ?? first }))
-      .filter((v) => roomVisible(v.job, v.key));
-    const visible = shown.map((v) => v.job);
+    // 팀 목록: 이번에 맡긴 태스크를 맡긴 순서대로 위 칸부터, 5칸이 안 되면 남은 칸은 기다리는 팀.
+    // 태스크마다 방 하나: 이어서 물은 차례가 돌면 같은 방에서 같은 팀이 다시 움직인다(끝나도 사라지지 않는다)
+    const roots = [...jobs.values()].filter((j) => j.thread === null && !cleared.has(j.id));
+    const slots = teamBoard(
+      roots.map((j) => ({ id: j.id, queuedAt: j.queuedAt, thread: null, live: threadJobs(j.id).some((t) => t.status !== 'done' && t.status !== 'stopped') })),
+      boardSince,
+    );
+    const taskIds = new Set(slots.flatMap((s) => (s.kind === 'task' ? [s.id] : [])));
     for (const [id, r] of [...roomEls]) {
-      if (!shown.some((v) => v.key === id)) {
+      if (!taskIds.has(id)) {
         r.root.remove();
         roomEls.delete(id);
       }
     }
-    for (const { key, job } of shown) {
-      let r = roomEls.get(key);
+    const order: HTMLElement[] = [];
+    for (const s of slots) {
+      if (s.kind === 'idle') {
+        order.push(idleRoom(s.n));
+        continue;
+      }
+      const job = threadJobs(s.id).at(-1) ?? jobs.get(s.id)!;
+      let r = roomEls.get(s.id);
       if (r === undefined) {
         r = buildRoom(job);
-        roomEls.set(key, r);
-        rooms.appendChild(r.root);
+        roomEls.set(s.id, r);
       }
-      r.update(job, approvals);
+      r.update(job, approvals, threadJobs(s.id).length);
+      r.root.classList.toggle('on', s.id === openId);
+      order.push(r.root);
     }
-    rooms.classList.toggle('none', visible.length === 0);
-    root.dataset['split'] = roomSplit(visible.length);
-    renderStrip(visible);
+    // 순서가 바뀐 칸만 옮긴다(그대로면 DOM 을 건드리지 않는다)
+    order.forEach((node, i) => {
+      if (rooms.children[i] !== node) rooms.insertBefore(node, rooms.children[i] ?? null);
+    });
+    while (rooms.children.length > order.length) rooms.lastElementChild?.remove();
+    rooms.classList.remove('none');
+    root.dataset['split'] = 'a';
+    // 아주 좁을 때 띠에는 도는 일과 방금 끝난 일만
+    renderStrip(slots.flatMap((s) => (s.kind === 'task' ? [threadJobs(s.id).at(-1) ?? jobs.get(s.id)!] : [])).filter((j) => roomVisible(j, rootIdOf(j.id))));
   }
 
   function renderStrip(visible: readonly JobView[]): void {

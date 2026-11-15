@@ -238,3 +238,18 @@
 .dbody.dchat { gap: var(--s3); }
 .follow.dfoot { flex: none; margin-top: 0; padding: var(--s2) var(--s3) var(--s3); }
 .follow.dfoot .follow-input { max-height: 30vh; }
+
+/* 팀 목록(넓은 화면): Main 7 · 팀 3 고정, 팀 5칸이 기다리고 일을 맡기면 위 칸부터, 넘치면 스크롤 */
+.room.idle { cursor: default; opacity: .72; }
+.room.idle:hover { border-color: var(--border); }
+.room.on { border-color: var(--accent); }
+.idle-body { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3) var(--s3); color: var(--muted); font-size: var(--fs-sm); }
+.dot.idle { background: var(--border2); }
+.room-follow { padding: var(--s1) var(--s3) 0; font-size: var(--fs-xs); color: var(--accentfg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app[data-mode=rows] .room.idle, .app[data-mode=xs] .room.idle { display: none; }
+/* 팀 상세(넓은 화면): 화면 전체로 열고, ← Main 으로 Main + 팀 목록에 돌아온다 */
+.app:is([data-mode=side], [data-mode=xl])[data-detail="1"] .chat { grid-template-columns: minmax(0, 1fr); grid-template-areas: "detail"; }
+.app:is([data-mode=side], [data-mode=xl])[data-detail="1"] :is(.mainp, .rooms) { display: none; }
+.app:is([data-mode=side], [data-mode=xl])[data-detail="1"] .detail { grid-template-columns: minmax(0, 2.4fr) minmax(220px, 1fr); grid-template-rows: minmax(0, 1fr); }
+.app:is([data-mode=side], [data-mode=xl])[data-detail="1"] .dside .tl { flex-direction: column; flex-wrap: nowrap; gap: var(--s2); }
+.rooms { grid-auto-rows: max-content; }
