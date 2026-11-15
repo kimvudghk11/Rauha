@@ -23,7 +23,8 @@ app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-'))
 process.env.RAUHA_DATA_DIR = process.env.RAUHA_DATA_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), 'rauha-measure-data-'));
 // 최근 작업 폴더 시험: 있는 폴더 둘과 없는 폴더 하나를 설정에 미리 적어 둔다(첫 실행 마법사·설정 화면의 최근 목록을 잰다)
 {
-  const seedDir = (n) => fs.mkdirSync(path.join(fakeHome, n), { recursive: true }) ?? path.join(fakeHome, n);
+  // mkdirSync(recursive) 는 Windows 에서 긴 경로 접두사(\\?\)가 붙은 경로를 돌려준다. 설정에는 보통 경로를 적는다
+  const seedDir = (n) => (fs.mkdirSync(path.join(fakeHome, n), { recursive: true }), path.join(fakeHome, n));
   const recent = [seedDir('proj-alpha'), path.join(fakeHome, 'proj-gone'), seedDir('proj-beta-with-a-quite-long-folder-name-to-check-ellipsis')];
   fs.mkdirSync(path.join(fakeHome, '.rauha', 'desktop'), { recursive: true });
   fs.writeFileSync(path.join(fakeHome, '.rauha', 'desktop', 'settings.json'), JSON.stringify({ recentFolders: recent }));
