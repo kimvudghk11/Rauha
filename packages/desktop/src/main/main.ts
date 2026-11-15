@@ -1197,7 +1197,7 @@ void app.whenReady().then(async () => {
       return { ok: true, data };
     }
     try {
-      const v = await evaluateCompany(c.id, posting, thisRound.years, thisRound.note, await interviewEnv(), claudeExecutable(), settings.models.sonnet, undefined, thisRound.desiredSalary);
+      const v = await evaluateCompany(c.id, posting, thisRound.years, thisRound.note, await interviewEnv(), claudeExecutable(), settings.models.opus, undefined, thisRound.desiredSalary);
       await keep(v);
       return { ok: true, data: v };
     } catch (e) {
@@ -1211,7 +1211,7 @@ void app.whenReady().then(async () => {
     if (round === null || posting === undefined) return { ok: false, error: NEED_ROUND };
     if (FAKE) return { ok: true, data: `${companyOf(id)?.recruiters[0]?.name ?? id}: (test) ${question.slice(0, 40)}` };
     try {
-      return { ok: true, data: await askInterviewer(id, posting, round.years, round.note, turns, question, await interviewEnv(), claudeExecutable(), settings.models.haiku) };
+      return { ok: true, data: await askInterviewer(id, posting, round.years, round.note, turns, question, await interviewEnv(), claudeExecutable(), settings.models.sonnet) };
     } catch (e) {
       return { ok: false, error: e instanceof DomainError ? e.message : 'The recruiters could not answer.' };
     }

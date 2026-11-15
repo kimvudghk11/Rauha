@@ -18,7 +18,7 @@ export async function draftResume(note: string, env: Record<string, string>, cla
   try {
     const messages = query({
       prompt: `Commit summary:\n${note.slice(0, RESUME_NOTE_LIMIT)}`,
-      options: { model, env, abortController: controller, systemPrompt: SYSTEM, tools: [], allowedTools: [], settingSources: [], permissionMode: 'dontAsk', maxTurns: 1, ...(claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: claudeExecutable } : {}) },
+      options: { model, env, abortController: controller, systemPrompt: SYSTEM, tools: [], allowedTools: [], settingSources: [], permissionMode: 'dontAsk', effort: 'low', maxTurns: 1, ...(claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: claudeExecutable } : {}) },
     });
     for await (const message of messages) {
       if (message.type !== 'result') continue;

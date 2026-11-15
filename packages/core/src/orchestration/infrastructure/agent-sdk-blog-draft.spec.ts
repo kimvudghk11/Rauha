@@ -19,6 +19,7 @@ describe('블로그 초안 호출', () => {
     expect(o['allowedTools']).toEqual([]);
     expect(o['permissionMode']).toBe('dontAsk');
     expect(o['maxTurns']).toBe(1);
+    expect(o['effort']).toBe('low');
     expect(seen.params!.prompt).toContain('~했어요');
   });
 

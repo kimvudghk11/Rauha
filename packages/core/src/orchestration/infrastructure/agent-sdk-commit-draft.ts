@@ -26,6 +26,8 @@ export async function draftCommit(stagedDiff: string, style: string, env: Record
         allowedTools: [],
         settingSources: [],
         permissionMode: 'dontAsk',
+        // 짧은 글 한 번: 얕게(정하지 않으면 깊게 돌아 한도를 많이 쓴다)
+        effort: 'low',
         maxTurns: 1,
         outputFormat: { type: 'json_schema', schema: COMMIT_DRAFT_SCHEMA as unknown as Record<string, unknown> },
         ...(claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: claudeExecutable } : {}),

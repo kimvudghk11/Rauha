@@ -44,6 +44,7 @@ async function once(system: string, prompt: string, schema: Record<string, unkno
         allowedTools: [],
         settingSources: [],
         permissionMode: 'dontAsk',
+        effort: 'low',
         maxTurns: 1,
         outputFormat: { type: 'json_schema', schema },
         ...(o.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: o.claudeExecutable } : {}),
