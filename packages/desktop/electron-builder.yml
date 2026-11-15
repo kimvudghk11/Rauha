@@ -10,6 +10,9 @@ files:
   - dist/ts-worker.cjs
   - dist/ts-lib/**
   - build/icon.png
+  # 맥 메뉴 막대 아이콘(템플릿 이미지)
+  - build/trayTemplate.png
+  - build/trayTemplate@2x.png
   - package.json
   - "!**/*.map"
   - "!**/*.pdb"
