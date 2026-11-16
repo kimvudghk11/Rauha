@@ -803,8 +803,8 @@ export function buildChat(actions: ChatActions) {
   }
 
   function renderRooms(): void {
-    // 팀 목록: 이번에 맡긴 태스크를 맡긴 순서대로 위 칸부터, 5칸이 안 되면 남은 칸은 기다리는 팀.
-    // 태스크마다 방 하나: 이어서 물은 차례가 돌면 같은 방에서 같은 팀이 다시 움직인다(끝나도 사라지지 않는다)
+    // 팀 목록: 새 일은 그때 쉬는 팀 중 맨 위 팀이 맡는다. 끝난 팀은 다음 일이 올 때까지 마지막 일을 보이며 자리를 지킨다.
+    // 이어서 물은 차례가 돌면 같은 방에서 같은 팀이 다시 움직인다
     const roots = [...jobs.values()].filter((j) => j.thread === null && !cleared.has(j.id));
     // 팀은 일꾼: 새 일은 그때 쉬는 팀 중 맨 위 팀이 맡는다(shared/team-board.ts)
     const slots = teamBoard(
