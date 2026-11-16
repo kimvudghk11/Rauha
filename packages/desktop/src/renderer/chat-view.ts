@@ -195,7 +195,15 @@ export function buildChat(actions: ChatActions) {
     scroll.observe({ top: msgs.scrollTop, client: msgs.clientHeight, height: msgs.scrollHeight });
     syncJump();
   });
+  /** Main 이 가려진 동안(팀 화면을 연 동안) 새 말이 왔다: 돌아오면 맨 아래로 */
+  let bottomLater = false;
   function toBottom(): void {
+    // 가려진 칸은 높이가 0 이라 스크롤도, 맨 아래 기억도 틀어진다 → 보일 때 내린다
+    if (msgs.clientHeight === 0) {
+      bottomLater = true;
+      return;
+    }
+    bottomLater = false;
     msgs.scrollTop = msgs.scrollHeight;
     scroll.observe({ top: msgs.scrollTop, client: msgs.clientHeight, height: msgs.scrollHeight });
     syncJump();
@@ -318,24 +326,20 @@ export function buildChat(actions: ChatActions) {
   const followDrafts = new Map<string, string>();
   let followFocus: string | null = null;
   let replyTo: JobView | null = null;
-  /** 팀이 일을 끝내면 Main 의 다음 말은 그 팀에 이어진다(새 팀을 띄우지 않는다). ✕ 로 끄면 새 팀 */
-  let replyAuto = false;
-  /** 앱을 다시 켜 지난 일을 되살리는 동안은 이어 말하기를 자동으로 걸지 않는다 */
-  let restoring = false;
+  // Main 에서 Enter 는 늘 새 일이다: 쉬는 팀 중 맨 위 팀이 맡는다(shared/team-board.ts). 같은 팀에 이으려면 ↩ Reply 또는 팀 화면에서
   const replyBar = el('div', 'reply-bar');
   replyBar.hidden = true;
   composer.prepend(replyBar);
-  function setReply(job: JobView | null, auto = false): void {
+  function setReply(job: JobView | null): void {
     replyTo = job;
-    replyAuto = job !== null && auto;
     replyBar.hidden = job === null;
     if (job === null) return void replyBar.replaceChildren();
-    const x = el('button', 'link', auto ? '✕ New team' : '✕');
-    x.title = auto ? 'Send your next message to a new team instead' : 'Cancel the reply';
-    x.setAttribute('aria-label', x.title);
+    const x = el('button', 'link', '✕');
+    x.title = 'Cancel the reply';
+    x.setAttribute('aria-label', 'Cancel the reply');
     x.addEventListener('click', () => setReply(null));
-    replyBar.replaceChildren(el('span', 'dim', auto ? '↩ Continuing with this team' : '↩ Replying to'), el('b', 'grow', short(jobs.get(rootIdOf(job.id))?.request ?? job.request, 80)), x);
-    if (!auto) input.focus();
+    replyBar.replaceChildren(el('span', 'dim', '↩ Replying to'), el('b', 'grow', short(job.request, 80)), x);
+    input.focus();
   }
   /**
    * 이어서 묻기를 보낸다. 받지 못하면 false.
@@ -672,8 +676,6 @@ export function buildChat(actions: ChatActions) {
   function report(job: JobView): void {
     if (reported.has(job.id) || (job.status !== 'done' && job.status !== 'stopped')) return;
     reported.add(job.id);
-    // 일을 끝낸 팀에 Main 의 다음 말이 이어진다(내가 고른 답장 대상이 있으면 그대로 둔다)
-    if (!restoring && job.status === 'done' && (replyTo === null || replyAuto)) setReply(job, true);
     const m = el('div', 'm');
     const av = el('div', 'av');
     const face = el('canvas', 'sp');
@@ -878,6 +880,7 @@ export function buildChat(actions: ChatActions) {
     detail.replaceChildren();
     renderRooms();
     renderAskTray();
+    if (bottomLater && scroll.pinned) requestAnimationFrame(toBottom);
   }
 
   const reviews = new Map<string, Promise<ChangeReview | null>>();
@@ -1240,17 +1243,12 @@ export function buildChat(actions: ChatActions) {
     clearScreen: clearVisibleChat,
     /** 앱을 다시 켠 뒤 지난 일을 말풍선으로 되살린다(끝난 일은 결과 카드까지, 돌던 일은 중단됨) */
     restore(past: readonly JobView[]): void {
-      restoring = true;
-      try {
-        for (const job of past) {
-          if (jobs.has(job.id)) continue;
-          jobs.set(job.id, job);
-          addJob(job);
-          updateCard(job);
-          report(job);
-        }
-      } finally {
-        restoring = false;
+      for (const job of past) {
+        if (jobs.has(job.id)) continue;
+        jobs.set(job.id, job);
+        addJob(job);
+        updateCard(job);
+        report(job);
       }
     },
     jobList: (): readonly JobView[] => [...jobs.values()],

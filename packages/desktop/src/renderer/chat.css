@@ -231,6 +231,8 @@
 .reply-bar { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3); margin-bottom: var(--s1); border-left: 3px solid var(--accentfg); background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: var(--r-sm); font-size: var(--fs-sm); min-width: 0; }
 .reply-bar b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--bright); }
 .m.me .reply-quote { font-size: var(--fs-xs); color: var(--muted); border-left: 2px solid var(--accentfg); padding-left: var(--s2); margin-bottom: 2px; align-self: flex-end; }
+/* 인용이 달린 내 말풍선: 인용을 말풍선 옆이 아니라 위에 */
+.m.me:has(.reply-quote) { flex-direction: column; align-items: flex-end; gap: 2px; }
 .m .tx .reply { margin-left: var(--s1); }
 .follow { margin-top: var(--s4); display: flex; flex-direction: column; gap: var(--s2); border-top: 1px solid var(--border); padding-top: var(--s3); }
 .follow-turn { border: 1px solid var(--border2); border-radius: var(--r-lg); overflow: hidden; display: flex; flex-direction: column; }
