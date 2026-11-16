@@ -49,9 +49,9 @@ describe('RoleSettingsDto', () => {
     expect(roles.get('answerer').tools).not.toContain('Write');
   });
 
-  it('저장소 조사 팀원은 웹 없이 읽기만 하는 haiku', () => {
+  it('저장소 조사 팀원은 웹 없이 읽기만 하는 sonnet(모두가 기대는 저장소 메모라 추측이 적어야 한다)', () => {
     const surveyor = RoleSettingsDto.defaults().get('surveyor');
-    expect(surveyor).toMatchObject({ tier: 'haiku', effort: 'low', readsProject: true });
+    expect(surveyor).toMatchObject({ tier: 'sonnet', effort: 'low', readsProject: true });
     expect([...surveyor.tools].sort()).toEqual(['Glob', 'Grep', 'Read']);
   });
 
@@ -99,9 +99,9 @@ describe('RoleSettingsDto', () => {
 });
 
 describe('RoleSettingsDto — 가벼운 답변', () => {
-  it('light 답변 팀원은 haiku 등급이고 턴이 적고 웹·명령 도구가 없다', () => {
+  it('light 답변 팀원은 sonnet(low)이고 턴이 적고 웹·명령 도구가 없다(haiku 는 코드를 덜 읽고 추측으로 답했다)', () => {
     const light = RoleSettingsDto.defaults().lightAnswerer();
-    expect(light.tier).toBe('haiku');
+    expect(light.tier).toBe('sonnet');
     expect(light.effort).toBe('low');
     expect(light.maxTurns).toBe(12);
     expect(light.tools).toEqual(['Read', 'Grep', 'Glob']);

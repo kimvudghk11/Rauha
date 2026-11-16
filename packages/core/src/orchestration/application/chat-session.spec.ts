@@ -48,7 +48,7 @@ class FakeMemory implements MemoryPort {
 type Script = (call: MemberCall) => unknown;
 
 class FakeTeam implements TeamMemberPort {
-  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; request?: string | undefined }[] = [];
+  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; effort: string; maxTurns: number; request?: string | undefined }[] = [];
   readonly prepared: MemberRole[] = [];
   /** 라우터가 이 약속이 풀릴 때까지 답하지 않게 한다(동시에 도는지 보려고). */
   routerGate: Promise<void> = Promise.resolve();
@@ -63,7 +63,7 @@ class FakeTeam implements TeamMemberPort {
     this.prepared.push(call.role);
   }
   async run(call: MemberCall): Promise<MemberResult> {
-    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier, request: call.request });
+    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier, effort: call.setting.effort, maxTurns: call.setting.maxTurns, request: call.request });
     if (call.role === 'router') await this.routerGate;
     if (call.role === this.limitOn) {
       const limited = "You've hit your session limit · resets 9:40pm";
@@ -1367,10 +1367,10 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
     expect(log).not.toContain('current');
   });
 
-  it('light 답은 haiku 등급 팀원이 답한다', async () => {
+  it('light 답은 sonnet 팀원이 낮은 노력·적은 턴으로 답한다', async () => {
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
     await session({ team }).handle('1+1은 얼마야?');
-    expect(team.calls.find((c) => c.role === 'answerer')!.tier).toBe('haiku');
+    expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'sonnet', effort: 'low', maxTurns: 12 });
   });
 
   it('light 답은 이미 저장된 저장소 지식이 있으면 그것만 쓴다', async () => {
@@ -1384,7 +1384,7 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
   it('인사는 라우터가 deep이라 해도 light로 답한다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [answer] });
     await session({ team }).handle('안녕');
-    expect(team.calls.find((c) => c.role === 'answerer')!.tier).toBe('haiku');
+    expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ effort: 'low', maxTurns: 12 });
   });
 
   it('light 답은 더 깊게 알아볼 수 있다고 알리고, deep 답은 알리지 않는다', async () => {

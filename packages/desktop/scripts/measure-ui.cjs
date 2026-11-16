@@ -280,6 +280,8 @@ const API_WAIT = (sel) => `(async () => { for (let i = 0; i < 80 && !document.qu
 const SCENES = [
   ['chat', 'chat', []],
   ['chat-detail', 'chat', ['.room']],
+  // Main · 팀 목록 손잡이를 ← 로 네 번 옮기면 Main 이 50% 로 줄고 팀 목록이 넓어진다
+  ['chat-split', 'chat', ["(() => { const g = document.querySelector('.split-grip'); g.focus(); for (let i = 0; i < 4; i++) g.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })); })() /* querySelector */"]],
   // @ 를 치면 폴더와 파일 후보가 입력칸 위에 뜬다(검색어 없음 / 경로 일부)
   // 작업 결과 변경 보기: 카드(접힘→펼침) · 파일 diff · 전체 되돌리기 확인 창 · 팀 상세의 변경 칸 · 되돌린 뒤 · Undo the undo (되돌리는 장면은 마지막에)
   ['chat-changes', 'chat', [CHG_OPEN]],

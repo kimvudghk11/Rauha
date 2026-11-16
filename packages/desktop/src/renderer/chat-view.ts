@@ -28,6 +28,7 @@ import { RESET_CONFIRM, resetNotice, type ConversationResetResult } from '../sha
 import { mountStage, paintOnce } from './stage.js';
 import { changesPanel } from './changes-view.js';
 import { isLimitStop } from '../shared/limit-retry.js';
+import { ChatSplit } from '../shared/chat-split.js';
 
 const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
   queued: 'Queued',
@@ -223,6 +224,77 @@ export function buildChat(actions: ChatActions) {
 
   root.append(mainPane, strip, rooms, detail);
 
+  // ── Main · 팀 목록 비율: 가운데 손잡이를 끌거나(두 번 누르면 7:3) ←/→ 로 바꾸고, 다음에도 그대로 ──
+  const SPLIT_KEY = 'rauha.chat.split';
+  const grip = el('div', 'split-grip');
+  grip.tabIndex = 0;
+  grip.setAttribute('role', 'separator');
+  grip.setAttribute('aria-orientation', 'vertical');
+  grip.setAttribute('aria-label', 'Resize Main and team list');
+  grip.title = 'Drag to resize · double-click to reset';
+  mainPane.appendChild(grip);
+  const readSplit = (): string | null => {
+    try {
+      return localStorage.getItem(SPLIT_KEY);
+    } catch {
+      return null;
+    }
+  };
+  function applySplit(s: ChatSplit, save: boolean): void {
+    const c = s.columns();
+    root.style.setProperty('--main-fr', c.main);
+    root.style.setProperty('--rooms-fr', c.rooms);
+    grip.setAttribute('aria-valuenow', String(s.mainPercent));
+    if (!save) return;
+    try {
+      localStorage.setItem(SPLIT_KEY, s.toStored());
+    } catch {
+      /* 저장이 막혀 있어도 이번 화면에서는 바뀐 비율로 쓴다 */
+    }
+  }
+  let split = ChatSplit.fromStored(readSplit());
+  applySplit(split, false);
+  grip.setAttribute('aria-valuemin', String(ChatSplit.MIN));
+  grip.setAttribute('aria-valuemax', String(ChatSplit.MAX));
+  grip.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try {
+      grip.setPointerCapture(e.pointerId);
+    } catch {
+      /* 잡을 수 없는 포인터(합성 이벤트 등)면 잡지 않고 끈다 */
+    }
+    grip.classList.add('drag');
+    root.classList.add('resizing');
+    const move = (ev: PointerEvent): void => {
+      const box = root.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(root).paddingLeft) || 0;
+      split = ChatSplit.fromDrag(ev.clientX - box.left - pad, box.width - pad * 2);
+      applySplit(split, false);
+    };
+    const up = (): void => {
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      grip.classList.remove('drag');
+      root.classList.remove('resizing');
+      applySplit(split, true);
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  });
+  grip.addEventListener('dblclick', () => {
+    split = ChatSplit.fromStored(null);
+    applySplit(split, true);
+  });
+  grip.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    split = split.nudge(e.key === 'ArrowLeft' ? -5 : 5);
+    applySplit(split, true);
+  });
+
   const cards = new Map<string, { dot: HTMLElement; state: HTMLElement; stop: HTMLButtonElement; line: HTMLElement }>();
   const reported = new Set<string>();
   /** 화면 지우기(/clear)로 비운 끝난 작업. 다시 그리지 않는다. */
@@ -246,19 +318,24 @@ export function buildChat(actions: ChatActions) {
   const followDrafts = new Map<string, string>();
   let followFocus: string | null = null;
   let replyTo: JobView | null = null;
+  /** 팀이 일을 끝내면 Main 의 다음 말은 그 팀에 이어진다(새 팀을 띄우지 않는다). ✕ 로 끄면 새 팀 */
+  let replyAuto = false;
+  /** 앱을 다시 켜 지난 일을 되살리는 동안은 이어 말하기를 자동으로 걸지 않는다 */
+  let restoring = false;
   const replyBar = el('div', 'reply-bar');
   replyBar.hidden = true;
   composer.prepend(replyBar);
-  function setReply(job: JobView | null): void {
+  function setReply(job: JobView | null, auto = false): void {
     replyTo = job;
+    replyAuto = job !== null && auto;
     replyBar.hidden = job === null;
     if (job === null) return void replyBar.replaceChildren();
-    const x = el('button', 'link', '✕');
-    x.title = 'Cancel the reply';
-    x.setAttribute('aria-label', 'Cancel the reply');
+    const x = el('button', 'link', auto ? '✕ New team' : '✕');
+    x.title = auto ? 'Send your next message to a new team instead' : 'Cancel the reply';
+    x.setAttribute('aria-label', x.title);
     x.addEventListener('click', () => setReply(null));
-    replyBar.replaceChildren(el('span', 'dim', '↩ Replying to'), el('b', 'grow', short(job.request, 80)), x);
-    input.focus();
+    replyBar.replaceChildren(el('span', 'dim', auto ? '↩ Continuing with this team' : '↩ Replying to'), el('b', 'grow', short(jobs.get(rootIdOf(job.id))?.request ?? job.request, 80)), x);
+    if (!auto) input.focus();
   }
   /**
    * 이어서 묻기를 보낸다. 받지 못하면 false.
@@ -270,12 +347,12 @@ export function buildChat(actions: ChatActions) {
     if (job === null) return false;
     followOf.set(job.id, parent.id);
     jobs.set(job.id, job);
-    if (inTask) {
-      updateCard(jobs.get(rootIdOf(job.id)) ?? job);
-      renderRooms();
-      return true;
-    }
+    // 태스크 안에서 보낸 말도 Main 에 "↩ 팀 안에서" 인용과 함께 올린다(Main 에서도 대화를 따라간다)
     addJob(job);
+    if (inTask) {
+      updateCard(job);
+      renderRooms();
+    }
     // 작업판 소식이 먼저 와서 말풍선이 이미 그려졌을 수 있다: 거기에도 인용을 붙인다
     quoteOn(job.id);
     return true;
@@ -283,10 +360,12 @@ export function buildChat(actions: ChatActions) {
   /** 내 말풍선 위에 "↩ 앞 요청" 인용(한 번만) */
   const meById = new Map<string, HTMLElement>();
   function quoteOn(id: string): void {
-    const parent = followOf.get(id);
+    const job = jobs.get(id);
+    const parent = followOf.get(id) ?? job?.thread ?? undefined;
     const me = meById.get(id);
     if (parent === undefined || me === undefined || me.querySelector('.reply-quote') !== null) return;
-    me.prepend(el('div', 'reply-quote', `↩ ${short(jobs.get(parent)?.request ?? '', 60)}`));
+    const where = job?.inTask === true ? 'In team · ' : '';
+    me.prepend(el('div', 'reply-quote', `↩ ${where}${short(jobs.get(rootIdOf(parent))?.request ?? jobs.get(parent)?.request ?? '', 60)}`));
   }
 
   // ── 보내기 ──
@@ -520,8 +599,8 @@ export function buildChat(actions: ChatActions) {
   }
 
   function addJob(job: JobView): void {
-    // 태스크 안에서 이어 물은 것은 Main 에 띄우지 않는다(그 태스크 대화에 있다)
-    if (job.inTask || cards.has(job.id) || cleared.has(job.id)) return;
+    // 태스크 안에서 이어 물은 것도 Main 에 올린다(인용 "↩ In team · …" 으로 어느 팀 대화인지 보인다)
+    if (cards.has(job.id) || cleared.has(job.id)) return;
     empty.remove();
     const me = el('div', 'm me');
     me.appendChild(el('div', 'tx', job.request));
@@ -574,11 +653,10 @@ export function buildChat(actions: ChatActions) {
   }
 
   function updateCard(job: JobView): void {
-    // 태스크 안 차례가 바뀌면 그 태스크의 Main 카드를 고친다
+    // 태스크 안 차례가 바뀌면 그 차례의 카드와 함께 그 태스크의 처음 카드도 고친다
     if (job.inTask && job.thread !== null) {
       const first = jobs.get(job.thread);
       if (first !== undefined) updateCard(first);
-      return;
     }
     const card = cards.get(job.id);
     if (card === undefined) return;
@@ -590,10 +668,12 @@ export function buildChat(actions: ChatActions) {
     card.stop.hidden = now.status === 'done' || now.status === 'stopped';
   }
 
-  /** 끝난 일의 결과는 메인(팀장)이 한 번 말해 준다. 태스크 안에서 이어 물은 것의 결과는 그 태스크 대화에만 */
+  /** 끝난 일의 결과는 메인(팀장)이 한 번 말해 준다. 태스크 안에서 이어 물은 것의 결과도 Main 에 올린다 */
   function report(job: JobView): void {
-    if (job.inTask || reported.has(job.id) || (job.status !== 'done' && job.status !== 'stopped')) return;
+    if (reported.has(job.id) || (job.status !== 'done' && job.status !== 'stopped')) return;
     reported.add(job.id);
+    // 일을 끝낸 팀에 Main 의 다음 말이 이어진다(내가 고른 답장 대상이 있으면 그대로 둔다)
+    if (!restoring && job.status === 'done' && (replyTo === null || replyAuto)) setReply(job, true);
     const m = el('div', 'm');
     const av = el('div', 'av');
     const face = el('canvas', 'sp');
@@ -757,7 +837,6 @@ export function buildChat(actions: ChatActions) {
     });
     while (rooms.children.length > order.length) rooms.lastElementChild?.remove();
     rooms.classList.remove('none');
-    root.dataset['split'] = 'a';
     // 아주 좁을 때 띠에는 도는 일과 방금 끝난 일만
     renderStrip(slots.flatMap((s) => (s.kind === 'task' ? [threadJobs(s.id).at(-1) ?? jobs.get(s.id)!] : [])).filter((j) => roomVisible(j, rootIdOf(j.id))));
   }
@@ -972,11 +1051,14 @@ export function buildChat(actions: ChatActions) {
         flash('Could not continue that task. Pick and allow a work folder first, or try again.');
       }
     });
+    // Main 입력칸과 같은 키: Enter 보내기, Shift+Enter 줄바꿈(Ctrl/⌘+Enter 도 보내기로 둔다)
     ask.addEventListener('keydown', (e) => {
-      if (isEnterKey(e) && (e.ctrlKey || e.metaKey)) go.click();
+      if (!isEnterKey(e) || e.shiftKey) return;
+      e.preventDefault();
+      go.click();
     });
     const row = el('div', 'btns');
-    row.append(el('span', 'hint grow', busy ? 'The team is still on the last turn. You can type now and send when it finishes (or Stop it).' : 'Ctrl+Enter to send. Same team, same conversation. Another member joins only if this part needs one.'), go);
+    row.append(el('span', 'hint grow', busy ? 'The team is still on the last turn. You can type now and send when it finishes (or Stop it).' : 'Enter to send · Shift+Enter for a new line. Same team, same conversation.'), go);
     box.append(ask, row);
     return box;
   }
@@ -1152,12 +1234,17 @@ export function buildChat(actions: ChatActions) {
     clearScreen: clearVisibleChat,
     /** 앱을 다시 켠 뒤 지난 일을 말풍선으로 되살린다(끝난 일은 결과 카드까지, 돌던 일은 중단됨) */
     restore(past: readonly JobView[]): void {
-      for (const job of past) {
-        if (jobs.has(job.id)) continue;
-        jobs.set(job.id, job);
-        addJob(job);
-        updateCard(job);
-        report(job);
+      restoring = true;
+      try {
+        for (const job of past) {
+          if (jobs.has(job.id)) continue;
+          jobs.set(job.id, job);
+          addJob(job);
+          updateCard(job);
+          report(job);
+        }
+      } finally {
+        restoring = false;
       }
     },
     jobList: (): readonly JobView[] => [...jobs.values()],
