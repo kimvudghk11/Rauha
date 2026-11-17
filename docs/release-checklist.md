@@ -9,7 +9,7 @@
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
-## 다음 태그 (main, 태그 전) — Haiku 없앰, 등급은 Sonnet · Opus · Fable
+## v0.2.21 (2026-11-17) — Haiku 없앰, Main 팀 대화, 내 스타일 기억, PostgreSQL 스키마, 자동 API 점검
 
 - Haiku 를 모든 경로에서 뺐다(추측·덜 확인한 답이 많아 품질이 낮았다). 등급은 sonnet · opus · fable 세 칸.
 - 사다리를 한 칸씩 올림: 구현 주니어 sonnet → 시니어 opus → 디버깅 opus → 설계 자문 fable → 마지막 시도 fable. 테스트·기획 sonnet(막히면 opus), 리뷰 opus(민감하면 fable), 문서 sonnet.
@@ -17,6 +17,12 @@
 - 모델 오류 대체: Opus 5.5 → 5 → 4.8 → Sonnet 5.5, Sonnet 5.5 → 5, Fable 5.2 → 5.1 → 5 → Opus 5.5. 최대 3번.
 - 예전 설정 파일: 팀 설정·역할 덮어쓰기의 haiku 는 sonnet 으로 읽고, Models 의 haiku 칸은 버린다.
 - 호출 수는 같고 등급만 올라서 구독 한도는 더 빨리 쓴다.
+- 면접: 회사 평가 opus → sonnet, 작업 요약 8천 자(레포·월마다 제목 8개).
+- Main 카드 아래에 팀 대화가 실시간으로, 진행 글은 실제 결과(쓴 테스트·고친 파일·검사 실패 줄·리뷰 지적)를 담은 넘겨주는 말.
+- 내 스타일 기억: 채팅의 취향 말에서 배워 팀원 프롬프트·계정 CLAUDE.md rauha 구역·settings.json language 에. Settings › Your style 에서 지움.
+- DB: PostgreSQL 모든 사용자 스키마("스키마.테이블"), 빈 줄로 나눈 쿼리는 커서 문장만 실행.
+- API 탭 제거 → 팀이 API 를 만들면 자동 점검(허락받고 서버 띄움, 실패 시 같은 팀이 1회 수정). 단축키 번호 한 칸씩 당겨짐(DB = Ctrl+5).
+- 확인 못 함: 자동 API 점검·스타일 추출을 실제 모델·실제 프로젝트로 끝까지, 맥.
 
 ## v0.2.20 (2026-11-17) — 쉬는 팀이 새 일을, 팀 대화를 Main 에도, 비율 손잡이
 
