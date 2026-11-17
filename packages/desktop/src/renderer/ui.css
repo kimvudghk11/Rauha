@@ -212,3 +212,7 @@ button.chip:hover { border-color: var(--accentfg); }
 .app[data-tier=xs] { --page-pad: var(--s2); }
 .app[data-tier=s] { --page-pad: var(--s3); }
 .app[data-tier=xl] { --page-pad: var(--s5); }
+
+/* Your style: 배운 취향 한 줄(말 · 근거 · 지우기) */
+.style-row { align-items: flex-start; gap: var(--s2); }
+.style-row .grow { min-width: 0; overflow-wrap: anywhere; }

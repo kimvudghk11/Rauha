@@ -1,4 +1,0 @@
-
-/* Your style: 배운 취향 한 줄(말 · 근거 · 지우기) */
-.style-row { align-items: flex-start; gap: var(--s2); }
-.style-row .grow { min-width: 0; overflow-wrap: anywhere; }
