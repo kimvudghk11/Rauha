@@ -87,8 +87,12 @@ export interface ChatSessionDeps {
   /** 팀원이 일하는 작업 폴더. 문서 팀원이 절대 경로로 보고한 파일을 작업 폴더 기준으로 풀 때 쓴다(없으면 상대 경로로 보고한 것만 받는다). */
   readonly workRoot?: string | undefined;
   readonly folder?: { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
-  /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 넣는다. 넣은 수를 돌려준다. 없으면 이 요청도 평소처럼 라우터로 간다. */
-  readonly addTodos?: ((items: readonly TodoItem[]) => Promise<number>) | undefined;
+  /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 넣는다. 넣은 것과 이미 있어 건너뛴 수. 없으면 이 요청도 평소처럼 라우터로 간다. */
+  readonly addTodos?: ((items: readonly TodoItem[]) => Promise<{ readonly added: readonly TodoItem[]; readonly skipped: number }>) | undefined;
+  /** 할 일 파일 읽기(작업 폴더·작업 공간 폴더 안, 비밀 파일 제외). 없으면 이 저장소 파일만 읽는다. */
+  readonly readWorkspaceFile?: ((path: string) => Promise<string | null>) | undefined;
+  /** 사용자가 고른 작업 공간 폴더(레포가 하나여도). 할 일 파일을 찾을 때 함께 읽는다. */
+  readonly workspaceRoot?: string | undefined;
   /** 스탠드업·퇴근 정리에 쓸 저장소별 내 커밋·브랜치·커밋 안 한 변경(since: YYYY-MM-DD). 없으면 답변 팀원이 직접 git 을 본다. */
   readonly workLog?: ((since: string) => Promise<readonly StandupRepo[]>) | undefined;
   /** 분석 흐름(조사 → 방향 비교 → 설계·계획 → 승인하면 구현). 없으면 디버깅·위험 점검은 지금처럼 팀원 한 번 호출이다. */
@@ -452,25 +456,40 @@ export class ChatSession {
    */
   private async todos(input: string, conversation: string | null, started: number): Promise<TurnOutcome> {
     const said = [input, ...this.turns.map((t) => t.input)];
+    // 파일·폴더를 가리키면("docs 의 todo 파일 찾아서 넣어줘") 팀원이 파일을 찾아 읽고 그 안의 할 일을 뽑는다
+    const fromFiles = TodoAsk.fromFiles(input);
+    const folders = [...new Set([this.deps.workRoot, this.deps.folder?.root, this.deps.workspaceRoot].filter((p): p is string => p !== undefined))];
+    const task = fromFiles
+      ? `<task>사용자가 파일·폴더에 적힌 할 일을 rauha 할 일 탭에 넣어 달라고 합니다. <request>가 가리키는 파일을 Glob·Grep 으로 찾아 열고(작업 폴더와 <folders> 아래에서, 이름에 todo·할일·task 가 들어간 .md·.txt 와 그 안의 체크박스·목록), 아직 안 끝난 할 일만 뽑으세요. 끝난 것(- [x], 완료 표시)은 넣지 않습니다. 파일을 찾지 못했으면 items 를 비우세요. 파일에 없는 할 일을 지어내지 마세요. quote 에는 근거가 된 파일의 줄을 한 글자도 바꾸지 않고 옮기고, source 에는 그 파일의 절대 경로를 적으세요. 사용자가 말로 직접 덧붙인 할 일이 있으면 source 를 null 로 두고 quote 에 그 말을 옮기세요.</task>`
+      : '<task>사용자가 할 일을 정리해 달라고 합니다. 파일을 열지 말고, <request>와 <conversation>에서 사용자가 직접 말한 할 일·해야 할 일·약속만 뽑으세요. 팀(rauha)이 한 결과나 제안은 사용자가 하겠다고 말하지 않았으면 넣지 않습니다. 사용자가 말하지 않은 할 일을 지어내지 마세요. quote 에는 근거가 된 사용자 말을 그대로 옮기고 source 는 null 로 두세요.</task>';
     const result = await this.member(
       'answerer',
       [
         conversationBlock(conversation),
         `<today>${this.deps.today()}</today>`,
         `<now>${this.deps.nowText()}</now>`,
+        fromFiles && folders.length > 0 ? `<folders>\n${folders.join('\n')}\n</folders>` : '',
         `<request>\n${input}\n</request>`,
-        '<task>사용자가 할 일을 정리해 달라고 합니다. 파일을 열지 말고, <request>와 <conversation>에서 사용자가 직접 말한 할 일·해야 할 일·약속만 뽑으세요. 팀(rauha)이 한 결과나 제안은 사용자가 하겠다고 말하지 않았으면 넣지 않습니다. 사용자가 말하지 않은 할 일을 지어내지 마세요. quote 에는 근거가 된 사용자 말을 그대로 옮기세요.</task>',
+        task,
       ],
       TODO_SCHEMA,
-      { setting: this.deps.roles.lightAnswerer(), kits: [] },
+      fromFiles ? { kits: [], dirs: folders.filter((f) => f !== this.deps.workRoot) } : { setting: this.deps.roles.lightAnswerer(), kits: [] },
     );
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const raw = TodoItemsDto.read(result.output);
-    const kept = TodoAsk.keep(raw, said);
-    const added = kept.length > 0 ? await this.deps.addTodos!(kept).catch(() => -1) : 0;
-    const answer = added < 0 ? '할 일 탭에 넣지 못했어요. 작업 폴더를 고른 뒤 다시 말씀해 주세요.' : TodoAsk.report(kept, raw.length - kept.length);
+    // 파일에서 뽑은 항목은 rauha 가 그 파일을 다시 읽어 근거 줄이 정말 있는지 본다
+    const files = new Map(await Promise.all(TodoAsk.sources(raw).map(async (path) => [path, await this.readTodoFile(path)] as const)));
+    const kept = TodoAsk.keep(raw, said, files);
+    const added = kept.length > 0 ? await this.deps.addTodos!(kept).catch(() => null) : { added: [], skipped: 0 };
+    const answer = added === null ? '할 일 탭에 넣지 못했어요. 작업 폴더를 고른 뒤 다시 말씀해 주세요.' : TodoAsk.report(added.added, raw.length - kept.length, added.skipped);
     this.turns.push({ input, result: answer.slice(0, KEPT_RESULT_CHARS) });
     return { kind: 'answer', answer, checked: [], costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis: null };
+  }
+
+  /** 할 일의 근거 파일을 다시 읽는다: 작업 공간 읽기가 있으면 그것, 없으면 이 저장소 파일 */
+  private async readTodoFile(path: string): Promise<string | null> {
+    const wide = await this.deps.readWorkspaceFile?.(path).catch(() => null);
+    return wide ?? (await this.deps.workspace.readFile(path).catch(() => null));
   }
 
   /** 스탠드업·퇴근 정리 요청이면 rauha가 git 으로 모은 내 커밋 묶음. 아니거나 모으지 못하면 빈 글. */

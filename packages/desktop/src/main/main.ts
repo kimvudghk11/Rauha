@@ -589,14 +589,28 @@ async function checkApis(jobId: string, io: TeamIo, cwd: string, changed: readon
   return [first.line, '실패한 케이스를 같은 팀이 한 번 고쳤어요.', again === null ? '고친 뒤 다시 점검하지 못했어요.' : `다시 점검: ${again.line}`].join('\n');
 }
 
-/** "투두 정리해줘": 팀이 사용자 말에서 뽑은 할 일을 할 일 탭(첫 칸)에 차례로 넣는다. 넣은 수 */
-async function addChatTodos(items: readonly TodoItem[]): Promise<number> {
-  let added = 0;
+/**
+ * "투두 정리해줘": 팀이 뽑은 할 일을 할 일 탭(첫 칸)에 차례로 넣는다. 끝나지 않은 같은 제목이 이미 있으면 건너뛴다(같은 파일을 두 번 넣어도 겹치지 않게).
+ * 파일에서 온 할 일은 메모에 어느 파일에서 왔는지 적는다.
+ */
+async function addChatTodos(items: readonly TodoItem[]): Promise<{ added: TodoItem[]; skipped: number }> {
+  const key = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase();
+  const open = new Set((await todoService.get()).items.filter((t) => t.completedAt === null).map((t) => key(t.title)));
+  const added: TodoItem[] = [];
+  let skipped = 0;
   for (const t of items) {
-    const r = await todoService.apply({ kind: 'add', title: t.title, note: t.note, due: t.due });
-    if (r.ok) added += 1;
+    if (open.has(key(t.title))) {
+      skipped += 1;
+      continue;
+    }
+    const note = t.source === null ? t.note : [t.note, `출처: ${t.source}`].filter((s) => s !== '').join('\n');
+    const r = await todoService.apply({ kind: 'add', title: t.title, note, due: t.due });
+    if (r.ok) {
+      added.push(t);
+      open.add(key(t.title));
+    }
   }
-  return added;
+  return { added, skipped };
 }
 
 /** CI 지켜보기용 GitHub 읽기(Actions 탭과 같은 방식: gh 로그인 토큰이 있으면 쓰고, 없으면 공개 저장소만·로그 없이) */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TodoAsk, type TodoItem } from './todo-ask.js';
 
-const item = (title: string, quote: string, due: string | null = null): TodoItem => ({ title, note: '', due, quote });
+const item = (title: string, quote: string, due: string | null = null, source: string | null = null): TodoItem => ({ title, note: '', due, quote, source });
 
 describe('할 일 정리 요청', () => {
   it('투두·todo list·할 일 정리·내일 업무 정리 같은 말을 알아본다', () => {
@@ -24,7 +24,28 @@ describe('할 일 정리 요청', () => {
   });
 
   it('넣은 것과 근거가 없어 뺀 수를 알린다', () => {
-    expect(TodoAsk.report([item('리뷰', '리뷰', '2026-11-19')], 1)).toBe('할 일 탭에 1개 넣었어요.\n- 리뷰 (2026-11-19)\n(말씀에서 근거를 찾지 못한 1개는 넣지 않았어요.)');
+    expect(TodoAsk.report([item('리뷰', '리뷰', '2026-11-19')], 1)).toBe('할 일 탭에 1개 넣었어요.\n- 리뷰 (2026-11-19)\n(근거를 확인하지 못한 1개는 넣지 않았어요.)');
     expect(TodoAsk.report([], 0)).toContain('찾지 못했어요');
+  });
+
+  it('파일·폴더를 가리키는 요청인지 알아본다(그러면 파일을 찾아 읽는다)', () => {
+    for (const t of ['project/docs에 있는 todo 파일들 찾아서 라우하 todo에 넣어줘', 'TODO.md 읽어서 할 일에 넣어줘', '문서에 적힌 투두 넣어줘', '@docs 투두 정리']) expect(TodoAsk.fromFiles(t)).toBe(true);
+    for (const t of ['투두 정리해줘', 'todo list 만들어줘', '내일 업무 정리해줘', 'to-do 정리']) expect(TodoAsk.fromFiles(t)).toBe(false);
+  });
+
+  it('파일에서 뽑은 항목은 rauha 가 다시 읽은 그 파일에 근거 줄이 있어야 남는다(경로의 역슬래시·대소문자 무시)', () => {
+    const files = new Map<string, string | null>([['E:/project/docs/todo.md', '# 할 일\n- [ ] 결제 모듈 리팩터링\n- [x] 끝난 일'], ['E:/project/docs/gone.md', null]]);
+    const kept = TodoAsk.keep(
+      [item('결제 모듈 리팩터링', '- [ ] 결제 모듈 리팩터링', null, 'e:\\project\\docs\\todo.md'), item('지어낸 일', '- [ ] 지어낸 일', null, 'E:/project/docs/todo.md'), item('못 읽은 파일', '아무거나', null, 'E:/project/docs/gone.md'), item('사용자 말', '파일들 찾아서')],
+      ['project/docs에 있는 todo 파일들 찾아서 넣어줘'],
+      files,
+    );
+    expect(kept.map((k) => k.title)).toEqual(['결제 모듈 리팩터링', '사용자 말']);
+  });
+
+  it('파일에서 넣었으면 읽은 파일과 이미 있어 건너뛴 수를 알린다', () => {
+    const text = TodoAsk.report([item('a', 'a', null, 'docs/todo.md')], 0, 2);
+    expect(text).toContain('읽은 파일: docs/todo.md');
+    expect(text).toContain('이미 할 일 탭에 있는 2개');
   });
 });

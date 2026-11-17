@@ -279,14 +279,43 @@ describe('ChatSession — 질문', () => {
       ],
     });
     const added: string[] = [];
-    const chat = ChatSession.start({ ...sessionDeps({ team }), addTodos: async (items) => (added.push(...items.map((i) => i.title)), items.length) });
+    const chat = ChatSession.start({ ...sessionDeps({ team }), addTodos: async (items) => (added.push(...items.map((i) => i.title)), { added: items, skipped: 0 }) });
     await chat.handle('내일은 결제 API 리뷰를 해야 해');
     const turn = await chat.handle('투두 정리해줘');
     expect(added).toEqual(['결제 API 리뷰']);
     expect(team.calls.filter((c) => c.role === 'router')).toHaveLength(1); // 첫 말만 라우터
     expect(team.calls.at(-1)!.message).toContain('내일은 결제 API 리뷰를 해야 해');
     expect(turn.kind === 'answer' && turn.answer).toContain('할 일 탭에 1개 넣었어요.\n- 결제 API 리뷰 (2026-10-26)');
-    expect(turn.kind === 'answer' && turn.answer).toContain('근거를 찾지 못한 1개');
+    expect(turn.kind === 'answer' && turn.answer).toContain('근거를 확인하지 못한 1개');
+  });
+
+  it('"docs 의 todo 파일들 찾아서 넣어줘"면 문장을 할 일로 넣지 않고, 팀원이 파일을 찾아 읽고 rauha 가 그 파일을 다시 읽어 근거 줄이 있는 항목만 넣는다', async () => {
+    const team = new FakeTeam({
+      answerer: [
+        () => ({
+          items: [
+            { title: '결제 모듈 리팩터링', note: '', due: null, quote: '- [ ] 결제 모듈 리팩터링', source: 'E:/w/docs/todo.md' },
+            { title: '지어낸 일', note: '', due: null, quote: '- [ ] 지어낸 일', source: 'E:/w/docs/todo.md' },
+          ],
+        }),
+      ],
+    });
+    const read: string[] = [];
+    const chat = ChatSession.start({
+      ...sessionDeps({ team }),
+      folder: { root: 'E:/w', repos: [{ name: 'a', root: 'E:/w/a' }, { name: 'b', root: 'E:/w/b' }] },
+      readWorkspaceFile: async (p) => (read.push(p), p === 'E:/w/docs/todo.md' ? '# TODO\n- [ ] 결제 모듈 리팩터링\n- [x] 끝난 일' : null),
+      addTodos: async (items) => ({ added: items, skipped: 0 }),
+    });
+    const turn = await chat.handle('project/docs에 있는 todo 파일들 찾아서 라우하 todo에 넣어달라니까');
+    const call = team.calls.find((c) => c.role === 'answerer')!;
+    expect(call.message).toContain('<folders>');
+    expect(call.message).toContain('파일을 Glob·Grep 으로 찾아 열고');
+    expect(call.dirs).toEqual(['E:/w']);
+    expect(read).toEqual(['E:/w/docs/todo.md']);
+    expect(turn.kind === 'answer' && turn.answer).toContain('할 일 탭에 1개 넣었어요.\n- 결제 모듈 리팩터링');
+    expect(turn.kind === 'answer' && turn.answer).toContain('읽은 파일: E:/w/docs/todo.md');
+    expect(turn.kind === 'answer' && turn.answer).not.toContain('찾아서 라우하');
   });
 
   it('할 일 탭이 없는 화면(터미널)에서는 투두 요청도 평소처럼 라우터로 간다', async () => {

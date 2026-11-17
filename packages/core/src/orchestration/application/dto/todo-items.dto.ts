@@ -11,7 +11,7 @@ export class TodoItemsDto {
       if (typeof x !== 'object' || x === null) return [];
       const i = x as Record<string, unknown>;
       if (typeof i['title'] !== 'string' || typeof i['quote'] !== 'string') return [];
-      return [{ title: i['title'], note: typeof i['note'] === 'string' ? i['note'] : '', due: typeof i['due'] === 'string' ? i['due'] : null, quote: i['quote'] }];
+      return [{ title: i['title'], note: typeof i['note'] === 'string' ? i['note'] : '', due: typeof i['due'] === 'string' ? i['due'] : null, quote: i['quote'], source: typeof i['source'] === 'string' && i['source'].trim() !== '' ? i['source'].trim() : null }];
     });
   }
 }

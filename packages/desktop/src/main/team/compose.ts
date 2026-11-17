@@ -47,6 +47,7 @@ import {
 } from '@rauha/core';
 import { RepoConversations } from './repo-conversations.js';
 import { standupLog } from '../git/standup-log.js';
+import { workspaceFileReader } from './workspace-file.js';
 import type { TeamIo, TeamSession } from './team-work.js';
 
 /** 사용자 PC 시간대 기준 YYYY-MM-DD. */
@@ -107,7 +108,7 @@ function stoppable(team: TeamMemberPort, signal: AbortSignal): TeamMemberPort {
 export interface ComposeOptions {
   readonly home: string;
   /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 넣는다(넣은 수). 없으면 투두 요청도 평소처럼 라우터로 간다 */
-  readonly addTodos?: (items: readonly TodoItem[]) => Promise<number>;
+  readonly addTodos?: (items: readonly TodoItem[]) => Promise<{ readonly added: readonly TodoItem[]; readonly skipped: number }>;
   readonly prompts: PromptLibrary;
   readonly profileFor: (root: string) => Profile;
   /** 1분마다 읽는 구독 사용률. 아직 못 읽었으면 null */
@@ -251,6 +252,9 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
     // 스탠드업·퇴근 정리: 작업 공간의 모든 저장소(하나면 이 저장소)에서 내 커밋을 git 으로 모은다(모델 호출 없음)
     ...(options.addTodos !== undefined ? { addTodos: options.addTodos } : {}),
+    workspaceRoot: scope.workspaceRoot,
+    // 할 일 파일 근거 확인: 작업 공간 폴더와 레포들 안만(비밀 파일 제외)
+    readWorkspaceFile: workspaceFileReader([root, keyRoot, scope.workspaceRoot, ...scope.repos.map((r) => r.root)]),
     workLog: (since) => standupLog(scope.repos.length > 0 ? scope.repos : [{ name: basename(keyRoot), root: keyRoot }], since),
   };
   // 앞 대화는 레포(keyRoot)마다 파일에 이어 둔다: 업무가 열 때 받아 오고, 끝나면 새로 생긴 대화만 합쳐 저장한다.
