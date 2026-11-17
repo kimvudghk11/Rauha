@@ -259,3 +259,6 @@
 .app:is([data-mode=side], [data-mode=xl])[data-detail="1"] .detail { grid-template-columns: minmax(0, 2.4fr) minmax(220px, 1fr); grid-template-rows: minmax(0, 1fr); }
 .app:is([data-mode=side], [data-mode=xl])[data-detail="1"] .dside .tl { flex-direction: column; flex-wrap: nowrap; gap: var(--s2); }
 .rooms { grid-auto-rows: max-content; }
+/* Main 카드 아래 팀 대화: 팀장 말풍선 안에서 조금 작게, 결과가 나오기 전까지 실시간으로 쌓인다 */
+.main-talk { margin-top: var(--s2); padding-top: var(--s2); border-top: 1px dashed var(--border); }
+.main-talk .tc-bubble { font-size: var(--fs-sm); }

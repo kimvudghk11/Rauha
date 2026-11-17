@@ -13,6 +13,7 @@ import { MemberReportDto, type ExplanationDto } from './dto/explanation.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { IntakeDto, type SettledAssumptionChoice } from './dto/intake.dto.js';
 import { stoppedMember } from './member-stop-note.js';
+import { TeamTalk } from './team-talk.js';
 import { ReadingGuideDto, type FactsSummary, type PublishNote, type RunStopReason, type SettledAssumption } from './dto/reading-guide.dto.js';
 import { PublishReportDto } from './dto/publish-report.dto.js';
 import { GitPublishIntent } from '../domain/git-publish-intent.js';
@@ -274,7 +275,7 @@ export class MinimalLoopService {
     ]
       .filter((s) => s !== '')
       .join('\n\n');
-    progress.step(`업무: [${order.difficulty.grade}] ${order.title}`);
+    progress.step(TeamTalk.briefed({ title: order.title, grade: order.difficulty.grade, acceptance: dto.acceptance.length, scope: dto.scope }), 'intake');
 
     const scope = this.deps.threePass ? RunScope.threePass() : RunScope.ladder();
     const review = new ReviewState();
@@ -300,6 +301,7 @@ export class MinimalLoopService {
       if (decision.assignment.role === 'reviewer') {
         const reviewed = await this.review({ brief, order, lockedTests, explanation, tally, assumptions, state: review, tier: decision.assignment.tier, start: current.start });
         order.recordReview(reviewed);
+        progress.step(TeamTalk.reviewed(reviewed, review.feedback), 'reviewer');
         continue;
       }
 
@@ -332,6 +334,8 @@ export class MinimalLoopService {
         lockedTests = result.testFiles;
         current.lockedTests = lockedTests;
         redFeedback = result.feedback;
+        if (order.testsLocked) progress.step(TeamTalk.testsWritten(lockedTests), 'tester');
+        else if (!order.testsWaived && result.noRunner !== true) progress.step(TeamTalk.testsRejected(result.feedback), 'tester');
         if (order.testsWaived) {
           this.testless = true;
           lockedTests = [];
@@ -367,7 +371,9 @@ export class MinimalLoopService {
       tally.escalated ||= order.isEscalated();
       const output = await this.call('implementer', message, IMPLEMENTER_REPORT_SCHEMA, order, tally, decision.assignment.tier);
       const changed = workspace.changesBetween(before, await workspace.snapshot()).map((c) => c.path);
-      explanation = this.readExplanation(output) ?? explanation;
+      const thisTry = this.readExplanation(output);
+      explanation = thisTry ?? explanation;
+      progress.step(TeamTalk.implemented(changed, thisTry?.decisions.map((d) => d.what) ?? []), 'implementer');
 
       try {
         order.assertDiffAllowed('implementer', changed);
@@ -403,6 +409,10 @@ export class MinimalLoopService {
       if (confirmed) await log.recordChecks(`green-${attempt}`, results);
       order.recordGreen(verdict.toTestRun(locked.run), verdict.toFailureNote());
       lastFailure = verdict.failureDetail();
+      // 팀장이 rauha 가 직접 돌린 검사 결과를 말한다. 실패면 다음에 누가(어느 등급이) 이어받는지도
+      const passed = order.stage !== 'green' && order.stage !== 'halted';
+      const nextTier = order.stage === 'green' ? (order.nextAssignment()?.tier ?? null) : null;
+      progress.step(TeamTalk.verified({ passed, failure: passed ? null : lastFailure, escalates: nextTier !== null && nextTier !== decision.assignment.tier }), 'intake');
     }
     return this.finish({ tally, started, start: current.start, lockedTests: current.lockedTests, title: order.title, status: 'stopped', stopReason: 'halted', verdict, explanation, assumptions, facts: review.summary() });
   }

@@ -40,6 +40,9 @@ const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
 
 /** 끝난 방이 사라지기까지 보여 주는 시간 */
 const ROOM_LINGER_MS = 6000;
+/** Main 카드 아래 팀 대화는 최근 이만큼(여러 팀이 같이 돌아도 Main 이 너무 길어지지 않게), 태스크 화면은 거의 다 */
+const MAIN_TALK_MAX = 12;
+const TASK_TALK_MAX = 80;
 
 const isRole = (r: string): r is CharacterRole => (CHARACTER_ROLES as readonly string[]).includes(r);
 const short = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
@@ -303,7 +306,8 @@ export function buildChat(actions: ChatActions) {
     applySplit(split, true);
   });
 
-  const cards = new Map<string, { dot: HTMLElement; state: HTMLElement; stop: HTMLButtonElement; line: HTMLElement }>();
+  /** talk: Main 카드 아래에 실시간으로 쌓이는 팀 대화, talkSeen: 마지막으로 그린 진행 글 수(같으면 다시 그리지 않는다) */
+  const cards = new Map<string, { dot: HTMLElement; state: HTMLElement; stop: HTMLButtonElement; line: HTMLElement; talk: HTMLElement; talkSeen: string }>();
   const reported = new Set<string>();
   /** 화면 지우기(/clear)로 비운 끝난 작업. 다시 그리지 않는다. */
   const cleared = new Set<string>();
@@ -649,11 +653,32 @@ export function buildChat(actions: ChatActions) {
     tx.appendChild(hand);
     meById.set(job.id, me);
     quoteOn(job.id);
-    body.append(el('div', 'who', leadName()), tx);
+    // 팀원끼리 주고받는 말: 팀 화면을 열지 않아도 Main 에서 결과가 나오기 전까지 실시간으로 따라간다
+    const talk = el('div', 'team-chat main-talk');
+    talk.hidden = true;
+    body.append(el('div', 'who', leadName()), tx, talk);
     reply.append(av, body);
     msgs.append(me, reply);
-    cards.set(job.id, { dot, state, stop, line });
+    cards.set(job.id, { dot, state, stop, line, talk, talkSeen: '' });
     toBottom();
+  }
+
+  /** 진행 글 → 팀원 얼굴·이름·말풍선 줄(성격은 말투로만, shared/team-voice.ts). 직책 대신 지금 컨셉의 캐릭터 이름으로 부른다 */
+  function talkOf(t: JobView, max: number): { readonly role: string; readonly who: string; readonly text: string }[] {
+    const titleOf = new Map(t.notes.filter((n) => n.role !== null).map((n) => [n.role as string, n.roleName ?? '']));
+    return teamChat(t.notes.map((n) => (n.role !== null && isRole(n.role) ? { ...n, roleName: nameOf(n.role) } : n)), max).map((l) => ({ ...l, who: `${l.who}${titleOf.get(l.role) ? ` · ${titleOf.get(l.role)}` : ''}` }));
+  }
+
+  function paintTalk(box: HTMLElement, lines: readonly { readonly role: string; readonly who: string; readonly text: string }[]): void {
+    for (const line of lines) {
+      const row = el('div', 'tc-line');
+      const face = el('canvas', 'sp tc-face');
+      paintOnce(face, (isRole(line.role) ? line.role : 'intake') as CharacterRole, 2);
+      const say = el('div', 'tc-say');
+      say.append(el('div', 'tc-who', line.who), el('div', 'tc-bubble', line.text));
+      row.append(face, say);
+      box.appendChild(row);
+    }
   }
 
   function updateCard(job: JobView): void {
@@ -670,6 +695,17 @@ export function buildChat(actions: ChatActions) {
     card.dot.className = `dot ${now.status}`;
     card.state.textContent = `· ${STATUS_LABEL[now.status]}${now.stopReason !== null ? ` (${stopReasonText(now.stopReason)})` : ''}${turns > 1 ? ` · ${turns} turns in this task` : ''}`;
     card.stop.hidden = now.status === 'done' || now.status === 'stopped';
+    // 팀 대화는 진행 글이 늘었을 때만 다시 그린다(보드가 자주 갱신돼도 캔버스를 매번 새로 칠하지 않게)
+    const seen = `${now.id}:${now.notes.length}`;
+    if (card.talkSeen !== seen) {
+      card.talkSeen = seen;
+      const lines = talkOf(now, MAIN_TALK_MAX);
+      const follow = scroll.pinned;
+      card.talk.replaceChildren();
+      paintTalk(card.talk, lines);
+      card.talk.hidden = lines.length === 0;
+      if (follow) toBottom();
+    }
   }
 
   /** 끝난 일의 결과는 메인(팀장)이 한 번 말해 준다. 태스크 안에서 이어 물은 것의 결과도 Main 에 올린다 */
@@ -1078,22 +1114,12 @@ export function buildChat(actions: ChatActions) {
     me.appendChild(el('div', 'tx', t.request));
     body.appendChild(me);
     for (const a of approvals.filter((x) => x.jobId === t.id)) body.appendChild(approvalCard(a));
-    // 팀 대화: 실제 진행 글을 팀원 얼굴·이름·말풍선으로(성격은 말투로만, shared/team-voice.ts)
-    // 직책("구현 팀원") 대신 지금 컨셉의 캐릭터 이름으로 부른다(넘겨받는 말에도)
-    const titleOf = new Map(t.notes.filter((n) => n.role !== null).map((n) => [n.role as string, n.roleName ?? '']));
-    const talk = teamChat(t.notes.map((n) => (n.role !== null && isRole(n.role) ? { ...n, roleName: nameOf(n.role) } : n))).map((l) => ({ ...l, who: `${l.who}${titleOf.get(l.role) ? ` · ${titleOf.get(l.role)}` : ''}` }));
+    // 팀 대화: 실제 진행 글을 팀원 얼굴·이름·말풍선으로(태스크 화면은 처음부터 끝까지 다)
+    const talk = talkOf(t, TASK_TALK_MAX);
     const over = t.status === 'done' || t.status === 'stopped';
     if (talk.length > 0 || !over) {
       const box = el('div', 'team-chat');
-      for (const line of talk) {
-        const row = el('div', 'tc-line');
-        const face = el('canvas', 'sp tc-face');
-        paintOnce(face, (isRole(line.role) ? line.role : 'intake') as CharacterRole, 2);
-        const say = el('div', 'tc-say');
-        say.append(el('div', 'tc-who', line.who), el('div', 'tc-bubble', line.text));
-        row.append(face, say);
-        box.appendChild(row);
-      }
+      paintTalk(box, talk);
       if (!over) {
         const typing = el('div', 'tc-line tc-typing');
         const what = t.status === 'queued' ? 'Waiting in the queue' : t.status === 'waiting' ? 'Waiting for your permission or choice' : `${t.roleName ?? 'Team'} is working`;

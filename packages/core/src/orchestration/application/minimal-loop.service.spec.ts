@@ -437,7 +437,12 @@ describe('MinimalLoopService', () => {
     await service(ws, team, new FakeChecks(ws), new FakeLog(), new FakeUser(false), {
       step: (message, role) => steps.push([message, role]),
     }).run('Money에 할인 추가');
-    expect(steps.filter(([, role]) => role !== undefined).map(([, role]) => role)).toEqual(['intake', 'tester', 'implementer']);
+    // 부를 때 한 번 + 넘겨줄 때 실제 결과를 담은 말 한 번(팀장: 정리한 업무·검사 결과)
+    expect(steps.filter(([, role]) => role !== undefined).map(([, role]) => role)).toEqual(['intake', 'intake', 'tester', 'tester', 'implementer', 'implementer', 'intake']);
+    const said = (role: MemberRole) => steps.filter(([m, r]) => r === role && !m.endsWith('작업 중…')).map(([m]) => m);
+    expect(said('tester').join(' ')).toMatch(/테스트를 썼고/);
+    expect(said('implementer').join(' ')).toContain('src/money.ts');
+    expect(said('intake').at(-1)).toContain('통과');
     expect(steps.find(([m]) => m.startsWith('검증 묶음'))?.[1]).toBeUndefined();
   });
 
