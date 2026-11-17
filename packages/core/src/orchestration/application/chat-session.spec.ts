@@ -225,6 +225,38 @@ describe('ChatSession — 질문', () => {
     expect(turn.kind === 'answer' && turn.checked[0]!.isGuess).toBe(false);
   });
 
+  it('팀이 더 하면 끝나는 항목이 남으면 같은 답변 팀원을 한 번 더 불러 마저 하게 하고, 끝난 표를 답 아래에 붙인다', async () => {
+    const team = new FakeTeam({
+      router: [route('question', false, null, { depth: 'deep' })],
+      answerer: [
+        () => ({ answer: '결제 흐름은 …', claims: [], asks: [{ ask: '결제 흐름', status: 'done', note: '첫 단락', needs: '' }, { ask: '환불 흐름', status: 'partial', note: 'refund 폴더를 아직 안 읽음', needs: '' }], scope: [] }),
+        () => ({ answer: '결제 흐름은 … 환불 흐름은 …', claims: [], asks: [{ ask: '결제 흐름', status: 'done', note: '첫 단락', needs: '' }, { ask: '환불 흐름', status: 'done', note: '둘째 단락', needs: '' }], scope: [] }),
+      ],
+    });
+    const turn = await session({ team }).handle('결제랑 환불 흐름 정리해줘');
+    const asked = team.calls.filter((c) => c.role === 'answerer');
+    expect(asked).toHaveLength(2);
+    expect(asked[1]!.message).toContain('<previous_answer>\n결제 흐름은 …\n</previous_answer>');
+    expect(asked[1]!.message).toContain('- 환불 흐름 (일부: refund 폴더를 아직 안 읽음)');
+    expect(turn.kind === 'answer' && turn.answer).toContain('■ 요청 항목 (2개 중 2개 끝남)');
+  });
+
+  it('사용자가 줘야 끝나는 항목만 남았으면 다시 부르지 않고, 무엇을 주면 되는지 보인다', async () => {
+    const team = new FakeTeam({
+      router: [route('question', false, null, { depth: 'deep' })],
+      answerer: [() => ({ answer: '코드 기준으로는 …', claims: [], asks: [{ ask: '코드 흐름', status: 'done', note: '', needs: '' }, { ask: '운영 수치', status: 'not_done', note: '운영 DB 접속 정보가 없음', needs: '읽기 전용 접속 정보' }], scope: [] })],
+    });
+    const turn = await session({ team }).handle('흐름이랑 운영 수치 알려줘');
+    expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1);
+    expect(turn.kind === 'answer' && turn.answer).toContain('- ✗ 운영 수치: 운영 DB 접속 정보가 없음 (주시면 확인할 수 있어요: 읽기 전용 접속 정보)');
+  });
+
+  it('가벼운 질문은 덜 된 항목이 있어도 다시 부르지 않는다(한도를 아낀다)', async () => {
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [() => ({ answer: '…', claims: [], asks: [{ ask: 'a', status: 'partial', note: '', needs: '' }], scope: [] })] });
+    await session({ team }).handle('a 뭐야');
+    expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1);
+  });
+
   it('근거가 필요 없는 짧은 질문은 근거 없이 답해도 된다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '안녕하세요.', claims: [] })] });
     const turn = await session({ team }).handle('안녕');
@@ -438,6 +470,24 @@ describe('ChatSession — 여러 저장소', () => {
     if (turn.kind !== 'answer') return;
     expect(turn.answer).toContain('포트폴리오를 만들었어요');
     expect(turn.answer).toContain('docs/portfolio.md');
+  });
+
+  it('문서 팀원이 읽겠다고 한 저장소를 열지 않았으면 같은 문서를 마저 채우게 한 번 더 부르고, 두 번 다 쓴 파일을 모두 알린다', async () => {
+    const team = new FakeTeam({
+      router: [route('task')],
+      writer: [
+        () => ({ summary: '1차', files: ['docs/a.md'], asks: [{ ask: '두 저장소 정리', status: 'done', note: '', needs: '' }], scope: ['shop-web'] }),
+        () => ({ summary: '2차로 shop-web 까지 채웠어요', files: ['docs/b.md'], asks: [{ ask: '두 저장소 정리', status: 'done', note: '', needs: '' }], scope: [] }),
+      ],
+    });
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api' }).handle('두 레포 정리해서 md로', also);
+    const calls = team.calls.filter((c) => c.role === 'writer');
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.message).toContain('<previous_report>');
+    expect(calls[1]!.message).toContain('- shop-web');
+    expect(turn.kind === 'answer' && turn.answer).toContain('2차로 shop-web 까지 채웠어요');
+    expect(turn.kind === 'answer' && turn.answer).toContain('docs/a.md');
+    expect(turn.kind === 'answer' && turn.answer).toContain('docs/b.md');
   });
 
   describe('작업 공간 폴더와 저장소가 많을 때', () => {

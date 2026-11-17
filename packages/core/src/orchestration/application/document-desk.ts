@@ -1,6 +1,8 @@
 import { ToolKits } from '../domain/tool-kit.js';
 import type { DeskHost } from './desk-host.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
+import { CoverageDto } from './dto/coverage.dto.js';
+import type { RequestCoverage } from '../domain/request-coverage.js';
 import { WRITER_SCHEMA } from './dto/schemas.js';
 import type { MemberResult, ProgressPort } from './ports.js';
 import { stoppedMember } from './member-stop-note.js';
@@ -51,27 +53,52 @@ export class DocumentDesk {
       if ('blocked' in gathered) return { kind: 'blocked', ...gathered.blocked };
       digests = gathered.digests;
     }
-    const result = await this.host.member(
-      'writer',
-      [
-        conversationBlock(conversation),
-        `<today>${this.deps.today()}</today>`,
-        this.host.workspaceBlock(),
-        `<repos>\n${repos.join('\n')}\n</repos>`,
-        digests !== '' ? `<digests>\n${digests}\n</digests>` : '',
-        `<request>\n${input}\n</request>`,
-      ],
-      WRITER_SCHEMA,
-      // 노션·컨플루언스 같은 업무 도구에 정리하라는 요청이면 커넥터를 붙이고, 시킨 쓰기는 묻지 않게 요청을 넘긴다
-      { dirs, canWrite: (path) => /\.md$/i.test(path), kits: ToolKits.for('writer', input), ...(ToolKits.for('writer', input).includes('connectors') ? { request: input } : {}) },
-    );
-    if (result.blocked) return { kind: 'blocked', ...result.blocked };
+    const parts = [
+      conversationBlock(conversation),
+      `<today>${this.deps.today()}</today>`,
+      this.host.workspaceBlock(),
+      `<repos>\n${repos.join('\n')}\n</repos>`,
+      digests !== '' ? `<digests>\n${digests}\n</digests>` : '',
+      `<request>\n${input}\n</request>`,
+    ];
+    const call = (more: readonly string[]) =>
+      this.host.member(
+        'writer',
+        [...parts, ...more],
+        WRITER_SCHEMA,
+        // 노션·컨플루언스 같은 업무 도구에 정리하라는 요청이면 커넥터를 붙이고, 시킨 쓰기는 묻지 않게 요청을 넘긴다
+        { dirs, canWrite: (path) => /\.md$/i.test(path), kits: ToolKits.for('writer', input), ...(ToolKits.for('writer', input).includes('connectors') ? { request: input } : {}) },
+      );
+    const first = await call([]);
+    if (first.blocked) return { kind: 'blocked', ...first.blocked };
+    const { result, coverage, earlierFiles } = await this.finishAsks(first, call);
     const report = WriterReportDto.read(result.output);
+    const files = [...new Set([...earlierFiles, ...report.files])];
     this.host.titled(input.slice(0, 60));
-    await this.host.wrote(report.files);
+    await this.host.wrote(files);
     const stop = stoppedMember(result);
     if (stop !== null) return this.host.settle('문서를 끝내지 못함', input, stop.report(result.partial ?? null), stop.turnNote(result.partial ?? null), started, costBefore);
-    return this.host.settle('문서', input, report.toAnswer(), report.files.join(', ') || '없음', started, costBefore, report.files, result.usage.tools);
+    const table = coverage.toText();
+    const answer = WriterReportDto.read({ ...(result.output as object), files }).toAnswer();
+    return this.host.settle('문서', input, table === '' ? answer : `${answer}\n\n${table}`, files.join(', ') || '없음', started, costBefore, files, result.usage.tools);
+  }
+
+  /**
+   * 요청 항목 표에 팀이 더 하면 끝나는 항목이나 읽겠다고 하고 열지 않은 곳이 있으면, 같은 문서를 마저 채우게 한 번 더 부른다.
+   * 다시 부른 결과를 읽지 못하거나 막히면 처음 결과를 쓴다.
+   */
+  private async finishAsks(
+    first: MemberResult,
+    call: (more: readonly string[]) => Promise<MemberResult>,
+  ): Promise<{ result: MemberResult; coverage: RequestCoverage; earlierFiles: readonly string[] }> {
+    const coverage = CoverageDto.read(first.output, first.opened);
+    const followUp = first.output !== null ? coverage.followUp() : null;
+    if (followUp === null) return { result: first, coverage, earlierFiles: [] };
+    const before = WriterReportDto.read(first.output);
+    this.deps.progress.step('빠진 항목을 마저 채울게요', 'writer');
+    const again = await call([`<previous_report>\n${before.summary}\n이미 쓴 문서: ${before.files.join(', ') || '없음'}. 새 파일을 만들지 말고 이 문서를 고쳐 채우세요.\n</previous_report>`, followUp]);
+    if (again.blocked || again.output === null) return { result: first, coverage, earlierFiles: [] };
+    return { result: again, coverage: CoverageDto.read(again.output, [...(first.opened ?? []), ...(again.opened ?? [])]), earlierFiles: before.files };
   }
 
   /**

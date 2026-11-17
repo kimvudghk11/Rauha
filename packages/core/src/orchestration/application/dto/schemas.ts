@@ -4,6 +4,31 @@ const str = { type: 'string', minLength: 1 } as const;
 const nullableStr = { type: ['string', 'null'] } as const;
 const strList = { type: 'array', items: str } as const;
 
+/** 요청 항목 표(RequestCoverage). 요청을 항목으로 쪼개 각각 끝났는지 적는다. */
+const asks = {
+  type: 'array',
+  maxItems: 12,
+  description: '사용자 요청을 시킨 것 하나하나로 쪼갠 목록과 각각의 결과. 인사·잡담처럼 시킨 것이 없으면 빈 배열',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['ask', 'status', 'note', 'needs'],
+    properties: {
+      ask: { ...str, description: '사용자가 시킨 것 하나(짧게)' },
+      status: { enum: ['done', 'partial', 'not_done'] },
+      note: { type: 'string', description: '끝났으면 결과가 있는 곳(파일·절·답의 부분), 덜 됐으면 이번에 실제로 막힌 이유' },
+      needs: { type: 'string', description: '사용자가 주면 끝낼 수 있는 것(접속 정보, 권한, 파일 …). 팀이 더 하면 되는 일이면 빈 글' },
+    },
+  },
+} as const;
+
+/** 읽겠다고 정한 곳. rauha가 실제로 연 경로와 맞춰 본다. */
+const plannedScope = {
+  ...strList,
+  maxItems: 20,
+  description: '요청에 답하려고 읽어야 한다고 정한 곳(폴더·파일·저장소 경로). 실제로 연 곳과 rauha가 맞춰 본다. 읽을 곳이 없으면 빈 배열',
+} as const;
+
 export const INTAKE_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
@@ -218,10 +243,12 @@ export const SURVEY_SCHEMA: Record<string, unknown> = {
 export const WRITER_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'files'],
+  required: ['summary', 'files', 'asks', 'scope'],
   properties: {
     summary: { ...str, description: '무엇을 어디서 읽어 무엇을 만들었는지, 사용자가 읽을 짧은 보고' },
     files: { ...strList, description: '만들거나 고친 문서 경로' },
+    asks,
+    scope: plannedScope,
   },
 };
 
@@ -259,9 +286,11 @@ export const ANALYSIS_SCHEMA: Record<string, unknown> = {
 export const ANSWER_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['answer', 'claims'],
+  required: ['answer', 'claims', 'asks', 'scope'],
   properties: {
     answer: str,
+    asks,
+    scope: plannedScope,
     // 인사나 시각처럼 확인할 사실이 없는 답도 있다. 하나 이상을 강제하면 근거를 만들려고 파일·웹을 쓸데없이 연다.
     claims: {
       type: 'array',

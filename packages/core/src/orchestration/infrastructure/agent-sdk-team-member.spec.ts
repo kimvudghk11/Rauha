@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, modelOf, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
+import { addUsage, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -34,6 +34,30 @@ describe('toolCountHook', () => {
     const tally = ToolTally.empty();
     await run(toolCountHook(tally), { hook_event_name: 'PreToolUse', tool_name: 'Grep', tool_input: {} });
     expect(tally.entries()).toEqual([]);
+  });
+});
+
+describe('openedHook', () => {
+  const run = (hook: ReturnType<typeof openedHook>, input: Record<string, unknown>) => hook(input as never, undefined, { signal: new AbortController().signal });
+
+  it('읽기 도구가 연 경로만 남긴다(Read 파일, Grep·Glob 폴더, git -C 저장소). 검색어·명령 내용은 남기지 않는다', async () => {
+    const opened: string[] = [];
+    const hook = openedHook(opened);
+    await run(hook, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_input: { file_path: 'E:/a/src/x.ts' } });
+    await run(hook, { hook_event_name: 'PostToolUse', tool_name: 'Grep', tool_input: { pattern: 'SECRET_KEY', path: 'E:/a/src' } });
+    await run(hook, { hook_event_name: 'PostToolUse', tool_name: 'Glob', tool_input: { pattern: '**/*.ts', path: 'E:/b' } });
+    await run(hook, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'git -C "E:/c d" log --oneline && git -C E:/e status' } });
+    await run(hook, { hook_event_name: 'PostToolUse', tool_name: 'Grep', tool_input: { pattern: 'x' } });
+    await run(hook, { hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: 'E:/not-yet.ts' } });
+    expect(opened).toEqual(['E:/a/src/x.ts', 'E:/a/src', 'E:/b', 'E:/c d', 'E:/e']);
+    expect(opened.join(' ')).not.toContain('SECRET_KEY');
+  });
+
+  it('너무 많이 쌓이지 않게 앞의 것부터 버린다', async () => {
+    const opened: string[] = [];
+    const hook = openedHook(opened, 2);
+    for (const f of ['a', 'b', 'c']) await run(hook, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_input: { file_path: f } });
+    expect(opened).toEqual(['b', 'c']);
   });
 });
 

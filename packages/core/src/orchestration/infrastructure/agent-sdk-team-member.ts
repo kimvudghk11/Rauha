@@ -57,6 +57,8 @@ interface Session {
   readonly controller: AbortController;
   readonly fetchLog: ReturnType<typeof createFetchLog>;
   readonly tally: ToolTally;
+  /** 읽기 도구가 연 경로(openedHook) */
+  readonly opened: string[];
   readonly stderr: string[];
   /** 사용자가 커밋·push·PR을 시켰는지. 미리 띄운 프로세스는 요청이 나중에 정해지므로 상자로 둔다. */
   readonly intent: { current: GitPublishIntent };
@@ -154,7 +156,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     } catch (error) {
       return { output: null, error: (error as Error).message, usage: emptyUsage(model, Date.now() - started), fetched: [], blocked: accountBlock((error as Error).message) };
     }
-    const { controller, fetchLog, stderr, tally } = opened;
+    const { controller, fetchLog, stderr, tally, opened: openedPaths } = opened;
     const stop = () => controller.abort();
     call.signal?.addEventListener('abort', stop, { once: true });
     this.running.add(controller);
@@ -204,13 +206,13 @@ export class AgentSdkTeamMember implements TeamMemberPort {
 
     const fetched = fetchLog.entries();
     if (controller.signal.aborted) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, Date.now() - started), fetched, blocked: CANCELLED };
-    if (result === null) return { output: null, error: '결과 메시지를 받지 못했습니다.', usage: addUsage(spent, emptyUsage(model, Date.now() - started)), fetched, partial };
+    if (result === null) return { output: null, error: '결과 메시지를 받지 못했습니다.', usage: addUsage(spent, emptyUsage(model, Date.now() - started)), fetched, partial, opened: [...openedPaths] };
     const usage = { ...addUsage(spent, toUsage(model, result)), tools: tally.entries() };
     if (result.subtype !== 'success') {
       const error = `${result.subtype}: ${result.errors.join(' / ')}`;
-      return { output: null, error, usage, fetched, blocked: accountBlock(error), partial };
+      return { output: null, error, usage, fetched, blocked: accountBlock(error), partial, opened: [...openedPaths] };
     }
-    return { output: result.structured_output ?? null, error: result.structured_output === undefined ? '구조화 출력이 없습니다.' : null, usage, fetched, partial };
+    return { output: result.structured_output ?? null, error: result.structured_output === undefined ? '구조화 출력이 없습니다.' : null, usage, fetched, partial, opened: [...openedPaths] };
   }
 
   /** 다른 폴더도 읽거나 도구 묶음을 붙이는 호출은 띄울 때의 설정이 달라서 미리 띄운 프로세스를 쓰지 않는다. */
@@ -274,7 +276,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
         PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
-        PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally)] }],
+        PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally), openedHook(session.opened)] }],
       },
       stderr: (data) => {
         session.stderr.push(data);
@@ -325,7 +327,7 @@ export function modelOf(call: Pick<PreparedCall, 'setting' | 'model'>): string {
 const CANCELLED: AccountBlock = { reason: 'cancelled', message: '사용자가 작업을 멈췄습니다.' };
 
 function newSession(): Session {
-  return { controller: new AbortController(), fetchLog: createFetchLog(), tally: ToolTally.empty(), stderr: [], intent: { current: GitPublishIntent.none() }, connectorIntent: { current: ConnectorWriteIntent.none() } };
+  return { controller: new AbortController(), fetchLog: createFetchLog(), tally: ToolTally.empty(), opened: [], stderr: [], intent: { current: GitPublishIntent.none() }, connectorIntent: { current: ConnectorWriteIntent.none() } };
 }
 
 /** 미리 띄운 프로세스는 띄울 때의 설정이 고정되므로, 역할·설정·출력 형식이 모두 같을 때만 쓴다. */
@@ -337,6 +339,29 @@ function spareKey(call: PreparedCall): string {
 export function toolCountHook(tally: ToolTally): HookCallback {
   return async (input) => {
     if (input.hook_event_name === 'PostToolUse') tally.record(input.tool_name);
+    return {};
+  };
+}
+
+const OPENED_MAX = 500;
+const GIT_C = /\bgit\s+-C\s+(?:"([^"]+)"|'([^']+)'|(\S+))/g;
+
+/**
+ * 읽기 도구가 실제로 연 경로만 남긴다(Read 파일, Grep·Glob 폴더, git -C 저장소). 검색어·명령 내용은 담지 않는다.
+ * 팀원이 "읽겠다"고 한 곳을 정말 열었는지 RequestCoverage 가 맞춰 본다. 기록 파일에는 쓰지 않는다.
+ */
+export function openedHook(opened: string[], max = OPENED_MAX): HookCallback {
+  const keep = (path: unknown): void => {
+    if (typeof path !== 'string' || path.trim() === '') return;
+    opened.push(path.trim());
+    while (opened.length > max) opened.shift();
+  };
+  return async (input) => {
+    if (input.hook_event_name !== 'PostToolUse') return {};
+    const toolInput = (typeof input.tool_input === 'object' && input.tool_input !== null ? input.tool_input : {}) as Record<string, unknown>;
+    if (input.tool_name === 'Read') keep(toolInput['file_path']);
+    else if (input.tool_name === 'Grep' || input.tool_name === 'Glob') keep(toolInput['path']);
+    else if (input.tool_name === 'Bash' && typeof toolInput['command'] === 'string') for (const m of toolInput['command'].matchAll(GIT_C)) keep(m[1] ?? m[2] ?? m[3]);
     return {};
   };
 }

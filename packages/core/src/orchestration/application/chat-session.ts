@@ -12,6 +12,8 @@ import type { CompanyEntry } from '../domain/company-book.js';
 import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
 import { AnswerDto } from './dto/answer.dto.js';
+import { CoverageDto } from './dto/coverage.dto.js';
+import type { RequestCoverage } from '../domain/request-coverage.js';
 import type { MemberRole, RoleSetting, RoleSettingsDto } from './dto/role-settings.dto.js';
 import type { ChatSnapshot } from './dto/chat-snapshot.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
@@ -119,6 +121,14 @@ function referenceBlock(others: readonly AlsoKnown[]): string {
 }
 
 /** 함께 읽을 저장소와 그 지식(없으면 null) */
+/** 답변 팀원을 부른 결과. again 은 같은 메시지에 덧붙여 한 번 더 부른다(빠진 항목 마저 하기). */
+interface Asked {
+  readonly result: MemberResult;
+  readonly recalls: Recall[];
+  readonly basis: string | null;
+  readonly again: (more: readonly string[]) => Promise<MemberResult>;
+}
+
 interface AlsoKnown {
   readonly name: string;
   readonly root: string;
@@ -541,31 +551,33 @@ ${SINGLE_REPO_NOTE}
     conversation: string | null,
     depth: 'light' | 'deep',
     others: readonly AlsoKnown[] = [],
-  ): Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }> {
+  ): Promise<Asked> {
     const recalls = past !== null ? [past] : await this.deps.memory.search(input, CANDIDATES);
     const block = recallBlock(recalls, MEMORY_CHARS);
-    const result = await this.member(
+    const parts = [
+      known?.block ?? '',
+      ...others.map((o) => o.known?.block ?? `<repo name="${o.name}" root="${o.root}"/>`),
+      this.workspaceBlock(),
+      conversationBlock(conversation),
+      `<today>${this.deps.today()}</today>`,
+      `<now>${this.deps.nowText()}</now>`,
+      block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '',
+      `<question>\n${input}\n</question>`,
+    ];
+    const call = (more: readonly string[]): Promise<MemberResult> => this.member(
       'answerer',
-      [
-        known?.block ?? '',
-        ...others.map((o) => o.known?.block ?? `<repo name="${o.name}" root="${o.root}"/>`),
-        this.workspaceBlock(),
-        conversationBlock(conversation),
-        `<today>${this.deps.today()}</today>`,
-        `<now>${this.deps.nowText()}</now>`,
-        block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '',
-        `<question>\n${input}\n</question>`,
-      ],
+      [...parts, ...more],
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
       // light는 도구 묶음(브라우저·AWS 설명이 수천 자)을 붙이지 않는다.
       { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])] },
     );
+    const result = await call([]);
     const basis =
       others.length === 0
         ? (known?.basis ?? null)
         : [`${this.deps.repoName ?? '이 저장소'}: ${known?.basis ?? '기준 모름'}`, ...others.map((o) => `${o.name}: ${o.known?.basis ?? '기준 모름'}`)].join(', ');
-    return { result, recalls, basis };
+    return { result, recalls, basis, again: call };
   }
 
   /**
@@ -603,8 +615,11 @@ ${SINGLE_REPO_NOTE}
     }
   }
 
-  private async answer(input: string, asked: Promise<{ result: MemberResult; recalls: Recall[]; basis: string | null }>, started: number, depth: 'light' | 'deep', also: readonly AlsoRepo[] = []): Promise<TurnOutcome> {
-    const { result, recalls, basis } = await asked;
+  private async answer(input: string, asked: Promise<Asked>, started: number, depth: 'light' | 'deep', also: readonly AlsoRepo[] = []): Promise<TurnOutcome> {
+    const first = await asked;
+    const { recalls, basis } = first;
+    if (first.result.blocked) return { kind: 'blocked', ...first.result.blocked };
+    const { result, coverage, extraCostUsd } = await this.finishAsks(first, depth);
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const dto = this.tryRead(() => AnswerDto.from(result.output));
     const claims = dto?.claims() ?? [];
@@ -617,10 +632,26 @@ ${SINGLE_REPO_NOTE}
       records: recalls.flatMap((r) => r.neighbors.filter((n) => n.kind === 'decision' || n.kind === 'assumption').map((n) => n.text)),
     }).all();
     const stop = dto === null ? stoppedMember(result) : null;
-    const answer = dto?.answer ?? stop?.report(result.partial ?? null) ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.';
+    const table = dto !== null ? coverage.toText() : '';
+    const answer = dto !== null ? (table === '' ? dto.answer : `${dto.answer}\n\n${table}`) : (stop?.report(result.partial ?? null) ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.');
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: citedPaths(claims), basis }));
     this.turns.push({ input, result: stop === null ? `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` : `답을 끝내지 못함: ${stop.turnNote(result.partial ?? null)}` });
-    return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light', ...toolsPart(result.usage.tools) };
+    return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd + extraCostUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light', ...toolsPart(result.usage.tools) };
+  }
+
+  /**
+   * 답의 요청 항목 표를 보고, 사용자에게 받을 것 없이 덜 된 항목이나 읽겠다고 하고 열지 않은 곳이 있으면 같은 팀원을 한 번 더 부른다(deep 만).
+   * 다시 부른 결과를 읽지 못하거나 막히면 처음 답을 쓴다.
+   */
+  private async finishAsks(first: Asked, depth: 'light' | 'deep'): Promise<{ result: MemberResult; coverage: RequestCoverage; extraCostUsd: number }> {
+    const coverage = CoverageDto.read(first.result.output, first.result.opened);
+    const previous = this.tryRead(() => AnswerDto.from(first.result.output));
+    const followUp = depth === 'deep' && previous !== null ? coverage.followUp() : null;
+    if (followUp === null) return { result: first.result, coverage, extraCostUsd: 0 };
+    this.deps.progress.step('빠진 항목을 마저 확인할게요', 'answerer');
+    const again = await first.again([`<previous_answer>\n${previous!.answer}\n</previous_answer>`, followUp]);
+    if (again.blocked || this.tryRead(() => AnswerDto.from(again.output)) === null) return { result: first.result, coverage, extraCostUsd: again.usage.costUsd };
+    return { result: again, coverage: CoverageDto.read(again.output, [...(first.result.opened ?? []), ...(again.opened ?? [])]), extraCostUsd: first.result.usage.costUsd };
   }
 
   /** 인용한 파일 읽기. 현재 레포에 없으면 경로가 가리키는 함께 읽는 레포에서 읽는다(읽기 전용, 비밀·루트 밖은 그 레포의 읽기가 막는다). */

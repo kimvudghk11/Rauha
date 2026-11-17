@@ -64,6 +64,8 @@ export interface MemberResult {
   readonly blocked?: AccountBlock | null;
   /** 구조화 출력을 못 만들고 멈췄을 때 SDK가 마지막으로 낸 assistant 글(부분 결과). 없으면 null이나 없음. */
   readonly partial?: string | null;
+  /** 이번 호출에서 읽기 도구가 연 경로(Read 파일, Grep·Glob 폴더, git -C 저장소). 모으지 않는 구현은 없다. */
+  readonly opened?: readonly string[];
 }
 
 /**
