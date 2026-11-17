@@ -201,6 +201,29 @@ describe('서버 엔진: 테이블 · 스키마 · 행 보기', () => {
     expect(d.columns[0]).toMatchObject({ name: 'a b', type: 'integer', notNull: true, primaryKey: 1 });
   });
 
+  it('PostgreSQL 은 지금 스키마 밖 사용자 스키마의 테이블도 "스키마.테이블" 로 보이고, 행 보기는 스키마까지 감싼다', async () => {
+    // [보이는 이름, 종류, 스키마, 테이블]
+    const listed = [
+      ['users', 'BASE TABLE', 'public', 'users'],
+      ['sales.orders', 'BASE TABLE', 'sales', 'orders'],
+    ];
+    const pgCatalog: Script = (sql, params) => {
+      if (/information_schema\.tables/.test(sql)) return { columns: ['name', 'type', 'schema', 'table'], rows: listed.filter((r) => params.length === 0 || r[0] === params[0]) };
+      if (/information_schema\.columns/.test(sql)) return { columns: ['name', 'type', 'nullable', 'dflt', 'generated', 'pk'], rows: [['id', 'integer', 'NO', null, 'NEVER', 1]] };
+      if (/count\(\*\)/i.test(sql)) return { columns: ['n'], rows: [[2]] };
+      return { columns: ['id'], rows: [[1]] };
+    };
+    const { driver, engine, conn } = setup('postgres', pgCatalog);
+    const tables = done<readonly { name: string }[]>(await engine.run(conn, { op: 'tables' }, T));
+    expect(tables.map((t) => t.name)).toEqual(['users', 'sales.orders']);
+    done<DbRowsPage>(await engine.run(conn, { op: 'rows', table: 'sales.orders', page: 0, sort: null }, T));
+    expect(plain(driver.ran)).toContain('SELECT * FROM "sales"."orders" LIMIT 100 OFFSET 0');
+    // 목록 SQL 은 시스템 스키마를 빼고 모든 스키마를 본다(지금 스키마만 보지 않는다)
+    const listSql = plain(driver.ran).find((s) => /information_schema\.tables/.test(s))!;
+    expect(listSql).not.toMatch(/WHERE table_schema = current_schema\(\)/);
+    expect(listSql).toMatch(/pg_catalog/);
+  });
+
   it('서버 값(날짜·참거짓·JSON·BLOB·큰 정수)을 표 칸으로 바꾼다', async () => {
     const when = new Date('2026-01-02T03:04:05.000Z');
     const { engine, conn } = setup('postgres', (sql) => (sql === 'SELECT v' ? { columns: ['a', 'b', 'c', 'd', 'e', 'f'], rows: [[when, true, { k: 1 }, Buffer.from([0, 255]), 2n ** 70n, null]] } : {}));

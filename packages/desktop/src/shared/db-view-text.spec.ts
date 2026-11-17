@@ -124,6 +124,9 @@ describe('테이블을 누르면 넣을 SQL', () => {
     expect(browseSql('postgres', 'Order "x"')).toBe('SELECT * FROM "Order ""x""" LIMIT 100;');
     expect(browseSql('mysql', 'we`ird')).toBe('SELECT * FROM `we``ird` LIMIT 100;');
     expect(browseSql('mysql', 'users', 20)).toBe('SELECT * FROM `users` LIMIT 20;');
+    // PostgreSQL 은 다른 스키마의 테이블이 "스키마.테이블" 로 보인다: 둘을 따로 감싼다
+    expect(browseSql('postgres', 'sales.orders')).toBe('SELECT * FROM "sales"."orders" LIMIT 100;');
+    expect(browseSql('sqlite', 'a.b')).toBe('SELECT * FROM "a.b" LIMIT 100;');
   });
 });
 

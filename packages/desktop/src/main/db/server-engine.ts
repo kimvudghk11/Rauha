@@ -61,6 +61,13 @@ export interface ServerRunner {
 
 // ── 서버별 문법 ──
 
+/** 화면에 보이는 이름(name)과 실제 스키마·테이블. schema 가 null 이면 지금 DB(스키마)의 테이블이다 */
+interface TableTarget {
+  readonly name: string;
+  readonly schema: string | null;
+  readonly raw: string;
+}
+
 interface Dialect {
   quote(name: string): string;
   /** n 번째(1부터) 자리표시자 */
@@ -69,8 +76,11 @@ interface Dialect {
   tablesSql(oneTable: boolean): string;
   /** ERD 재료: 이 DB(스키마)의 테이블·열·PK·FK 를 한 번에 */
   readonly graphSql: { readonly columns: string; readonly keys: string; readonly links: string };
-  detail(session: ServerSession, table: string, kind: 'table' | 'view'): Promise<{ readonly columns: DbColumnInfo[]; readonly createSql: string | null }>;
+  detail(session: ServerSession, table: TableTarget, kind: 'table' | 'view'): Promise<{ readonly columns: DbColumnInfo[]; readonly createSql: string | null }>;
 }
+
+/** FROM 에 쓸 이름: 스키마를 알면 스키마.테이블 둘 다 감싼다 */
+const fromOf = (dialect: Dialect, t: TableTarget): string => (t.schema === null ? dialect.quote(t.raw) : `${dialect.quote(t.schema)}.${dialect.quote(t.raw)}`);
 
 const mysql: Dialect = {
   quote: (name) => `\`${name.replace(/`/g, '``')}\``,
@@ -82,7 +92,8 @@ const mysql: Dialect = {
     keys: "SELECT TABLE_NAME, COLUMN_NAME, SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME = 'PRIMARY'",
     links: 'SELECT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL AND (REFERENCED_TABLE_SCHEMA IS NULL OR REFERENCED_TABLE_SCHEMA = DATABASE()) ORDER BY TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION',
   },
-  async detail(session, table) {
+  async detail(session, target) {
+    const table = target.raw;
     const cols = await all(session, 'SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION', [table]);
     const keys = await all(session, "SELECT COLUMN_NAME, SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = 'PRIMARY'", [table]);
     const pk = new Map(keys.map((k) => [String(k[0]), Number(k[1])]));
@@ -100,29 +111,37 @@ const mysql: Dialect = {
   },
 };
 
+/** PostgreSQL 사용자 스키마만(시스템·임시·toast 스키마 빼기) */
+const PG_USER_SCHEMA = (col: string): string => `${col} NOT IN ('pg_catalog', 'information_schema') AND ${col} NOT LIKE 'pg\\_%'`;
+/** 지금 스키마의 테이블은 이름 그대로, 다른 스키마는 "스키마.테이블"(사용자가 SQL 에 쓰는 모양) */
+const PG_SHOWN = (schema: string, table: string): string => `CASE WHEN ${schema} = current_schema() THEN ${table} ELSE ${schema} || '.' || ${table} END`;
+
 const postgres: Dialect = {
   quote: (name) => `"${name.replace(/"/g, '""')}"`,
   param: (n) => `$${n}`,
   beginRead: ['BEGIN READ ONLY'],
-  tablesSql: (one) => `SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = current_schema()${one ? ' AND table_name = $1' : ''} ORDER BY table_type, table_name`,
+  tablesSql: (one) => `SELECT ${PG_SHOWN('table_schema', 'table_name')} AS name, table_type, table_schema, table_name FROM information_schema.tables WHERE ${PG_USER_SCHEMA('table_schema')}${one ? ` AND ${PG_SHOWN('table_schema', 'table_name')} = $1` : ''} ORDER BY (table_schema <> current_schema()), table_schema, table_type, table_name`,
   graphSql: {
-    columns: 'SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = current_schema() ORDER BY table_name, ordinal_position',
-    keys: "SELECT cl.relname, a.attname, k.ord FROM pg_constraint con JOIN pg_class cl ON cl.oid = con.conrelid JOIN pg_namespace n ON n.oid = cl.relnamespace CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum WHERE con.contype = 'p' AND n.nspname = current_schema()",
-    links: "SELECT con.conname, cl.relname, a.attname, fcl.relname, fa.attname FROM pg_constraint con JOIN pg_class cl ON cl.oid = con.conrelid JOIN pg_namespace n ON n.oid = cl.relnamespace JOIN pg_class fcl ON fcl.oid = con.confrelid CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(attnum, fattnum, ord) JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum JOIN pg_attribute fa ON fa.attrelid = con.confrelid AND fa.attnum = k.fattnum WHERE con.contype = 'f' AND n.nspname = current_schema() ORDER BY cl.relname, con.conname, k.ord",
+    columns: `SELECT ${PG_SHOWN('table_schema', 'table_name')}, column_name, data_type FROM information_schema.columns WHERE ${PG_USER_SCHEMA('table_schema')} ORDER BY (table_schema <> current_schema()), table_schema, table_name, ordinal_position`,
+    keys: `SELECT ${PG_SHOWN('n.nspname', 'cl.relname')}, a.attname, k.ord FROM pg_constraint con JOIN pg_class cl ON cl.oid = con.conrelid JOIN pg_namespace n ON n.oid = cl.relnamespace CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum WHERE con.contype = 'p' AND ${PG_USER_SCHEMA('n.nspname')}`,
+    links: `SELECT con.conname, ${PG_SHOWN('n.nspname', 'cl.relname')}, a.attname, ${PG_SHOWN('fn.nspname', 'fcl.relname')}, fa.attname FROM pg_constraint con JOIN pg_class cl ON cl.oid = con.conrelid JOIN pg_namespace n ON n.oid = cl.relnamespace JOIN pg_class fcl ON fcl.oid = con.confrelid JOIN pg_namespace fn ON fn.oid = fcl.relnamespace CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(attnum, fattnum, ord) JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.attnum JOIN pg_attribute fa ON fa.attrelid = con.confrelid AND fa.attnum = k.fattnum WHERE con.contype = 'f' AND ${PG_USER_SCHEMA('n.nspname')} ORDER BY n.nspname, cl.relname, con.conname, k.ord`,
   },
-  async detail(session, table, kind) {
+  async detail(session, target, kind) {
+    const table = target.raw;
+    // 스키마를 모르면(목록에 스키마 칸이 없는 오래된 응답) 지금 스키마
+    const schema = target.schema;
     const cols = await all(
       session,
       `SELECT c.column_name, c.data_type, c.is_nullable, c.column_default, c.is_generated,
   COALESCE((SELECT k.ordinal_position FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage k ON k.constraint_name = tc.constraint_name AND k.table_schema = tc.table_schema AND k.table_name = tc.table_name
     WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = c.table_schema AND tc.table_name = c.table_name AND k.column_name = c.column_name), 0) AS pk
-FROM information_schema.columns c WHERE c.table_schema = current_schema() AND c.table_name = $1 ORDER BY c.ordinal_position`,
-      [table],
+FROM information_schema.columns c WHERE c.table_schema = COALESCE($2, current_schema()) AND c.table_name = $1 ORDER BY c.ordinal_position`,
+      [table, schema],
     );
     let createSql: string | null = null;
     if (kind === 'view') {
-      const def = await all(session, 'SELECT pg_get_viewdef(c.oid, true) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relname = $1', [table]);
-      createSql = typeof def[0]?.[0] === 'string' ? `CREATE VIEW ${postgres.quote(table)} AS\n${def[0][0]}` : null;
+      const def = await all(session, 'SELECT pg_get_viewdef(c.oid, true) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = COALESCE($2, current_schema()) AND c.relname = $1', [table, schema]);
+      createSql = typeof def[0]?.[0] === 'string' ? `CREATE VIEW ${fromOf(postgres, target)} AS\n${def[0][0]}` : null;
     }
     return {
       columns: cols.map((c) => ({ name: String(c[0]), type: textOf(c[1]), notNull: c[2] === 'NO', defaultValue: c[3] === null || c[3] === undefined ? null : textOf(c[3]), primaryKey: Number(c[5] ?? 0), hidden: c[4] === 'ALWAYS' })),
@@ -344,10 +363,14 @@ export class ServerEngine implements ServerRunner {
     return out;
   }
 
-  private async tableKind(session: ServerSession, dialect: Dialect, table: string): Promise<'table' | 'view'> {
+/** 목록에 있는 테이블인지 보고(없으면 거절) 종류와 실제 스키마·테이블을 돌려준다 */
+  private async tableKind(session: ServerSession, dialect: Dialect, table: string): Promise<{ readonly kind: 'table' | 'view'; readonly target: TableTarget }> {
     const found = await all(session, dialect.tablesSql(true), [table]);
-    if (found[0] === undefined) throw new Error(`no such table: ${table}`);
-    return found[0][1] === 'VIEW' ? 'view' : 'table';
+    const row = found[0];
+    if (row === undefined) throw new Error(`no such table: ${table}`);
+    const schema = typeof row[2] === 'string' ? row[2] : null;
+    const raw = typeof row[3] === 'string' ? row[3] : table;
+    return { kind: row[1] === 'VIEW' ? 'view' : 'table', target: { name: table, schema, raw } };
   }
 
   private async perform(session: ServerSession, dialect: Dialect, req: ServerRequest, entry: Live): Promise<true | readonly DbTableInfo[] | DbTableDetail | DbRowsPage | DbResultSet | DbSchemaGraph> {
@@ -372,21 +395,21 @@ export class ServerEngine implements ServerRunner {
         });
       case 'detail':
         return this.readOnly(session, dialect, entry, async () => {
-          const kind = await this.tableKind(session, dialect, req.table);
-          const d = await dialect.detail(session, req.table, kind);
+          const { kind, target } = await this.tableKind(session, dialect, req.table);
+          const d = await dialect.detail(session, target, kind);
           return { name: req.table, kind, columns: d.columns, createSql: d.createSql };
         });
       case 'rows':
         return this.readOnly(session, dialect, entry, async () => {
           const started = performance.now();
-          const kind = await this.tableKind(session, dialect, req.table);
+          const { kind, target } = await this.tableKind(session, dialect, req.table);
           let order = '';
           if (req.sort !== null) {
-            const names = (await dialect.detail(session, req.table, kind)).columns.map((c) => c.name);
+            const names = (await dialect.detail(session, target, kind)).columns.map((c) => c.name);
             if (!names.includes(req.sort.column)) throw new Error(`no such column: ${req.sort.column}`);
             order = ` ORDER BY ${dialect.quote(req.sort.column)} ${req.sort.dir === 'desc' ? 'DESC' : 'ASC'}`;
           }
-          const from = dialect.quote(req.table);
+          const from = fromOf(dialect, target);
           const counted = await all(session, `SELECT COUNT(*) FROM ${from}`, []);
           const total = Number(counted[0]?.[0] ?? 0);
           const page = new Collector();

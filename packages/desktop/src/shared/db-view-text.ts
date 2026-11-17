@@ -115,7 +115,10 @@ export function quoteName(kind: DbKind, name: string): string {
 
 /** 왼쪽 테이블을 누르면 편집기에 넣고 바로 돌릴 SQL */
 export function browseSql(kind: DbKind, table: string, limit = 100): string {
-  return `SELECT * FROM ${quoteName(kind, table)} LIMIT ${limit};`;
+  // PostgreSQL 은 지금 스키마 밖 테이블을 "스키마.테이블" 로 보인다(main 의 목록 규칙): 첫 점에서 나눠 따로 감싼다
+  const dot = kind === 'postgres' ? table.indexOf('.') : -1;
+  const from = dot > 0 ? `${quoteName(kind, table.slice(0, dot))}.${quoteName(kind, table.slice(dot + 1))}` : quoteName(kind, table);
+  return `SELECT * FROM ${from} LIMIT ${limit};`;
 }
 
 /** 붙은 주소 한 줄(머리줄): 주소가 여럿이면 "#2 Public · 3.35.12.4:5432", 하나면 주소만 */
