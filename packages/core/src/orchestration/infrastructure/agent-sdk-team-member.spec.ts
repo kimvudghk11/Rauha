@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, modelOf, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction } from './agent-sdk-team-member.js';
+import { addUsage, modelOf, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -102,5 +102,17 @@ describe('pluginOptions', () => {
   it('짧은 판정 팀원이나 플러그인이 없으면 아무것도 붙이지 않는다', () => {
     expect(pluginOptions('router', loads)).toEqual({ tools: [] });
     expect(pluginOptions('implementer', [])).toEqual({ tools: [] });
+  });
+});
+
+describe('withUserNotes', () => {
+  it('규칙과 취향이 없으면 시스템 프롬프트 그대로다', () => {
+    expect(withUserNotes('SYS', '', '')).toBe('SYS');
+  });
+  it('사용자 말에서 배운 취향은 user-style 로, 규칙 뒤에 붙는다', () => {
+    const text = withUserNotes('SYS', '- 커밋은 한국어', '- 추측 말고 확인한 것만');
+    expect(text.indexOf('<user-rules>')).toBeLessThan(text.indexOf('<user-style>'));
+    expect(text).toContain('- 추측 말고 확인한 것만');
+    expect(text).toContain('사실 확인보다 앞서지는 않습니다');
   });
 });

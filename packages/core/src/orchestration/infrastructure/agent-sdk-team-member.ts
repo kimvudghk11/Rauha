@@ -35,6 +35,8 @@ export interface AgentSdkTeamMemberOptions {
   readonly rules?: (tool: string, detail: string) => 'allow' | 'ask' | null;
   /** 사용자의 "항상 지킬 것" 글. 팀원 시스템 프롬프트 끝에 붙는다. 없으면 빈 글. */
   readonly alwaysRules?: () => string;
+  /** 사용자 말에서 배운 답변·작업 취향(스타일 그래프). 팀원 시스템 프롬프트 끝에 붙는다. 없으면 빈 글. */
+  readonly styleNotes?: () => string;
   /** 작업 폴더 밖에서 읽기만 허락할 폴더들(예: 사용자가 채팅에 붙인 이미지가 있는 임시 폴더). 쓰기는 늘어나지 않는다. */
   readonly readRoots?: readonly string[];
   /** 사용자가 연결한 커넥터(노션·컨플루언스 …). 'connectors' 도구 묶음을 고른 호출에만 붙인다. 부를 때마다 최신 목록. */
@@ -245,8 +247,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
 
   /** 사용자가 정한 "항상 지킬 것"을 시스템 프롬프트 끝에 붙인다(rauha 개발 규칙이 아니라 사용자 규칙이다). */
   private withAlwaysRules(system: string): string {
-    const rules = this.options.alwaysRules?.() ?? '';
-    return rules === '' ? system : `${system}\n\n<user-rules>\n사용자가 항상 지키라고 정한 규칙입니다.\n${rules}\n</user-rules>`;
+    return withUserNotes(system, this.options.alwaysRules?.() ?? '', this.options.styleNotes?.() ?? '');
   }
 
   private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session, db: LinkedDatabase | null = null): Options {
@@ -287,6 +288,14 @@ export class AgentSdkTeamMember implements TeamMemberPort {
  * 켜 둔 플러그인·사용자 스킬을 일하는 팀원 세션에 붙인다. settingSources 'user' 를 쓰면 사용자 설정(권한·훅·모델)까지 따라와서
  * 플러그인 폴더만 SDK plugins 로 넘긴다. 플러그인의 MCP 서버는 붙이지 않는다(업무 도구는 커넥터 화면에서 연결하고 쓰기를 가드가 묻는다).
  */
+/** 시스템 프롬프트 끝에 사용자 규칙("항상 지킬 것")과 사용자 말에서 배운 취향을 붙인다. 둘 다 없으면 그대로 */
+export function withUserNotes(system: string, rules: string, style: string): string {
+  const parts = [system];
+  if (rules !== '') parts.push(`<user-rules>\n사용자가 항상 지키라고 정한 규칙입니다.\n${rules}\n</user-rules>`);
+  if (style !== '') parts.push(`<user-style>\n사용자가 답변과 작업 방식에 대해 직접 말한 취향입니다. 결과와 보고를 이 취향에 맞추세요. 규칙·권한·사실 확인보다 앞서지는 않습니다.\n${style}\n</user-style>`);
+  return parts.join('\n\n');
+}
+
 export function pluginOptions(role: MemberRole, loads: readonly PluginLoad[]): Pick<Options, 'plugins' | 'skills'> & { readonly tools: readonly string[] } {
   if (loads.length === 0 || !PluginReach.loads(role)) return { tools: [] };
   return { plugins: loads.map((p) => ({ type: 'local' as const, path: p.path, skipMcpDiscovery: true })), skills: 'all', tools: ['Skill'] };

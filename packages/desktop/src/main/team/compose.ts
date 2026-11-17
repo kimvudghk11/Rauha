@@ -122,6 +122,8 @@ export interface ComposeOptions {
   readonly models?: (() => Readonly<Partial<Record<ModelTier, string>>>) | undefined;
   /** 모델을 쓸 수 없어 다른 모델로 대신 실행했을 때의 한 줄 안내(결과 글 끝에 붙인다). 진행 표시에는 항상 보인다. */
   readonly onFallback?: ((line: string) => void) | undefined;
+  /** 사용자 말에서 배운 답변 취향(팀원 프롬프트 끝에 붙는다) */
+  readonly styleNotes?: (() => string) | undefined;
   /** 설정에서 연결한 커넥터(노션·컨플루언스 …). 부를 때마다 최신 목록. 없으면 붙이지 않는다. */
   readonly connectors?: (() => ConnectorServers) | undefined;
   /** 설정에서 켜 둔 플러그인·사용자 스킬 폴더. 부를 때마다 최신 목록. 없으면 붙이지 않는다. */
@@ -174,6 +176,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     // .env 같은 레포 설정은 원래 레포(keyRoot)에 있다(worktree 에는 커밋 안 한 설정 파일이 없다)
     ...(options.database !== undefined ? { database: () => options.database!(keyRoot) } : {}),
     ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
+    ...(options.styleNotes !== undefined ? { styleNotes: options.styleNotes } : {}),
   });
   const team = stoppable(new ModelRoutingTeam(inner, () => ModelSettingsDto.from(options.models?.()).toEntity(), (line) => {
     io.progress.step(line);

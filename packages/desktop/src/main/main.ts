@@ -22,7 +22,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { trayView } from './platform/tray-menu.js';
-import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
+import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, extractStyle, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
 import { boardView, jobView, IPC, type ThreadLink, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
@@ -54,6 +54,7 @@ import { fakeTeam, fakeUsage } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { resolveMentions } from './team/mention-context.js';
 import { AttachmentStore, type StagedImages } from './team/attachment-store.js';
+import { StyleStore } from './style/style-store.js';
 import { ImageUploadDto } from '../shared/image-attach.js';
 import { withAttachments } from '../shared/file-mention.js';
 import type { CodeFiles } from './code/code-files.js';
@@ -366,7 +367,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
@@ -441,6 +442,19 @@ let pluginService: PluginService | null = null;
 let dbService: DbService | null = null;
 /** 채팅에 붙인 이미지의 임시 자리(앱 데이터 폴더). 작업 폴더·저장소에는 두지 않고, 일이 끝나면 지운다. */
 const attachments = new AttachmentStore(join(dataDir, 'attachments'));
+/** 지금 계정의 Claude 설정 폴더(CLAUDE_CONFIG_DIR) */
+const accountConfigDir = async (): Promise<string | null> => (await profileResolver(home, settings.account))(currentWorkDir()).agentEnv(home)['CLAUDE_CONFIG_DIR'] ?? null;
+/**
+ * 사용자 말에서 배운 답변 취향(스타일 그래프). 팀원 프롬프트에 붙고, 계정 CLAUDE.md 의 rauha 구역과 settings.json language 에 반영된다.
+ * 확인용 실행(가짜 팀)에서는 모델을 부르지 않고 계정 파일도 건드리지 않는다.
+ */
+const styleStore = new StyleStore(join(dataDir, 'style-graph.json'), {
+  extract: async (said) => (FAKE ? [] : extractStyle(said, { ...(process.env as Record<string, string>), ...(await profileResolver(home, settings.account))(currentWorkDir()).agentEnv(home) }, claudeExecutable(), settings.models.sonnet)),
+  configDir: () => (FAKE ? null : accountConfigDir()),
+  now: () => new Date().toISOString(),
+});
+/** 보낸 말에서 취향을 배운다(뒤에서, 일을 막지 않게). 취향 신호가 없는 말은 모델을 부르지 않는다 */
+const learnStyle = (said: string): void => void styleStore.learnFrom(said).catch(() => false);
 const jobImages = new Map<string, StagedImages>();
 const todoService = new TodoService({
   store: new TodoStore(join(dataDir, 'todos.json')),
@@ -1291,6 +1305,16 @@ void app.whenReady().then(async () => {
   });
   const rulesView = () => RuleBookDto.fromEntity(ruleBook).toJSON().rules;
   ipcMain.handle(IPC.rulesList, rulesView);
+  // 사용자 말에서 배운 답변 취향: 목록 · 지우기(지우면 계정 CLAUDE.md 의 rauha 구역에서도 빠진다)
+  const styleView = () => styleStore.list().map((n) => ({ id: n.id, text: n.text, quote: n.quote, topic: n.topic, weight: n.weight, lastAt: n.lastAt }));
+  ipcMain.handle(IPC.styleList, async () => {
+    await styleStore.ready;
+    return styleView();
+  });
+  ipcMain.handle(IPC.styleForget, async (_e, id: unknown) => {
+    if (typeof id === 'string') await styleStore.forget(id).catch(() => undefined);
+    return styleView();
+  });
   ipcMain.handle(IPC.rulesDraft, async (_e, sentence: unknown) => {
     if (typeof sentence !== 'string' || sentence.trim() === '') return { ok: false, error: '규칙을 말로 적어 주세요.' };
     try {
@@ -1361,6 +1385,7 @@ void app.whenReady().then(async () => {
       if (staged !== null) void attachments.cleanup(staged.dir).catch(() => undefined);
       return null;
     }
+    learnStyle(text);
     // 일이 시작되어 이미지를 읽기 전에(첫 await 전에) 같은 틱에 등록한다
     if (staged !== null) jobImages.set(job.id, staged);
     return boardView(runner.board, threads).jobs.find((j) => j.id === job.id) ?? null;
@@ -1433,6 +1458,7 @@ void app.whenReady().then(async () => {
     if (next === null) return null;
     const team = threadTeam(turns).map((r) => (Object.hasOwn(ROLE_INFO, r) ? ROLE_INFO[r as MemberRole].name : r));
     followContext.set(next.id, followUpPrompt(turns, team, text));
+    learnStyle(text);
     const root = jobRepoRoots.get(parentId) ?? jobRepoRoots.get(rootId);
     if (root !== undefined) followRoot.set(next.id, root);
     return boardView(runner.board, threads).jobs.find((j) => j.id === next.id) ?? null;

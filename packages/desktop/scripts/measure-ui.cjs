@@ -436,6 +436,8 @@ const SCENES = [
   ['git-stash', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'Stash'), typeInto('.gstash-tools input.ginput', 'wip: 결제 작업 중'), byText('.gstash-tools .btn', 'Stash changes')]],
   ['git-stash-drop-ask', 'git', [pickRepo('app-one'), byText('.tabs .tab', 'Stash'), byText('.gf .btn', 'Drop')]],
   ['settings', 'settings', [byText('button', '자세히')]],
+  // 내 말에서 배운 답변 취향 구역(비어 있을 때 안내)
+  ['settings-style', 'settings', ["(() => { [...document.querySelectorAll('.pane.sec > .ph')].find((h) => h.textContent.trim() === 'Your style')?.scrollIntoView(); })() /* querySelector */"]],
   // 최근 폴더를 고르면 허락 창이 뜬다(허락 없이 작업 폴더가 바뀌지 않는다)
   ['settings-recent-allow', 'settings', ["(() => { document.querySelector('.recent .item:not(.off) .btn')?.click(); })() /* querySelector */"]],
   ['settings-autosave', 'settings', ["(() => { const s = [...document.querySelectorAll('.srow')].find((r) => r.textContent.includes('Auto save'))?.querySelector('select'); s.value = 'delay'; s.dispatchEvent(new Event('change')); })() /* querySelector */"]],

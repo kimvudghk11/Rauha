@@ -14,9 +14,12 @@ import { buildRecentFolders } from './recent-folders-view.js';
 import { ask } from './code-dialog.js';
 import { buildThemePicker } from './character-theme-picker.js';
 import { buildModels } from './models-view.js';
+import { buildStyle, type StyleApi } from './style-view.js';
 
 export interface SettingsApi {
   get(): Promise<Settings>;
+  /** 내 말에서 배운 답변 취향(없으면 그 구역을 그리지 않는다) */
+  style?: StyleApi;
   update(patch: SettingsPatch): Promise<Settings>;
   usage(): Promise<UsageView | null>;
   /** 상태 줄과 같은 한도 값(없으면 설정을 열 때 받은 값만 보인다) */
@@ -220,6 +223,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
 
     // 모델 이름: 등급마다 부를 모델 ID(계정마다 쓸 수 있는 모델이 다르다)
     root.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
+    if (api.style !== undefined) root.appendChild(section('Your style', ...buildStyle(api.style)));
 
     // 캐릭터 컨셉: 드롭다운으로 고르면 22역할의 그림이 한 번에 바뀌고, 무대 5칸에서 대표 캐릭터가 움직인다
     const picker = buildThemePicker(s.characterSet, (id) => void api.update({ characterSet: id }).then((next) => api.onCharacterSet?.(next.characterSet)));

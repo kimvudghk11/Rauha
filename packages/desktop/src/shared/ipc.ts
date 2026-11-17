@@ -81,6 +81,9 @@ export const IPC = {
   teamGet: 'team:get',
   teamApply: 'team:apply',
   rulesDraft: 'rules:draft',
+  /** 사용자 말에서 배운 답변 취향: 목록 · 하나 지우기 */
+  styleList: 'style:list',
+  styleForget: 'style:forget',
   rulesList: 'rules:list',
   rulesAdd: 'rules:add',
   rulesRemove: 'rules:remove',
@@ -251,6 +254,9 @@ export interface RauhaApi {
   applyTeam(op: TeamOp): Promise<TeamResult>;
   /** 말로 적은 규칙을 sonnet 한 번으로 정리한 초안. 사용자가 확인해야 규칙이 된다. */
   draftRule(sentence: string): Promise<DraftResult>;
+  /** 사용자 말에서 배운 답변 취향(지금 따르는 것) · 하나 지우기 */
+  listStyle(): Promise<readonly StyleView[]>;
+  forgetStyle(id: string): Promise<readonly StyleView[]>;
   listRules(): Promise<readonly RuleView[]>;
   /** 규칙을 더한다. 규칙이 안 맞으면 이유를 돌려준다(저장하지 않는다). */
   addRule(rule: RuleView): Promise<RulesResult>;
@@ -353,6 +359,16 @@ export interface RepoRow {
   readonly working: number;
   /** 그중 worktree에서 도는 작업 수(같은 레포에 먼저 도는 일이 있어서 따로 일하는 것) */
   readonly worktrees: number;
+}
+
+/** 화면에 보이는 답변 취향 하나(사용자 말에서 배운 것) */
+export interface StyleView {
+  readonly id: string;
+  readonly text: string;
+  readonly quote: string;
+  readonly topic: string;
+  readonly weight: number;
+  readonly lastAt: string;
 }
 
 export type DraftResult = { readonly ok: true; readonly draft: Omit<RuleView, 'id'> } | { readonly ok: false; readonly error: string };
