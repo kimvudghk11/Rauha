@@ -109,9 +109,9 @@ function outcome(over: Partial<RunOutcome> = {}): RunOutcome {
     implementerAttempts: 1,
     costUsd: 0.05,
     durationMs: 60_000,
-    usage: { haiku: { calls: 2, tokens: 100 }, sonnet: { calls: 2, tokens: 50 }, opus: { calls: 0, tokens: 0 } },
+    usage: { sonnet: { calls: 2, tokens: 100 }, opus: { calls: 2, tokens: 50 }, fable: { calls: 0, tokens: 0 } },
     escalated: false,
-    finalTier: 'haiku',
+    finalTier: 'sonnet',
     facts: {
       checked: [{ kind: 'decision', text: 'Math.floor를 할인 후 금액에 씀 — 정한 해석', evidence: [], verified: [{ kind: 'user', text: 'x' }], isGuess: false }],
       reviewerGuesses: [],
@@ -474,7 +474,7 @@ describe('ChatSession — 여러 저장소', () => {
       const writers = team.calls.filter((c) => c.role === 'writer');
       const gathers = writers.filter((c) => c.message.includes('<gather'));
       expect(gathers).toHaveLength(6);
-      expect(gathers.every((c) => c.tier === 'haiku' && !c.canWrite('RESUME.md'))).toBe(true);
+      expect(gathers.every((c) => c.tier === 'sonnet' && !c.canWrite('RESUME.md'))).toBe(true);
       // 각 저장소는 자기 폴더만 열어 읽는다.
       expect(gathers.find((c) => c.message.includes('repo3'))!.dirs).toEqual(['E:/w/repo3']);
       const last = writers.at(-1)!;
@@ -976,7 +976,7 @@ describe('ChatSession — 회사 부서', () => {
     });
     await session({ team }).handle('디자인 전반');
     const [plan, merge] = callsOf(team, 'chief');
-    expect([plan!.tier, merge!.tier]).toEqual(['sonnet', 'opus']);
+    expect([plan!.tier, merge!.tier]).toEqual(['sonnet', 'fable']);
   });
 
   it('부서장의 종합 입력에는 팀원들의 보고가 담긴다', async () => {
@@ -1067,7 +1067,7 @@ describe('ChatSession — 한도 연동', () => {
     });
     const steps: string[] = [];
     await session({ team, steps, budget: used(20) }).handle('디자인 전반');
-    expect(team.calls.filter((c) => c.role === 'chief').map((c) => c.tier)).toEqual(['sonnet', 'opus']);
+    expect(team.calls.filter((c) => c.role === 'chief').map((c) => c.tier)).toEqual(['sonnet', 'fable']);
     expect(steps.some((s) => s.includes('한도'))).toBe(false);
   });
 
@@ -1650,7 +1650,7 @@ describe('ChatSession — 분석 흐름', () => {
     const analyst = new FakeAnalyst(() => analysisResult(finishedRun({ approve: false })));
     const chat = ChatSession.start({ ...sessionDeps({ team: new FakeTeam({ router: [route('debug')] }) }), analyst });
     await chat.handle('결제가 왜 두 번 깎여?');
-    expect(chat.usage().calls.sonnet).toBe(3);
+    expect(chat.usage().calls.sonnet).toBe(4);
   });
 
   it('승인되면 계획이 그대로 작업 루프의 설계 블록이 되고, 사용자가 고른 방향이 결과에 담긴다', async () => {

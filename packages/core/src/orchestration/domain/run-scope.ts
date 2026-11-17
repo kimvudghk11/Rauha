@@ -24,9 +24,9 @@ const RED_GREEN = new Map<Stage, TeamRole>([
 ]);
 
 /**
- * 이번 실행이 어디까지 다루는지. 1단계(최소 루프)는 Haiku 테스트 팀원과
- * Haiku 구현 주니어만 부르고, review 단계에 닿으면 완료로 본다.
- * 2단계(사다리)는 상태 머신이 sonnet으로 올린 팀원도 부르고, 디버깅·자문이 필요해지면 멈춘다.
+ * 이번 실행이 어디까지 다루는지. 1단계(최소 루프)는 Sonnet 테스트 팀원과
+ * Sonnet 구현 주니어만 부르고, review 단계에 닿으면 완료로 본다.
+ * 2단계(사다리)는 상태 머신이 opus로 올린 팀원도 부르고, 디버깅·자문이 필요해지면 멈춘다.
  */
 export class RunScope {
   private constructor(
@@ -38,19 +38,19 @@ export class RunScope {
   ) {}
 
   static minimalLoop(): RunScope {
-    return new RunScope(RED_GREEN, new Set(['haiku']), 'review');
+    return new RunScope(RED_GREEN, new Set(['sonnet']), 'review');
   }
 
   static ladder(): RunScope {
-    return new RunScope(RED_GREEN, new Set(['haiku', 'sonnet']), 'review');
+    return new RunScope(RED_GREEN, new Set(['sonnet', 'opus']), 'review');
   }
 
   /**
    * 사다리 + 리뷰어 재검증. 리뷰가 통과해 docs 단계에 닿으면 완료(문서 팀은 아직 없음).
-   * 민감한 업무(인증·결제)의 리뷰어는 opus라 opus도 부른다(테스트·구현은 상태 머신이 opus를 배정하지 않는다).
+   * 민감한 업무(인증·결제)의 리뷰어와 구현 마지막 시도는 fable이라 fable도 부른다.
    */
   static threePass(): RunScope {
-    return new RunScope(new Map<Stage, TeamRole>([...RED_GREEN, ['review', 'reviewer']]), new Set(['haiku', 'sonnet', 'opus']), 'docs', true);
+    return new RunScope(new Map<Stage, TeamRole>([...RED_GREEN, ['review', 'reviewer']]), new Set(['sonnet', 'opus', 'fable']), 'docs', true);
   }
 
   /** 지원 요청이 쌓였는데 지원 팀이 없는 범위인가. 그러면 서비스가 지원 없이 다시 시도하게 한다(order.resolveSupport). */

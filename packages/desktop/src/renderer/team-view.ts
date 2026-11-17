@@ -12,7 +12,7 @@ export interface TeamApi {
   onChange(view: TeamView): void;
 }
 
-const TIER_LABEL: Readonly<Record<Tier, string>> = { haiku: 'Haiku (가볍고 빠름)', sonnet: 'Sonnet (균형)', opus: 'Opus (가장 깊게)' };
+const TIER_LABEL: Readonly<Record<Tier, string>> = { sonnet: 'Sonnet (기본)', opus: 'Opus (깊게)', fable: 'Fable (가장 깊게)' };
 const EFFORT_LABEL: Readonly<Record<Effort, string>> = { low: '낮음', medium: '보통', high: '높음', xhigh: '아주 높음', max: '최대' };
 const TOOL_LABEL: Readonly<Record<string, string>> = { Read: '읽기', Grep: '찾기', Glob: '파일 목록', WebSearch: '웹 검색', WebFetch: '웹 열기', Edit: '파일 고치기', Write: '파일 만들기', Bash: '명령 실행' };
 

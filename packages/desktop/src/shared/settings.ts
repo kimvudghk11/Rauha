@@ -47,7 +47,7 @@ export interface Settings {
   readonly autoSave: AutoSaveMode;
   /** 최근에 쓴 작업 폴더(맨 앞이 가장 최근, 최대 5개). 고르는 것만 돕고, 열기 전 허락은 따로 받는다. */
   readonly recentFolders: readonly string[];
-  /** 등급(haiku·sonnet·opus)마다 부를 모델 ID. 계정마다 쓸 수 있는 모델이 달라 바꿀 수 있다. 이상한 값은 기본값으로 돌아간다. */
+  /** 등급(sonnet·opus·fable)마다 부를 모델 ID. 계정마다 쓸 수 있는 모델이 달라 바꿀 수 있다. 이상한 값은 기본값으로 돌아간다. */
   readonly models: Readonly<Record<ModelTier, string>>;
   /** 이력서용 내 작업: "나"로 묶을 git 계정들(라벨 + 작성자 이메일). 회사 계정으로 옮긴 뒤에도 이전 커밋을 함께 센다 */
   readonly gitAccounts: readonly GitAccount[];

@@ -16,7 +16,7 @@ describe('FileRunLog', () => {
     dirs.push(runs);
     const log = new FileRunLog(runs, 'abcdef123456', new Date(2026, 9, 25, 14, 2, 3), 'deadbeef');
     const call = { role: 'tester' as const, setting: RoleSettingsDto.defaults().get('tester'), userMessage: 'm', outputSchema: {}, canWrite: () => true };
-    const usage = { model: 'claude-haiku-5-5', durationMs: 1, costUsd: 0, turns: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, denials: [], endReason: 'success' };
+    const usage = { model: 'claude-sonnet-5-5', durationMs: 1, costUsd: 0, turns: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, denials: [], endReason: 'success' };
     await log.recordCall('tester', 1, call, { output: { ok: true }, error: null, usage, fetched: [] });
     await log.recordChecks('red-1', []);
     const dir = await log.finish({ status: 'complete' }, '# 안내서');

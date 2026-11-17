@@ -22,7 +22,7 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
   const head = el('div', 'rhead');
   head.append(el('b', undefined, 'Rules'), el('span', 'hint', 'Teammates follow the rules you write. Secret files are always blocked, whatever the rules say. Commit, push and PR happen only when you ask for them.'));
 
-  // 말로 적기: haiku 한 번으로 칸·범위·찾을 글을 정리해 아래 폼에 채워 준다. 사용자가 보고 "규칙 더하기"를 눌러야 들어간다.
+  // 말로 적기: sonnet 한 번으로 칸·범위·찾을 글을 정리해 아래 폼에 채워 준다. 사용자가 보고 "규칙 더하기"를 눌러야 들어간다.
   const talk = el('div', 'ruletalk pane');
   const sentence = el('textarea');
   sentence.rows = 2;

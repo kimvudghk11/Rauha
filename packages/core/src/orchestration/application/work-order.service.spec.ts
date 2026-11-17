@@ -10,8 +10,8 @@ describe('WorkOrderService', () => {
     const status = await service.open(
       OpenWorkOrderDto.from({ title: '로그인 실패 제한', fileCount: 3, scope: ['src/auth/**'] }),
     );
-    expect(status.toStatusLine()).toBe('[M] 로그인 실패 제한 · scenario · 다음: planner(haiku)');
-    expect(status.next?.model).toBe('claude-haiku-5-5');
+    expect(status.toStatusLine()).toBe('[M] 로그인 실패 제한 · scenario · 다음: planner(sonnet)');
+    expect(status.next?.model).toBe('claude-sonnet-5-5');
   });
 
   it('잠긴 테스트를 바꾼 구현 보고는 거부한다', async () => {

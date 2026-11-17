@@ -1,6 +1,6 @@
 # rauha
 
-Claude Agent SDK 위에서 팀장(오케스트레이터)이 BDD/TDD 업무를 Haiku·Sonnet·Opus 팀원에게 나눠 주는 멀티에이전트 하네스. 전체 설계는 `docs/design/claude-team-design.md`.
+Claude Agent SDK 위에서 팀장(오케스트레이터)이 BDD/TDD 업무를 Sonnet·Opus·Fable 팀원에게 나눠 주는 멀티에이전트 하네스. 전체 설계는 `docs/design/claude-team-design.md`.
 
 ## 명령어
 

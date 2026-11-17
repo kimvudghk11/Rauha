@@ -39,7 +39,7 @@ describe('teamLines — 부서별', () => {
   });
 
   it('부서장은 7년차 이상의 판단을 하는 상위 모델이라고 밝힌다', () => {
-    expect(lines.some((l) => l.includes('부서장') && l.includes('opus'))).toBe(true);
+    expect(lines.some((l) => l.includes('부서장') && l.includes('fable'))).toBe(true);
   });
 
   it('개발부에는 접수 팀장과 테스트·구현·리뷰가, 회사 공통에는 대표(라우터)가 있다', () => {
@@ -76,7 +76,7 @@ describe('teamLines 좁은 창', () => {
     expect(lines[tester]).not.toContain('파일 수정');
     expect(lines[tester + 1]!.trim()).toBe('파일 수정 · 명령 실행');
     // 한글은 두 칸이라 글자 자리가 아니라 화면 칸으로 비교한다.
-    expect(lines[tester + 1]!.indexOf('파일')).toBe(displayWidth(lines[tester]!.slice(0, lines[tester]!.indexOf('haiku'))));
+    expect(lines[tester + 1]!.indexOf('파일')).toBe(displayWidth(lines[tester]!.slice(0, lines[tester]!.indexOf('sonnet'))));
     for (const line of lines.filter((l) => l.startsWith('    '))) expect(displayWidth(line)).toBeLessThanOrEqual(59);
   });
 

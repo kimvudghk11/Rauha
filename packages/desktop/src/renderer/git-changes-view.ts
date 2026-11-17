@@ -84,11 +84,11 @@ export function buildChanges(ctx: GitCtx) {
     title.value = subject;
     const count = el('span', 'fld-count');
     const head = el('div', 'gsub');
-    // 스테이지한 변경만 보고 팀원(Haiku)이 제목·본문 초안을 쓴다. 고친 뒤 직접 커밋한다.
+    // 스테이지한 변경만 보고 팀원(Sonnet)이 제목·본문 초안을 쓴다. 고친 뒤 직접 커밋한다.
     const draft = el('button', 'btn sm gdraft', '✨ Draft with teammate');
     draft.type = 'button';
     draft.disabled = stagedCount === 0;
-    draft.title = stagedCount === 0 ? 'Stage some changes first. The draft is written from staged changes only.' : 'A teammate (Haiku) reads only the staged diff and writes a subject and body in this repo\'s style. You edit and commit.';
+    draft.title = stagedCount === 0 ? 'Stage some changes first. The draft is written from staged changes only.' : 'A teammate (Sonnet) reads only the staged diff and writes a subject and body in this repo\'s style. You edit and commit.';
     draft.addEventListener('click', async () => {
       draft.disabled = true;
       draft.textContent = 'Drafting…';

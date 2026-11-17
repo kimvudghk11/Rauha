@@ -1,7 +1,7 @@
 {
   "name": "rauha-monorepo",
   "private": true,
-  "description": "Multi-agent orchestration harness on Claude Agent SDK: a team lead routes BDD/TDD work to Haiku, Sonnet and Opus subagents.",
+  "description": "Multi-agent orchestration harness on Claude Agent SDK: a team lead routes BDD/TDD work to Sonnet, Opus and Fable subagents.",
   "type": "module",
   "packageManager": "yarn@4.18.1",
   "engines": {

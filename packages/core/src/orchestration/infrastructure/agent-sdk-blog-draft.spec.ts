@@ -9,12 +9,12 @@ const fake = (messages: readonly { type: string; subtype?: string; result?: stri
 };
 
 describe('블로그 초안 호출', () => {
-  it('가장 값싼 모델로 도구와 쓰기 권한 없이 한 턴만 부른다', async () => {
+  it('가장 낮은 등급(sonnet)으로 도구와 쓰기 권한 없이 한 턴만 부른다', async () => {
     const seen: { params?: { options: Record<string, unknown>; prompt: string } } = {};
     const text = await draftBlog('# 제목', 'friendly', { A: 'b' }, undefined, 1000, fake([{ type: 'result', subtype: 'success', result: ' 초안이에요 ' }], seen as { params?: unknown }));
     expect(text).toBe('초안이에요');
     const o = seen.params!.options;
-    expect(o['model']).toContain('haiku');
+    expect(o['model']).toBe('claude-sonnet-5-5');
     expect(o['tools']).toEqual([]);
     expect(o['allowedTools']).toEqual([]);
     expect(o['permissionMode']).toBe('dontAsk');

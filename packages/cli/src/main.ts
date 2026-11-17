@@ -32,7 +32,7 @@ const HELP = `rauha — 터미널에서 팀장과 대화하는 클로드 팀
                               (대화 중에는 /update)
   rauha bench [--only <id>] [--compare]
                               연습용 프로젝트(rauha 저장소의 examples/)에서 고정 요청 묶음 실행
-                              --compare: 요청마다 사다리(haiku부터)와 구현 sonnet 고정을 비교
+                              --compare: 요청마다 사다리(sonnet부터)와 구현 opus 고정을 비교
                               --same-repo: 요청을 한 저장소에서 이어서 돌려 저장소 지식 효과를 잼
   rauha --profile <이름> ...   프로필 직접 지정 (기본: 폴더 규칙 → personal)
 

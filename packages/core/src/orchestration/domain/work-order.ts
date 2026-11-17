@@ -8,8 +8,8 @@ export type Stage = 'scenario' | 'design' | 'red' | 'green' | 'review' | 'docs' 
 
 /**
  * 구현 승격 사다리.
- * junior(Haiku) 2회 실패 → senior(Sonnet) 1회 실패 → 디버깅 지원 후 재시도
- * → 또 실패 → 설계 자문(Opus) 후 재시도 → 또 실패 → 가장 높은 모델(Opus)이 마지막으로 한 번 → 또 실패 → 작업 중단, 나에게 보고
+ * junior(Sonnet) 2회 실패 → senior(Opus) 1회 실패 → 디버깅 지원(Opus) 후 재시도
+ * → 또 실패 → 설계 자문(Fable) 후 재시도 → 또 실패 → 가장 높은 모델(Fable)이 마지막으로 한 번 → 또 실패 → 작업 중단, 나에게 보고
  */
 export type ImplementerRung = 'junior' | 'senior' | 'senior-after-debug' | 'senior-after-advice' | 'final';
 
@@ -256,23 +256,23 @@ export class WorkOrder {
       case 'scenario':
         return {
           role: 'planner',
-          tier: senior || this.state.scenarioRejections >= SCENARIO_REJECTIONS_BEFORE_SENIOR ? 'sonnet' : 'haiku',
+          tier: senior || this.state.scenarioRejections >= SCENARIO_REJECTIONS_BEFORE_SENIOR ? 'opus' : 'sonnet',
         };
       case 'design':
-        return { role: 'architect', tier: 'opus' };
+        return { role: 'architect', tier: 'fable' };
       case 'red':
         return {
           role: 'tester',
-          tier: senior || this.state.invalidReds >= INVALID_REDS_BEFORE_SENIOR ? 'sonnet' : 'haiku',
+          tier: senior || this.state.invalidReds >= INVALID_REDS_BEFORE_SENIOR ? 'opus' : 'sonnet',
         };
       case 'green':
-        if (this.state.pendingSupport === 'debugger') return { role: 'debugger', tier: 'sonnet' };
-        if (this.state.pendingSupport === 'advisor') return { role: 'architect', tier: 'opus' };
+        if (this.state.pendingSupport === 'debugger') return { role: 'debugger', tier: 'opus' };
+        if (this.state.pendingSupport === 'advisor') return { role: 'architect', tier: 'fable' };
         return { role: 'implementer', tier: this.implementerTier() };
       case 'review':
-        return { role: 'reviewer', tier: this.state.sensitive ? 'opus' : 'sonnet' };
+        return { role: 'reviewer', tier: this.state.sensitive ? 'fable' : 'opus' };
       case 'docs':
-        return { role: 'writer', tier: 'haiku' };
+        return { role: 'writer', tier: 'sonnet' };
       case 'done':
       case 'halted':
         return null;
@@ -297,8 +297,8 @@ export class WorkOrder {
   // ── 내부 규칙 ─────────────────────────────────────────────
 
   private implementerTier(): ModelTier {
-    if (this.state.rung === 'final') return 'opus';
-    return this.state.rung === 'junior' ? 'haiku' : 'sonnet';
+    if (this.state.rung === 'final') return 'fable';
+    return this.state.rung === 'junior' ? 'sonnet' : 'opus';
   }
 
   private climbAfterFailure(): void {

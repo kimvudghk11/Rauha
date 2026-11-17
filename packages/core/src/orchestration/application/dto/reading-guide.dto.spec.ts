@@ -26,7 +26,7 @@ const base: ReadingGuideProps = {
   stopReason: null,
   durationMs: 134_000,
   costUsd: 0.0123,
-  tierCalls: { haiku: 2, sonnet: 1, opus: 0 },
+  tierCalls: { sonnet: 2, opus: 1, fable: 0 },
   explanation,
   verdict,
   changes: [
@@ -41,7 +41,7 @@ describe('ReadingGuideDto', () => {
   it('안내서는 읽는 순서·결정·직접 해 볼 것·검증 결과를 담는다', () => {
     const md = ReadingGuideDto.create(base).toMarkdown();
     expect(md).not.toContain('작업 기준');
-    expect(md).toContain('[personal] Money 할인 적용 · 완료(리뷰 전) · 2분 14초 · haiku 2회, sonnet 1회');
+    expect(md).toContain('[personal] Money 할인 적용 · 완료(리뷰 전) · 2분 14초 · sonnet 2회, opus 1회');
     expect(md).toContain('1. src/domain/money.ts:30');
     expect(md).toContain('새 메서드');
     expect(md).toContain('discount를 Money 메서드로 둠');

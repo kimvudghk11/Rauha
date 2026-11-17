@@ -1,9 +1,9 @@
 import { EXTRA_CHARACTER_IDS } from './character-ids.js';
-import { MEMBER_ROLES, REQUIRED_ROLES, ROLE_TOOLS, type MemberRole, type RoleOverrides } from '@rauha/core/jobs';
+import { MEMBER_ROLES, REQUIRED_ROLES, ROLE_TOOLS, tierFromSaved, type MemberRole, type RoleOverrides } from '@rauha/core/jobs';
 
-export type Tier = 'haiku' | 'sonnet' | 'opus';
+export type Tier = 'sonnet' | 'opus' | 'fable';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
-export const TIERS: readonly Tier[] = ['haiku', 'sonnet', 'opus'];
+export const TIERS: readonly Tier[] = ['sonnet', 'opus', 'fable'];
 export const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 export const NAME_LIMIT = 12;
 export const EXTRA_LIMIT = 2000;
@@ -58,7 +58,9 @@ export class TeamSettings {
       if (!isObject(m)) continue;
       const s: { -readonly [K in keyof MemberSetting]: MemberSetting[K] } = {};
       if (m['enabled'] === false && !REQUIRED_ROLES.includes(role)) s.enabled = false;
-      if (typeof m['tier'] === 'string' && (TIERS as readonly string[]).includes(m['tier'])) s.tier = m['tier'] as Tier;
+      // 예전 파일의 haiku 는 sonnet 으로 읽는다(haiku 는 더 쓰지 않는다)
+      const tier = tierFromSaved(m['tier']);
+      if (tier !== null) s.tier = tier;
       if (typeof m['effort'] === 'string' && (EFFORTS as readonly string[]).includes(m['effort'])) s.effort = m['effort'] as Effort;
       if (Array.isArray(m['tools'])) s.tools = [...new Set(m['tools'].filter((t): t is string => typeof t === 'string' && ROLE_TOOLS.includes(t)))];
       if (typeof m['extraInstruction'] === 'string' && m['extraInstruction'].trim() !== '') s.extraInstruction = m['extraInstruction'].trim().slice(0, EXTRA_LIMIT);
@@ -95,7 +97,7 @@ export class TeamSettings {
       if (value === null) delete next[key];
       else next[key] = value;
     };
-    if (patch.tier !== undefined && patch.tier !== null && !TIERS.includes(patch.tier)) throw new TeamSettingsError('Pick a model tier: haiku, sonnet or opus.');
+    if (patch.tier !== undefined && patch.tier !== null && !TIERS.includes(patch.tier)) throw new TeamSettingsError('Pick a model tier: sonnet, opus or fable.');
     if (patch.effort !== undefined && patch.effort !== null && !EFFORTS.includes(patch.effort)) throw new TeamSettingsError('Pick the effort level again.');
     put('tier', patch.tier);
     put('effort', patch.effort);

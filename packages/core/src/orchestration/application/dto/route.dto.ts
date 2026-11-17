@@ -15,7 +15,7 @@ export interface Route {
   readonly department: DepartmentId | null;
   /** company일 때 일을 맡을 팀원. null이면 넓은 요청이라 부서장이 나눈다 */
   readonly member: DepartmentMemberRole | null;
-  /** question일 때 답의 깊이. light: 파일을 안 열어도 되는 가벼운 질문(haiku 몇 턴). 그 밖에는 항상 deep. */
+  /** question일 때 답의 깊이. light: 파일을 안 열어도 되는 가벼운 질문(sonnet 몇 턴). 그 밖에는 항상 deep. */
   readonly depth: 'light' | 'deep';
   /** debug·risk일 때 분석을 어디까지 갈지(조사만·방향 비교까지·설계와 계획까지). 그 밖에는 null이고, 모르면 요청 글에서 어림한다. */
   readonly reach: ReachValue | null;

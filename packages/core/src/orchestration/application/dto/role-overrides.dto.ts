@@ -1,8 +1,7 @@
 import { MEMBER_ROLES, type MemberRole } from '../../domain/member-role.js';
-import type { ModelTier } from '../../domain/team.js';
+import { tierFromSaved } from '../../domain/team.js';
 import type { Effort, RoleOverride, RoleOverrides } from './role-settings.dto.js';
 
-const TIERS: readonly string[] = ['haiku', 'sonnet', 'opus'];
 const EFFORTS: readonly string[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -21,7 +20,9 @@ export class RoleOverridesDto {
       if (!isObject(raw)) continue;
       const o: { -readonly [K in keyof RoleOverride]: RoleOverride[K] } = {};
       if (raw['enabled'] === false) o.enabled = false;
-      if (typeof raw['tier'] === 'string' && TIERS.includes(raw['tier'])) o.tier = raw['tier'] as ModelTier;
+      // 예전 파일의 haiku 는 sonnet 으로 읽는다(haiku 는 더 쓰지 않는다)
+      const tier = tierFromSaved(raw['tier']);
+      if (tier !== null) o.tier = tier;
       if (typeof raw['effort'] === 'string' && EFFORTS.includes(raw['effort'])) o.effort = raw['effort'] as Effort;
       if (Array.isArray(raw['tools'])) o.tools = [...new Set(raw['tools'].filter((t): t is string => typeof t === 'string'))];
       if (typeof raw['extraInstruction'] === 'string' && raw['extraInstruction'].trim() !== '') o.extraInstruction = raw['extraInstruction'].trim();

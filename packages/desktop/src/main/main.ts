@@ -275,7 +275,7 @@ function showNotice(notice: { title: string; body: string }, jobId: string | nul
 async function smokeCompose(): Promise<void> {
   const sentence = process.env['RAUHA_SMOKE_DRAFT'];
   if (sentence !== undefined) {
-    // 확인용: 규칙 말로 적기 정리를 한 번 돌려 본다(haiku 한 번)
+    // 확인용: 규칙 말로 적기 정리를 한 번 돌려 본다(sonnet 한 번)
     const profile = (await profileResolver(home, null))(currentWorkDir());
     console.log(JSON.stringify(await draftRule(sentence, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable())));
     app.quit();
@@ -949,12 +949,12 @@ void app.whenReady().then(async () => {
   // git 탭: 앱이 작업 폴더에서 찾은 레포의 루트에서만 git을 돌린다
   const gitGate = new RepoGate(async () => (await scanWorkFolder(currentWorkDir())).filter((e) => e.kind === 'repo').map((e) => e.root));
   // GitHub Actions 보기(읽기 전용). 토큰은 GitHub CLI 로그인이 있을 때만 main 안에서 쓴다.
-  // 커밋 메시지 초안: 스테이지한 diff 만 Haiku 에 한 번(확인용 실행에서는 모델을 부르지 않는다)
+  // 커밋 메시지 초안: 스테이지한 diff 만 Sonnet 에 한 번(확인용 실행에서는 모델을 부르지 않는다)
   const draftCommitMessage = async (diff: string, style: string): Promise<{ subject: string; body: string }> => {
     if (process.env['RAUHA_FAKE_TEAM'] !== undefined) return { subject: 'feat: add n (draft)', body: 'Drafted from the staged diff.' };
     const profile = (await profileResolver(home, settings.account))(currentWorkDir());
     try {
-      return await draftCommit(diff, style, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.haiku);
+      return await draftCommit(diff, style, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.sonnet);
     } catch (e) {
       throw new GitFailure('FAILED', e instanceof DomainError ? e.message : 'Could not write a commit message. Check sign-in or the usage limit.');
     }
@@ -979,7 +979,7 @@ void app.whenReady().then(async () => {
       // 확인용 실행(RAUHA_FAKE_TEAM)에서는 모델을 부르지 않는다
       if (process.env['RAUHA_FAKE_TEAM'] !== undefined) return FAKE_BLOG_DRAFT(tone);
       const profile = (await profileResolver(home, settings.account))(currentWorkDir());
-      return draftBlog(note, tone, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, undefined, settings.models.haiku);
+      return draftBlog(note, tone, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, undefined, settings.models.sonnet);
     },
     pickPath: async (fileName) => {
       const result = await dialog.showSaveDialog(window ?? undefined!, { title: '블로그 글 저장', defaultPath: join(app.getPath('documents'), fileName), filters: [{ name: 'Markdown', extensions: ['md'] }], properties: ['createDirectory', 'showOverwriteConfirmation'] });
@@ -1221,7 +1221,7 @@ void app.whenReady().then(async () => {
     if (FAKE) return { ok: true, data: '## (test) Resume draft\n- Built features from the commits above.' };
     try {
       const profile = (await profileResolver(home, settings.account))(currentWorkDir());
-      return { ok: true, data: await draftResume(note, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.haiku) };
+      return { ok: true, data: await draftResume(note, { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.sonnet) };
     } catch (e) {
       return { ok: false, error: e instanceof DomainError ? e.message : 'Could not write the resume draft. Check sign-in or the usage limit.' };
     }
@@ -1294,7 +1294,7 @@ void app.whenReady().then(async () => {
     if (typeof sentence !== 'string' || sentence.trim() === '') return { ok: false, error: '규칙을 말로 적어 주세요.' };
     try {
       const profile = (await profileResolver(home, settings.account))(currentWorkDir());
-      const draft = await draftRule(sentence.trim().slice(0, 500), { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.haiku);
+      const draft = await draftRule(sentence.trim().slice(0, 500), { ...(process.env as Record<string, string>), ...profile.agentEnv(home) }, claudeExecutable(), undefined, settings.models.sonnet);
       // 폴더 이름만 말했으면 작업 폴더 안의 그 폴더 경로로 바꾼다(규칙은 경로로 범위를 가른다)
       const named = draft.scope === 'folder' && draft.path !== null ? folders().find((f) => f.name.toLowerCase() === draft.path!.toLowerCase()) : undefined;
       const scope = draft.scope === 'workspace' ? { kind: 'workspace' as const, path: currentWorkDir() } : draft.scope === 'folder' ? { kind: 'folder' as const, path: named?.root ?? draft.path ?? '' } : { kind: 'global' as const };

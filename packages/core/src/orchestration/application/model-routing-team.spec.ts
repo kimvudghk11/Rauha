@@ -26,10 +26,10 @@ class FakeInner implements TeamMemberPort {
 describe('ModelRoutingTeam', () => {
   it('설정에 적힌 등급별 모델 ID로 팀원을 부른다', async () => {
     const inner = new FakeInner();
-    const team = new ModelRoutingTeam(inner, () => ModelNames.defaults().with('opus', 'claude-fable-5-2'));
+    const team = new ModelRoutingTeam(inner, () => ModelNames.defaults().with('opus', 'claude-opus-4-8'));
     await team.run(callFor('opus'));
-    await team.run(callFor('haiku'));
-    expect(inner.models).toEqual(['claude-fable-5-2', 'claude-haiku-5-5']);
+    await team.run(callFor('fable'));
+    expect(inner.models).toEqual(['claude-opus-4-8', 'claude-fable-5-2']);
   });
 
   it('부를 때마다 최신 설정을 읽는다', async () => {
@@ -71,13 +71,14 @@ describe('ModelRoutingTeam 모델 오류 대체', () => {
     expect(notices).toEqual(['opus-5-5 모델을 쓸 수 없어서 대신 opus-5 모델로 실행했어요.']);
   });
 
-  it('이전 버전도 안 되면 한 단계 낮은 등급으로 가고, 거기서 멈춘다(최대 2번)', async () => {
+  it('이전 버전들도 안 되면 한 단계 낮은 등급으로 가고, 거기서 멈춘다(최대 3번)', async () => {
     const { inner, notices, team } = setup();
     inner.results.set('claude-opus-5-5', failed(NO_MODEL));
     inner.results.set('claude-opus-5', failed(NO_MODEL));
+    inner.results.set('claude-opus-4-8', failed(NO_MODEL));
     inner.results.set('claude-sonnet-5-5', failed(NO_MODEL));
     const result = await team.run(callFor('opus'));
-    expect(inner.models).toEqual(['claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5']);
+    expect(inner.models).toEqual(['claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5-5']);
     expect(result.error).toBe(NO_MODEL);
     expect(notices).toEqual([]);
   });
@@ -86,8 +87,9 @@ describe('ModelRoutingTeam 모델 오류 대체', () => {
     const { inner, notices, team } = setup();
     inner.results.set('claude-opus-5-5', failed(NO_MODEL));
     inner.results.set('claude-opus-5', failed(NO_MODEL));
+    inner.results.set('claude-opus-4-8', failed(NO_MODEL));
     await team.run(callFor('opus'));
-    expect(inner.models).toEqual(['claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5']);
+    expect(inner.models).toEqual(['claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5-5']);
     expect(notices).toEqual(['opus-5-5 모델을 쓸 수 없어서 대신 sonnet-5-5 모델로 실행했어요.']);
   });
 
@@ -101,11 +103,12 @@ describe('ModelRoutingTeam 모델 오류 대체', () => {
     expect(notices).toEqual([]);
   });
 
-  it('haiku 는 이전 버전도 낮은 등급도 없어서 그대로 실패를 돌려준다', async () => {
+  it('가장 낮은 sonnet 은 5 까지 내려가 보고, 더 낮은 등급이 없어 그대로 실패를 돌려준다', async () => {
     const { inner, team } = setup();
-    inner.results.set('claude-haiku-5-5', failed(NO_MODEL));
-    const result = await team.run(callFor('haiku'));
-    expect(inner.models).toEqual(['claude-haiku-5-5']);
+    inner.results.set('claude-sonnet-5-5', failed(NO_MODEL));
+    inner.results.set('claude-sonnet-5', failed(NO_MODEL));
+    const result = await team.run(callFor('sonnet'));
+    expect(inner.models).toEqual(['claude-sonnet-5-5', 'claude-sonnet-5']);
     expect(result.error).toBe(NO_MODEL);
   });
 });

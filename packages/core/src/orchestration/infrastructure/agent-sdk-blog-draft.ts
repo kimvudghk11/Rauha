@@ -25,10 +25,10 @@ export type BlogQuery = (params: Parameters<typeof query>[0]) => AsyncIterable<{
 
 /**
  * 정리 노트를 바탕으로 블로그 초안을 쓴다. 규칙 초안(draftRule)과 같은 가벼운 단발 호출이다:
- * 가장 값싼 모델(haiku) 한 번, 도구 없음, 쓰기 권한 없음, 한 턴. 파일은 만들지 않고 글만 돌려받는다.
+ * 가장 가벼운 모델(sonnet) 한 번, 도구 없음, 쓰기 권한 없음, 한 턴. 파일은 만들지 않고 글만 돌려받는다.
  * 입력은 호출하는 쪽이 이미 공개용 가림을 거친 정리 노트여야 한다.
  */
-export async function draftBlog(note: string, tone: BlogTone, env: Record<string, string>, claudeExecutable?: string, timeoutMs = 120_000, run: BlogQuery = query as unknown as BlogQuery, model: string = MODEL_ID.haiku): Promise<string> {
+export async function draftBlog(note: string, tone: BlogTone, env: Record<string, string>, claudeExecutable?: string, timeoutMs = 120_000, run: BlogQuery = query as unknown as BlogQuery, model: string = MODEL_ID.sonnet): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

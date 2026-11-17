@@ -63,7 +63,7 @@ describe('describeOutcome', () => {
       stopReason: 'needs-support',
       durationMs: 1000,
       costUsd: 1.23,
-      tierCalls: { haiku: 1, sonnet: 1, opus: 0 },
+      tierCalls: { sonnet: 1, opus: 1, fable: 0 },
       explanation: null,
       verdict: null,
       changes: [],

@@ -11,7 +11,7 @@ const seoul = 'Asia/Seoul';
 
 describe('usageLines', () => {
   it('세션과 주간 사용률을 막대와 퍼센트, 초기화 시각으로 보여 준다 (Claude /usage처럼)', () => {
-    const lines = usageLines(plan, { calls: { haiku: 2, sonnet: 3, opus: 0 }, costUsd: 0.12 }, now, seoul);
+    const lines = usageLines(plan, { calls: { sonnet: 2, opus: 3, fable: 0 }, costUsd: 0.12 }, now, seoul);
     const text = lines.join('\n');
     expect(text).toMatch(/세션.*▄{17}▁{3} +83%/);
     expect(text).toMatch(/주간.*▄{4}▁{16} +21%/);
@@ -21,23 +21,23 @@ describe('usageLines', () => {
   });
 
   it('색을 입히는 막대 함수를 받으면 그것으로 그린다 (사용률이 높으면 색이 달라진다)', () => {
-    const lines = usageLines(plan, { calls: { haiku: 0, sonnet: 0, opus: 0 }, costUsd: 0 }, now, seoul, (percent, cells) => `<${percent}/${cells}>`);
+    const lines = usageLines(plan, { calls: { sonnet: 0, opus: 0, fable: 0 }, costUsd: 0 }, now, seoul, (percent, cells) => `<${percent}/${cells}>`);
     const text = lines.join('\n');
     expect(text).toContain('<83/20> ');
     expect(text).toContain('<21/20> ');
   });
 
   it('이번 대화 호출 수만 쓰고 달러 비용은 쓰지 않는다 (구독으로 쓰는 사람에게 의미가 없다)', () => {
-    const text = usageLines(plan, { calls: { haiku: 2, sonnet: 3, opus: 0 }, costUsd: 0.12 }, now, seoul).join('\n');
-    expect(text).toContain('haiku 2회');
-    expect(text).toContain('sonnet 3회');
-    expect(text).not.toContain('opus');
+    const text = usageLines(plan, { calls: { sonnet: 2, opus: 3, fable: 0 }, costUsd: 0.12 }, now, seoul).join('\n');
+    expect(text).toContain('sonnet 2회');
+    expect(text).toContain('opus 3회');
+    expect(text).not.toContain('fable');
     expect(text).not.toContain('$');
     expect(text).not.toContain('요금');
   });
 
   it('사용률을 읽지 못하면 그렇다고 말한다', () => {
-    expect(usageLines(null, { calls: { haiku: 0, sonnet: 0, opus: 0 }, costUsd: 0 }, now, seoul).join('\n')).toContain('사용률을 확인하지 못했어요');
+    expect(usageLines(null, { calls: { sonnet: 0, opus: 0, fable: 0 }, costUsd: 0 }, now, seoul).join('\n')).toContain('사용률을 확인하지 못했어요');
   });
 });
 

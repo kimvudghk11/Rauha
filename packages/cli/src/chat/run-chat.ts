@@ -257,7 +257,7 @@ export async function runChat(options: ChatOptions): Promise<number> {
 
   /** 열린 저장소 세션들의 호출 수를 더한다. */
   function totalUsage() {
-    const calls = { haiku: 0, sonnet: 0, opus: 0 };
+    const calls = { sonnet: 0, opus: 0, fable: 0 };
     let costUsd = 0;
     for (const b of bundles.values()) {
       const u = b.chat.usage();

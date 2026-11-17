@@ -96,7 +96,7 @@ export interface GitCalls {
   actionsRuns: [void, { slug: string; signedIn: boolean; runs: readonly RunView[] }];
   actionsJobs: [{ runId: number }, readonly JobView[]];
   actionsLog: [{ jobId: number }, { lines: readonly LogLine[]; needsLogin: boolean }];
-  /** 스테이지한 변경만 보고 팀원(Haiku)이 커밋 제목·본문 초안을 쓴다. 커밋은 하지 않는다 */
+  /** 스테이지한 변경만 보고 팀원(Sonnet)이 커밋 제목·본문 초안을 쓴다. 커밋은 하지 않는다 */
   draftCommit: [void, { subject: string; body: string }];
   stashApply: [StashTarget, Done];
   stashPop: [StashTarget, Done];

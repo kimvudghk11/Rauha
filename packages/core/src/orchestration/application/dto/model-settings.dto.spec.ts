@@ -10,15 +10,15 @@ describe('ModelSettingsDto', () => {
   });
 
   it('올바른 값은 그대로 받는다', () => {
-    const dto = ModelSettingsDto.from({ opus: ' claude-fable-5-2 ', sonnet: 'claude-sonnet-5' });
-    expect(dto.toRecord()).toEqual({ haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5', opus: 'claude-fable-5-2' });
+    const dto = ModelSettingsDto.from({ opus: ' claude-opus-4-8 ', sonnet: 'claude-sonnet-5' });
+    expect(dto.toRecord()).toEqual({ sonnet: 'claude-sonnet-5', opus: 'claude-opus-4-8', fable: 'claude-fable-5-2' });
     expect(dto.rejected).toEqual([]);
   });
 
   it('빈 값·공백·긴 값·claude- 로 시작하지 않는 값·문자열이 아닌 값은 그 등급만 기본값으로 돌린다', () => {
-    const dto = ModelSettingsDto.from({ haiku: '', sonnet: 'gpt-5', opus: `claude-${'a'.repeat(100)}` });
+    const dto = ModelSettingsDto.from({ fable: '', sonnet: 'gpt-5', opus: `claude-${'a'.repeat(100)}` });
     expect(dto.toEntity().equals(ModelNames.defaults())).toBe(true);
-    expect(dto.rejected).toEqual(['haiku', 'sonnet', 'opus']);
+    expect(dto.rejected).toEqual(['sonnet', 'opus', 'fable']);
     expect(ModelSettingsDto.from({ opus: 5 }).rejected).toEqual(['opus']);
     expect(ModelSettingsDto.from({ opus: 'claude opus' }).toRecord().opus).toBe('claude-opus-5-5');
   });
@@ -33,8 +33,8 @@ describe('ModelSettingsDto', () => {
   });
 
   it('값이 배열·객체·불리언 모양이면 거절하고, 알 수 없는 등급 이름은 무시한다', () => {
-    const dto = ModelSettingsDto.from({ haiku: ['claude-haiku-5-5'], sonnet: { id: 'claude-sonnet-5' }, opus: true, fable: 'claude-fable-5', constructor: 'claude-x', toString: 'claude-y' });
-    expect(dto.rejected).toEqual(['haiku', 'sonnet', 'opus']);
+    const dto = ModelSettingsDto.from({ fable: ['claude-fable-5'], sonnet: { id: 'claude-sonnet-5' }, opus: true, mini: 'claude-mini-1', constructor: 'claude-x', toString: 'claude-y' });
+    expect(dto.rejected).toEqual(['sonnet', 'opus', 'fable']);
     expect(dto.toEntity().equals(ModelNames.defaults())).toBe(true);
   });
 
@@ -45,8 +45,14 @@ describe('ModelSettingsDto', () => {
 
   it('JSON 으로 들어온 __proto__ 키가 있어도 등급 값은 바뀌지 않는다', () => {
     const parsed: unknown = JSON.parse('{"__proto__":{"opus":"claude-evil"},"sonnet":"claude-sonnet-5"}');
-    expect(ModelSettingsDto.from(parsed).toRecord()).toEqual({ haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5', opus: 'claude-opus-5-5' });
+    expect(ModelSettingsDto.from(parsed).toRecord()).toEqual({ sonnet: 'claude-sonnet-5', opus: 'claude-opus-5-5', fable: 'claude-fable-5-2' });
     expect(({} as Record<string, unknown>)['opus']).toBeUndefined();
+  });
+
+  it('예전 설정에 남은 haiku 칸은 거부로 세지 않고 버린다(haiku 는 쓰지 않는다)', () => {
+    const dto = ModelSettingsDto.from({ haiku: 'claude-haiku-5-5', opus: 'claude-opus-5' });
+    expect(dto.rejected).toEqual([]);
+    expect(dto.toRecord()).toEqual({ sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5', fable: 'claude-fable-5-2' });
   });
 
   it('없는 등급은 거부로 세지 않고 기본값이다', () => {

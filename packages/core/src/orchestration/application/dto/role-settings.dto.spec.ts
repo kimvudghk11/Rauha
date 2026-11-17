@@ -4,11 +4,12 @@ import { RoleOverridesDto } from './role-overrides.dto.js';
 import { REQUIRED_ROLES, RoleSettingsDto } from './role-settings.dto.js';
 
 describe('RoleSettingsDto', () => {
-  it('기본값: 접수는 sonnet low, 테스트·구현은 haiku medium', () => {
+  it('기본값: 접수는 sonnet low, 테스트·구현은 sonnet medium(haiku 는 쓰지 않는다)', () => {
     const roles = RoleSettingsDto.defaults();
     expect(roles.get('intake')).toMatchObject({ tier: 'sonnet', effort: 'low' });
-    expect(roles.get('tester')).toMatchObject({ tier: 'haiku', effort: 'medium' });
-    expect(roles.get('implementer')).toMatchObject({ tier: 'haiku', effort: 'medium' });
+    expect(roles.get('tester')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
+    expect(roles.get('implementer')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
+    expect(roles.entries().every((e) => (e.tier as string) !== 'haiku')).toBe(true);
     expect(roles.get('implementer').tools).toContain('Bash');
     expect(roles.get('intake').tools).not.toContain('Write');
   });
@@ -19,32 +20,33 @@ describe('RoleSettingsDto', () => {
     expect(roles.get('tester')).toMatchObject({ tier: 'opus', effort: 'medium' });
   });
 
-  it('구현 시니어(sonnet)는 주니어보다 예산 상한이 크다', () => {
+  it('구현 시니어(opus)·마지막 시도(fable)는 주니어보다 예산 상한이 크다', () => {
     const roles = RoleSettingsDto.defaults();
-    expect(roles.forAssignment('implementer', 'sonnet')).toMatchObject({ tier: 'sonnet', effort: 'medium', maxBudgetUsd: 2 });
-    expect(roles.forAssignment('implementer', 'haiku')).toMatchObject({ tier: 'haiku', maxBudgetUsd: 1 });
+    expect(roles.forAssignment('implementer', 'opus')).toMatchObject({ tier: 'opus', effort: 'medium', maxBudgetUsd: 2 });
+    expect(roles.forAssignment('implementer', 'fable')).toMatchObject({ tier: 'fable', maxBudgetUsd: 2 });
+    expect(roles.forAssignment('implementer', 'sonnet')).toMatchObject({ tier: 'sonnet', maxBudgetUsd: 1 });
   });
 
   it('환경 변수로 고정한 역할은 배정 모델과 상관없이 그 모델을 쓴다', () => {
-    const roles = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_IMPLEMENTER: 'sonnet:high' });
-    expect(roles.forAssignment('implementer', 'haiku')).toMatchObject({ tier: 'sonnet', effort: 'high' });
+    const roles = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_IMPLEMENTER: 'opus:high' });
+    expect(roles.forAssignment('implementer', 'sonnet')).toMatchObject({ tier: 'opus', effort: 'high' });
   });
 
   it('고정하지 않은 역할은 배정 모델을 따른다', () => {
     const roles = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_TESTER: 'opus' });
-    expect(roles.forAssignment('implementer', 'sonnet').tier).toBe('sonnet');
+    expect(roles.forAssignment('implementer', 'opus').tier).toBe('opus');
   });
 
-  it('리뷰어는 sonnet이고 파일을 쓰는 도구가 없다', () => {
+  it('리뷰어는 구현보다 한 단계 위인 opus이고 파일을 쓰는 도구가 없다', () => {
     const reviewer = RoleSettingsDto.defaults().get('reviewer');
-    expect(reviewer).toMatchObject({ tier: 'sonnet', effort: 'medium' });
+    expect(reviewer).toMatchObject({ tier: 'opus', effort: 'medium' });
     expect(reviewer.tools).toContain('Read');
     for (const tool of ['Edit', 'Write', 'Bash']) expect(reviewer.tools).not.toContain(tool);
   });
 
-  it('라우터는 도구 없는 haiku, 답변 팀원은 읽기만 하는 sonnet', () => {
+  it('라우터는 도구 없는 sonnet, 답변 팀원은 읽기만 하는 sonnet', () => {
     const roles = RoleSettingsDto.defaults();
-    expect(roles.get('router')).toMatchObject({ tier: 'haiku', effort: 'low', tools: [] });
+    expect(roles.get('router')).toMatchObject({ tier: 'sonnet', effort: 'low', tools: [] });
     expect(roles.get('answerer')).toMatchObject({ tier: 'sonnet' });
     expect(roles.get('answerer').tools).not.toContain('Write');
   });
@@ -86,7 +88,7 @@ describe('RoleSettingsDto', () => {
 
   it('부서장은 가장 높은 모델을 쓰고, 회사 부서 팀원은 아무도 파일을 쓰지 못한다', () => {
     const roles = RoleSettingsDto.defaults();
-    expect(roles.get('chief').tier).toBe('opus');
+    expect(roles.get('chief').tier).toBe('fable');
     for (const role of ['chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'planner'] as const) {
       expect(roles.get(role).tools).not.toContain('Write');
       expect(roles.get(role).tools).not.toContain('Edit');
@@ -123,8 +125,8 @@ describe('RoleSettingsDto — 분석의 설계·계획', () => {
   });
 
   it('환경 변수로 설계 팀원을 고정했으면 그 모델과 effort를 따른다', () => {
-    const pinned = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_DESIGNER: 'haiku:low' });
-    expect(pinned.forBlueprint('opus')).toMatchObject({ tier: 'haiku', effort: 'low' });
+    const pinned = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_DESIGNER: 'fable:low' });
+    expect(pinned.forBlueprint('opus')).toMatchObject({ tier: 'fable', effort: 'low' });
   });
 });
 
@@ -144,13 +146,13 @@ describe('팀 설정(withOverrides)', () => {
   });
 
   it('고른 모델 등급은 상태 머신의 승격 배정보다 앞선다', () => {
-    const roles = plain.withOverrides({ implementer: { tier: 'opus' } });
-    expect(roles.forAssignment('implementer', 'haiku').tier).toBe('opus');
+    const roles = plain.withOverrides({ implementer: { tier: 'fable' } });
+    expect(roles.forAssignment('implementer', 'sonnet').tier).toBe('fable');
   });
 
   it('환경 변수로 고정한 모델이 설정보다 앞선다(실험용)', () => {
-    const roles = plain.withOverrides({ implementer: { tier: 'opus' } }).withEnv({ RAUHA_ROLE_IMPLEMENTER: 'haiku' });
-    expect(roles.get('implementer').tier).toBe('haiku');
+    const roles = plain.withOverrides({ implementer: { tier: 'fable' } }).withEnv({ RAUHA_ROLE_IMPLEMENTER: 'sonnet' });
+    expect(roles.get('implementer').tier).toBe('sonnet');
   });
 
   it('끈 팀원을 부르면 켜라는 안내와 함께 막는다', () => {

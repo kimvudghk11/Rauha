@@ -11,7 +11,7 @@ const SYSTEM = [
 ].join('\n');
 
 /** 스테이지한 diff 를 보고 커밋 메시지 초안을 쓴다(도구 없음, 한 번). */
-export async function draftCommit(stagedDiff: string, style: string, env: Record<string, string>, claudeExecutable?: string, timeoutMs = 60_000, model: string = MODEL_ID.haiku): Promise<CommitDraft> {
+export async function draftCommit(stagedDiff: string, style: string, env: Record<string, string>, claudeExecutable?: string, timeoutMs = 60_000, model: string = MODEL_ID.sonnet): Promise<CommitDraft> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

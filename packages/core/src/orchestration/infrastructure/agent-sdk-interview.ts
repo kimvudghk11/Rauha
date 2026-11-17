@@ -75,7 +75,7 @@ export async function evaluateCompany(id: string, posting: JobPosting, years: nu
 }
 
 /** 회사 담당자들과 대화: 질문에 맞는 담당자 1~3명이 "이름: 말" 줄로 답한다(앞 대화 몇 줄 포함) */
-export async function askInterviewer(id: string, posting: JobPosting, years: number, note: string, history: readonly { readonly from: 'me' | 'them'; readonly text: string }[], question: string, env: Record<string, string>, claudeExecutable?: string, model: string = MODEL_ID.haiku, run: Run = query): Promise<string> {
+export async function askInterviewer(id: string, posting: JobPosting, years: number, note: string, history: readonly { readonly from: 'me' | 'them'; readonly text: string }[], question: string, env: Record<string, string>, claudeExecutable?: string, model: string = MODEL_ID.sonnet, run: Run = query): Promise<string> {
   const c = companyOf(id);
   if (c === null) throw new DomainError('INTERVIEW_FAILED', 'Unknown company.');
   const team = c.recruiters.map((r) => r.name).join('·');

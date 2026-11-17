@@ -14,7 +14,7 @@ export type MyWorkResult<T> = { readonly ok: true; readonly data: T } | { readon
 export interface MyWorkApi {
   /** 작업 폴더 모든 레포의 커밋(since: 초 단위 UNIX 시각, 0 이면 처음부터) */
   scan(since: number): Promise<MyWorkResult<{ readonly commits: readonly WorkCommit[]; readonly repos: number }>>;
-  /** 커밋 요약 메모(제목·숫자만)로 이력서 문장 초안(Haiku 한 번) */
+  /** 커밋 요약 메모(제목·숫자만)로 이력서 문장 초안(Sonnet 한 번) */
   resume(note: string): Promise<MyWorkResult<string>>;
   /** gh CLI 에 로그인한 GitHub 계정들(clone 없이 읽기용) */
   ghLogins(): Promise<{ readonly installed: boolean; readonly logins: readonly string[] }>;

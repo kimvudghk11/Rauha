@@ -12,13 +12,13 @@ interface BenchRequest {
   readonly request: string;
 }
 
-/** ladder = 기본(haiku부터 사다리), sonnet = 구현 팀원을 sonnet으로 고정한 비교 실행 */
-export type BenchVariant = 'ladder' | 'sonnet';
+/** ladder = 기본(sonnet부터 사다리), opus = 구현 팀원을 opus로 고정한 비교 실행 */
+export type BenchVariant = 'ladder' | 'opus';
 
-const VARIANT_LABEL: Readonly<Record<BenchVariant, string>> = { ladder: '사다리', sonnet: 'sonnet 고정' };
+const VARIANT_LABEL: Readonly<Record<BenchVariant, string>> = { ladder: '사다리', opus: 'opus 고정' };
 const VARIANT_ENV: Readonly<Record<BenchVariant, Readonly<Record<string, string>>>> = {
   ladder: {},
-  sonnet: { RAUHA_ROLE_IMPLEMENTER: 'sonnet' },
+  opus: { RAUHA_ROLE_IMPLEMENTER: 'opus' },
 };
 
 export interface BenchRow {
@@ -29,8 +29,8 @@ export interface BenchRow {
   readonly escalated: boolean;
   readonly finalTier: string;
   readonly seconds: number;
-  readonly haikuTokens: number;
   readonly sonnetTokens: number;
+  readonly opusTokens: number;
   readonly costUsd: number;
   readonly firstTry: boolean;
   readonly logDir: string | null;
@@ -79,8 +79,8 @@ function toRow(id: string, variant: BenchVariant, outcome: RunOutcome, intakeTok
     escalated: outcome.escalated,
     finalTier: outcome.finalTier ?? '-',
     seconds: outcome.durationMs / 1000,
-    haikuTokens: outcome.usage.haiku.tokens,
     sonnetTokens: outcome.usage.sonnet.tokens,
+    opusTokens: outcome.usage.opus.tokens,
     costUsd: outcome.costUsd,
     firstTry: outcome.status === 'complete' && outcome.implementerAttempts === 1,
     logDir: outcome.logDir,
@@ -130,10 +130,10 @@ function summary(rows: readonly BenchRow[]): string {
   return `첫 시도 성공 ${rows.filter((r) => r.firstTry).length}/${rows.length} · 완료 ${done.length}/${rows.length} · 승격 ${escalated} · 평균 ${clock(avg)} · 합계 $${total.toFixed(3)}`;
 }
 
-/** 결과 표. sonnet 고정 행이 있으면 비교 표로 그리고, 변형별 합계 줄을 따로 낸다. */
+/** 결과 표. opus 고정 행이 있으면 비교 표로 그리고, 변형별 합계 줄을 따로 낸다. */
 export function benchTable(rows: readonly BenchRow[], promptHash: string, startedAt: Date): string {
-  const compare = rows.some((r) => r.variant === 'sonnet');
-  const head = ['요청', ...(compare ? ['변형'] : []), '결과', '시도', '승격', '시간', 'haiku 토큰', 'sonnet 토큰', '접수 토큰', '조사 토큰', '추정 비용'];
+  const compare = rows.some((r) => r.variant === 'opus');
+  const head = ['요청', ...(compare ? ['변형'] : []), '결과', '시도', '승격', '시간', 'sonnet 토큰', 'opus 토큰', '접수 토큰', '조사 토큰', '추정 비용'];
   const body = rows.map((r) => [
     r.id,
     ...(compare ? [VARIANT_LABEL[r.variant]] : []),
@@ -141,8 +141,8 @@ export function benchTable(rows: readonly BenchRow[], promptHash: string, starte
     String(r.attempts),
     r.escalated ? '승격' : '-',
     clock(r.seconds),
-    tokens(r.haikuTokens),
     tokens(r.sonnetTokens),
+    tokens(r.opusTokens),
     tokens(r.intakeTokens),
     tokens(r.surveyTokens),
     `$${r.costUsd.toFixed(3)}`,
@@ -150,7 +150,7 @@ export function benchTable(rows: readonly BenchRow[], promptHash: string, starte
   const widths = head.map((h, i) => Math.max(h.length, ...body.map((b) => (b[i] as string).length)));
   const line = (cells: readonly string[]) => cells.map((c, i) => c.padEnd(widths[i] as number)).join('  ');
   const totals = compare
-    ? (['ladder', 'sonnet'] as const).map((v) => `${VARIANT_LABEL[v]}: ${summary(rows.filter((r) => r.variant === v))}`)
+    ? (['ladder', 'opus'] as const).map((v) => `${VARIANT_LABEL[v]}: ${summary(rows.filter((r) => r.variant === v))}`)
     : [summary(rows)];
   return [`프롬프트 ${promptHash} · ${startedAt.toISOString().slice(0, 16).replace('T', ' ')}`, line(head), ...body.map(line), ...totals].join('\n');
 }
@@ -161,7 +161,7 @@ export async function runBench(props: {
   profile: Profile;
   home: string;
   only: string | null;
-  /** 요청마다 사다리와 sonnet 고정을 한 번씩 돌려 비교한다 */
+  /** 요청마다 사다리와 opus 고정을 한 번씩 돌려 비교한다 */
   compare: boolean;
   /** 리뷰·사실 점검 없이 돌린다(1단계 숫자와 비교용) */
   quick: boolean;
@@ -184,7 +184,7 @@ export async function runBench(props: {
   const rows: BenchRow[] = [];
   let promptHash = '';
 
-  const variants: readonly BenchVariant[] = props.compare ? ['ladder', 'sonnet'] : ['ladder'];
+  const variants: readonly BenchVariant[] = props.compare ? ['ladder', 'opus'] : ['ladder'];
   let limited = false;
   for (const req of requests) {
     for (const variant of variants) {
@@ -223,8 +223,8 @@ export async function runBench(props: {
           escalated: false,
           finalTier: '-',
           seconds: 0,
-          haikuTokens: 0,
           sonnetTokens: 0,
+          opusTokens: 0,
           costUsd: 0,
           firstTry: false,
           logDir: null,

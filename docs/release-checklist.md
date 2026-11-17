@@ -9,6 +9,15 @@
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
+## 다음 태그 (main, 태그 전) — Haiku 없앰, 등급은 Sonnet · Opus · Fable
+
+- Haiku 를 모든 경로에서 뺐다(추측·덜 확인한 답이 많아 품질이 낮았다). 등급은 sonnet · opus · fable 세 칸.
+- 사다리를 한 칸씩 올림: 구현 주니어 sonnet → 시니어 opus → 디버깅 opus → 설계 자문 fable → 마지막 시도 fable. 테스트·기획 sonnet(막히면 opus), 리뷰 opus(민감하면 fable), 문서 sonnet.
+- 역할 기본값: haiku 였던 테스트·구현·라우터·커밋 담당 → sonnet, 리뷰어 sonnet → opus, 부서장 opus → fable. 단발 초안(커밋·블로그·이력서·규칙·면접관)은 sonnet.
+- 모델 오류 대체: Opus 5.5 → 5 → 4.8 → Sonnet 5.5, Sonnet 5.5 → 5, Fable 5.2 → 5.1 → 5 → Opus 5.5. 최대 3번.
+- 예전 설정 파일: 팀 설정·역할 덮어쓰기의 haiku 는 sonnet 으로 읽고, Models 의 haiku 칸은 버린다.
+- 호출 수는 같고 등급만 올라서 구독 한도는 더 빨리 쓴다.
+
 ## v0.2.20 (2026-11-17) — 쉬는 팀이 새 일을, 팀 대화를 Main 에도, 비율 손잡이
 
 - 새 일은 그때 쉬는 팀 중 맨 위 팀이 맡는다(1팀이 끝나 쉬면 2팀이 아니라 1팀). 끝난 팀은 다음 일이 올 때까지 자리를 지키고, 도는 일의 자리는 옮기지 않는다. Main 에서 Enter 는 늘 새 일(같은 팀에 이으려면 ↩ Reply 나 팀 화면).

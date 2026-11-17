@@ -31,7 +31,7 @@ describe('WorkOrder 파이프라인', () => {
       sensitive: false,
       scope: ['src/**'],
     });
-    expect(order.nextAssignment()).toEqual({ role: 'planner', tier: 'haiku' });
+    expect(order.nextAssignment()).toEqual({ role: 'planner', tier: 'sonnet' });
     order.approveScenario({ happyPaths: 1, errorPaths: 1 });
     expect(order.stage).toBe('red');
   });
@@ -44,10 +44,10 @@ describe('WorkOrder 파이프라인', () => {
       sensitive: false,
       scope: ['src/**'],
     });
-    expect(order.nextAssignment()).toEqual({ role: 'planner', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'planner', tier: 'opus' });
     order.approveScenario({ happyPaths: 1, errorPaths: 1 });
     expect(order.stage).toBe('red');
-    expect(order.nextAssignment()).toEqual({ role: 'tester', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'tester', tier: 'opus' });
   });
 
   it('무효 Red가 세 번 쌓이면(주니어 두 번 + 시니어 한 번) 멈추지 않고 테스트 없이 구현으로 간다', () => {
@@ -62,7 +62,7 @@ describe('WorkOrder 파이프라인', () => {
     expect(order.haltReason).toBeNull();
     expect(order.testsLocked).toBe(false);
     expect(order.testsWaived).toBe(true);
-    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'haiku' });
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'sonnet' });
   });
 
   it('예외 경로가 없는 시나리오는 넘기지 않는다', () => {
@@ -86,7 +86,7 @@ describe('WorkOrder 파이프라인', () => {
     });
     order.rejectScenario();
     order.rejectScenario();
-    expect(order.nextAssignment()).toEqual({ role: 'planner', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'planner', tier: 'opus' });
   });
 
   it('import 실패는 Red로 인정하지 않고, 2번 반복되면 테스트 팀이 시니어로 바뀐다', () => {
@@ -103,30 +103,30 @@ describe('WorkOrder 파이프라인', () => {
     order.recordRed(broken);
     expect(order.stage).toBe('red');
     expect(order.testsLocked).toBe(false);
-    expect(order.nextAssignment()).toEqual({ role: 'tester', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'tester', tier: 'opus' });
   });
 
   it('올바른 Red 뒤에는 테스트가 잠기고 주니어 구현으로 간다', () => {
     const order = openAtGreen();
     expect(order.testsLocked).toBe(true);
-    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'haiku' });
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'sonnet' });
   });
 
   it('테스트가 통과하면 리뷰 → 문서 → 완료', () => {
     const order = openAtGreen();
     order.recordGreen(green);
-    expect(order.nextAssignment()).toEqual({ role: 'reviewer', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'reviewer', tier: 'opus' });
     order.recordReview('pass');
-    expect(order.nextAssignment()).toEqual({ role: 'writer', tier: 'haiku' });
+    expect(order.nextAssignment()).toEqual({ role: 'writer', tier: 'sonnet' });
     order.completeDocs();
     expect(order.stage).toBe('done');
     expect(order.nextAssignment()).toBeNull();
   });
 
-  it('민감 작업의 리뷰는 Opus가 맡는다', () => {
+  it('민감 작업의 리뷰는 Fable이 맡는다', () => {
     const order = openAtGreen('L', true);
     order.recordGreen(green);
-    expect(order.nextAssignment()).toEqual({ role: 'reviewer', tier: 'opus' });
+    expect(order.nextAssignment()).toEqual({ role: 'reviewer', tier: 'fable' });
   });
 });
 
@@ -147,7 +147,7 @@ describe('WorkOrder 테스트 없이 진행', () => {
     order.proceedWithoutTests();
     expect(order.stage).toBe('green');
     expect(order.testsLocked).toBe(false);
-    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'haiku' });
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'sonnet' });
   });
 
   it('Red 단계가 아니면 테스트 없이 진행할 수 없다', () => {
@@ -163,23 +163,23 @@ describe('WorkOrder 승격 사다리', () => {
     order.recordGreen(fail, '첫 시도: 잠금 시간 계산 누락');
     expect(order.rung).toBe('junior');
     order.recordGreen(fail, '두 번째: 카운터 초기화 위치 오류');
-    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'opus' });
 
     order.recordGreen(fail);
-    expect(order.nextAssignment()).toEqual({ role: 'debugger', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'debugger', tier: 'opus' });
     expect(() => order.recordGreen(green)).toThrow(DomainError);
     order.resolveSupport();
     expect(order.rung).toBe('senior-after-debug');
 
     order.recordGreen(fail);
-    expect(order.nextAssignment()).toEqual({ role: 'architect', tier: 'opus' });
+    expect(order.nextAssignment()).toEqual({ role: 'architect', tier: 'fable' });
     order.resolveSupport();
-    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'sonnet' });
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'opus' });
 
     order.recordGreen(fail);
     expect(order.stage).toBe('green');
     expect(order.rung).toBe('final');
-    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'opus' });
+    expect(order.nextAssignment()).toEqual({ role: 'implementer', tier: 'fable' });
 
     order.recordGreen(fail);
     expect(order.stage).toBe('halted');

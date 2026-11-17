@@ -53,7 +53,7 @@ class FakeTeam implements TeamMemberPort {
   constructor(private readonly reply: (call: MemberCall) => Partial<MemberResult> = (call) => ({ output: { notes: areasIn(call).map((area) => ({ area, text: `${area} 메모`, sources: [] })) } })) {}
   async run(call: MemberCall): Promise<MemberResult> {
     this.calls.push(call);
-    return { output: null, error: null, fetched: [], usage: { model: 'haiku', durationMs: 1, costUsd: 0, turns: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, denials: [], endReason: 'success' }, ...this.reply(call) };
+    return { output: null, error: null, fetched: [], usage: { model: 'sonnet', durationMs: 1, costUsd: 0, turns: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, denials: [], endReason: 'success' }, ...this.reply(call) };
   }
 }
 

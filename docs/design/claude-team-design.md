@@ -4,6 +4,8 @@
 
 > 원본: Claude Docs의 「클로드 팀 구성 설계서」. 이 파일은 저장소용 사본이며, 가칭 `crew`를 실제 이름 `rauha`로 바꿨다.
 
+> **2026-11-17 변경: Haiku 를 쓰지 않는다.** 실제로 써 보니 추측하거나 덜 확인한 답이 많아 품질이 낮았다. 등급은 Sonnet · Opus · Fable 세 칸이고, 아래 본문의 등급을 한 칸씩 올려 읽는다(Haiku → Sonnet, Sonnet → Opus, Opus → Fable). 모델 오류 때 대신 쓰는 순서: Opus 5.5 → 5 → 4.8, Sonnet 5.5 → 5, Fable 5.2 → 5.1 → 5. 본문의 모델 표와 측정값은 당시 기록이라 그대로 둔다. 지금 규칙은 `packages/core/src/orchestration/domain/team.ts`, `work-order.ts`, `model-fallback.ts`에 있다.
+
 ## 개요
 
 팀장 1명과 팀원 9개 팀으로 구성하고, 쉬운 일은 Haiku 5.5 주니어가 처리하고 테스트가 실패할 때만 상위 모델로 올리는 구조다. 나는 팀장하고만 대화하고, 팀원은 팀장에게만 보고한다.

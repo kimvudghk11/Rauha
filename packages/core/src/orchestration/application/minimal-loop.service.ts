@@ -141,7 +141,7 @@ class ReviewState {
 }
 
 const ESCALATION_NOTE =
-  '<escalation>\n앞의 구현 주니어(haiku)가 두 번 실패해서 승격된 시도입니다. <handoff>와 <last_failure>를 먼저 읽고, 앞 시도와 다른 접근을 하세요.\n</escalation>';
+  '<escalation>\n앞의 구현 주니어(sonnet)가 두 번 실패해서 승격된 시도입니다. <handoff>와 <last_failure>를 먼저 읽고, 앞 시도와 다른 접근을 하세요.\n</escalation>';
 
 export interface MinimalLoopDeps {
   readonly team: TeamMemberPort;
@@ -178,9 +178,9 @@ class RunTally {
   constructor(readonly request: string = '') {}
 
   readonly usage: Record<ModelTier, { calls: number; tokens: number }> = {
-    haiku: { calls: 0, tokens: 0 },
     sonnet: { calls: 0, tokens: 0 },
     opus: { calls: 0, tokens: 0 },
+    fable: { calls: 0, tokens: 0 },
   };
   costUsd = 0;
   calls = 0;
@@ -689,7 +689,7 @@ export class MinimalLoopService {
       stopReason: props.stopReason,
       durationMs,
       costUsd: tally.costUsd,
-      tierCalls: { haiku: tally.usage.haiku.calls, sonnet: tally.usage.sonnet.calls, opus: tally.usage.opus.calls },
+      tierCalls: { sonnet: tally.usage.sonnet.calls, opus: tally.usage.opus.calls, fable: tally.usage.fable.calls },
       explanation: props.explanation ?? null,
       verdict: props.verdict ?? null,
       changes: changedInRun,

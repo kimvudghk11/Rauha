@@ -1,7 +1,7 @@
 import { DomainError } from '../../shared/domain-error.js';
 import { MODEL_ID, type ModelTier } from './team.js';
 
-const TIERS: readonly ModelTier[] = ['haiku', 'sonnet', 'opus'];
+const TIERS: readonly ModelTier[] = ['sonnet', 'opus', 'fable'];
 const ID_MAX = 64;
 /** claude- 로 시작하고 소문자·숫자·점·밑줄·하이픈만(공백·줄바꿈·한글 없음) */
 const ID_SHAPE = /^claude-[a-z0-9][a-z0-9._-]*$/;
@@ -13,12 +13,12 @@ const KNOWN_IDS: readonly string[] = [
   'claude-fable-5',
   'claude-opus-5-5',
   'claude-opus-5',
+  'claude-opus-4-8',
   'claude-sonnet-5-5',
   'claude-sonnet-5',
-  'claude-haiku-5-5',
 ];
 
-/** 등급(haiku·sonnet·opus)마다 실제로 부를 모델 ID. 같은 값이면 같은 것이고 불변이다. */
+/** 등급(sonnet·opus·fable)마다 실제로 부를 모델 ID. 같은 값이면 같은 것이고 불변이다. */
 export class ModelNames {
   static readonly KNOWN: readonly string[] = KNOWN_IDS;
   static readonly TIERS: readonly ModelTier[] = TIERS;

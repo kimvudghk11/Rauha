@@ -12,7 +12,7 @@ const PERIODS: readonly (readonly [string, number])[] = [['Last 12 months', 365]
 
 /**
  * 내 작업(이력서용): 개인·회사처럼 여러 git 계정의 작성자 이메일을 "나"로 묶어, 작업 폴더 모든 레포의 커밋을
- * 계정 → 월 → 레포로 센다. 이력서 초안은 커밋 제목과 숫자만 Haiku 에 보낸다(코드는 보내지 않는다).
+ * 계정 → 월 → 레포로 센다. 이력서 초안은 커밋 제목과 숫자만 Sonnet 에 보낸다(코드는 보내지 않는다).
  */
 export function buildMyWork(deps: MyWorkDeps) {
   const root = el('div', 'gpanel mywork');
@@ -184,7 +184,7 @@ export function buildMyWork(deps: MyWorkDeps) {
     const tools = el('div', 'btns');
     const write = el('button', 'btn primary', busy ? 'Writing…' : '✨ Resume bullets');
     write.disabled = busy;
-    write.title = 'Sends only commit subjects and counts (no code) to a teammate (Haiku) to draft resume bullets';
+    write.title = 'Sends only commit subjects and counts (no code) to a teammate (Sonnet) to draft resume bullets';
     write.addEventListener('click', () => void writeResume(s));
     tools.append(el('span', 'hint grow', `${s.total} commits by you in ${repos} repos`), write);
     result.append(tools);

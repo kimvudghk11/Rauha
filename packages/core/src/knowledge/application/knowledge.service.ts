@@ -23,7 +23,7 @@ export interface KnowledgeServiceDeps {
 
 /**
  * 저장소 지식을 쓰기 직전에 최신으로 맞춘다: 불러오기 → git으로 바뀐 파일 → 엔티티가 낡은 영역 판정
- * → 낡은 영역만 조사 팀원(haiku)이 다시 쓰기 → 저장. 바뀐 게 없으면 모델도 저장도 하지 않는다.
+ * → 낡은 영역만 조사 팀원(sonnet)이 다시 쓰기 → 저장. 바뀐 게 없으면 모델도 저장도 하지 않는다.
  */
 export class KnowledgeService implements KnowledgePort {
   /** 조사 팀원에게 쓴 토큰(입력·캐시·출력). bench가 지식을 만드는 데 든 몫을 따로 보여 준다. */

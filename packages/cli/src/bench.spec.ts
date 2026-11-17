@@ -11,10 +11,10 @@ const row = (over: Partial<BenchRow>): BenchRow => ({
   result: '완료',
   attempts: 1,
   escalated: false,
-  finalTier: 'haiku',
+  finalTier: 'sonnet',
   seconds: 70,
-  haikuTokens: 100_000,
-  sonnetTokens: 25_000,
+  sonnetTokens: 100_000,
+  opusTokens: 25_000,
   costUsd: 0.03,
   firstTry: true,
   logDir: null,
@@ -25,23 +25,23 @@ const row = (over: Partial<BenchRow>): BenchRow => ({
 const at = new Date('2026-10-25T06:00:00Z');
 
 describe('bench 표', () => {
-  it('비교 표는 요청마다 사다리와 sonnet 고정을 나란히 놓고 변형별 합계를 낸다', () => {
-    const text = benchTable([row({}), row({ variant: 'sonnet', finalTier: 'sonnet', costUsd: 0.08 })], 'abc', at);
+  it('비교 표는 요청마다 사다리와 opus 고정을 나란히 놓고 변형별 합계를 낸다', () => {
+    const text = benchTable([row({}), row({ variant: 'opus', finalTier: 'opus', costUsd: 0.08 })], 'abc', at);
     expect(text).toContain('사다리');
-    expect(text).toContain('sonnet 고정');
-    const summaries = text.split('\n').filter((l) => /^(사다리|sonnet 고정):/.test(l));
+    expect(text).toContain('opus 고정');
+    const summaries = text.split('\n').filter((l) => /^(사다리|opus 고정):/.test(l));
     expect(summaries).toHaveLength(2);
     expect(summaries[1]).toContain('$0.080');
   });
 
   it('한 변형이 오류여도 표를 만든다', () => {
-    const text = benchTable([row({}), row({ variant: 'sonnet', result: '오류', costUsd: 0, attempts: 0, firstTry: false })], 'abc', at);
+    const text = benchTable([row({}), row({ variant: 'opus', result: '오류', costUsd: 0, attempts: 0, firstTry: false })], 'abc', at);
     expect(text).toContain('오류');
     expect(text).toContain('$0.000');
   });
 
   it('승격된 실행은 표에 승격을 표시한다', () => {
-    const text = benchTable([row({ escalated: true, attempts: 3, finalTier: 'sonnet' })], 'abc', at);
+    const text = benchTable([row({ escalated: true, attempts: 3, finalTier: 'opus' })], 'abc', at);
     expect(text.split('\n').find((l) => l.startsWith('discount'))).toContain('승격');
   });
 
@@ -55,7 +55,7 @@ describe('bench 표', () => {
 
   it('비교가 아니면 변형 열 없이 지금 모양을 쓴다', () => {
     const text = benchTable([row({})], 'abc', at);
-    expect(text).not.toContain('sonnet 고정');
+    expect(text).not.toContain('opus 고정');
     expect(text).toContain('첫 시도 성공 1/1');
   });
 });

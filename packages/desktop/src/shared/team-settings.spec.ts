@@ -79,7 +79,15 @@ describe('TeamSettings', () => {
   });
 
   it('저장했다 읽어도 같다', () => {
-    const s = TeamSettings.initial().change('brand', { name: '이름', tier: 'haiku', extraInstruction: '짧게' });
+    const s = TeamSettings.initial().change('brand', { name: '이름', tier: 'fable', extraInstruction: '짧게' });
     expect(TeamSettings.from(JSON.parse(JSON.stringify(s.toJSON()))).toJSON()).toEqual(s.toJSON());
+  });
+
+  it('예전 파일에 haiku 로 저장한 팀원은 sonnet 으로 읽는다(haiku 는 쓰지 않는다)', () => {
+    expect(TeamSettings.from({ members: { brand: { tier: 'haiku' } } }).toJSON()).toEqual({ members: { brand: { tier: 'sonnet' } } });
+  });
+
+  it('haiku 는 새로 고를 수 없다', () => {
+    expect(() => TeamSettings.initial().change('brand', { tier: 'haiku' as never })).toThrow(/sonnet, opus or fable/);
   });
 });

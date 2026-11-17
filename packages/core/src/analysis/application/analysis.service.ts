@@ -55,7 +55,7 @@ export class AnalysisService implements AnalysisPort {
 
   async run(input: AnalysisInput): Promise<AnalysisResult> {
     const run = AnalysisRun.start({ id: this.deps.newId(), request: input.request, reach: AnalysisReach.of(input.reach, input.request).limitedBy(this.budget()), date: this.deps.today() });
-    const s: Session = { run, input, path: null, docProblem: null, cost: { haiku: { calls: 0, costUsd: 0 }, sonnet: { calls: 0, costUsd: 0 }, opus: { calls: 0, costUsd: 0 } } };
+    const s: Session = { run, input, path: null, docProblem: null, cost: { sonnet: { calls: 0, costUsd: 0 }, opus: { calls: 0, costUsd: 0 }, fable: { calls: 0, costUsd: 0 } } };
 
     for (let step = run.next(); step !== 'done'; step = run.next()) {
       if (run.pauseIfTight(this.budget())) break;

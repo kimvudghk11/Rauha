@@ -172,7 +172,7 @@ export class ChatSession {
   /** 세션 중 rauha가 바꾼 파일 → 마지막으로 남긴 내용 값 */
   private carried = new Map<string, string>();
   private costUsd = 0;
-  private readonly calls: Record<ModelTier, number> = { haiku: 0, sonnet: 0, opus: 0 };
+  private readonly calls: Record<ModelTier, number> = { sonnet: 0, opus: 0, fable: 0 };
   private lastTitle: string | null = null;
   /** 답한 뒤 배경 조사를 이미 시작했는지 */
   private surveyed = false;

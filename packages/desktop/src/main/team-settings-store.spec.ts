@@ -11,7 +11,7 @@ describe('memberInfos', () => {
     const infos = memberInfos();
     expect(infos.map((i) => i.role)).toEqual([...MEMBER_ROLES]);
     expect(infos).toHaveLength(23);
-    expect(infos.find((i) => i.role === 'reviewer')).toMatchObject({ title: '리뷰어', required: true, defaults: { tier: 'sonnet', effort: 'medium' } });
+    expect(infos.find((i) => i.role === 'reviewer')).toMatchObject({ title: '리뷰어', required: true, defaults: { tier: 'opus', effort: 'medium' } });
     expect(infos.find((i) => i.role === 'reviewer')!.defaults.tools).not.toContain('Write');
     expect(infos.find((i) => i.role === 'marketer')!.required).toBe(false);
   });
@@ -21,13 +21,13 @@ describe('applyTeamOp', () => {
   const initial = TeamSettings.initial();
 
   it('팀원 한 칸을 바꾸고 엔진에 넘길 모양을 만든다', () => {
-    const res = applyTeamOp(initial, { kind: 'change', role: 'reviewer', patch: { tier: 'opus', extraInstruction: '보안부터' } });
-    expect(res.ok && res.settings.overrides()).toEqual({ reviewer: { tier: 'opus', extraInstruction: '보안부터' } });
-    expect(res.ok && res.view.settings.members.reviewer?.tier).toBe('opus');
+    const res = applyTeamOp(initial, { kind: 'change', role: 'reviewer', patch: { tier: 'fable', extraInstruction: '보안부터' } });
+    expect(res.ok && res.settings.overrides()).toEqual({ reviewer: { tier: 'fable', extraInstruction: '보안부터' } });
+    expect(res.ok && res.view.settings.members.reviewer?.tier).toBe('fable');
   });
 
   it('기본값과 같게 바꾸면 바꾼 것이 남지 않는다', () => {
-    const res = applyTeamOp(initial, { kind: 'change', role: 'reviewer', patch: { tier: 'sonnet' } });
+    const res = applyTeamOp(initial, { kind: 'change', role: 'reviewer', patch: { tier: 'opus' } });
     expect(res.ok && res.settings.toJSON()).toEqual({ members: {} });
   });
 

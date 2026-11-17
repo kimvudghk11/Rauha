@@ -17,15 +17,15 @@ function openAtRed(grade: 'S' | 'M' | 'L' = 'S'): WorkOrder {
 }
 
 describe('RunScope.minimalLoop', () => {
-  it('L급은 시니어(sonnet)부터 시작하므로 haiku만 쓰는 1단계에서는 needs-senior로 멈춘다', () => {
+  it('L급은 시니어(opus)부터 시작하므로 sonnet만 쓰는 1단계에서는 needs-senior로 멈춘다', () => {
     expect(scope.decide(openAtRed('L'))).toEqual({ kind: 'stop', reason: 'needs-senior' });
   });
 
-  it('red 단계 haiku 테스트 팀원과 green 단계 haiku 구현 팀원만 이어서 부른다', () => {
+  it('red 단계 sonnet 테스트 팀원과 green 단계 sonnet 구현 팀원만 이어서 부른다', () => {
     const order = openAtRed();
-    expect(scope.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'tester', tier: 'haiku' } });
+    expect(scope.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'tester', tier: 'sonnet' } });
     order.recordRed(red);
-    expect(scope.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'haiku' } });
+    expect(scope.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'sonnet' } });
   });
 
   it('review 단계에 닿으면 1단계 완료', () => {
@@ -35,7 +35,7 @@ describe('RunScope.minimalLoop', () => {
     expect(scope.decide(order)).toEqual({ kind: 'complete' });
   });
 
-  it('구현이 sonnet으로 오르면 needs-senior', () => {
+  it('구현이 opus로 오르면 needs-senior', () => {
     const order = openAtRed();
     order.recordRed(red);
     order.recordGreen(fail);
@@ -44,7 +44,7 @@ describe('RunScope.minimalLoop', () => {
     expect(scope.decide(order)).toEqual({ kind: 'stop', reason: 'needs-senior' });
   });
 
-  it('테스트 팀원이 sonnet으로 올라도 needs-senior', () => {
+  it('테스트 팀원이 opus로 올라도 needs-senior', () => {
     const order = openAtRed();
     order.recordRed(invalid);
     order.recordRed(invalid);
@@ -60,19 +60,19 @@ describe('RunScope.minimalLoop', () => {
 describe('RunScope.ladder', () => {
   const ladder = RunScope.ladder();
 
-  it('구현 주니어가 두 번 실패하면 sonnet 구현 시니어를 부른다', () => {
+  it('구현 주니어가 두 번 실패하면 opus 구현 시니어를 부른다', () => {
     const order = openAtRed();
     order.recordRed(red);
     order.recordGreen(fail);
     order.recordGreen(fail);
-    expect(ladder.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'sonnet' } });
+    expect(ladder.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'opus' } });
   });
 
-  it('테스트 팀원이 무효 Red를 두 번 내면 sonnet 테스트 팀원을 부른다', () => {
+  it('테스트 팀원이 무효 Red를 두 번 내면 opus 테스트 팀원을 부른다', () => {
     const order = openAtRed();
     order.recordRed(invalid);
     order.recordRed(invalid);
-    expect(ladder.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'tester', tier: 'sonnet' } });
+    expect(ladder.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'tester', tier: 'opus' } });
   });
 
   it('구현 시니어까지 실패하면 디버깅 지원이 필요해 멈춘다', () => {
@@ -93,15 +93,15 @@ describe('RunScope.ladder', () => {
     expect(ladder.decide(order)).toEqual({ kind: 'complete' });
   });
 
-  it('L급도 돌려보내지 않고 시니어(sonnet) 테스트 팀원부터 시작한다', () => {
-    expect(ladder.decide(openAtRed('L'))).toEqual({ kind: 'continue', assignment: { role: 'tester', tier: 'sonnet' } });
+  it('L급도 돌려보내지 않고 시니어(opus) 테스트 팀원부터 시작한다', () => {
+    expect(ladder.decide(openAtRed('L'))).toEqual({ kind: 'continue', assignment: { role: 'tester', tier: 'opus' } });
   });
 
   it('시니어로 시작한 L급은 주니어 기회를 건너뛴 만큼 시니어가 두 번 시도한 뒤에 멈춘다', () => {
     const order = openAtRed('L');
     order.recordRed(red);
     order.recordGreen(fail);
-    expect(ladder.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'sonnet' } });
+    expect(ladder.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'opus' } });
     order.recordGreen(fail);
     expect(ladder.decide(order)).toEqual({ kind: 'stop', reason: 'needs-support' });
   });
@@ -116,16 +116,16 @@ describe('RunScope.threePass', () => {
     return order;
   };
 
-  it('3단 범위는 검증을 통과하면 리뷰어(sonnet)를 부른다', () => {
-    expect(three.decide(atReview())).toEqual({ kind: 'continue', assignment: { role: 'reviewer', tier: 'sonnet' } });
+  it('3단 범위는 검증을 통과하면 리뷰어(opus)를 부른다', () => {
+    expect(three.decide(atReview())).toEqual({ kind: 'continue', assignment: { role: 'reviewer', tier: 'opus' } });
   });
 
-  it('민감한 업무(인증·결제)는 opus 리뷰어를 부른다 (멈추지 않는다)', () => {
+  it('민감한 업무(인증·결제)는 fable 리뷰어를 부른다 (멈추지 않는다)', () => {
     const order = WorkOrder.open({ id: 'w', title: 't', difficulty: Difficulty.of('L'), sensitive: true, scope: ['src/**'] });
     order.approveScenario({ happyPaths: 1, errorPaths: 1 });
     order.recordRed(red);
     order.recordGreen(green);
-    expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'reviewer', tier: 'opus' } });
+    expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'reviewer', tier: 'fable' } });
   });
 
   it('리뷰가 통과하면 완료', () => {
@@ -137,7 +137,7 @@ describe('RunScope.threePass', () => {
   it('리뷰 수정 요청이면 구현 팀원에게 돌아간다', () => {
     const order = atReview();
     order.recordReview('changes');
-    expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'haiku' } });
+    expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'sonnet' } });
   });
 
   it('리뷰 수정 요청이 두 번이어도 멈추지 않고 구현 팀원이 마지막 지적을 고친 뒤 완료한다', () => {
@@ -156,14 +156,14 @@ describe('RunScope.threePass', () => {
     expect(three.decide(order)).toMatchObject({ kind: 'continue', assignment: { role: 'implementer' } });
   });
 
-  it('마지막 시도는 가장 높은 모델(opus) 구현 팀원이 맡는다', () => {
+  it('마지막 시도는 가장 높은 모델(fable) 구현 팀원이 맡는다', () => {
     const order = openAtRed();
     order.recordRed(red);
     while (order.rung !== 'final') {
       if (order.pendingSupport !== null) order.resolveSupport();
       else order.recordGreen(fail);
     }
-    expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'opus' } });
+    expect(three.decide(order)).toEqual({ kind: 'continue', assignment: { role: 'implementer', tier: 'fable' } });
   });
 
   it('구현 사다리를 다 올라도 실패하면 그 이유(escalation-exhausted)로 알린다', () => {

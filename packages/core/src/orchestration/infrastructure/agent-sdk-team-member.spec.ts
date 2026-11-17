@@ -47,7 +47,7 @@ describe('readDirs', () => {
 });
 
 describe('modelOf', () => {
-  const setting = (tier: 'haiku' | 'sonnet' | 'opus') => ({ tier }) as never;
+  const setting = (tier: 'sonnet' | 'opus' | 'fable') => ({ tier }) as never;
   it('부르는 쪽이 정한 모델이 있으면 그것을 쓴다', () => {
     expect(modelOf({ setting: setting('opus'), model: 'claude-fable-5-2' })).toBe('claude-fable-5-2');
   });

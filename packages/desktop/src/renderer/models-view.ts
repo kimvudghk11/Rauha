@@ -1,7 +1,7 @@
 import { ModelNames, type ModelTier } from '@rauha/core/jobs';
 import { el } from './dom.js';
 
-const TIER_LABEL: Readonly<Record<ModelTier, string>> = { haiku: 'Haiku (light tasks)', sonnet: 'Sonnet (most work)', opus: 'Opus (hard problems)' };
+const TIER_LABEL: Readonly<Record<ModelTier, string>> = { sonnet: 'Sonnet (most work)', opus: 'Opus (hard problems)', fable: 'Fable (hardest problems)' };
 
 /**
  * Settings 의 Models 구역: 등급마다 모델 ID 를 직접 적거나 제안에서 고른다.

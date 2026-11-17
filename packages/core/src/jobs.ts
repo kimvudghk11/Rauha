@@ -8,6 +8,7 @@ export type { InfraRisk } from './orchestration/application/dto/infra-risk.dto.j
 export { ModelNames } from './orchestration/domain/model-names.js';
 export { ModelSettingsDto } from './orchestration/application/dto/model-settings.dto.js';
 export type { ModelTier } from './orchestration/domain/team.js';
+export { tierFromSaved } from './orchestration/domain/team.js';
 export { MEMBER_ROLES, ROLE_INFO, type MemberRole, type RoleInfo } from './orchestration/domain/member-role.js';
 export { type RuleBucket } from './orchestration/domain/rule-book.js';
 export type { DefaultRuleView } from './orchestration/application/dto/default-rules.dto.js';
