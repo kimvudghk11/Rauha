@@ -20,6 +20,7 @@ const row = (over: Partial<BenchRow>): BenchRow => ({
   logDir: null,
   intakeTokens: 22_000,
   surveyTokens: 0,
+  guesses: 0,
   ...over,
 });
 const at = new Date('2026-10-25T06:00:00Z');
@@ -51,6 +52,12 @@ describe('bench 표', () => {
     expect(lines[1]).toContain('접수 토큰');
     expect(lines[1]).toContain('조사 토큰');
     expect(lines.find((l) => l.startsWith('discount'))).toMatch(/12k\s+30k/);
+  });
+
+  it('근거가 확인되지 않은 주장 수를 요청마다, 합계에도 보인다(프롬프트를 바꿀 때 추측이 줄었는지 보려고)', () => {
+    const text = benchTable([row({ guesses: 2 }), row({ id: 'refund', guesses: 1 })], 'abc', at);
+    expect(text.split('\n')[1]).toContain('추측');
+    expect(text).toContain('추측 3');
   });
 
   it('비교가 아니면 변형 열 없이 지금 모양을 쓴다', () => {

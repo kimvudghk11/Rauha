@@ -38,6 +38,8 @@ export interface BenchRow {
   readonly intakeTokens: number;
   /** 저장소 지식 조사 팀원 토큰 */
   readonly surveyTokens: number;
+  /** 근거가 확인되지 않은 채 남은 주장(구현 보고의 추측 + 근거 없는 리뷰 지적). 프롬프트가 추측을 줄이는지 본다. */
+  readonly guesses: number;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -86,6 +88,7 @@ function toRow(id: string, variant: BenchVariant, outcome: RunOutcome, intakeTok
     logDir: outcome.logDir,
     intakeTokens,
     surveyTokens,
+    guesses: outcome.facts.checked.filter((c) => c.isGuess).length + outcome.facts.reviewerGuesses.length,
   };
 }
 
@@ -127,19 +130,21 @@ function summary(rows: readonly BenchRow[]): string {
   const avg = rows.length > 0 ? rows.reduce((n, r) => n + r.seconds, 0) / rows.length : 0;
   const total = rows.reduce((n, r) => n + r.costUsd, 0);
   const escalated = rows.filter((r) => r.escalated).length;
-  return `첫 시도 성공 ${rows.filter((r) => r.firstTry).length}/${rows.length} · 완료 ${done.length}/${rows.length} · 승격 ${escalated} · 평균 ${clock(avg)} · 합계 $${total.toFixed(3)}`;
+  const guesses = rows.reduce((n, r) => n + r.guesses, 0);
+  return `첫 시도 성공 ${rows.filter((r) => r.firstTry).length}/${rows.length} · 완료 ${done.length}/${rows.length} · 승격 ${escalated} · 추측 ${guesses} · 평균 ${clock(avg)} · 합계 $${total.toFixed(3)}`;
 }
 
 /** 결과 표. opus 고정 행이 있으면 비교 표로 그리고, 변형별 합계 줄을 따로 낸다. */
 export function benchTable(rows: readonly BenchRow[], promptHash: string, startedAt: Date): string {
   const compare = rows.some((r) => r.variant === 'opus');
-  const head = ['요청', ...(compare ? ['변형'] : []), '결과', '시도', '승격', '시간', 'sonnet 토큰', 'opus 토큰', '접수 토큰', '조사 토큰', '추정 비용'];
+  const head = ['요청', ...(compare ? ['변형'] : []), '결과', '시도', '승격', '추측', '시간', 'sonnet 토큰', 'opus 토큰', '접수 토큰', '조사 토큰', '추정 비용'];
   const body = rows.map((r) => [
     r.id,
     ...(compare ? [VARIANT_LABEL[r.variant]] : []),
     r.result,
     String(r.attempts),
     r.escalated ? '승격' : '-',
+    String(r.guesses),
     clock(r.seconds),
     tokens(r.sonnetTokens),
     tokens(r.opusTokens),
@@ -230,6 +235,7 @@ export async function runBench(props: {
           logDir: null,
           intakeTokens: 0,
           surveyTokens: 0,
+          guesses: 0,
         });
       }
     }
