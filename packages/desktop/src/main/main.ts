@@ -42,6 +42,7 @@ import { RepoConversations } from './team/repo-conversations.js';
 import { WorktreeLedger } from './workspace/worktree-ledger.js';
 import { dispatchGit } from './git/git-dispatch.js';
 import { ghCliToken, GithubActionsClient } from './github/actions-client.js';
+import { followCi, pushedCommit, upstreamOf, type PushedCommit } from './github/ci-after-push.js';
 import { GitFailure } from './git/git-run.js';
 import { CHECKPOINT_IPC } from '../shared/checkpoint-api.js';
 import { dispatchCheckpoint } from './team/checkpoint-dispatch.js';
@@ -374,7 +375,11 @@ async function startRunner(): Promise<JobRunner> {
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
+              // 팀이 push 하면 그 커밋의 CI 를 뒤에서 지켜본다(작업 전 원격 추적 커밋과 비교)
+              const upstreamBefore = FAKE ? null : await upstreamOf(cwd);
               const outcome = await session.handle(withAttachments(mentioned, staged?.paths ?? [], ask), depth);
+              const pushed = FAKE ? null : await pushedCommit(cwd, upstreamBefore).catch(() => null);
+              if (pushed !== null) void watchPushedCi(pushed);
               // 팀이 API 를 만들거나 고쳤으면 rauha 가 알아서 불러 보고, 실패하면 같은 팀이 한 번 고친다(작업 폴더가 정리되기 전에)
               if (!FAKE && outcome.kind === 'work' && outcome.outcome.status === 'complete') apiNote = await checkApis(job.id, io, cwd, outcome.outcome.changedInRun, session).catch(() => null);
               return outcome;
@@ -582,6 +587,27 @@ async function checkApis(jobId: string, io: TeamIo, cwd: string, changed: readon
   if (fixed.kind !== 'work' || fixed.outcome.status !== 'complete') return `${first.line}\n실패한 케이스를 고치려 했지만 끝까지 못 했어요.`;
   const again = await autoApiCheck(deps, cwd, [...changed, ...fixed.outcome.changedInRun]).catch(() => null);
   return [first.line, '실패한 케이스를 같은 팀이 한 번 고쳤어요.', again === null ? '고친 뒤 다시 점검하지 못했어요.' : `다시 점검: ${again.line}`].join('\n');
+}
+
+/** CI 지켜보기용 GitHub 읽기(Actions 탭과 같은 방식: gh 로그인 토큰이 있으면 쓰고, 없으면 공개 저장소만·로그 없이) */
+let ciClient: GithubActionsClient | null = null;
+
+/**
+ * 작업이 push 했으면 그 커밋의 GitHub Actions 를 뒤에서 지켜보고, 실패하면 'CI 실패 고치기' 할 일을 만들고 알린다.
+ * 스스로 고치기 시작하지 않는다(팀에 넘길지는 사용자가 정한다). 실패해도 작업에는 영향이 없다.
+ */
+function watchPushedCi(pushed: PushedCommit): Promise<void> {
+  ciClient ??= GithubActionsClient.create({ fetch: (u, i) => fetch(u, i), ghToken: ghCliToken, userAgent: `rauha/${app.getVersion()}` });
+  return followCi(pushed, {
+    client: ciClient,
+    addTodo: async (title, note) => void (await todoService.apply({ kind: 'add', title, note, top: true })),
+    notify: (title, body) => {
+      if (Notification.isSupported()) showNotice({ title, body }, null);
+    },
+  }).then(
+    () => undefined,
+    () => undefined,
+  );
 }
 
 /** 창 위치·크기는 모니터 구성별로 기억한다(모니터를 뺐다 꽂아도 제자리로). 확인용 실행에서는 쓰지 않는다. */

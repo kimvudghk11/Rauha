@@ -35,6 +35,8 @@ export interface RunView {
   readonly title: string;
   readonly event: string;
   readonly branch: string;
+  /** 이 실행이 돈 커밋(head_sha). 없으면 빈 글 */
+  readonly sha: string;
   readonly number: number;
   readonly attempt: number;
   readonly verdict: Verdict;
@@ -91,6 +93,7 @@ export function runsFromApi(json: unknown): RunView[] {
       title: str(r['display_title']),
       event: str(r['event']),
       branch: str(r['head_branch']),
+      sha: str(r['head_sha']),
       number: int(r['run_number']) ?? 0,
       attempt: int(r['run_attempt']) ?? 1,
       verdict,
