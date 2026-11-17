@@ -45,6 +45,7 @@ import {
   type TeamMemberPort,
 } from '@rauha/core';
 import { RepoConversations } from './repo-conversations.js';
+import { standupLog } from '../git/standup-log.js';
 import type { TeamIo, TeamSession } from './team-work.js';
 
 /** 사용자 PC 시간대 기준 YYYY-MM-DD. */
@@ -245,6 +246,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
         ? undefined
         : new AnalysisService({ team, roles, docs: new FileAnalysisDocs(keyRoot), progress: io.progress, today: () => localDate(), newId: () => randomUUID(), timer: realAskTimer, user: io.user.analysis, budget }),
     nowText: () => `${new Date().toLocaleString('ko-KR', { dateStyle: 'full', timeStyle: 'short' })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
+    // 스탠드업·퇴근 정리: 작업 공간의 모든 저장소(하나면 이 저장소)에서 내 커밋을 git 으로 모은다(모델 호출 없음)
+    workLog: (since) => standupLog(scope.repos.length > 0 ? scope.repos : [{ name: basename(keyRoot), root: keyRoot }], since),
   };
   // 앞 대화는 레포(keyRoot)마다 파일에 이어 둔다: 업무가 열 때 받아 오고, 끝나면 새로 생긴 대화만 합쳐 저장한다.
   const conversations = RepoConversations.under(profile.sessionsDir(home));

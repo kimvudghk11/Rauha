@@ -257,6 +257,26 @@ describe('ChatSession — 질문', () => {
     expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1);
   });
 
+  it('스탠드업 요청이면 rauha가 지난 근무일부터 모은 내 커밋을 답변 팀원에게 주고, 가볍다고 보지 않는다', async () => {
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [() => ({ answer: '■ 한 일 …', claims: [], asks: [], scope: [] })] });
+    const sinces: string[] = [];
+    const chat = ChatSession.start({ ...sessionDeps({ team }), workLog: async (since) => (sinces.push(since), [{ name: 'shop-api', branch: 'feat/refund', dirty: 2, commits: [{ hash: 'a1b2c3d', at: '2026-10-23 18:02', subject: '환불 금액 고침' }] }]) });
+    await chat.handle('스탠드업 정리해줘');
+    expect(sinces).toEqual(['2026-10-23']); // 오늘(일) → 지난 금요일
+    const call = team.calls.find((c) => c.role === 'answerer')!;
+    expect(call.message).toContain('<work_log since="2026-10-23">');
+    expect(call.message).toContain('- a1b2c3d 2026-10-23 18:02 환불 금액 고침');
+    const deep = RoleSettingsDto.defaults().get('answerer');
+    expect({ tier: call.tier, effort: call.effort, maxTurns: call.maxTurns }).toEqual({ tier: deep.tier, effort: deep.effort, maxTurns: deep.maxTurns });
+  });
+
+  it('스탠드업이 아닌 질문에는 커밋을 모으지 않는다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
+    let called = 0;
+    await ChatSession.start({ ...sessionDeps({ team }), workLog: async () => (called++, []) }).handle('이 함수 뭐 해?');
+    expect(called).toBe(0);
+  });
+
   it('근거가 필요 없는 짧은 질문은 근거 없이 답해도 된다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '안녕하세요.', claims: [] })] });
     const turn = await session({ team }).handle('안녕');

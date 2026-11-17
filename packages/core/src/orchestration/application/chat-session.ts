@@ -9,6 +9,7 @@ import { citedPaths, FactCheck, normalizeUrl, type CheckedClaim } from '../domai
 import { LearningBook } from '../domain/learning-book.js';
 import { RepoPaths } from '../domain/repo-paths.js';
 import { StackTrace } from '../domain/stack-trace.js';
+import { Standup, type StandupRepo } from '../domain/standup.js';
 import type { CompanyEntry } from '../domain/company-book.js';
 import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
@@ -84,6 +85,8 @@ export interface ChatSessionDeps {
   /** 팀원이 일하는 작업 폴더. 문서 팀원이 절대 경로로 보고한 파일을 작업 폴더 기준으로 풀 때 쓴다(없으면 상대 경로로 보고한 것만 받는다). */
   readonly workRoot?: string | undefined;
   readonly folder?: { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
+  /** 스탠드업·퇴근 정리에 쓸 저장소별 내 커밋·브랜치·커밋 안 한 변경(since: YYYY-MM-DD). 없으면 답변 팀원이 직접 git 을 본다. */
+  readonly workLog?: ((since: string) => Promise<readonly StandupRepo[]>) | undefined;
   /** 분석 흐름(조사 → 방향 비교 → 설계·계획 → 승인하면 구현). 없으면 디버깅·위험 점검은 지금처럼 팀원 한 번 호출이다. */
   readonly analyst?: AnalysisPort | undefined;
   /** 설계 대화. 없거나 사용자와 주고받을 화면이 없으면 기능 요청도 바로 작업으로 진행한다. */
@@ -296,9 +299,11 @@ export class ChatSession {
     // 기능 요청은 설계 대화부터. 사용자와 주고받을 화면이 없으면(-p) 작업으로 바로 진행한다.
     if (route.mode === 'feature' && past === null && this.canDesign()) return this.designs!.run(input, conversation, started);
     if (changesCode) return this.work(input, conversation, past, null, references);
-    const depth = answerDepthOf(route.depth, input);
+    const workLog = await this.workLogBlock(input);
+    // 스탠드업은 rauha가 모은 커밋으로 쓰므로 가벼운 질문으로 보지 않는다(근거 확인·빠진 항목 마저 하기를 한다)
+    const depth = workLog !== '' ? 'deep' : answerDepthOf(route.depth, input);
     const known = await this.knowledgeFor(depth);
-    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth));
+    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog);
     const answered = await this.answer(input, asked, started, depth, also);
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
     if (answered.kind === 'answer' && depth === 'deep') this.surveyInBackground();
@@ -433,6 +438,17 @@ export class ChatSession {
       implemented: worked?.kind === 'work' ? worked.outcome : null,
       durationMs: this.deps.now() - started,
     };
+  }
+
+  /** 스탠드업·퇴근 정리 요청이면 rauha가 git 으로 모은 내 커밋 묶음. 아니거나 모으지 못하면 빈 글. */
+  private async workLogBlock(input: string): Promise<string> {
+    if (this.deps.workLog === undefined || !Standup.asks(input)) return '';
+    const since = Standup.since(this.deps.today());
+    try {
+      return Standup.block(since, await this.deps.workLog(since));
+    } catch {
+      return '';
+    }
   }
 
   /**
@@ -579,6 +595,7 @@ ${SINGLE_REPO_NOTE}
     conversation: string | null,
     depth: 'light' | 'deep',
     others: readonly AlsoKnown[] = [],
+    extra = '',
   ): Promise<Asked> {
     const recalls = past !== null ? [past] : await this.deps.memory.search(input, CANDIDATES);
     const block = recallBlock(recalls, MEMORY_CHARS);
@@ -590,6 +607,7 @@ ${SINGLE_REPO_NOTE}
       `<today>${this.deps.today()}</today>`,
       `<now>${this.deps.nowText()}</now>`,
       block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '',
+      extra,
       `<question>\n${input}\n</question>`,
     ];
     const call = (more: readonly string[]): Promise<MemberResult> => this.member(
