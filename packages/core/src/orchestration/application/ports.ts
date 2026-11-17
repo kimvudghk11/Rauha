@@ -107,6 +107,8 @@ export interface WorkspacePort {
   dirtyFiles(): Promise<string[] | null>;
   /** 프로젝트 파일 목록(추적 중 + 새 파일, 실행 폴더 기준). 접수 팀장이 훑는 시간을 줄인다. */
   listFiles(): Promise<string[]>;
+  /** 파일의 최근 커밋 "해시 날짜 제목"(새것부터). 못 읽으면 빈 목록. 구현하지 않으면 붙이지 않는다. */
+  recentCommits?(path: string, limit: number): Promise<string[]>;
   /** 근거 확인용 파일 읽기(실행 폴더 기준). 밖이거나 없으면 null. */
   readFile(path: string): Promise<string | null>;
   snapshot(): Promise<WorkspaceSnapshot>;

@@ -65,6 +65,18 @@ export class GitWorkspace implements WorkspacePort {
     return [...new Set(out.split('\0').filter((p) => p !== '' && !IGNORED.test(p)))].sort().slice(0, MAX_LISTED_FILES);
   }
 
+  /** 파일의 최근 커밋 "해시 날짜 제목"(새것부터). 밖·비밀 파일이거나 git 이 실패하면 빈 목록. */
+  async recentCommits(path: string, limit: number): Promise<string[]> {
+    const rel = relativeToRoot(this.root, path);
+    if (rel === null || this.secrets.isSecret(rel)) return [];
+    try {
+      const out = await this.git(['log', `-n${limit}`, '--date=short', '--format=%h %ad %s', '--', rel]);
+      return out === '' ? [] : out.split('\n').map((l) => l.slice(0, 160));
+    } catch {
+      return [];
+    }
+  }
+
   /** 근거 확인용. 작업 폴더 밖, 없는 파일, 비밀 파일은 null. */
   async readFile(path: string): Promise<string | null> {
     const rel = relativeToRoot(this.root, path);

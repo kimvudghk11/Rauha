@@ -67,10 +67,11 @@ export class CompanyDesk {
    * 원인을 찾아 달라(debug)거나 바꾸기 전에 위험을 짚어 달라(risk), 아이디어를 달라(ideate)는 요청처럼 팀원 하나가 혼자 하는 일.
    * 지금 저장소를 읽고 보고만 하며 파일은 고치지 않는다. 고치는 일은 사용자가 이어서 시키면 작업 흐름으로 간다.
    */
-  async analyze(role: ReportRole, label: string, input: string, conversation: string | null, started: number, department: DepartmentId | null = null): Promise<TurnOutcome> {
+  /** extra: 요청 앞에 붙일 묶음(디버깅이면 에러 글이 가리키는 저장소 파일·최근 커밋) */
+  async analyze(role: ReportRole, label: string, input: string, conversation: string | null, started: number, department: DepartmentId | null = null, extra = ''): Promise<TurnOutcome> {
     const costBefore = this.host.spent();
     const book = await this.loadBook();
-    const done = await this.report(role, label, input, this.reportParts(input, conversation, book));
+    const done = await this.report(role, label, input, this.reportParts(input, conversation, book, null, extra));
     if ('blocked' in done) return { kind: 'blocked', ...done.blocked };
     if ('stopped' in done) return this.host.settle(`${label} 보고를 끝내지 못함`, input, done.stopped.text, done.stopped.note, started, costBefore);
     const answer = AnalysisReportDto.read({ answer: done.answer, files: done.files }, label).toAnswer();
@@ -205,13 +206,14 @@ export class CompanyDesk {
   }
 
   /** 팀원에게 보내는 공통 입력. brief가 있으면 부서장이 이 팀원에게 준 지시다. */
-  private reportParts(input: string, conversation: string | null, book: string, brief: string | null = null): string[] {
+  private reportParts(input: string, conversation: string | null, book: string, brief: string | null = null, extra = ''): string[] {
     return [
       conversationBlock(conversation),
       `<today>${this.deps.today()}</today>`,
       this.host.workspaceBlock(),
       book,
       brief !== null && brief !== '' ? `<assignment>\n${brief}\n</assignment>` : '',
+      extra,
       `<request>\n${input}\n</request>`,
     ];
   }

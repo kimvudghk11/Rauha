@@ -8,6 +8,7 @@ import { continuable, recallBlock, WorkMemory, type MemoryEntry, type Recall } f
 import { citedPaths, FactCheck, normalizeUrl, type CheckedClaim } from '../domain/fact-check.js';
 import { LearningBook } from '../domain/learning-book.js';
 import { RepoPaths } from '../domain/repo-paths.js';
+import { StackTrace } from '../domain/stack-trace.js';
 import type { CompanyEntry } from '../domain/company-book.js';
 import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
@@ -55,6 +56,8 @@ const OLDER_RESULT_CHARS = 300;
 /** 기억 묶음 글자 수 상한 */
 const MEMORY_CHARS = 3000;
 const CANDIDATES = 3;
+/** 에러 글이 가리키는 파일마다 붙이는 최근 커밋 수 */
+const TRACE_COMMITS = 3;
 
 export type { DesignTaskResult, TurnOutcome } from './turn-outcome.js';
 
@@ -63,7 +66,7 @@ export interface ChatSessionDeps {
   readonly newLoop: (carried: ReadonlyMap<string, string>) => { run(request: string, context: RunContextBlocks): Promise<RunOutcome> };
   readonly team: TeamMemberPort;
   /** snapshot이 있으면 분석 문서를 세션이 남긴 파일(carried)로 등록해, 승인한 계획의 구현이 새 파일 때문에 거절되지 않게 한다. */
-  readonly workspace: Pick<WorkspacePort, 'readFile' | 'reviewChanges'> & Partial<Pick<WorkspacePort, 'snapshot'>>;
+  readonly workspace: Pick<WorkspacePort, 'readFile' | 'reviewChanges'> & Partial<Pick<WorkspacePort, 'snapshot' | 'listFiles' | 'recentCommits'>>;
   readonly memory: MemoryPort;
   readonly user: UserPort;
   readonly progress: ProgressPort;
@@ -389,7 +392,8 @@ export class ChatSession {
    */
   private async analysis(role: 'debugger' | 'riskchecker', label: string, route: Route, input: string, conversation: string | null, also: readonly AlsoRepo[], started: number): Promise<TurnOutcome> {
     const analyst = this.deps.analyst;
-    if (analyst === undefined || !AnalysisReach.requested(input)) return this.desk.analyze(role, label, input, conversation, started);
+    const trace = role === 'debugger' ? await this.traceBlock(input) : '';
+    if (analyst === undefined || !AnalysisReach.requested(input)) return this.desk.analyze(role, label, input, conversation, started, null, trace);
     const known = await this.knowledgeFor('light');
     const recalls = await this.deps.memory.search(input, CANDIDATES);
     const memory = recallBlock(recalls, MEMORY_CHARS);
@@ -400,7 +404,8 @@ export class ChatSession {
       routedFeature: false,
       repos: 1 + also.length,
       repo: this.deps.repoName ?? '이 저장소',
-      knowledge: null,
+      // 저장소 지식 자리에 에러 글이 가리키는 저장소 파일·최근 커밋을 넣는다(없으면 null)
+      knowledge: trace === '' ? null : trace,
       memory: memory !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${memory}\n</memory>` : null,
       conversation,
       workspace: this.workspaceBlock(),
@@ -428,6 +433,29 @@ export class ChatSession {
       implemented: worked?.kind === 'work' ? worked.outcome : null,
       durationMs: this.deps.now() - started,
     };
+  }
+
+  /**
+   * 붙여 넣은 에러 글의 스택 프레임 중 이 저장소 파일·줄과 그 파일의 최근 커밋(모델 호출 없음).
+   * 디버깅 팀원이 파일을 찾는 턴을 아끼고, "배포 뒤 갑자기"의 후보 커밋을 바로 본다. 프레임이 없거나 읽다 실패하면 빈 글.
+   */
+  private async traceBlock(input: string): Promise<string> {
+    try {
+      const files = (await this.deps.workspace.listFiles?.()) ?? [];
+      const hits = StackTrace.hits(input, files);
+      if (hits.length === 0) return '';
+      const commitsOf = new Map<string, Promise<string[]>>();
+      const lines = await Promise.all(
+        hits.map(async (h) => {
+          if (!commitsOf.has(h.path)) commitsOf.set(h.path, this.deps.workspace.recentCommits?.(h.path, TRACE_COMMITS).catch(() => []) ?? Promise.resolve([]));
+          const commits = await commitsOf.get(h.path)!;
+          return `- ${h.path}:${h.line}${commits.length > 0 ? `\n  최근 커밋: ${commits.join(' | ')}` : ''}`;
+        }),
+      );
+      return `<trace_hits>\n에러 글의 스택 프레임 중 이 저장소에 있는 파일입니다(rauha가 찾음, 위가 에러에 가장 가까움). 이 줄부터 여세요. 최근 커밋은 원인 후보일 뿐 근거가 아닙니다.\n${lines.join('\n')}\n</trace_hits>`;
+    } catch {
+      return '';
+    }
   }
 
   /** 방금 쓴 분석 문서를 세션이 남긴 파일로 등록한다(작업 루프가 "커밋 안 한 모르는 파일"이라며 거절하지 않게). */

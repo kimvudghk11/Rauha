@@ -43,6 +43,21 @@ describe('GitWorkspace.readFile', () => {
   });
 });
 
+describe('GitWorkspace.recentCommits', () => {
+  it('파일의 최근 커밋을 새것부터 "해시 날짜 제목"으로, 밖·비밀 파일은 빈 목록', async () => {
+    const dir = repo();
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: dir });
+    writeFileSync(join(dir, 'src', 'a.ts'), 'a2');
+    git('commit', '-qam', '금액 반올림 바꿈');
+    const ws = new GitWorkspace(dir);
+    const commits = await ws.recentCommits('src/a.ts', 5);
+    expect(commits).toHaveLength(2);
+    expect(commits[0]).toMatch(/^[0-9a-f]{7,} \d{4}-\d{2}-\d{2} 금액 반올림 바꿈$/);
+    expect(await ws.recentCommits('../x.ts', 5)).toEqual([]);
+    expect(await ws.recentCommits('.env', 5)).toEqual([]);
+  });
+});
+
 describe('GitWorkspace.reviewChanges', () => {
   const gitIn = (dir: string) => (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: dir }).toString().trim();
 

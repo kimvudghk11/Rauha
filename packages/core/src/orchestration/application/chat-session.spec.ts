@@ -924,6 +924,29 @@ describe('ChatSession — 디버깅·위험 점검', () => {
     expect(team.calls.filter((c) => c.role === 'answerer').every((c) => c.signal!.aborted)).toBe(true);
   });
 
+  it('붙여 넣은 에러 글의 스택 프레임이 가리키는 저장소 파일·줄과 그 파일의 최근 커밋을 디버깅 팀원에게 먼저 준다', async () => {
+    const team = new FakeTeam({ router: [route('debug')], debugger: [report('원인은 X')] });
+    const deps = sessionDeps({ team });
+    const asked: string[] = [];
+    const chat = ChatSession.start({
+      ...deps,
+      workspace: { ...deps.workspace, listFiles: async () => ['src/order/order.service.ts', 'src/money.ts'], recentCommits: async (path) => (asked.push(path), ['a1b2c3d 2026-11-16 금액 반올림 바꿈']) },
+    });
+    await chat.handle(`배포 뒤 에러가 쏟아져\nTypeError: x\n    at pay (/app/src/order/order.service.ts:42:17)\n    at /app/node_modules/express/router.js:1:1`);
+    const message = team.calls.find((c) => c.role === 'debugger')!.message;
+    expect(message).toContain('<trace_hits>');
+    expect(message).toContain('- src/order/order.service.ts:42\n  최근 커밋: a1b2c3d 2026-11-16 금액 반올림 바꿈');
+    expect(message.slice(message.indexOf('<trace_hits>'), message.indexOf('</trace_hits>'))).not.toContain('express');
+    expect(asked).toEqual(['src/order/order.service.ts']);
+  });
+
+  it('스택 프레임이 없는 증상 설명이면 묶음을 붙이지 않는다', async () => {
+    const team = new FakeTeam({ router: [route('debug')], debugger: [report('원인은 X')] });
+    const deps = sessionDeps({ team });
+    await ChatSession.start({ ...deps, workspace: { ...deps.workspace, listFiles: async () => ['src/money.ts'] } }).handle('결제 금액이 왜 두 번 깎여?');
+    expect(team.calls.find((c) => c.role === 'debugger')!.message).not.toContain('<trace_hits>');
+  });
+
   it('risk로 가려진 요청은 위험 점검 팀원이 보고한다', async () => {
     const loops = new FakeLoops();
     const team = new FakeTeam({ router: [route('risk')], riskchecker: [report('cart.ts도 영향을 받아요.', ['src/cart.ts'])] });
