@@ -147,6 +147,23 @@ export class RepoKnowledge {
   }
 
   /**
+   * 업무 범위가 걸친 영역의 메모(그 영역의 역할과 관례)만 묶는다. 테스트·구현·리뷰 팀원이 그 저장소 방식대로 쓰게 한다.
+   * 범위의 파일·glob이 속한 영역(앞 두 단계 폴더)만 고르고, 메모가 없으면 빈 글. maxChars를 넘으면 뒤의 메모부터 뺀다.
+   */
+  areaNotesFor(paths: readonly string[], maxChars = 1_500): string {
+    const areas = new Set(paths.map((p) => areaOf(p.replace(/\\/g, '/').replace(/^\.\//, ''))));
+    const notes = this.notes.filter((n) => areas.has(n.area)).map((n) => `- ${n.area}: ${n.text}`);
+    const open = '<area_notes>\n일할 곳의 역할과 관례입니다(저장소 조사 메모). 새 코드는 이 관례를 따르세요.';
+    const close = '</area_notes>';
+    const lines: string[] = [];
+    for (const line of notes) {
+      if ([open, ...lines, line, close].join('\n').length > maxChars) break;
+      lines.push(line);
+    }
+    return lines.length === 0 ? '' : [open, ...lines, close].join('\n');
+  }
+
+  /**
    * 팀원 메시지 맨 앞에 넣을 묶음. 팀원에게는 구조·명령·메모만 준다: 묶음은 팀원의 턴마다 다시 보내지므로
    * 파일마다 이름을 늘어놓은 심볼 지도까지 넣으면 아낀 턴보다 토큰이 더 든다(2026-10-27 측정).
    * withSymbols: 조사 팀원처럼 파일을 골라야 하는 쪽에만. maxChars를 넘으면 심볼 지도, 그다음 메모를 뒤에서부터 뺀다.

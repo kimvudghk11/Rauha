@@ -14,7 +14,7 @@ const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;
 const INSTRUCTIONS = new Set(['CLAUDE.md', 'AGENTS.md', 'README.md']);
 const SCRIPTS = ['test', 'typecheck', 'lint', 'build'];
 const isFile = (path: string) => statSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
-const TEST_PATTERNS = ['.spec.ts', '.test.ts', '.spec.js', '.test.js'];
+const TEST_PATTERNS = ['.spec.ts', '.test.ts', '.spec.tsx', '.test.tsx', '.spec.js', '.test.js', 'Test.java', 'Tests.java', 'Test.kt', '_test.go', '_test.py'];
 
 /**
  * 저장소 지식을 만들고 최신으로 맞추는 데 필요한 것을 git으로 읽는다(모델 호출 없음).
@@ -53,7 +53,8 @@ export class GitRepoReader {
       instructionFiles: files.filter((f) => INSTRUCTIONS.has(names(f))).sort(),
       testPattern: (() => {
         const suffix = TEST_PATTERNS.find((s) => files.some((f) => f.endsWith(s)));
-        return suffix === undefined ? null : `*${suffix}`;
+        if (suffix !== undefined) return `*${suffix}`;
+        return files.some((f) => /(^|\/)test_[^/]*\.py$/.test(f)) ? 'test_*.py' : null;
       })(),
     };
   }

@@ -23,6 +23,8 @@ export interface KnowledgePort {
   current(): Promise<{ readonly block: string; readonly basis: RepoRef } | null>;
   /** 저장된 지식만 읽는다. 저장소를 훑지도 조사 팀원을 부르지도 않아 빠르다. 저장된 게 없으면 null. 가벼운 질문과 답한 뒤 조사에 쓴다. */
   stored?(): Promise<{ readonly block: string; readonly basis: RepoRef } | null>;
+  /** 업무 범위가 걸친 영역의 관례 메모 묶음(저장된 지식만 읽는다). 없으면 빈 글. */
+  notesFor?(paths: readonly string[]): Promise<string>;
   /** 작업이 끝나 rauha가 바꾼 파일을 알린다. 모델을 부르지 않고 기준과 심볼만 고친다. */
   noteChanged(paths: readonly string[]): Promise<void>;
 }

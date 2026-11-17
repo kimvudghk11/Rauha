@@ -105,6 +105,15 @@ describe('GitRepoReader', () => {
     expect(hashes.get('src/domain/money.ts')).toMatch(/^[0-9a-f]{40}$/);
   });
 
+  it('Java·Go·Python 저장소의 테스트 파일 모양도 알아본다(회사 백엔드 저장소)', async () => {
+    const { reader } = repo();
+    const of = async (files: string[]) => (await reader.facts(files)).testPattern;
+    expect(await of(['src/main/java/Order.java', 'src/test/java/OrderServiceTest.java'])).toBe('*Test.java');
+    expect(await of(['pkg/order.go', 'pkg/order_test.go'])).toBe('*_test.go');
+    expect(await of(['app/order.py', 'tests/test_order.py'])).toBe('test_*.py');
+    expect(await of(['README.md'])).toBeNull();
+  });
+
   it('package.json 스크립트와 패키지 관리자, 지시 파일, 영역을 읽는다', async () => {
     const { reader } = repo();
     const facts = await reader.facts(await reader.files());

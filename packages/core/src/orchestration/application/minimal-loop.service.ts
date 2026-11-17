@@ -268,9 +268,12 @@ export class MinimalLoopService {
     current.title = order.title;
     current.assumptions = assumptions;
     const commands = baseline.commandsNote();
+    // 일할 곳의 역할과 관례(조사 메모). 저장된 지식만 읽고, 없거나 실패하면 붙이지 않는다.
+    const areaNotes = await (this.deps.knowledge?.notesFor?.(dto.scope) ?? Promise.resolve('')).catch(() => '');
     const brief = [
       `<today>${this.deps.today()}</today>`,
       dto.toBrief(order.difficulty.grade),
+      areaNotes,
       commands !== '' ? `<checks>\nrauha가 이 프로젝트에서 쓰는 검사 명령입니다.\n${commands}\n</checks>` : '',
     ]
       .filter((s) => s !== '')

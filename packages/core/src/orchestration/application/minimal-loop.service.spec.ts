@@ -385,6 +385,25 @@ describe('MinimalLoopService', () => {
     expect(message.indexOf('<repo_knowledge')).toBeLessThan(message.indexOf('<request>'));
   });
 
+  it('테스트·구현 팀원은 업무 범위가 걸친 영역의 관례 메모를 함께 받는다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const asked: (readonly string[])[] = [];
+    const knowledge: KnowledgePort = { ...fakeKnowledge([]), notesFor: async (paths) => (asked.push(paths), '<area_notes>\n- src: 오류는 DomainError 로 던진다\n</area_notes>') };
+    await new MinimalLoopService({ ...deps(ws, team), knowledge }).run('Money에 할인 추가');
+    expect(asked[0]!.length).toBeGreaterThan(0);
+    expect(team.log.find((c) => c.role === 'tester')!.message).toContain('오류는 DomainError 로 던진다');
+    expect(team.log.find((c) => c.role === 'implementer')!.message).toContain('오류는 DomainError 로 던진다');
+  });
+
+  it('관례 메모를 읽다 실패해도 일은 그대로 한다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement] });
+    const knowledge: KnowledgePort = { ...fakeKnowledge([]), notesFor: async () => Promise.reject(new Error('깨진 파일')) };
+    const outcome = await new MinimalLoopService({ ...deps(ws, team), knowledge }).run('Money에 할인 추가');
+    expect(outcome.status).toBe('complete');
+  });
+
   it('결과에 작업 기준 커밋을 남기고, 끝나면 바뀐 파일을 지식에 알린다', async () => {
     const noted: string[] = [];
     const ws = new FakeWorkspace();

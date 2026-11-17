@@ -25,6 +25,27 @@ function knowledge(): RepoKnowledge {
   return k;
 }
 
+describe('RepoKnowledge — 일할 곳의 관례 메모', () => {
+  it('업무 범위(파일·폴더 glob)가 걸친 영역의 메모만 골라 묶는다', () => {
+    const block = knowledge().areaNotesFor(['src/domain/money.ts', 'src/domain/**']);
+    expect(block).toContain('<area_notes>');
+    expect(block).toContain('- src/domain: 값 객체와 엔티티');
+    expect(block).not.toContain('공용 도우미');
+  });
+
+  it('범위가 걸친 영역에 메모가 없으면 빈 글(묶음을 붙이지 않는다)', () => {
+    expect(knowledge().areaNotesFor(['docs/guide.md'])).toBe('');
+    expect(knowledge().areaNotesFor([])).toBe('');
+  });
+
+  it('상한을 넘으면 뒤의 메모부터 뺀다', () => {
+    const full = knowledge().areaNotesFor(['src/domain/a.ts', 'src/shared/b.ts']);
+    const block = knowledge().areaNotesFor(['src/domain/a.ts', 'src/shared/b.ts'], full.length - 1);
+    expect(block).toContain('src/domain');
+    expect(block).not.toContain('src/shared');
+  });
+});
+
 describe('RepoKnowledge', () => {
   it('있던 파일 내용만 바뀌면 메모는 그대로 두고 심볼 지도와 기준만 고친다(메서드 하나 추가로 다시 조사하지 않게)', () => {
     const k = knowledge();
