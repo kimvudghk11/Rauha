@@ -84,4 +84,16 @@ describe('내 작업 묶기', () => {
     expect(note).toContain('Company');
     expect(note).not.toContain('src/pay.ts');
   });
+
+  it('면접용 짧은 메모는 레포·월마다 제목을 몇 개만 남기고 나머지는 개수로 적어, 뒤 계정이 잘리지 않는다', () => {
+    const many = Array.from({ length: 400 }, (_, i) => [`@@${[`p${i}`, 'Me', 'me@gmail.com', String(1714521600 + i), `feat: personal change number ${i} with a fairly long subject line`].join(US)}`, '1\t1\tsrc/a.ts'].join('\n'));
+    const corp = `@@${['c1', 'Kim', 'kim@corp.com', '1717200000', 'fix: pay retry'].join(US)}\n3\t1\tsrc/pay.ts`;
+    const summary = summarizeWork(parseWorkLog([...many, corp].join('\n'), 'shop'), accounts);
+    const short = resumeNote(summary, { subjectsPerRow: 5, max: 4000 });
+    expect(short.length).toBeLessThanOrEqual(4000 + 10);
+    expect(short).toContain('fix: pay retry');
+    expect(short).toContain('Personal account');
+    expect(short).toMatch(/\(\+\d+ more\)/);
+    expect(short.length).toBeLessThan(resumeNote(summary).length);
+  });
 });

@@ -1095,7 +1095,8 @@ void app.whenReady().then(async () => {
     const stacks = [...localStacks, ...(remote?.stacks ?? []).filter((s) => !localStacks.some((l) => s.repo.endsWith(`/${l.repo}`)))];
     const summary = summarizeWork(commits, accounts, stacks);
     if (summary.total === 0) return null;
-    workCache = { key, note: resumeNote(summary), facts: workFacts(summary) };
+    // 면접은 한 번에 다섯 회사가 읽어서 짧은 메모로(레포·월마다 제목 8개, 8천 자)
+    workCache = { key, note: resumeNote(summary, { subjectsPerRow: 8, max: 8_000 }), facts: workFacts(summary) };
     return workCache;
   };
   // 이번에 보낸 이력서: 연차·공고(main 이 만든 것만 믿는다)·DB 를 붙인 요약
@@ -1197,7 +1198,7 @@ void app.whenReady().then(async () => {
       return { ok: true, data };
     }
     try {
-      const v = await evaluateCompany(c.id, posting, thisRound.years, thisRound.note, await interviewEnv(), claudeExecutable(), settings.models.opus, undefined, thisRound.desiredSalary);
+      const v = await evaluateCompany(c.id, posting, thisRound.years, thisRound.note, await interviewEnv(), claudeExecutable(), settings.models.sonnet, undefined, thisRound.desiredSalary);
       await keep(v);
       return { ok: true, data: v };
     } catch (e) {

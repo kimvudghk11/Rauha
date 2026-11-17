@@ -170,8 +170,14 @@ export function summarizeWork(commits: readonly WorkCommit[], accounts: GitAccou
 
 const NOTE_MAX = 12_000;
 
-/** 이력서 초안을 쓸 모델에 보낼 메모: 계정·기간·레포별 커밋 제목과 숫자만 */
-export function resumeNote(s: WorkSummary): string {
+/**
+ * 이력서 초안·면접에 보낼 메모: 계정·기간·레포별 커밋 제목과 숫자만(코드 없음).
+ * subjectsPerRow 를 주면 레포·월마다 제목을 그만큼만 남기고 나머지는 개수로 적는다
+ * (면접처럼 여러 번 보내는 곳에서 한도를 아끼고, 상한에 걸려 뒤 계정이 통째로 잘리지 않게).
+ */
+export function resumeNote(s: WorkSummary, opts: { readonly subjectsPerRow?: number; readonly max?: number } = {}): string {
+  const max = opts.max ?? NOTE_MAX;
+  const per = opts.subjectsPerRow ?? Number.POSITIVE_INFINITY;
   const lines: string[] = [];
   if (s.accounts.length > 0) {
     const first = Math.min(...s.accounts.map((a) => a.first));
@@ -189,8 +195,14 @@ export function resumeNote(s: WorkSummary): string {
     const changed = a.langs.reduce((n, l) => n + l.lines, 0);
     lines.push(`## ${a.label} account: ${a.commits} commits (+${a.added} −${a.removed}), ${monthOf(a.first)} ~ ${monthOf(a.last)}`);
     if (changed > 0) lines.push(`Languages I changed (lines): ${a.langs.map((l) => `${l.lang} ${Math.round((l.lines / changed) * 100)}% (${l.lines})`).join(', ')}`);
-    for (const m of a.months) for (const r of m.repos) lines.push(`- ${m.month} · ${r.repo} · ${r.commits} commits: ${r.subjects.join(' / ')}`);
+    for (const m of a.months) {
+      for (const r of m.repos) {
+        const shown = r.subjects.slice(0, per);
+        const more = r.subjects.length - shown.length;
+        lines.push(`- ${m.month} · ${r.repo} · ${r.commits} commits: ${shown.join(' / ')}${more > 0 ? ` (+${more} more)` : ''}`);
+      }
+    }
   }
   const text = lines.join('\n');
-  return text.length > NOTE_MAX ? `${text.slice(0, NOTE_MAX)}\n(cut)` : text;
+  return text.length > max ? `${text.slice(0, max)}\n(cut)` : text;
 }
