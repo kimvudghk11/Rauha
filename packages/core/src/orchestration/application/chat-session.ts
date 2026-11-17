@@ -10,6 +10,8 @@ import { LearningBook } from '../domain/learning-book.js';
 import { RepoPaths } from '../domain/repo-paths.js';
 import { StackTrace } from '../domain/stack-trace.js';
 import { Standup, type StandupRepo } from '../domain/standup.js';
+import { TodoAsk, type TodoItem } from '../domain/todo-ask.js';
+import { TodoItemsDto } from './dto/todo-items.dto.js';
 import type { CompanyEntry } from '../domain/company-book.js';
 import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
@@ -21,7 +23,7 @@ import type { ChatSnapshot } from './dto/chat-snapshot.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import { RouteDto, type Route } from './dto/route.dto.js';
-import { ANSWER_SCHEMA, OPS_SCHEMA, PUBLISH_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
+import { ANSWER_SCHEMA, TODO_SCHEMA, OPS_SCHEMA, PUBLISH_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
 import { OpsReportDto } from './dto/ops-report.dto.js';
 import { PublishReportDto } from './dto/publish-report.dto.js';
@@ -85,6 +87,8 @@ export interface ChatSessionDeps {
   /** 팀원이 일하는 작업 폴더. 문서 팀원이 절대 경로로 보고한 파일을 작업 폴더 기준으로 풀 때 쓴다(없으면 상대 경로로 보고한 것만 받는다). */
   readonly workRoot?: string | undefined;
   readonly folder?: { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
+  /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 넣는다. 넣은 수를 돌려준다. 없으면 이 요청도 평소처럼 라우터로 간다. */
+  readonly addTodos?: ((items: readonly TodoItem[]) => Promise<number>) | undefined;
   /** 스탠드업·퇴근 정리에 쓸 저장소별 내 커밋·브랜치·커밋 안 한 변경(since: YYYY-MM-DD). 없으면 답변 팀원이 직접 git 을 본다. */
   readonly workLog?: ((since: string) => Promise<readonly StandupRepo[]>) | undefined;
   /** 분석 흐름(조사 → 방향 비교 → 설계·계획 → 승인하면 구현). 없으면 디버깅·위험 점검은 지금처럼 팀원 한 번 호출이다. */
@@ -273,6 +277,8 @@ export class ChatSession {
       if (also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };
       return this.canDesign() ? this.designs!.run(input, conversation, started) : { kind: 'notice', message: '설계 대화는 터미널 대화 모드에서만 할 수 있어요.' };
     }
+    // "투두 정리해줘", "내일 업무 정리": 라우터를 거치지 않고 사용자 말에서 할 일을 뽑아 할 일 탭에 넣는다
+    if (force !== 'deep' && this.deps.addTodos !== undefined && TodoAsk.asks(input)) return this.todos(input, conversation, started);
     let route: Route;
     if (force === 'deep') {
       route = RouteDto.deepQuestion();
@@ -438,6 +444,33 @@ export class ChatSession {
       implemented: worked?.kind === 'work' ? worked.outcome : null,
       durationMs: this.deps.now() - started,
     };
+  }
+
+  /**
+   * 사용자 말(이번 말 + 앞 대화에서 사용자가 한 말)에서 할 일을 뽑아 할 일 탭에 넣는다. 팀원 한 번(가벼운 설정).
+   * 근거로 든 말이 사용자 말에 없는 항목은 버린다(지어낸 할 일이 들어가지 않게).
+   */
+  private async todos(input: string, conversation: string | null, started: number): Promise<TurnOutcome> {
+    const said = [input, ...this.turns.map((t) => t.input)];
+    const result = await this.member(
+      'answerer',
+      [
+        conversationBlock(conversation),
+        `<today>${this.deps.today()}</today>`,
+        `<now>${this.deps.nowText()}</now>`,
+        `<request>\n${input}\n</request>`,
+        '<task>사용자가 할 일을 정리해 달라고 합니다. 파일을 열지 말고, <request>와 <conversation>에서 사용자가 직접 말한 할 일·해야 할 일·약속만 뽑으세요. 팀(rauha)이 한 결과나 제안은 사용자가 하겠다고 말하지 않았으면 넣지 않습니다. 사용자가 말하지 않은 할 일을 지어내지 마세요. quote 에는 근거가 된 사용자 말을 그대로 옮기세요.</task>',
+      ],
+      TODO_SCHEMA,
+      { setting: this.deps.roles.lightAnswerer(), kits: [] },
+    );
+    if (result.blocked) return { kind: 'blocked', ...result.blocked };
+    const raw = TodoItemsDto.read(result.output);
+    const kept = TodoAsk.keep(raw, said);
+    const added = kept.length > 0 ? await this.deps.addTodos!(kept).catch(() => -1) : 0;
+    const answer = added < 0 ? '할 일 탭에 넣지 못했어요. 작업 폴더를 고른 뒤 다시 말씀해 주세요.' : TodoAsk.report(kept, raw.length - kept.length);
+    this.turns.push({ input, result: answer.slice(0, KEPT_RESULT_CHARS) });
+    return { kind: 'answer', answer, checked: [], costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis: null };
   }
 
   /** 스탠드업·퇴근 정리 요청이면 rauha가 git 으로 모은 내 커밋 묶음. 아니거나 모으지 못하면 빈 글. */

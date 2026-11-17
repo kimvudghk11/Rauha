@@ -240,6 +240,30 @@ export const SURVEY_SCHEMA: Record<string, unknown> = {
   },
 };
 
+/** 사용자 말에서 할 일 뽑기(TodoAsk). quote 가 사용자 말에 없으면 rauha 가 버린다. */
+export const TODO_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'array',
+      maxItems: 20,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'note', 'due', 'quote'],
+        properties: {
+          title: { ...str, maxLength: 120, description: '할 일 한 줄(동사로 끝나게, 사용자 말 그대로의 뜻)' },
+          note: { type: 'string', description: '사용자가 덧붙인 세부 사항. 없으면 빈 글' },
+          due: { type: ['string', 'null'], description: '사용자가 날짜·요일·내일·이번 주 금요일처럼 말했을 때만 <today> 기준 YYYY-MM-DD. 말하지 않았으면 null' },
+          quote: { ...str, description: '이 할 일의 근거가 된 사용자 말을 한 글자도 바꾸지 않고 그대로 옮긴 부분' },
+        },
+      },
+    },
+  },
+};
+
 export const WRITER_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,

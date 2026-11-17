@@ -270,6 +270,31 @@ describe('ChatSession — 질문', () => {
     expect({ tier: call.tier, effort: call.effort, maxTurns: call.maxTurns }).toEqual({ tier: deep.tier, effort: deep.effort, maxTurns: deep.maxTurns });
   });
 
+  it('"투두 정리해줘"면 라우터 없이 사용자가 말한 것에서 할 일을 뽑아 넣고, 근거가 사용자 말에 없는 항목은 버린다', async () => {
+    const team = new FakeTeam({
+      router: [route('question')],
+      answerer: [
+        () => ({ answer: '…', claims: [] }),
+        () => ({ items: [{ title: '결제 API 리뷰', note: '', due: '2026-10-26', quote: '결제 API 리뷰' }, { title: '회의록 쓰기', note: '', due: null, quote: '회의록 써야지' }] }),
+      ],
+    });
+    const added: string[] = [];
+    const chat = ChatSession.start({ ...sessionDeps({ team }), addTodos: async (items) => (added.push(...items.map((i) => i.title)), items.length) });
+    await chat.handle('내일은 결제 API 리뷰를 해야 해');
+    const turn = await chat.handle('투두 정리해줘');
+    expect(added).toEqual(['결제 API 리뷰']);
+    expect(team.calls.filter((c) => c.role === 'router')).toHaveLength(1); // 첫 말만 라우터
+    expect(team.calls.at(-1)!.message).toContain('내일은 결제 API 리뷰를 해야 해');
+    expect(turn.kind === 'answer' && turn.answer).toContain('할 일 탭에 1개 넣었어요.\n- 결제 API 리뷰 (2026-10-26)');
+    expect(turn.kind === 'answer' && turn.answer).toContain('근거를 찾지 못한 1개');
+  });
+
+  it('할 일 탭이 없는 화면(터미널)에서는 투두 요청도 평소처럼 라우터로 간다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
+    await session({ team }).handle('투두 정리해줘');
+    expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer']);
+  });
+
   it('스탠드업이 아닌 질문에는 커밋을 모으지 않는다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
     let called = 0;

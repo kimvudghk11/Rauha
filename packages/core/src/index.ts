@@ -57,6 +57,7 @@ export { CompanyBook, type CompanyEntry } from './orchestration/domain/company-b
 export { FileCompanyBook } from './orchestration/infrastructure/file-company-book.js';
 export { Routine, RoutineBook, type Cadence } from './orchestration/domain/routine.js';
 export { Standup, type StandupRepo } from './orchestration/domain/standup.js';
+export { TodoAsk, type TodoItem } from './orchestration/domain/todo-ask.js';
 export { FileRoutineStore } from './orchestration/infrastructure/file-routine-store.js';
 export { SessionBudget, type BudgetLevel, type BudgetWindow } from './orchestration/domain/session-budget.js';
 export { MEMBER_ROLES, ROLE_INFO, type RoleInfo } from './orchestration/domain/member-role.js';
