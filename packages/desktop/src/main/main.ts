@@ -88,6 +88,8 @@ import { registerWorkbench } from './workbench-ipc.js';
 import { registerApiIpc } from './api/api-ipc.js';
 import { FAKE_TEST_MODEL } from './api/api-test-fake.js';
 import { planTestCases, suggestFixes } from './api/api-test-model.js';
+import { autoApiCheck } from './api/auto-api-check.js';
+import { autoApiDeps } from './api/auto-api-wire.js';
 import { registerDockerIpc } from './docker/docker-ipc.js';
 import { registerDbIpc } from './db/db-ipc.js';
 import type { DbService } from './db/db-service.js';
@@ -341,9 +343,10 @@ async function startRunner(): Promise<JobRunner> {
         const root = followRoot.get(job.id) ?? target.folder?.root ?? all[0]?.root ?? currentWorkDir();
         jobRepoRoots.set(job.id, root);
         let note: string | null = null;
+        let apiNote: string | null = null;
         const fallbacks = new Set<string>();
         return {
-          note: () => [...fallbacks, ...(note === null ? [] : [note])].join('\n') || null,
+          note: () => [...fallbacks, ...(apiNote === null ? [] : [apiNote]), ...(note === null ? [] : [note])].join('\n') || null,
           handle: async (_input, depth) => {
             const problem = workFolderProblem(root, folderFacts(root));
             if (problem !== null) throw new Error(problem);
@@ -371,7 +374,10 @@ async function startRunner(): Promise<JobRunner> {
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
-              return await session.handle(withAttachments(mentioned, staged?.paths ?? [], ask), depth);
+              const outcome = await session.handle(withAttachments(mentioned, staged?.paths ?? [], ask), depth);
+              // 팀이 API 를 만들거나 고쳤으면 rauha 가 알아서 불러 보고, 실패하면 같은 팀이 한 번 고친다(작업 폴더가 정리되기 전에)
+              if (!FAKE && outcome.kind === 'work' && outcome.outcome.status === 'complete') apiNote = await checkApis(job.id, io, cwd, outcome.outcome.changedInRun, session).catch(() => null);
+              return outcome;
             } finally {
               // 바뀐 파일은 worktree를 정리(브랜치로 남김)하기 전에 읽는다. 알아내지 못하면 기록하지 않는다.
               const after = before === null ? null : await snapshotChanges(cwd);
@@ -548,6 +554,34 @@ function askWithNotice(jobId: string, request: Parameters<Approvals['ask']>[1]) 
     trail.approval(jobId, { tool: request.tool, headline: summarizeRequest(request, settings.protectedBranches).headline, reason: request.reason, decision, note, at: new Date().toISOString() });
   });
   return answered;
+}
+
+/**
+ * 팀 작업 뒤 자동 API 점검(바뀐 파일에 엔드포인트가 있을 때만). 실패가 있으면 같은 팀(같은 세션·같은 폴더)이 한 번 고치고 다시 점검한다.
+ * 서버 띄우기·데이터를 바꾸는 케이스는 허락 카드로 묻고, 한 작업 안에서 같은 질문은 한 번만 묻는다. 결과 글에 붙일 줄을 돌려준다.
+ */
+async function checkApis(jobId: string, io: TeamIo, cwd: string, changed: readonly { readonly path: string; readonly kind: string }[], session: TeamSession): Promise<string | null> {
+  const env = async (): Promise<Record<string, string>> => ({ ...(process.env as Record<string, string>), ...(await profileResolver(home, settings.account))(currentWorkDir()).agentEnv(home) });
+  const allowed = new Set<string>();
+  const deps = autoApiDeps({
+    ask: async (detail, reason) => {
+      if (allowed.has(detail)) return true;
+      const ok = (await askWithNotice(jobId, { role: 'tester', tool: 'Bash', detail, reason })).kind !== 'deny';
+      if (ok) allowed.add(detail);
+      return ok;
+    },
+    say: (line) => io.progress.step(line, 'tester'),
+    plan: async (prompt) => planTestCases(prompt, { model: settings.models.sonnet, env: await env(), claudeExecutable: claudeExecutable() }),
+    fixes: async (prompt) => suggestFixes(prompt, { model: settings.models.sonnet, env: await env(), claudeExecutable: claudeExecutable() }),
+  });
+  const first = await autoApiCheck(deps, cwd, changed);
+  if (first === null) return null;
+  if (first.fixRequest === null || io.signal.aborted) return first.line;
+  io.progress.step('API 점검에서 실패한 케이스를 넘겨받았어요. 같은 팀이 한 번 고칠게요', 'implementer');
+  const fixed = await session.handle(first.fixRequest);
+  if (fixed.kind !== 'work' || fixed.outcome.status !== 'complete') return `${first.line}\n실패한 케이스를 고치려 했지만 끝까지 못 했어요.`;
+  const again = await autoApiCheck(deps, cwd, [...changed, ...fixed.outcome.changedInRun]).catch(() => null);
+  return [first.line, '실패한 케이스를 같은 팀이 한 번 고쳤어요.', again === null ? '고친 뒤 다시 점검하지 못했어요.' : `다시 점검: ${again.line}`].join('\n');
 }
 
 /** 창 위치·크기는 모니터 구성별로 기억한다(모니터를 뺐다 꽂아도 제자리로). 확인용 실행에서는 쓰지 않는다. */

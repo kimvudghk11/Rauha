@@ -17,13 +17,15 @@ describe('단축키 안내', () => {
     expect(tabs.rows.map((r) => r.label)).toEqual(order.map((t) => t.label));
     expect(tabs.rows[0]?.keys).toBe('Ctrl+1');
   });
-  it('숫자 키는 열 개까지라 열한째 탭(Settings)은 Ctrl+, 로 적고, DB 는 여섯째(Ctrl+6)다', () => {
+  it('숫자 키는 열 개까지라 Settings 는 Ctrl+, 로 적고, API 탭이 빠져 DB 는 다섯째(Ctrl+5)다', () => {
     const rows = shortcutSheet('win32').find((g) => g.title === 'Switch tab')!.rows;
-    expect(rows.find((r) => r.label === 'DB')?.keys).toBe('Ctrl+6');
-    expect(rows.find((r) => r.label === 'Rules')?.keys).toBe('Ctrl+0');
+    expect(rows.find((r) => r.label === 'DB')?.keys).toBe('Ctrl+5');
+    expect(rows.find((r) => r.label === 'Rules')?.keys).toBe('Ctrl+9');
+    expect(rows.find((r) => r.label === 'Extensions')?.keys).toBe('Ctrl+0');
     expect(rows.find((r) => r.label === 'Settings')?.keys).toBe('Ctrl+,');
-    expect(rows.find((r) => r.label === 'Extensions')?.keys).toBe('—');
-    expect(shortcutSheet('darwin').find((g) => g.title === 'Switch tab')!.rows.find((r) => r.label === 'DB')?.keys).toBe('⌘6');
+    expect(rows.find((r) => r.label === 'Interview')?.keys).toBe('—');
+    expect(rows.some((r) => r.label === 'API')).toBe(false);
+    expect(shortcutSheet('darwin').find((g) => g.title === 'Switch tab')!.rows.find((r) => r.label === 'DB')?.keys).toBe('⌘5');
   });
   it('터미널 단축키(칸 토글·새 터미널·터미널 안 찾기·복사)가 안내에 있다', () => {
     const rows = shortcutSheet('win32').flatMap((g) => g.rows);

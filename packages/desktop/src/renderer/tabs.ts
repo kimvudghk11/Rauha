@@ -17,7 +17,7 @@ export const TABS: readonly Tab[] = [
   tab('chat', 'Chat', 'M4 5h16v11H9l-5 4z', true),
   tab('code', 'Repo', 'M3 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M10 11l-2 2 2 2 M14 11l2 2-2 2', true),
   tab('todo', 'Todo', 'M4 4h16v16H4z M8 12l3 3 5-6', true),
-  tab('api', 'API', 'M8 7l-4 5 4 5 M16 7l4 5-4 5 M13.5 5l-3 14', true),
+  // API 탭은 뺐다(2026-11-17): API 시험은 팀이 API 를 만들면 rauha 가 알아서 한다(main/api/auto-api-check.ts). 코드는 내부 기능으로 남긴다
   tab('docker', 'Docker', 'M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10', true),
   tab('db', 'DB', 'M5 6c0-1.7 3.1-3 7-3s7 1.3 7 3-3.1 3-7 3-7-1.3-7-3z M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6 M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3', true),
   tab('records', 'Records', 'M5 4h11l3 3v13H5z M9 10h6 M9 14h6', true),

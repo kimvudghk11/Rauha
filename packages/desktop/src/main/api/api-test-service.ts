@@ -139,26 +139,8 @@ export class ApiTestService {
     });
   }
 
-  /** 케이스 하나: 변수 채우기 → 이 컴퓨터 주소인지 → (반복이면 차례로, 동시면 한꺼번에) 보내기 → 판정 */
-  private async runCase(c: TestCase, base: ApiRequestProps, vars: ReadonlyMap<string, string>, secretNames: ReadonlySet<string>): Promise<CaseResult> {
-    const request = ApiRequest.create(c.toRequest(base));
-    const label = `${base.method} ${base.url}`;
-    let prepared;
-    try {
-      prepared = request.prepare(vars, secretNames);
-    } catch (e) {
-      return CaseResult.notRun(c, label, message(e));
-    }
-    const sent = `${prepared.method} ${maskUrlSecrets(prepared.url, prepared.secrets)}`;
-    if (!LocalTarget.isLocal(prepared.url)) return CaseResult.notRun(c, hideSecrets(sent, prepared.secrets), 'Not sent: the address is not on this computer.');
-    const once = async (): Promise<ObservedResponse> => {
-      const out = await this.deps.send(prepared, new AbortController().signal);
-      return out.ok ? { status: out.response.status, body: out.response.body, ms: out.response.ms, error: null } : { status: null, body: '', ms: out.ms, error: out.error };
-    };
-    const observed: ObservedResponse[] = [];
-    if (c.parallel > 1) observed.push(...(await Promise.all(Array.from({ length: c.parallel }, once))));
-    else for (let i = 0; i < c.repeat; i++) observed.push(await once());
-    return CaseResult.from(c, sent, observed, prepared.secrets);
+  private runCase(c: TestCase, base: ApiRequestProps, vars: ReadonlyMap<string, string>, secretNames: ReadonlySet<string>): Promise<CaseResult> {
+    return runApiCase(this.deps.send, c, base, vars, secretNames);
   }
 
   async save(planId: unknown): Promise<SaveReportResult> {
@@ -171,4 +153,26 @@ export class ApiTestService {
       return { ok: false, error: message(e) };
     }
   }
+}
+
+/** 케이스 하나(API 탭과 자동 API 점검이 함께 쓴다): 변수 채우기 → 이 컴퓨터 주소인지 → (반복이면 차례로, 동시면 한꺼번에) 보내기 → 판정 */
+export async function runApiCase(send: ApiTestDeps['send'], c: TestCase, base: ApiRequestProps, vars: ReadonlyMap<string, string>, secretNames: ReadonlySet<string>): Promise<CaseResult> {
+  const request = ApiRequest.create(c.toRequest(base));
+  const label = `${base.method} ${base.url}`;
+  let prepared;
+  try {
+    prepared = request.prepare(vars, secretNames);
+  } catch (e) {
+    return CaseResult.notRun(c, label, message(e));
+  }
+  const sent = `${prepared.method} ${maskUrlSecrets(prepared.url, prepared.secrets)}`;
+  if (!LocalTarget.isLocal(prepared.url)) return CaseResult.notRun(c, hideSecrets(sent, prepared.secrets), 'Not sent: the address is not on this computer.');
+  const once = async (): Promise<ObservedResponse> => {
+    const out = await send(prepared, new AbortController().signal);
+    return out.ok ? { status: out.response.status, body: out.response.body, ms: out.response.ms, error: null } : { status: null, body: '', ms: out.ms, error: out.error };
+  };
+  const observed: ObservedResponse[] = [];
+  if (c.parallel > 1) observed.push(...(await Promise.all(Array.from({ length: c.parallel }, once))));
+  else for (let i = 0; i < c.repeat; i++) observed.push(await once());
+  return CaseResult.from(c, sent, observed, prepared.secrets);
 }
