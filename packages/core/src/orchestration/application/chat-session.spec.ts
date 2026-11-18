@@ -638,14 +638,14 @@ describe('ChatSession — 여러 저장소', () => {
       expect(team.calls.find((c) => c.role === 'answerer')!.message).not.toContain('<workspace');
     });
 
-    it('저장소가 4개 넘으면 저장소마다 싼 모델이 나눠 읽고(문서는 쓰지 않음), 모은 요약으로 문서 한 번 쓴다', async () => {
+    it('저장소가 4개 넘으면 저장소마다 문서 팀원(opus)이 나눠 읽고(문서는 쓰지 않음), 모은 요약으로 문서 한 번 쓴다', async () => {
       const team = new FakeTeam({ router: [route('task')], writer: [(c) => (c.userMessage.includes('<gather') ? { summary: `요약-${c.userMessage.match(/<gather repo="([^"]+)"/)![1]}`, files: [] } : done())] });
       const steps: string[] = [];
       const turn = await ChatSession.start({ ...sessionDeps({ team, steps }), repoName: 'shop-api', folder: folder(6) }).handle('모든 레포 이력서 정리', alsoOf(6));
       const writers = team.calls.filter((c) => c.role === 'writer');
       const gathers = writers.filter((c) => c.message.includes('<gather'));
       expect(gathers).toHaveLength(6);
-      expect(gathers.every((c) => c.tier === 'sonnet' && !c.canWrite('RESUME.md'))).toBe(true);
+      expect(gathers.every((c) => c.tier === 'opus' && !c.canWrite('RESUME.md'))).toBe(true);
       // 각 저장소는 자기 폴더만 열어 읽는다.
       expect(gathers.find((c) => c.message.includes('repo3'))!.dirs).toEqual(['E:/w/repo3']);
       const last = writers.at(-1)!;
@@ -1161,7 +1161,7 @@ describe('ChatSession — 회사 부서', () => {
     expect(turn).toMatchObject({ kind: 'answer', answer: '구독이 맞아요.' });
   });
 
-  it('부서장은 계획에는 sonnet, 종합에는 가장 높은 모델을 쓴다 (짧은 계획에 비싼 모델을 쓰지 않는다)', async () => {
+  it('부서장은 계획(일 나누기)과 종합 모두 가장 높은 모델을 쓴다(질 먼저)', async () => {
     const team = new FakeTeam({
       router: [route('company', false, null, { department: 'design', member: null })],
       chief: [chief([{ member: 'uxdesigner', brief: 'a' }, { member: 'brand', brief: 'b' }])],
@@ -1170,7 +1170,7 @@ describe('ChatSession — 회사 부서', () => {
     });
     await session({ team }).handle('디자인 전반');
     const [plan, merge] = callsOf(team, 'chief');
-    expect([plan!.tier, merge!.tier]).toEqual(['sonnet', 'fable']);
+    expect([plan!.tier, merge!.tier]).toEqual(['fable', 'fable']);
   });
 
   it('부서장의 종합 입력에는 팀원들의 보고가 담긴다', async () => {
@@ -1261,7 +1261,7 @@ describe('ChatSession — 한도 연동', () => {
     });
     const steps: string[] = [];
     await session({ team, steps, budget: used(20) }).handle('디자인 전반');
-    expect(team.calls.filter((c) => c.role === 'chief').map((c) => c.tier)).toEqual(['sonnet', 'fable']);
+    expect(team.calls.filter((c) => c.role === 'chief').map((c) => c.tier)).toEqual(['fable', 'fable']);
     expect(steps.some((s) => s.includes('한도'))).toBe(false);
   });
 

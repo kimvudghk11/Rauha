@@ -133,7 +133,7 @@ export class DocumentDesk {
             `<request>\n${input}\n</request>`,
           ],
           WRITER_SCHEMA,
-          { dirs: repo.root !== null ? [repo.root] : [], canWrite: () => false, tier: 'sonnet', quiet: true },
+          { dirs: repo.root !== null ? [repo.root] : [], canWrite: () => false, quiet: true },
         );
         if (result.blocked) {
           blocked = result.blocked;

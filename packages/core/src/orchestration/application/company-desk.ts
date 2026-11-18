@@ -93,8 +93,9 @@ export class CompanyDesk {
     const book = await this.loadBook();
     const known = [`<department>\n${department.persona}\n</department>`, book, conversationBlock(conversation), `<request>\n${input}\n</request>`];
     const members = `<members>\n${department.members.map((m) => `- ${m.role}: ${m.does}`).join('\n')}\n</members>`;
-    // 계획은 짧은 분배라 sonnet이면 충분하다. 부서장의 상위 모델은 팀원 보고를 모으는 종합과 런칭 섹션에 쓴다.
-    const planned = await this.host.member('chief', ['<job>plan</job>', members, ...known], COMPANY_PLAN_SCHEMA, { tier: 'sonnet' });
+    // 질 먼저: 일 나누기(계획)도 종합과 같은 부서장 모델로 한다(부서가 12개라 누구에게 맡길지가 결과를 가른다). 한도가 빠듯하면 둘 다 sonnet, 알림은 한 번.
+    const pace = this.chiefPace();
+    const planned = await this.host.member('chief', ['<job>plan</job>', members, ...known], COMPANY_PLAN_SCHEMA, pace());
     if (planned.blocked) return { kind: 'blocked', ...planned.blocked };
     const planStop = this.stopOf(planned);
     if (planStop !== null) return this.host.settle(`${department.label} 일 나누기를 끝내지 못함`, input, planStop.text, planStop.note, started, costBefore);
@@ -120,7 +121,7 @@ export class CompanyDesk {
     }
 
     const body = done.map((d) => `<report member="${d.role}">\n${d.answer}\n</report>`).join('\n');
-    const merged = await this.host.member('chief', ['<job>merge</job>', ...known, `<reports>\n${body}\n</reports>`], ANALYSIS_SCHEMA, this.chiefPace()());
+    const merged = await this.host.member('chief', ['<job>merge</job>', ...known, `<reports>\n${body}\n</reports>`], ANALYSIS_SCHEMA, pace());
     if (merged.blocked) return { kind: 'blocked', ...merged.blocked };
     const mergeStop = this.stopOf(merged);
     if (mergeStop !== null) {
