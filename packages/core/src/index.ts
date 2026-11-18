@@ -101,7 +101,7 @@ export { connectorServers, type ConnectorServers } from './orchestration/infrast
 export { GitWorkspace } from './orchestration/infrastructure/git-workspace.js';
 export { readPlanUsage } from './orchestration/infrastructure/agent-sdk-plan-usage.js';
 export { NodeChecks, NodeProject, type PackageManager } from './orchestration/infrastructure/node-checks.js';
-export { projectChecks, ToolchainChecks } from './orchestration/infrastructure/toolchain-checks.js';
+export { projectChecks, ToolchainChecks, XcodeChecks } from './orchestration/infrastructure/toolchain-checks.js';
 export { Toolchain } from './orchestration/domain/toolchain.js';
 export { FileRunLog } from './orchestration/infrastructure/file-run-log.js';
 export { SecretPolicy } from './orchestration/domain/secret-policy.js';

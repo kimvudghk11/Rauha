@@ -51,3 +51,22 @@ describe('Node 가 아닌 프로젝트의 테스트 도구', () => {
     expect(Toolchain.missingTool('--- FAIL: TestAdd')).toBe(false);
   });
 });
+
+describe('Xcode 프로젝트(iOS 앱)', () => {
+  it('워크스페이스를 프로젝트보다 먼저 고르고, 이름이 같은 스킴을 먼저, 가장 새 iOS 런타임의 iPhone 시뮬레이터를 고른다', () => {
+    expect(Toolchain.xcodeContainer(['App.xcodeproj', 'App.xcworkspace', 'Podfile'])).toBe('App.xcworkspace');
+    expect(Toolchain.xcodeContainer(['README.md'])).toBeNull();
+    expect(Toolchain.xcodeScheme('{"workspace":{"name":"App","schemes":["Pods-App","App"]}}', 'App.xcworkspace')).toBe('App');
+    expect(Toolchain.xcodeScheme('{"project":{"schemes":["Shop"]}}', 'App.xcodeproj')).toBe('Shop');
+    expect(Toolchain.xcodeScheme('not json', 'App.xcodeproj')).toBeNull();
+    const sims = JSON.stringify({ devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-17-5': [{ udid: 'OLD', name: 'iPhone 15', isAvailable: true }], 'com.apple.CoreSimulator.SimRuntime.iOS-18-1': [{ udid: 'IPAD', name: 'iPad Air', isAvailable: true }, { udid: 'NEW', name: 'iPhone 16', isAvailable: true }], 'com.apple.CoreSimulator.SimRuntime.watchOS-11-0': [{ udid: 'W', name: 'Apple Watch', isAvailable: true }] } });
+    expect(Toolchain.iphoneSimulator(sims)).toBe('NEW');
+  });
+
+  it('xcodebuild test 명령을 워크스페이스·스킴·시뮬레이터로 만들고, 빌드 실패는 컴파일 실패로 본다', () => {
+    const t = Toolchain.forXcode({ container: 'App.xcworkspace', scheme: 'App', simulator: 'NEW' });
+    expect(t.testAll()).toBe('xcodebuild test -workspace App.xcworkspace -scheme App -destination "platform=iOS Simulator,id=NEW" -quiet');
+    expect(Toolchain.failureKind('** TEST BUILD FAILED **')).toBe('compile');
+    expect(t.failedNames("Test Case '-[AppTests.CartTests testTotal]' failed (0.002 seconds).")).toEqual(['-[AppTests.CartTests testTotal]']);
+  });
+});

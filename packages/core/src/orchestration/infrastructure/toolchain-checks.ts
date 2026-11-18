@@ -69,6 +69,57 @@ export class ToolchainChecks implements ChecksPort {
 }
 
 /**
+ * Xcode 프로젝트(맥): 처음 쓸 때 스킴(xcodebuild -list)과 iPhone 시뮬레이터(simctl)를 알아내고 xcodebuild test 로 돌린다.
+ * 알아내지 못하면(맥이 아니거나 Xcode 가 없음) 돌릴 방법 없음.
+ */
+export class XcodeChecks implements ChecksPort {
+  private resolved: Promise<ToolchainChecks | null> | null = null;
+
+  constructor(
+    private readonly root: string,
+    private readonly container: string,
+    private readonly run: ShellRunner = runShell,
+    private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  ) {}
+
+  private inner(): Promise<ToolchainChecks | null> {
+    this.resolved ??= (async () => {
+      const where = this.container.endsWith('.xcworkspace') ? '-workspace' : '-project';
+      const list = await this.run(`xcodebuild -list -json ${where} "${this.container}"`, this.root, 60_000);
+      const scheme = list.code === 0 ? Toolchain.xcodeScheme(list.output.slice(list.output.indexOf('{')), this.container) : null;
+      if (scheme === null) return null;
+      const sims = await this.run('xcrun simctl list devices available --json', this.root, 60_000);
+      const simulator = sims.code === 0 ? Toolchain.iphoneSimulator(sims.output.slice(sims.output.indexOf('{'))) : null;
+      return new ToolchainChecks(this.root, Toolchain.forXcode({ container: this.container, scheme, simulator }), this.timeoutMs, this.run);
+    })();
+    return this.resolved;
+  }
+
+  async hasTestRunner(): Promise<boolean> {
+    return (await this.inner()) !== null;
+  }
+
+  async runTests(files: readonly string[]): Promise<TestsResult> {
+    const c = await this.inner();
+    if (c !== null) return c.runTests(files);
+    const run = TestRun.of({ passed: 0, failed: 1, failureKind: 'no-runner', failedNames: ['(Xcode 스킴을 찾지 못함: 맥에서 Xcode 가 있어야 해요)'] });
+    return { run, ids: [...run.failedNames], passed: [], digest: '', command: 'xcodebuild test' };
+  }
+
+  async runQuick(changedFiles: readonly string[]): Promise<QuickChecksResult> {
+    void changedFiles;
+    return { results: await this.runSuite(), narrowed: false };
+  }
+
+  async runSuite(): Promise<CheckResult[]> {
+    const c = await this.inner();
+    if (c !== null) return c.runSuite();
+    const skip = (name: 'tests' | 'typecheck' | 'lint'): CheckResult => ({ name, status: 'skip', failures: [], command: null, summary: 'Xcode 를 쓸 수 없어 건너뜀' });
+    return [skip('tests'), skip('typecheck'), skip('lint')];
+  }
+}
+
+/**
  * 저장소에 맞는 검사를 고른다: package.json 에 test 스크립트가 있으면 Node, 아니면 루트 표시 파일로 다른 언어 도구,
  * 그것도 없으면 Node(테스트를 돌릴 방법 없음으로 알린다).
  */
@@ -82,7 +133,10 @@ export function projectChecks(root: string): ChecksPort {
   }
   const pubspecPath = join(root, 'pubspec.yaml');
   const tool = Toolchain.detect({ rootFiles, pubspec: existsSync(pubspecPath) ? readFileSync(pubspecPath, 'utf8') : null, platform: process.platform });
-  return tool === null ? new NodeChecks(root) : new ToolchainChecks(root, tool);
+  if (tool !== null) return new ToolchainChecks(root, tool);
+  // Swift 패키지가 아닌 iOS 앱(Xcode 프로젝트)은 맥에서만 돌린다
+  const xcode = Toolchain.xcodeContainer(rootFiles);
+  return xcode !== null && process.platform === 'darwin' ? new XcodeChecks(root, xcode) : new NodeChecks(root);
 }
 
 function nodeTestScript(root: string): boolean {

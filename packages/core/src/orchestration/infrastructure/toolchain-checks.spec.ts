@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Toolchain } from '../domain/toolchain.js';
 import { NodeChecks } from './node-checks.js';
-import { projectChecks, ToolchainChecks, type ShellRunner } from './toolchain-checks.js';
+import { projectChecks, ToolchainChecks, XcodeChecks, type ShellRunner } from './toolchain-checks.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -56,5 +56,24 @@ describe('Node 가 아닌 프로젝트 검사', () => {
     const suite = await ok.runSuite();
     expect(suite.map((c) => `${c.name}:${c.status}`)).toEqual(['tests:pass', 'typecheck:pass', 'lint:skip']);
     expect(seen).toContain('go vet ./...');
+  });
+});
+
+describe('Xcode 프로젝트 검사(맥)', () => {
+  it('처음 쓸 때 스킴과 시뮬레이터를 알아내 xcodebuild test 로 돌리고, 못 알아내면 돌릴 방법 없음', async () => {
+    const seen: string[] = [];
+    const runner: ShellRunner = async (command) => {
+      seen.push(command);
+      if (command.startsWith('xcodebuild -list')) return { code: 0, output: 'note\n{"workspace":{"schemes":["App"]}}' };
+      if (command.startsWith('xcrun simctl')) return { code: 0, output: '{"devices":{"iOS-18-1":[{"udid":"U1","name":"iPhone 16","isAvailable":true}]}}' };
+      return { code: 0, output: '** TEST SUCCEEDED **' };
+    };
+    const checks = new XcodeChecks('/r', 'App.xcworkspace', runner, 1000);
+    expect(await checks.hasTestRunner()).toBe(true);
+    expect((await checks.runTests([])).run.isGreen()).toBe(true);
+    expect(seen.at(-1)).toBe('xcodebuild test -workspace App.xcworkspace -scheme App -destination "platform=iOS Simulator,id=U1" -quiet');
+    const none = new XcodeChecks('/r', 'App.xcodeproj', async () => ({ code: 1, output: 'xcodebuild: command not found' }), 1000);
+    expect(await none.hasTestRunner()).toBe(false);
+    expect((await none.runTests([])).run.failureKind).toBe('no-runner');
   });
 });
