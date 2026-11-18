@@ -36,6 +36,20 @@ describe('작업 공간 도구 글', () => {
     expect(text).toContain('로그인이 없어');
   });
 
+  it('의존성: 파일별로 런타임·개발을 세어 보이고, 이름으로 거르면 그 의존성을 쓰는 레포만 남는다', () => {
+    const manifests = [
+      { repo: 'shop', path: 'package.json', kind: 'npm', deps: [{ name: 'axios', version: '^1.6.0', dev: false }, { name: 'vitest', version: '^3.0.0', dev: true }] },
+      { repo: 'admin', path: 'go.mod', kind: 'go', deps: [{ name: 'github.com/gin-gonic/gin', version: 'v1.9.1', dev: false }] },
+    ];
+    const all = WorkspaceText.dependencies(manifests, 3);
+    expect(all).toContain('■ shop/package.json (npm) 런타임 1개 · 개발 1개');
+    expect(all).toContain('- vitest ^3.0.0 (dev)');
+    const axios = WorkspaceText.dependencies(manifests, 3, 'AXIOS');
+    expect(axios).toContain('- axios ^1.6.0');
+    expect(axios).not.toContain('admin');
+    expect(WorkspaceText.dependencies(manifests, 3, 'lodash')).toBe('저장소 3개 어디에도 "lodash"이(가) 든 의존성이 없어요.');
+  });
+
   it('커밋 보기: 길면 앞부분만 싣고 줄인 양을 적는다', () => {
     expect(WorkspaceText.commit('a', 'x'.repeat(13_000))).toContain('1000자 생략');
   });

@@ -52,6 +52,7 @@ import { RepoConversations } from './repo-conversations.js';
 import { standupLog } from '../git/standup-log.js';
 import { repoDigest } from '../git/repo-digest.js';
 import { fileHistory, repoStatus, searchRepos, showCommit } from '../git/workspace-git.js';
+import { dependencyManifests } from '../git/manifests.js';
 import { ciLog, ciRuns } from '../github/ci-facts.js';
 import type { ActionsClient } from '../github/actions-client.js';
 import { workspaceFileReader } from './workspace-file.js';
@@ -204,6 +205,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     showCommit,
     // 기억은 아래에서 연다(도구는 팀원이 일하는 중에만 불리므로 그때는 열려 있다)
     pastWork: async (query) => recallBlock(await memory.search(query, PAST_WORK_RECALLS), PAST_WORK_CHARS),
+    companyNotes: async () => (await new FileCompanyBook(profile.companyDir(home), keyRoot).load()).block(),
+    dependencies: dependencyManifests,
     ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}),
     ...(actions !== undefined ? { ciRuns: (repos) => ciRuns(actions(), repos), ciLog: (repo, runId) => ciLog(actions(), repo, runId) } : {}),
   };

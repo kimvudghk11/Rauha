@@ -1,7 +1,7 @@
 import type { DigestRepo } from '../domain/repo-digest.js';
 import type { StandupRepo } from '../domain/standup.js';
 import type { WorkspaceRepo } from '../../workspace/domain/workspace.js';
-import type { CiJobLog, CiRun, CommitLine, RepoState, SearchHit } from '../domain/workspace-text.js';
+import type { CiJobLog, CiRun, CommitLine, Manifest, RepoState, SearchHit } from '../domain/workspace-text.js';
 
 export type { WorkspaceRepo };
 
@@ -34,4 +34,8 @@ export interface WorkspaceFacts {
   readonly ciLog?: ((repo: WorkspaceRepo, runId: number) => Promise<readonly CiJobLog[]>) | undefined;
   /** rauha 가 기억하는 지난 작업·답과 그때의 결정(이 저장소). 찾은 것이 없으면 빈 글 */
   readonly pastWork?: ((query: string) => Promise<string>) | undefined;
+  /** 회사 부서(기획·디자인·마케팅·품질·운영)가 이미 정한 것(부서별 가장 최근 결과). 없으면 null */
+  readonly companyNotes?: (() => Promise<string | null>) | undefined;
+  /** 저장소마다 의존성 파일과 그 안의 의존성 */
+  readonly dependencies?: ((repos: readonly WorkspaceRepo[]) => Promise<readonly Manifest[]>) | undefined;
 }

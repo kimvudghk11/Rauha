@@ -19,7 +19,7 @@ import type { LinkedDatabase } from '../application/linked-database.js';
 import { withDatabase } from './db-mcp.js';
 import { WorkspaceToolAccess } from '../domain/workspace-tools.js';
 import type { WorkspaceFacts } from '../application/workspace-facts.js';
-import { WORKSPACE_GUIDE, withWorkspace } from './workspace-mcp.js';
+import { withWorkspace } from './workspace-mcp.js';
 
 export interface AgentSdkTeamMemberOptions {
   /** 작업 폴더. 팀원은 이 안에서만 일한다. */
@@ -258,11 +258,13 @@ export class AgentSdkTeamMember implements TeamMemberPort {
   }
 
   private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session, db: LinkedDatabase | null = null): Options {
-    // rauha 작업 공간 도구: 팀원이 레포를 하나씩 뒤지지 않고 rauha 가 읽은 사실을 부른다. 도구로 본 저장소는 "연 곳"으로 남긴다.
-    const facts = WorkspaceToolAccess.wants(call.role) ? this.options.workspace?.() : undefined;
-    const kits = withWorkspace(withDatabase(withConnectors(kitServers(call.kits ?? [], this.options.env), (call.kits ?? []).includes('connectors') ? this.options.connectors?.() : undefined), db), facts, (paths) => session.opened.push(...paths));
+    // rauha 작업 공간 도구: 팀원이 레포를 하나씩 뒤지지 않고 rauha 가 읽은 사실을 부른다. 역할마다 하는 일에 맞는 도구만 붙고,
+    // 도구로 본 저장소는 "연 곳"으로 남긴다.
+    const allowed = WorkspaceToolAccess.toolsFor(call.role);
+    const facts = allowed.length > 0 ? this.options.workspace?.() : undefined;
+    const kits = withWorkspace(withDatabase(withConnectors(kitServers(call.kits ?? [], this.options.env), (call.kits ?? []).includes('connectors') ? this.options.connectors?.() : undefined), db), facts, (paths) => session.opened.push(...paths), allowed);
     const base = this.options.prompts.system(call.role, call.kits ?? []);
-    const system = facts === undefined ? base : `${base}\n\n${WORKSPACE_GUIDE}`;
+    const system = kits.guide === '' ? base : `${base}\n\n${kits.guide}`;
     const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? []);
     return {
       ...pluginLoad,

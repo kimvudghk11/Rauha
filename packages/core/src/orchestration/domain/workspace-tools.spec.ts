@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { WorkspaceToolAccess, WorkspaceToolInput } from './workspace-tools.js';
+import { MEMBER_ROLES } from './member-role.js';
+import { WORKSPACE_TOOL_NAMES, WorkspaceToolAccess, WorkspaceToolInput } from './workspace-tools.js';
 
 describe('작업 공간 도구', () => {
-  it('답변·문서·디버깅·기획 팀원은 받고, 라우터·테스트·구현 팀원은 받지 않는다', () => {
-    for (const r of ['answerer', 'writer', 'debugger', 'planner'] as const) expect(WorkspaceToolAccess.wants(r)).toBe(true);
-    for (const r of ['router', 'tester', 'implementer'] as const) expect(WorkspaceToolAccess.wants(r)).toBe(false);
+  it('라우터·테스트·조사 팀원을 뺀 모든 팀원이 하는 일에 맞는 도구를 받는다', () => {
+    const none = MEMBER_ROLES.filter((r) => !WorkspaceToolAccess.wants(r));
+    expect(none).toEqual(['tester', 'router', 'surveyor']);
+  });
+
+  it('역할마다 하는 일에 필요한 도구만: 리뷰어는 코드 이력, 보안은 의존성, 마케팅은 회사가 정한 것', () => {
+    expect(WorkspaceToolAccess.toolsFor('reviewer')).toEqual(['search_repos', 'file_history', 'show_commit', 'past_work']);
+    expect(WorkspaceToolAccess.toolsFor('securitychecker')).toContain('dependencies');
+    expect(WorkspaceToolAccess.toolsFor('marketer')).toContain('company_notes');
+    expect(WorkspaceToolAccess.toolsFor('marketer')).not.toContain('ci_log');
+    expect(WorkspaceToolAccess.toolsFor('answerer')).toEqual(WORKSPACE_TOOL_NAMES);
   });
 
   it('since 는 YYYY-MM-DD 이거나 비어 있어야 한다', () => {

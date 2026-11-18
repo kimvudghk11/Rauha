@@ -1,11 +1,51 @@
 import { DomainError } from '../../shared/domain-error.js';
 import type { MemberRole } from './member-role.js';
 
+/** rauha 작업 공간 도구 이름. 팀원에게는 mcp__rauha__<이름> 으로 보인다. */
+export const WORKSPACE_TOOL_NAMES = [
+  'workspace_repos', 'repo_changes', 'my_commits', 'todo_list', 'repo_status', 'search_repos', 'file_history', 'show_commit',
+  'ci_runs', 'ci_log', 'past_work', 'company_notes', 'dependencies',
+] as const;
+export type WorkspaceToolName = (typeof WORKSPACE_TOOL_NAMES)[number];
+
+const ALL: readonly WorkspaceToolName[] = WORKSPACE_TOOL_NAMES;
+/** 기획·마케팅·디자인 부서: 회사가 정한 것, 최근에 나간 기능, 지난 결정 */
+const BUSINESS: readonly WorkspaceToolName[] = ['company_notes', 'workspace_repos', 'repo_changes', 'past_work'];
+
 /**
- * rauha 작업 공간 도구(레포 목록·최근 변경·내 커밋·할 일)를 받는 역할: 답하고, 문서를 쓰고, 분석·계획하고, 커밋·릴리스를 정리하는 팀원.
- * 한 레포 안에서 테스트·구현만 하는 팀원과 라우터처럼 판정만 하는 팀원은 받지 않는다(도구 설명만큼 한도를 아낀다).
+ * 역할마다 하는 일에 필요한 도구만 붙인다(도구 설명도 입력이라 한도를 쓴다). 빈 목록이면 서버를 붙이지 않는다.
+ * 테스트 팀원(정해진 동작만 검증)·라우터(판정만)·조사 팀원(한 레포 지도)은 받지 않는다.
  */
-const ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'writer', 'debugger', 'planner', 'riskchecker', 'designer', 'releaser', 'publisher', 'chief']);
+const BY_ROLE: Readonly<Record<MemberRole, readonly WorkspaceToolName[]>> = {
+  // 답하고, 문서를 쓰고, 원인을 찾고, 전체를 보는 팀원은 모두
+  answerer: ALL,
+  writer: ALL,
+  debugger: ALL,
+  chief: ALL,
+  planner: [...BUSINESS, 'search_repos', 'dependencies', 'repo_status', 'todo_list'],
+  // 개발 흐름
+  intake: ['past_work', 'workspace_repos', 'company_notes'],
+  splitter: ['workspace_repos', 'search_repos', 'repo_status', 'dependencies', 'past_work'],
+  designer: ['workspace_repos', 'repo_changes', 'search_repos', 'file_history', 'show_commit', 'past_work', 'company_notes', 'dependencies'],
+  implementer: ['search_repos', 'file_history', 'past_work'],
+  reviewer: ['search_repos', 'file_history', 'show_commit', 'past_work'],
+  tester: [],
+  router: [],
+  surveyor: [],
+  // 품질·보안
+  riskchecker: ['repo_changes', 'repo_status', 'search_repos', 'file_history', 'show_commit', 'ci_runs', 'ci_log', 'past_work', 'dependencies'],
+  securitychecker: ['search_repos', 'dependencies', 'file_history', 'show_commit', 'repo_changes', 'company_notes'],
+  // 운영
+  operator: ['repo_status', 'repo_changes', 'show_commit', 'ci_runs', 'ci_log', 'past_work'],
+  releaser: ['repo_changes', 'show_commit', 'ci_runs', 'ci_log', 'my_commits', 'company_notes', 'todo_list', 'repo_status'],
+  publisher: ['repo_status', 'repo_changes', 'show_commit', 'ci_runs'],
+  // 기획·마케팅·디자인
+  bm: [...BUSINESS, 'dependencies'],
+  marketer: BUSINESS,
+  growth: BUSINESS,
+  brand: ['company_notes', 'past_work'],
+  uxdesigner: [...BUSINESS, 'search_repos'],
+};
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const NAMES_MAX = 50;
 const PATH_MAX = 500;
@@ -28,8 +68,13 @@ export function matchRepos<T extends { readonly name: string; readonly root: str
 export class WorkspaceToolAccess {
   private constructor() {}
 
+  /** 이 역할이 쓰는 작업 공간 도구(없으면 빈 목록) */
+  static toolsFor(role: MemberRole): readonly WorkspaceToolName[] {
+    return BY_ROLE[role];
+  }
+
   static wants(role: MemberRole): boolean {
-    return ROLES.has(role);
+    return BY_ROLE[role].length > 0;
   }
 }
 

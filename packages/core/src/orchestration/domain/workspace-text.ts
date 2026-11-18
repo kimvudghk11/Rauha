@@ -50,6 +50,17 @@ export interface CiJobLog {
   readonly lines: readonly string[];
 }
 
+/** 의존성 파일 하나(package.json·go.mod·requirements.txt·build.gradle·pom.xml)와 그 안의 의존성 */
+export interface Manifest {
+  readonly repo: string;
+  /** 저장소 루트 기준 경로 */
+  readonly path: string;
+  /** npm·go·pip·gradle·maven */
+  readonly kind: string;
+  readonly deps: readonly { readonly name: string; readonly version: string; readonly dev: boolean }[];
+}
+
+const DEPS_SHOWN = 80;
 const CHANGED_SHOWN = 20;
 const BRANCHES_SHOWN = 6;
 const HIT_TEXT = 240;
@@ -114,6 +125,24 @@ export class WorkspaceText {
     if (notGithub.length > 0) parts.push(`GitHub 저장소가 아니라 보지 못함: ${notGithub.join(', ')}`);
     if (!signedIn) parts.push('(GitHub CLI 로그인이 없어 공개 저장소만 보여요. 실패 로그는 로그인이 있어야 읽혀요.)');
     return parts.join('\n\n');
+  }
+
+  /**
+   * 저장소별 의존성 파일과 의존성(이름·버전, 개발용 표시). name 이 있으면 이름에 그 글이 든 의존성만(어느 레포가 무엇을 쓰나).
+   * 버전은 파일에 적힌 그대로다(잠금 파일의 실제 설치 버전이 아니다).
+   */
+  static dependencies(manifests: readonly Manifest[], searched: number, name: string | null = null): string {
+    const key = name?.trim().toLowerCase() ?? '';
+    const kept = manifests.map((m) => ({ ...m, deps: key === '' ? m.deps : m.deps.filter((d) => d.name.toLowerCase().includes(key)) })).filter((m) => key === '' || m.deps.length > 0);
+    if (kept.length === 0) return key === '' ? `저장소 ${searched}개에서 의존성 파일을 찾지 못했어요.` : `저장소 ${searched}개 어디에도 "${name}"이(가) 든 의존성이 없어요.`;
+    const sections = kept.map((m) => {
+      const runtime = m.deps.filter((d) => !d.dev).length;
+      const head = `■ ${m.repo}/${m.path} (${m.kind}) 런타임 ${runtime}개 · 개발 ${m.deps.length - runtime}개`;
+      const lines = m.deps.slice(0, DEPS_SHOWN).map((d) => `- ${d.name} ${d.version}${d.dev ? ' (dev)' : ''}`);
+      const more = m.deps.length > DEPS_SHOWN ? [`…(${m.deps.length - DEPS_SHOWN}개 더, name 으로 좁혀 보세요)`] : [];
+      return [head, ...lines, ...more].join('\n');
+    });
+    return `저장소 ${searched}개의 의존성 파일 ${kept.length}개(버전은 파일에 적힌 그대로, 잠금 파일 아님):\n${sections.join('\n\n')}`;
   }
 
   static ciLog(repo: string, runId: number, jobs: readonly CiJobLog[]): string {

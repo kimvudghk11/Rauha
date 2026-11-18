@@ -56,6 +56,23 @@ describe('rauha 작업 공간 도구', () => {
     expect(more.tools).toContain('mcp__rauha__ci_runs');
   });
 
+  it('역할에 허락된 도구만 붙고, 사용법 글에는 붙은 도구만 실린다', () => {
+    const f = facts({ pastWork: async () => '', ciRuns: async () => ({ runs: [], notGithub: [], signedIn: true }) });
+    const added = withWorkspace({ servers: {}, tools: [] as readonly string[] }, f, () => undefined, ['past_work', 'search_repos']);
+    expect(added.tools).toEqual(['mcp__rauha__past_work']); // search 사실이 없으니 search_repos 는 빠진다
+    expect(added.guide).toContain('- past_work:');
+    expect(added.guide).not.toContain('ci_runs');
+    expect(withWorkspace({ servers: {}, tools: [] as readonly string[] }, f, () => undefined, []).guide).toBe('');
+  });
+
+  it('company_notes 는 부서가 정한 것을, 없으면 없다고 / dependencies 는 이름으로 거른다', async () => {
+    expect(await run(facts({ companyNotes: async () => null }), 'company_notes')).toContain('아직 정한 것이 없어요');
+    const deps = facts({ dependencies: async () => [{ repo: 'shop', path: 'package.json', kind: 'npm', deps: [{ name: 'axios', version: '1.6.0', dev: false }] }] });
+    const seen: string[] = [];
+    expect(await run(deps, 'dependencies', { name: 'axios' }, (p) => seen.push(...p))).toContain('- axios 1.6.0');
+    expect(seen).toEqual(['E:/w/shop/package.json']);
+  });
+
   it('search_repos 는 고른 저장소에서 글 그대로 찾고(기본), 찾은 저장소를 본 곳으로 남긴다', async () => {
     const calls: { names: string[]; pattern: string; fixed: boolean; glob: string | null }[] = [];
     const seen: string[] = [];
@@ -82,7 +99,7 @@ describe('rauha 작업 공간 도구', () => {
 
   it('작업 공간 사실이 있을 때만 도구 묶음에 서버를 더한다', () => {
     const empty = { servers: {}, tools: [] as readonly string[] };
-    expect(withWorkspace(empty, undefined, () => undefined)).toBe(empty);
+    expect(withWorkspace(empty, undefined, () => undefined)).toEqual({ ...empty, guide: '' });
     const added = withWorkspace(empty, facts(), () => undefined);
     expect(Object.keys(added.servers)).toEqual([WORKSPACE_SERVER]);
     expect(added.tools).toContain('mcp__rauha__repo_changes');

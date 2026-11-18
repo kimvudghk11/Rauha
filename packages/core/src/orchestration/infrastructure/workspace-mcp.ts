@@ -3,26 +3,45 @@ import { z, type ZodRawShape } from 'zod';
 import { DomainError } from '../../shared/domain-error.js';
 import { RepoDigest } from '../domain/repo-digest.js';
 import { Standup } from '../domain/standup.js';
-import { matchRepos, WorkspaceToolInput } from '../domain/workspace-tools.js';
+import { matchRepos, WORKSPACE_TOOL_NAMES, WorkspaceToolInput, type WorkspaceToolName } from '../domain/workspace-tools.js';
 import { WorkspaceText } from '../domain/workspace-text.js';
 import type { WorkspaceFacts, WorkspaceRepo } from '../application/workspace-facts.js';
 
 /** 팀원에게 붙이는 rauha 작업 공간 도구 서버 이름. 도구는 mcp__rauha__<이름> 이다. */
 export const WORKSPACE_SERVER = 'rauha';
-export const WORKSPACE_TOOLS = ['workspace_repos', 'repo_changes', 'my_commits', 'todo_list', 'repo_status', 'search_repos', 'file_history', 'show_commit', 'ci_runs', 'ci_log', 'past_work'] as const;
-export type WorkspaceToolName = (typeof WORKSPACE_TOOLS)[number];
+export const WORKSPACE_TOOLS = WORKSPACE_TOOL_NAMES;
+export type { WorkspaceToolName };
 
 const SEARCH_LIMIT = 150;
 
-/** 이 도구를 붙인 팀원에게 더하는 짧은 사용법 */
-export const WORKSPACE_GUIDE = `<rauha-tools>
-rauha 작업 공간 도구(mcp__rauha__*)가 있습니다. rauha 가 git·파일·GitHub 를 직접 읽어 주므로 빠르고 빠짐이 없습니다. 레포마다 Bash 로 git 을 돌리기 전에 이것부터 쓰세요.
-- 어떤 레포가 있나: workspace_repos. 커밋·CHANGELOG·릴리스·변경 내역: repo_changes(repos, since). 커밋 하나 자세히: show_commit.
-- push·pull 안 한 것, 커밋 안 한 파일, 브랜치: repo_status. 내가 한 일·스탠드업: my_commits(since).
-- 여러 레포에서 코드 찾기: search_repos(pattern, repos, glob). 파일이 언제 왜 바뀌었나: file_history.
-- CI 상태: ci_runs, 실패 원인: ci_log(repo, run_id). 할 일 탭: todo_list. 예전에 rauha 가 한 일·결정: past_work(query).
-- 도구가 본 저장소는 본 것으로 칩니다. 도구 결과에 없는 것을 지어내지 마세요.
-</rauha-tools>`;
+/** 도구마다 언제 쓰는지 한 줄(붙은 도구만 사용법에 싣는다) */
+const WHEN: Readonly<Record<WorkspaceToolName, string>> = {
+  workspace_repos: '어떤 레포가 있나',
+  repo_changes: '커밋·CHANGELOG·릴리스·변경 내역(repos, since)',
+  my_commits: '내가 한 일·스탠드업(since)',
+  todo_list: '할 일 탭',
+  repo_status: 'push·pull 안 한 것, 커밋 안 한 파일, 브랜치',
+  search_repos: '여러 레포에서 코드 찾기(pattern, repos, glob)',
+  file_history: '파일이 언제·누가·왜 바뀌었나',
+  show_commit: '커밋 하나 자세히(diff)',
+  ci_runs: 'CI 상태',
+  ci_log: 'CI 실패 원인(repo, run_id)',
+  past_work: '예전에 rauha 가 한 일·결정(query)',
+  company_notes: '회사 부서가 이미 정한 것(기획·디자인·마케팅·품질·운영)',
+  dependencies: '레포별 의존성과 버전(name 으로 어느 레포가 쓰나)',
+};
+
+/** 이 도구들을 붙인 팀원에게 더하는 짧은 사용법. 붙은 도구가 없으면 빈 글 */
+export function workspaceGuide(tools: readonly WorkspaceToolName[]): string {
+  if (tools.length === 0) return '';
+  return [
+    '<rauha-tools>',
+    'rauha 작업 공간 도구(mcp__rauha__*)가 있습니다. rauha 가 git·파일·GitHub 를 직접 읽어 주므로 빠르고 빠짐이 없습니다. 레포마다 Bash 로 git 을 돌리거나 파일을 하나씩 열기 전에 이것부터 쓰세요.',
+    ...tools.map((t) => `- ${t}: ${WHEN[t]}`),
+    '도구가 본 저장소는 본 것으로 칩니다. 도구 결과에 없는 것을 지어내지 마세요.',
+    '</rauha-tools>',
+  ].join('\n');
+}
 
 interface ToolResult {
   [key: string]: unknown;
@@ -83,7 +102,7 @@ export function workspaceToolHandlers(facts: WorkspaceFacts, seen: (paths: reado
         return Standup.block(since, await facts.myCommits(since));
       }),
   };
-  const { openTodos, repoStatus, search, fileHistory, showCommit, ciRuns, ciLog, pastWork } = facts;
+  const { openTodos, repoStatus, search, fileHistory, showCommit, ciRuns, ciLog, pastWork, companyNotes, dependencies } = facts;
   if (openTodos !== undefined)
     handlers.todo_list = () =>
       guarded(async () => {
@@ -145,6 +164,18 @@ export function workspaceToolHandlers(facts: WorkspaceFacts, seen: (paths: reado
         const found = await pastWork(query);
         return found === '' ? `"${query}"에 대해 rauha 가 기억하는 지난 작업이 없어요.` : found;
       });
+  if (companyNotes !== undefined)
+    handlers.company_notes = () =>
+      guarded(async () => (await companyNotes()) ?? '회사 부서가 아직 정한 것이 없어요(기획·디자인·마케팅·품질·운영 부서에 일을 맡긴 적이 없음).');
+  if (dependencies !== undefined)
+    handlers.dependencies = (a) =>
+      guarded(async () => {
+        const repos = some(a['repos']);
+        const name = a['name'] === undefined || a['name'] === null || a['name'] === '' ? null : WorkspaceToolInput.pattern(a['name']);
+        const manifests = await dependencies(repos);
+        seen(manifests.map((m) => `${(repos.find((r) => r.name === m.repo)?.root ?? m.repo).replace(/[\\/]+$/, '')}/${m.path}`));
+        return WorkspaceText.dependencies(manifests, repos.length, name);
+      });
   return handlers;
 }
 
@@ -167,22 +198,31 @@ const SPECS: Readonly<Record<WorkspaceToolName, { readonly description: string; 
   ci_runs: { description: 'Recent GitHub Actions runs of each repository (status, workflow, branch, commit).', shape: REPOS },
   ci_log: { description: 'Failed jobs of one GitHub Actions run and the end of their logs.', shape: { ...REPO, run_id: z.number().int().describe('Run number from ci_runs') } },
   past_work: { description: 'What rauha remembers from earlier work and answers in this repository, with the decisions made then.', shape: { query: z.string().describe('What to look for') } },
+  company_notes: { description: 'What the company departments (planning, design, marketing, quality, operations) already decided: their latest results.', shape: {} },
+  dependencies: { description: 'Dependencies declared in each repository (package.json, go.mod, requirements.txt, build.gradle, pom.xml) with versions as written. Use name to find which repositories use a library.', shape: { ...REPOS, name: z.string().optional().describe('Only dependencies whose name contains this') } },
 };
 
-/** rauha 작업 공간을 팀원이 읽기 전용으로 보는 in-process MCP 서버. 사실이 있는 도구만 붙는다. */
-export function workspaceToolServer(facts: WorkspaceFacts, seen: (paths: readonly string[]) => void): { readonly servers: Record<string, McpServerConfig>; readonly tools: readonly string[] } {
+/**
+ * rauha 작업 공간을 팀원이 읽기 전용으로 보는 in-process MCP 서버. 이 역할에 허락된(allowed) 도구 중 사실이 있는 것만 붙는다.
+ * names: 실제로 붙은 도구(사용법 글에 쓴다).
+ */
+export function workspaceToolServer(facts: WorkspaceFacts, seen: (paths: readonly string[]) => void, allowed: readonly WorkspaceToolName[] = WORKSPACE_TOOLS): { readonly servers: Record<string, McpServerConfig>; readonly tools: readonly string[]; readonly names: readonly WorkspaceToolName[] } {
   const handlers = workspaceToolHandlers(facts, seen);
-  const names = WORKSPACE_TOOLS.filter((n) => handlers[n] !== undefined);
+  const names = WORKSPACE_TOOLS.filter((n) => handlers[n] !== undefined && allowed.includes(n));
   const server = createSdkMcpServer({
     name: WORKSPACE_SERVER,
     tools: names.map((n) => tool(n, SPECS[n].description, SPECS[n].shape, (a) => handlers[n]!(a as Record<string, unknown>))),
   });
-  return { servers: { [WORKSPACE_SERVER]: server }, tools: names.map((n) => `mcp__${WORKSPACE_SERVER}__${n}`) };
+  return { servers: { [WORKSPACE_SERVER]: server }, tools: names.map((n) => `mcp__${WORKSPACE_SERVER}__${n}`), names };
 }
 
-/** 도구 묶음에 작업 공간 서버를 더한다. 작업 공간 사실이 없으면 그대로. */
-export function withWorkspace<T extends { readonly servers: Record<string, McpServerConfig>; readonly tools: readonly string[] }>(kits: T, facts: WorkspaceFacts | undefined, seen: (paths: readonly string[]) => void): T {
-  if (facts === undefined) return kits;
-  const added = workspaceToolServer(facts, seen);
-  return { ...kits, servers: { ...kits.servers, ...added.servers }, tools: [...kits.tools, ...added.tools] };
+/**
+ * 도구 묶음에 작업 공간 서버를 더한다. 사실이 없거나 이 역할에 붙을 도구가 없으면 그대로(guide 도 빈 글).
+ * guide: 시스템 프롬프트 끝에 붙일 사용법.
+ */
+export function withWorkspace<T extends { readonly servers: Record<string, McpServerConfig>; readonly tools: readonly string[] }>(kits: T, facts: WorkspaceFacts | undefined, seen: (paths: readonly string[]) => void, allowed: readonly WorkspaceToolName[] = WORKSPACE_TOOLS): T & { readonly guide: string } {
+  if (facts === undefined || allowed.length === 0) return { ...kits, guide: '' };
+  const added = workspaceToolServer(facts, seen, allowed);
+  if (added.names.length === 0) return { ...kits, guide: '' };
+  return { ...kits, servers: { ...kits.servers, ...added.servers }, tools: [...kits.tools, ...added.tools], guide: workspaceGuide(added.names) };
 }
