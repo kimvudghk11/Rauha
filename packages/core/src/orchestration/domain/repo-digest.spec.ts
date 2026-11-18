@@ -54,6 +54,22 @@ describe('RepoDigest', () => {
     expect(seen).toEqual(['E:/work/a', 'E:/work/a/CHANGELOG.md', 'E:/work/b']);
   });
 
+  it('도구로 고른 저장소만(이름 대소문자·루트 끝 경로로), since 가 있으면 그날부터의 커밋만 남긴다', () => {
+    const r = repo('Shop', { commits: [{ hash: 'n', at: '2026-11-17', author: '김', subject: '새' }, { hash: 'o', at: '2026-11-01', author: '김', subject: '옛' }] });
+    expect(RepoDigest.pick([r, repo('b')], ['shop']).map((x) => x.name)).toEqual(['Shop']);
+    expect(RepoDigest.pick([r, repo('b')], ['work/b']).map((x) => x.name)).toEqual(['b']);
+    expect(RepoDigest.pick([r, repo('b')]).map((x) => x.name)).toEqual(['Shop', 'b']);
+    expect(RepoDigest.pick([r], [], '2026-11-10')[0]!.commits.map((c) => c.subject)).toEqual(['새']);
+    expect(RepoDigest.pick([r], ['없는레포'])).toEqual([]);
+  });
+
+  it('저장소 목록은 한 줄씩 이름·브랜치·가장 최근 커밋을 보인다', () => {
+    const text = RepoDigest.list([repo('a', { tags: ['v2'] }), repo('b', { commits: [] })]);
+    expect(text).toContain('저장소 2개');
+    expect(text).toContain('- a (E:/work/a) · 브랜치 main · 최근 커밋 2026-11-17 a 고침 · 태그 v2');
+    expect(text).toContain('- b (E:/work/b) · 브랜치 main · 커밋 없음');
+  });
+
   it('모은 저장소가 없으면 빈 글', () => {
     expect(RepoDigest.block([])).toBe('');
   });

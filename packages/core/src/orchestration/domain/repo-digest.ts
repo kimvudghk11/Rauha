@@ -43,6 +43,30 @@ export class RepoDigest {
     return `${head}\n\n${sections.join('\n\n')}\n</repo_digest>`;
   }
 
+  /**
+   * 팀원이 도구로 고른 저장소만, since(YYYY-MM-DD)가 있으면 그날부터의 커밋만 남긴다.
+   * names 는 이름(대소문자 무시) 또는 루트 경로 끝으로 맞춘다. 비었으면 모든 저장소. 맞는 것이 없으면 빈 배열.
+   */
+  static pick(repos: readonly DigestRepo[], names: readonly string[] = [], since: string | null = null): DigestRepo[] {
+    const wanted = names.map((n) => n.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()).filter((n) => n !== '');
+    const hit = (r: DigestRepo): boolean => {
+      const root = r.root.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+      return wanted.some((w) => w === r.name.toLowerCase() || root === w || root.endsWith(`/${w}`));
+    };
+    return repos.filter((r) => wanted.length === 0 || hit(r)).map((r) => (since === null ? r : { ...r, commits: r.commits.filter((c) => c.at.slice(0, 10) >= since) }));
+  }
+
+  /** 저장소 목록 한 줄씩: 이름·루트·브랜치·가장 최근 커밋·태그 */
+  static list(repos: readonly DigestRepo[]): string {
+    if (repos.length === 0) return '작업 공간에 저장소가 없어요.';
+    const lines = repos.map((r) => {
+      const last = r.commits[0];
+      const parts = [r.branch !== null ? `브랜치 ${r.branch}` : null, last !== undefined ? `최근 커밋 ${last.at} ${last.subject}` : '커밋 없음', r.tags.length > 0 ? `태그 ${r.tags[0]}` : null, r.changelog !== null ? `CHANGELOG ${r.changelog.path}` : null];
+      return `- ${r.name} (${r.root}) · ${parts.filter((p) => p !== null).join(' · ')}`;
+    });
+    return `작업 공간의 저장소 ${repos.length}개(빠짐없이 전부):\n${lines.join('\n')}`;
+  }
+
   /** 이 묶음으로 rauha 가 이미 본 곳: 저장소 루트와 CHANGELOG 경로(요청 항목 표의 "안 본 곳"에서 뺀다) */
   static seen(repos: readonly DigestRepo[]): string[] {
     return repos.flatMap((r) => [r.root, ...(r.changelog !== null ? [`${r.root.replace(/[\\/]+$/, '')}/${r.changelog.path}`] : [])]);

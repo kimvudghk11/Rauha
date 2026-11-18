@@ -44,6 +44,8 @@ import {
   type PromptLibrary,
   type TeamMemberPort,
   type TodoCard,
+  type DigestRepo,
+  type WorkspaceFacts,
 } from '@rauha/core';
 import { RepoConversations } from './repo-conversations.js';
 import { standupLog } from '../git/standup-log.js';
@@ -52,6 +54,9 @@ import { workspaceFileReader } from './workspace-file.js';
 import type { TeamIo, TeamSession } from './team-work.js';
 
 /** 사용자 PC 시간대 기준 YYYY-MM-DD. */
+/** 작업 공간 변경 묶음을 다시 읽지 않고 쓰는 시간 */
+const DIGEST_FRESH_MS = 30_000;
+
 function localDate(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -170,7 +175,17 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
   const secrets = loadSecretPolicy(root);
   // 팀 설정을 얹은 뒤 환경 변수 고정(실험용)이 마지막으로 이긴다. 설정이 비어 있으면 기본 역할 설정 그대로다.
   const roles = RoleSettingsDto.defaults().withOverrides(options.roleOverrides?.() ?? {}).withEnv({ ...process.env });
+  // 작업 공간의 모든 저장소(하나면 이 저장소). 스탠드업·변경 묶음·rauha 작업 공간 도구가 같이 쓴다(모델 호출 없음).
+  const workspaceRepos = scope.repos.length > 0 ? scope.repos : [{ name: basename(keyRoot), root: keyRoot }];
+  // 팀원이 도구를 여러 번 불러도 git 을 저장소마다 매번 돌리지 않게 잠깐 담아 둔다
+  let changes: { at: number; value: Promise<DigestRepo[]> } | null = null;
+  const repoChanges = (): Promise<DigestRepo[]> => {
+    if (changes === null || Date.now() - changes.at > DIGEST_FRESH_MS) changes = { at: Date.now(), value: repoDigest(workspaceRepos) };
+    return changes.value;
+  };
+  const workspaceFacts: WorkspaceFacts = { repoChanges, myCommits: (since) => standupLog(workspaceRepos, since), today: () => localDate(), ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}) };
   const inner = new AgentSdkTeamMember({
+    workspace: () => workspaceFacts,
     cwd: root,
     env: { ...definedEnv(process.env), ...profile.agentEnv(home) },
     prompts,
@@ -258,9 +273,9 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     workspaceRoot: scope.workspaceRoot,
     // 할 일 파일 근거 확인: 작업 공간 폴더와 레포들 안만(비밀 파일 제외)
     readWorkspaceFile: workspaceFileReader([root, keyRoot, scope.workspaceRoot, ...scope.repos.map((r) => r.root)]),
-    workLog: (since) => standupLog(scope.repos.length > 0 ? scope.repos : [{ name: basename(keyRoot), root: keyRoot }], since),
+    workLog: (since) => standupLog(workspaceRepos, since),
     // "모든 레포 체인지로그·커밋 봐줘": 모든 저장소의 최근 커밋·태그·CHANGELOG 를 rauha 가 먼저 모은다(모델 호출 없음)
-    repoDigest: () => repoDigest(scope.repos.length > 0 ? scope.repos : [{ name: basename(keyRoot), root: keyRoot }]),
+    repoDigest: repoChanges,
     ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}),
   };
   // 앞 대화는 레포(keyRoot)마다 파일에 이어 둔다: 업무가 열 때 받아 오고, 끝나면 새로 생긴 대화만 합쳐 저장한다.
