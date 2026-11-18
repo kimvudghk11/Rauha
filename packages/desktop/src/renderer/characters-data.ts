@@ -1,3 +1,4 @@
+import { withDerivedRoles } from './character-sets/derive.js';
 /** 캐릭터 23종 픽셀 데이터(시안 characters.html의 RAUHA_CHARACTERS에서 옮김). 역할 id → 이름·동물·색·프레임.
  * 프레임 순서: 0 기본, 1 눈 감음, 2 기쁨, 3 걱정, 4 잠. 격자 한 글자 = 픽셀 하나, '.'은 빈칸. */
 export interface PixelCharacter {
@@ -7,7 +8,7 @@ export interface PixelCharacter {
   readonly frames: readonly (readonly string[])[];
 }
 
-export const PIXEL_CHARACTERS: Readonly<Record<string, PixelCharacter>> = {
+const BASE_CHARACTERS: Readonly<Record<string, PixelCharacter>> = {
   intake: {
     name: "Delfi",
     animal: "돌고래",
@@ -285,3 +286,6 @@ export const PIXEL_CHARACTERS: Readonly<Record<string, PixelCharacter>> = {
     ],
   },
 };
+
+/** 기본(바다) 세트: 그린 23종 + 큰 회사 부서로 늘어난 역할(같은 세트 캐릭터의 색을 바꿔 만든다) */
+export const PIXEL_CHARACTERS: Readonly<Record<string, PixelCharacter>> = withDerivedRoles('ocean', BASE_CHARACTERS);

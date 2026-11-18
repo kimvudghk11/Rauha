@@ -13,6 +13,8 @@ import { EXTRA_CHARACTERS } from './characters-extra.js';
 export const CHARACTER_ROLES = [
   'intake', 'tester', 'implementer', 'reviewer', 'router', 'answerer', 'surveyor', 'writer', 'designer', 'operator',
   'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'splitter', 'publisher',
+  'pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa',
+  'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr',
 ] as const;
 export type CharacterRole = (typeof CHARACTER_ROLES)[number];
 

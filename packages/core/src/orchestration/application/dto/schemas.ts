@@ -203,8 +203,8 @@ export const ROUTE_SCHEMA: Record<string, unknown> = {
     reach: { enum: ['investigate', 'compare', 'plan', null], description: 'mode가 debug나 risk일 때만 의미가 있다. investigate: 원인이나 위험만 알고 싶다, compare: 어떻게 고칠지 방향을 비교해 달라, plan: 분석한 뒤 고치는 설계와 단계별 계획까지 달라. 그 밖의 mode는 null' },
     refersToPast: { type: 'boolean', description: '이름 없이 지난 작업을 가리키는지("아까 그 기능", "방금 거")' },
     pastQuery: { ...nullableStr, description: '기억에서 찾을 검색어(코드 이름·기능 단어). 없으면 null' },
-    department: { enum: ['planning', 'marketing', 'design', 'quality', 'operations', null], description: 'mode가 company일 때 맡을 부서. 그 밖에는 null' },
-    member: { enum: ['planner', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'riskchecker', 'securitychecker', 'operator', 'debugger', 'releaser', null], description: 'mode가 company이고 한 팀원이 혼자 할 만한 일이면 그 팀원, 여러 팀원이 필요하거나 넓은 요청이면 null' },
+    department: { enum: ['planning', 'engineering', 'marketing', 'design', 'quality', 'operations', 'finance', 'data', 'legal', 'customer', 'sales', 'people', null], description: 'mode가 company일 때 맡을 부서. 그 밖에는 null' },
+    member: { enum: ['planner', 'bm', 'pm', 'marketer', 'growth', 'uxdesigner', 'brand', 'riskchecker', 'securitychecker', 'qa', 'operator', 'debugger', 'releaser', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr', null], description: 'mode가 company이고 한 팀원이 혼자 할 만한 일이면 그 팀원, 여러 팀원이 필요하거나 넓은 요청이면 null' },
   },
 };
 

@@ -1211,7 +1211,7 @@ describe('ChatSession — 회사 부서', () => {
     const team = new FakeTeam({ router: [route('launch')], chief: [(call) => ({ answer: `${call.userMessage.includes('Planning') ? '기획안' : call.userMessage.includes('Design') ? '디자인안' : '다른 부서안'}`, files: [] })] });
     const steps: string[] = [];
     const turn = await session({ team, loops, steps }).handle('동네 모임 앱이랑 웹 런칭 계획 짜줘');
-    expect(callsOf(team, 'chief')).toHaveLength(5);
+    expect(callsOf(team, 'chief')).toHaveLength(8);
     expect(callsOf(team, 'chief')[1]!.message).toContain('기획안');
     expect(turn.kind === 'answer' && turn.answer.indexOf('기획·전략부')).toBeLessThan(turn.kind === 'answer' ? turn.answer.indexOf('운영·유지보수부') : 0);
     expect(turn.kind === 'answer' && turn.answer).toContain('설계 시작');
@@ -1288,7 +1288,7 @@ describe('ChatSession — 한도 연동', () => {
     await chat.handle('런칭 계획 짜줘');
     const turn = await chat.handle('그래도 진행');
     expect(turn).toMatchObject({ kind: 'answer', answer: expect.stringContaining('섹션') });
-    expect(team.calls.filter((c) => c.role === 'chief')).toHaveLength(5);
+    expect(team.calls.filter((c) => c.role === 'chief')).toHaveLength(8);
     expect(team.calls.filter((c) => c.role === 'router')).toHaveLength(1);
   });
 
@@ -1371,7 +1371,7 @@ describe('ChatSession — 회사 장부', () => {
     const book = new FakeBook();
     const team = new FakeTeam({ router: [route('launch')], chief: [chiefText('가'.repeat(2000))] });
     await session({ team, company: book }).handle('런칭 계획');
-    expect(book.book.entries.map((e) => e.department).sort()).toEqual(['design', 'marketing', 'operations', 'planning', 'quality']);
+    expect(book.book.entries.map((e) => e.department).sort()).toEqual(['design', 'engineering', 'finance', 'legal', 'marketing', 'operations', 'planning', 'quality']);
     const second = team.calls.filter((c) => c.role === 'chief')[1]!.message;
     expect(second).not.toContain('가'.repeat(1000));
     expect(second).toContain('가'.repeat(100));

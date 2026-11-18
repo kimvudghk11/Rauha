@@ -64,7 +64,7 @@ export { WorkspaceText, type RepoState, type SearchHit, type CommitLine, type Ci
 export { FileRoutineStore } from './orchestration/infrastructure/file-routine-store.js';
 export { SessionBudget, type BudgetLevel, type BudgetWindow } from './orchestration/domain/session-budget.js';
 export { MEMBER_ROLES, ROLE_INFO, type RoleInfo } from './orchestration/domain/member-role.js';
-export { Department, LAUNCH_ORDER, type DepartmentId, type DepartmentMember, type DepartmentMemberRole } from './orchestration/domain/department.js';
+export { Department, DEPARTMENT_ORDER, LAUNCH_ORDER, type DepartmentId, type DepartmentMember, type DepartmentMemberRole } from './orchestration/domain/department.js';
 export { ReadingGuideDto, type ReadingGuideProps, type RunStopReason, type SettledAssumption } from './orchestration/application/dto/reading-guide.dto.js';
 export {
   RoleSettingsDto,

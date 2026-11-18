@@ -5,7 +5,7 @@ describe('Department', () => {
   it('부서마다 이름과 소속 팀원을 가진다', () => {
     const marketing = Department.of('marketing');
     expect(marketing.label).toBe('마케팅·그로스부');
-    expect(marketing.members.map((m) => m.role)).toEqual(['marketer', 'growth']);
+    expect(marketing.members.map((m) => m.role)).toEqual(['marketer', 'growth', 'content', 'performance', 'pr']);
   });
 
   it('팀원이 부서에 속하는지 안다', () => {
@@ -34,7 +34,21 @@ describe('Department', () => {
     expect(Department.ofMember('tester')).toBeNull();
   });
 
-  it('런칭 계획은 기획 → 디자인 → 마케팅 → 품질 → 운영 순서로 부서장이 한 번씩 쓴다', () => {
-    expect(LAUNCH_ORDER).toEqual(['planning', 'design', 'marketing', 'quality', 'operations']);
+  it('런칭 계획은 기획 → 개발 자문 → 디자인 → 마케팅 → 법무 → 품질 → 운영 → 재무 순서로 부서장이 한 번씩 쓴다', () => {
+    expect(LAUNCH_ORDER).toEqual(['planning', 'engineering', 'design', 'marketing', 'legal', 'quality', 'operations', 'finance']);
+  });
+});
+
+describe('Department — 큰 회사', () => {
+  it('개발 자문·재무·데이터·법무·고객 성공·영업·인사까지 열두 부서가 있고, 모든 부서 팀원은 한 부서에만 속한다', () => {
+    expect(Department.all().map((d) => d.id).sort()).toEqual(['customer', 'data', 'design', 'engineering', 'finance', 'legal', 'marketing', 'operations', 'people', 'planning', 'quality', 'sales']);
+    const roles = Department.all().flatMap((d) => d.members.map((m) => m.role));
+    expect(new Set(roles).size).toBe(roles.length);
+  });
+
+  it('기획부는 BM 과 PM 을, 재무부는 회계와 클라우드 비용을, 개발 자문부는 iOS·안드로이드·크로스플랫폼까지 맡는다', () => {
+    expect(Department.of('planning').members.map((m) => m.role)).toEqual(['planner', 'bm', 'pm']);
+    expect(Department.of('finance').members.map((m) => m.role)).toEqual(['accountant', 'finops']);
+    expect(Department.of('engineering').members.map((m) => m.role)).toEqual(['frontend', 'backend', 'ios', 'android', 'crossplatform']);
   });
 });

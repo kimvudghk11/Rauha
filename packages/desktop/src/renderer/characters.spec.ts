@@ -6,9 +6,9 @@ import { EXTRA_CHARACTERS } from './characters-extra.js';
 import { EXTRA_CHARACTER_IDS } from '../shared/character-ids.js';
 
 describe('spriteFor', () => {
-  it('팀원 역할마다 캐릭터가 하나씩 있다(23종)', () => {
+  it('팀원 역할마다 캐릭터가 하나씩 있다(42종)', () => {
     expect([...CHARACTER_ROLES].sort()).toEqual([...MEMBER_ROLES].sort());
-    expect(CHARACTER_ROLES.length).toBe(23);
+    expect(CHARACTER_ROLES.length).toBe(42);
   });
 
   it.each(CHARACTER_ROLES)('%s: 프레임이 다섯(기본·눈감음·기쁨·걱정·잠)이다', (role) => {

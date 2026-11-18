@@ -1,7 +1,7 @@
 import type { KnowledgePort } from '../../knowledge/application/ports.js';
 import { DomainError } from '../../shared/domain-error.js';
 import { citedPaths, FactCheck, normalizeUrl, ReviewFindings, type CheckedClaim } from '../domain/fact-check.js';
-import { ROLE_INFO } from '../domain/member-role.js';
+import { MEMBER_ROLES, ROLE_INFO } from '../domain/member-role.js';
 import type { ModelTier } from '../domain/team.js';
 import { TestRun } from '../domain/test-run.js';
 import { RunScope } from '../domain/run-scope.js';
@@ -187,7 +187,7 @@ class RunTally {
   calls = 0;
   /** 마지막 팀원 호출이 멈춘 이유 문장(잘 끝났으면 null) */
   memberStop: string | null = null;
-  readonly attempts: Record<MemberRole, number> = { intake: 0, tester: 0, implementer: 0, reviewer: 0, router: 0, answerer: 0, surveyor: 0, writer: 0, designer: 0, operator: 0, debugger: 0, riskchecker: 0, planner: 0, chief: 0, bm: 0, marketer: 0, growth: 0, uxdesigner: 0, brand: 0, securitychecker: 0, releaser: 0, splitter: 0, publisher: 0 };
+  readonly attempts: Record<MemberRole, number> = Object.fromEntries(MEMBER_ROLES.map((r) => [r, 0])) as Record<MemberRole, number>;
   readonly implementerTiers: ModelTier[] = [];
   /** 승격된 업무에서 구현 팀원을 부른 적이 있는지(모델 고정 실험과 구분하려고 모델 이름이 아니라 업무 상태로 센다) */
   escalated = false;

@@ -103,6 +103,34 @@ export class RoleSettingsDto {
       releaser: { tier: 'opus', effort: 'medium', maxTurns: 60, maxBudgetUsd: 2, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 커밋·push·PR만 한다. git log로 메시지 관례를 읽고 git·gh 명령을 실행할 뿐 파일은 고치지 않는다. 판단이 작아 가장 낮은 등급(sonnet)으로.
       publisher: { tier: 'sonnet', effort: 'low', maxTurns: 30, maxBudgetUsd: 0.3, tools: ['Read', 'Grep', 'Glob', 'Bash'], readsProject: true },
+      // ── 큰 회사 부서. 모두 파일은 쓰지 않는다(보고만). 질 먼저라 opus·high.
+      // PM: 제품 요구 사항·우선순위·로드맵. 지금 제품을 읽고 웹에서 비슷한 서비스를 찾는다.
+      pm: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      // 회계: 비용처리·분류·예산 대비. 레포의 CSV·엑셀 내보내기를 읽고 계산한다.
+      accountant: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      // 클라우드 비용: aws ce 같은 읽기 명령을 직접 돌린다(바꾸는 명령은 도구 검사가 묻는다). 없으면 IaC 로 추정.
+      finops: { tier: 'opus', effort: 'high', maxTurns: 90, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      // 데이터 분석: 연결된 DB 가 있으면 읽기 전용 DB 도구로 쿼리를 직접 돌린다.
+      analyst: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      dataengineer: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      // 법무: 약관·개인정보·라이선스. 법령은 웹에서 찾아 읽는다.
+      legal: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      support: { tier: 'opus', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      voc: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      sales: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      recruiter: { tier: 'opus', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      // QA: 테스트 계획·회귀 체크리스트. 테스트를 돌려 볼 수 있지만 고치지 않는다.
+      // 개발 자문부: 코드를 읽고 빌드·테스트 명령을 돌려 보며 설계·검토·출시를 자문한다. 파일은 쓰지 않는다(고치는 일은 작업 흐름).
+      frontend: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      backend: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      ios: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      android: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      crossplatform: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      // 마케팅 세분화: 웹에서 채널·사례를 찾아 쓴다.
+      content: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      performance: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      pr: { tier: 'opus', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      qa: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
     });
   }
 

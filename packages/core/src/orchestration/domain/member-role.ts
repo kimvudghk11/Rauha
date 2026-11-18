@@ -4,6 +4,10 @@ import type { TeamRole } from './team.js';
 export const MEMBER_ROLES = [
   'intake', 'tester', 'implementer', 'reviewer', 'router', 'answerer', 'surveyor', 'writer', 'designer', 'operator',
   'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'splitter', 'publisher',
+  // 큰 회사 부서(2026-11-18): 기획 PM, 재무·회계, 데이터, 법무, 고객 성공, 영업, 인사, 품질 QA
+  'pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa',
+  // 개발 자문부(설계·검토·출시 자문, 코드는 작업 흐름이 쓴다)와 마케팅 세분화
+  'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr',
 ] as const;
 
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -46,4 +50,23 @@ export const ROLE_INFO: Readonly<Record<MemberRole, RoleInfo>> = {
   splitter: info('저장소 나누기 팀원', '나누기'),
   // 커밋·push·PR만 한다. 파일은 고치지 않는다(쓰기 권한은 팀장과 같다).
   publisher: info('git 팀원', '커밋·PR'),
+  pm: info('PM 팀원', 'PM'),
+  accountant: info('회계 팀원', '회계'),
+  finops: info('클라우드 비용 팀원', '비용'),
+  analyst: info('데이터 분석 팀원', '분석'),
+  dataengineer: info('데이터 엔지니어', '데이터'),
+  legal: info('법무 팀원', '법무'),
+  support: info('고객 지원 팀원', '지원'),
+  voc: info('고객 의견 팀원', 'VoC'),
+  sales: info('영업 팀원', '영업'),
+  recruiter: info('채용·인사 팀원', '인사'),
+  qa: info('QA 팀원', 'QA'),
+  frontend: info('프론트엔드 전문가', '프론트'),
+  backend: info('백엔드 전문가', '백엔드'),
+  ios: info('iOS 전문가', 'iOS'),
+  android: info('안드로이드 전문가', 'Android'),
+  crossplatform: info('크로스플랫폼 앱 전문가', '앱'),
+  content: info('콘텐츠 마케팅 팀원', '콘텐츠'),
+  performance: info('퍼포먼스 마케팅 팀원', '광고'),
+  pr: info('PR·커뮤니티 팀원', 'PR'),
 };

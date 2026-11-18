@@ -1,4 +1,4 @@
-import { Department, type DepartmentId } from './department.js';
+import { Department, DEPARTMENT_ORDER, type DepartmentId } from './department.js';
 
 /** 한 부서가 가장 최근에 낸 결과의 요약 */
 export interface CompanyEntry {
@@ -15,7 +15,7 @@ const ENTRY_MAX_CHARS = 420;
 /** 요약에서 빼는 뒷부분(근거로 읽은 파일·실행한 명령은 결정이 아니다) */
 const TAIL_SECTIONS = /\n+■ (살펴본 파일|실행한 명령)[\s\S]*$/;
 
-const ORDER: readonly DepartmentId[] = ['planning', 'design', 'marketing', 'quality', 'operations'];
+const ORDER: readonly DepartmentId[] = DEPARTMENT_ORDER;
 
 /**
  * 회사가 이미 정한 것: 부서마다 가장 최근 결과의 요약. 마케팅 팀원이 매번 "이 제품이 뭔지, 수익 모델이 뭔지, 톤이 뭔지"를

@@ -21,6 +21,13 @@ export const TEAM_CHOICES: readonly { readonly id: string; readonly label: strin
   { id: 'design', label: '디자인부' },
   { id: 'quality', label: '품질·보안부' },
   { id: 'operations', label: '운영·유지보수부' },
+  { id: 'engineering', label: '개발 자문부' },
+  { id: 'finance', label: '재무·회계부' },
+  { id: 'data', label: '데이터부' },
+  { id: 'legal', label: '법무·컴플라이언스부' },
+  { id: 'customer', label: '고객 성공부' },
+  { id: 'sales', label: '영업·사업개발부' },
+  { id: 'people', label: '인사·조직부' },
 ];
 
 export const TITLE_LIMIT = 120;
