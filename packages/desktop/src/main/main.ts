@@ -22,6 +22,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { trayView } from './platform/tray-menu.js';
+import { UnreadBadge } from '../shared/unread-badge.js';
+import { redDotBitmap, withRedDot } from '../shared/red-dot.js';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, extractStyle, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage, type TodoCard } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
@@ -673,14 +675,41 @@ function showFromTray(target: { job: string } | { tab: string } | null): void {
   else send();
 }
 
+/** 카톡 같은 "안 본 것" 빨간 배지: 창을 안 볼 때 끝난 작업 + 기다리는 허락 */
+let badge = UnreadBadge.empty();
+let badgeShown = -1;
+
+/** 맥은 Dock 의 빨간 숫자 배지, Windows 는 작업 표시줄 아이콘에 빨간 점 */
+function applyBadge(count: number): void {
+  if (count === badgeShown) return;
+  badgeShown = count;
+  if (process.platform === 'darwin') app.dock?.setBadge(UnreadBadge.label(count));
+  else if (window !== null && process.platform === 'win32') {
+    const dot = nativeImage.createFromBitmap(Buffer.from(redDotBitmap(16)), { width: 16, height: 16 });
+    window.setOverlayIcon(count > 0 ? dot : null, count > 0 ? `안 본 것 ${count}개` : '');
+  }
+}
+
+/** Windows 알림 영역 아이콘에 빨간 점을 얹은 것 */
+function trayIconWithDot(): Electron.NativeImage {
+  const base = trayIcon();
+  const { width, height } = base.getSize();
+  return nativeImage.createFromBitmap(Buffer.from(withRedDot(base.toBitmap(), width, height)), { width, height });
+}
+
 function refreshTray(jobs: readonly { id: string; request: string; status: 'queued' | 'running' | 'waiting' | 'done' | 'stopped' }[] | null = null): void {
-  if (tray === null) return;
   const list = jobs ?? runnerRef?.board.jobs ?? [];
+  badge = badge.observe(list.map((j) => ({ id: j.id, status: j.status })), window !== null && window.isFocused());
+  const unread = badge.count(approvals.pending().length);
+  applyBadge(unread);
+  if (tray === null) return;
   const view = trayView({ jobs: list.map((j) => ({ id: j.id, request: j.request, status: j.status })), pending: approvals.pending().length, usage: usage.current().plan, now: new Date() });
-  const key = JSON.stringify(view);
+  const key = JSON.stringify({ view, unread });
   if (key === trayKey) return;
   trayKey = key;
-  if (process.platform === 'darwin') tray.setTitle(view.title === '' ? '' : ` ${view.title}`);
+  // 맥 메뉴 막대 아이콘은 흑백(템플릿)이라 빨간 점은 글자(🔴숫자)로, Windows 는 아이콘 그림에 점을 얹는다
+  if (process.platform === 'darwin') tray.setTitle(UnreadBadge.trayTitle(unread, view.title));
+  else tray.setImage(unread > 0 ? trayIconWithDot() : trayIcon());
   tray.setToolTip(view.tooltip);
   const items = view.items.map((i): MenuItemConstructorOptions => {
     if (i.kind === 'label') return { label: i.text, enabled: false };
@@ -767,6 +796,11 @@ function open(runner: JobRunner): void {
     window.on('resize', save);
     window.on('move', save);
   }
+  // 창을 보면 끝난 작업은 본 것: 빨간 배지를 지운다(허락 기다림은 남는다)
+  window.on('focus', () => {
+    badge = badge.seen();
+    refreshTray();
+  });
   window.on('closed', () => (window = null));
   window.webContents.on('console-message', (details) => {
     if (details.level === 'error') appLog.record('renderer', `${details.message} (${basename(details.sourceId)}:${details.lineNumber})`);
