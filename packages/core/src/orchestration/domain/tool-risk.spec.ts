@@ -304,3 +304,19 @@ describe('ToolRisk 사용자가 시킨 커밋·push·PR', () => {
     expect(asked('커밋해줘')('git commit -m x && echo x > .git/hooks/pre-commit')).toBe('ask');
   });
 });
+
+describe('ToolRisk — 클라우드 비용 조회(재무·회계부)', () => {
+  it('비용 조회·예측·추천은 묻지 않고, 예산·이상 탐지를 만들거나 바꾸는 명령은 묻는다', () => {
+    for (const command of [
+      'aws ce get-cost-and-usage --time-period Start=2026-10-01,End=2026-11-01 --granularity MONTHLY --metrics UnblendedCost --group-by Type=DIMENSION,Key=SERVICE',
+      'aws ce get-cost-forecast --time-period Start=2026-11-18,End=2026-12-01 --metric UNBLENDED_COST --granularity MONTHLY',
+      'aws ce get-rightsizing-recommendation --service AmazonEC2',
+      'aws --profile work ce get-cost-and-usage --time-period Start=2026-11-01,End=2026-11-18 --granularity DAILY --metrics BlendedCost',
+      'aws budgets describe-budgets --account-id 123456789012',
+      'aws pricing get-products --service-code AmazonEC2 --region us-east-1',
+    ])
+      expect(bash(command), command).toBe('allow');
+    expect(bash('aws budgets create-budget --account-id 1 --budget file://b.json')).toBe('ask');
+    expect(bash('aws ce create-anomaly-monitor --anomaly-monitor file://m.json')).toBe('ask');
+  });
+});

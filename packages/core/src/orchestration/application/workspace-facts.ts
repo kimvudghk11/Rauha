@@ -1,7 +1,7 @@
 import type { DigestRepo } from '../domain/repo-digest.js';
 import type { StandupRepo } from '../domain/standup.js';
 import type { WorkspaceRepo } from '../../workspace/domain/workspace.js';
-import type { CiJobLog, CiRun, CommitLine, Manifest, RepoState, SearchHit } from '../domain/workspace-text.js';
+import type { CiJobLog, CiRun, CommitLine, Manifest, RepoState, SearchHit, SheetData } from '../domain/workspace-text.js';
 
 export type { WorkspaceRepo };
 
@@ -38,4 +38,6 @@ export interface WorkspaceFacts {
   readonly companyNotes?: (() => Promise<string | null>) | undefined;
   /** 저장소마다 의존성 파일과 그 안의 의존성 */
   readonly dependencies?: ((repos: readonly WorkspaceRepo[]) => Promise<readonly Manifest[]>) | undefined;
+  /** 저장소 안 CSV·TSV·XLSX 파일의 시트들(비밀 파일은 던진다) */
+  readonly readSpreadsheet?: ((repo: WorkspaceRepo, path: string) => Promise<readonly SheetData[]>) | undefined;
 }

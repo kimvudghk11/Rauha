@@ -53,6 +53,7 @@ import { standupLog } from '../git/standup-log.js';
 import { repoDigest } from '../git/repo-digest.js';
 import { fileHistory, repoStatus, searchRepos, showCommit } from '../git/workspace-git.js';
 import { dependencyManifests } from '../git/manifests.js';
+import { readSpreadsheet } from '../files/spreadsheet.js';
 import { ciLog, ciRuns } from '../github/ci-facts.js';
 import type { ActionsClient } from '../github/actions-client.js';
 import { workspaceFileReader } from './workspace-file.js';
@@ -207,6 +208,11 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     pastWork: async (query) => recallBlock(await memory.search(query, PAST_WORK_RECALLS), PAST_WORK_CHARS),
     companyNotes: async () => (await new FileCompanyBook(profile.companyDir(home), keyRoot).load()).block(),
     dependencies: dependencyManifests,
+    // 회계·클라우드 비용·데이터 팀원이 CSV·엑셀을 읽는다(비밀 파일은 막는다)
+    readSpreadsheet: async (repo, path) => {
+      if (loadSecretPolicy(repo.root).isSecret(path)) throw new Error('비밀 파일이라 읽지 않아요');
+      return readSpreadsheet(join(repo.root, path));
+    },
     ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}),
     ...(actions !== undefined ? { ciRuns: (repos) => ciRuns(actions(), repos), ciLog: (repo, runId) => ciLog(actions(), repo, runId) } : {}),
   };

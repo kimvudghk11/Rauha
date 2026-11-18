@@ -50,6 +50,21 @@ describe('작업 공간 도구 글', () => {
     expect(WorkspaceText.dependencies(manifests, 3, 'lodash')).toBe('저장소 3개 어디에도 "lodash"이(가) 든 의존성이 없어요.');
   });
 
+  it('스프레드시트: 탭으로 나눈 줄과, 숫자 열은 rauha 가 직접 더한 합계(₩·쉼표·원 처리, 숫자 아닌 칸은 빼고 센다)', () => {
+    const text = WorkspaceText.spreadsheet('cost.xlsx', [{ name: '10월', rows: [['항목', '금액', '메모'], ['AWS', '₩120,000', 'x'], ['도메인', '15,000원', 'y'], ['카드 수수료', '확인 중', 'z']] }]);
+    expect(text).toContain('■ cost.xlsx › 10월 (4줄 × 3칸)');
+    expect(text).toContain('AWS\t₩120,000\tx');
+    expect(text).toContain('- 금액: 합계 135,000 (숫자 2개, 숫자 아닌 칸 1개 뺌)');
+    expect(text).not.toContain('- 메모: 합계');
+  });
+
+  it('스프레드시트: 줄이 많으면 앞부분만 싣되 합계는 모든 줄로 낸다', () => {
+    const rows = [['n'], ...Array.from({ length: 250 }, () => ['1'])];
+    const text = WorkspaceText.spreadsheet('a.csv', [{ name: 'a.csv', rows }]);
+    expect(text).toContain('…(51줄 더 있음');
+    expect(text).toContain('- n: 합계 250');
+  });
+
   it('커밋 보기: 길면 앞부분만 싣고 줄인 양을 적는다', () => {
     expect(WorkspaceText.commit('a', 'x'.repeat(13_000))).toContain('1000자 생략');
   });

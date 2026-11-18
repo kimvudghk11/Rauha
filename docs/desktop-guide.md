@@ -49,7 +49,7 @@ rauha는 Claude 구독 로그인을 그대로 써요. 토큰은 읽지도 옮기
   - `search_repos` 여러 레포 코드 한 번에 찾기(비밀 파일 제외) · `file_history` 파일이 언제·누가·왜 바뀌었나
   - `ci_runs` 레포별 GitHub Actions 상태 · `ci_log` 실패한 작업 로그(GitHub CLI 로그인이 있을 때)
   - `todo_list` 할 일 탭 · `past_work` rauha가 예전에 한 일·결정
-  - `company_notes` 회사 부서(기획·디자인·마케팅·품질·운영)가 이미 정한 것 · `dependencies` 레포별 의존성과 버전(package.json·go.mod·requirements.txt·gradle·pom)
+  - `company_notes` 회사 부서가 이미 정한 것 · `dependencies` 레포별 의존성과 버전(package.json·go.mod·requirements.txt·gradle·pom) · `read_spreadsheet` CSV·TSV·엑셀(xlsx) 표 읽기(숫자 열 합계는 rauha 가 계산)
   - 라우터(요청 종류만 가름)를 뺀 모든 팀(개발·품질·운영·기획·마케팅·디자인)이 위 도구를 모두 받아요.
 - **전문가 팀(v0.2.25)**: 모든 팀원이 자기 분야 10년차 이상의 최고 수준 지식으로 일해요(운영은 DevOps·SRE·AWS·Terraform·Kubernetes, 보안은 OWASP·공급망, 리뷰는 스태프 엔지니어 등). 접수 팀장과 부서장은 10년차 이상 리드급이에요. 그래도 추측하지 않고 레포에서 읽고 돌린 것으로만 말해요.
 - **질 먼저(v0.2.24)**: 생각하는 팀원(답변·문서·설계·디버깅·위험·보안·기획·마케팅·디자인·운영·릴리스·접수)은 Opus, 대부분 노력 높음. 질문은 인사·맞장구만 가볍게, 나머지는 깊게 답해요. 덜 된 항목은 최대 두 번까지 마저 해요. 구독 한도는 전보다 빨리 써요. 팀 설정에서 팀원마다 모델·노력을 낮출 수 있어요.

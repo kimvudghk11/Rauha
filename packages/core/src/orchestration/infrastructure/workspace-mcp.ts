@@ -29,6 +29,7 @@ const WHEN: Readonly<Record<WorkspaceToolName, string>> = {
   past_work: '예전에 rauha 가 한 일·결정(query)',
   company_notes: '회사 부서가 이미 정한 것(기획·디자인·마케팅·품질·운영)',
   dependencies: '레포별 의존성과 버전(name 으로 어느 레포가 쓰나)',
+  read_spreadsheet: 'CSV·TSV·엑셀(xlsx) 표 읽기, 숫자 열 합계는 rauha 가 계산(repo, path)',
 };
 
 /** 이 도구들을 붙인 팀원에게 더하는 짧은 사용법. 붙은 도구가 없으면 빈 글 */
@@ -102,7 +103,7 @@ export function workspaceToolHandlers(facts: WorkspaceFacts, seen: (paths: reado
         return Standup.block(since, await facts.myCommits(since));
       }),
   };
-  const { openTodos, repoStatus, search, fileHistory, showCommit, ciRuns, ciLog, pastWork, companyNotes, dependencies } = facts;
+  const { openTodos, repoStatus, search, fileHistory, showCommit, ciRuns, ciLog, pastWork, companyNotes, dependencies, readSpreadsheet } = facts;
   if (openTodos !== undefined)
     handlers.todo_list = () =>
       guarded(async () => {
@@ -176,6 +177,17 @@ export function workspaceToolHandlers(facts: WorkspaceFacts, seen: (paths: reado
         seen(manifests.map((m) => `${(repos.find((r) => r.name === m.repo)?.root ?? m.repo).replace(/[\\/]+$/, '')}/${m.path}`));
         return WorkspaceText.dependencies(manifests, repos.length, name);
       });
+  if (readSpreadsheet !== undefined)
+    handlers.read_spreadsheet = (a) =>
+      guarded(async () => {
+        const repo = one(a['repo']);
+        const path = WorkspaceToolInput.path(a['path']);
+        const sheets = await readSpreadsheet(repo, path).catch((error: unknown) => {
+          throw new DomainError('INVALID_INPUT', `${repo.name}/${path}: ${error instanceof Error ? error.message : 'could not read the file'}`);
+        });
+        seen([`${repo.root.replace(/[\\/]+$/, '')}/${path}`]);
+        return WorkspaceText.spreadsheet(`${repo.name}/${path}`, sheets);
+      });
   return handlers;
 }
 
@@ -199,6 +211,7 @@ const SPECS: Readonly<Record<WorkspaceToolName, { readonly description: string; 
   ci_log: { description: 'Failed jobs of one GitHub Actions run and the end of their logs.', shape: { ...REPO, run_id: z.number().int().describe('Run number from ci_runs') } },
   past_work: { description: 'What rauha remembers from earlier work and answers in this repository, with the decisions made then.', shape: { query: z.string().describe('What to look for') } },
   company_notes: { description: 'What the company departments (planning, design, marketing, quality, operations) already decided: their latest results.', shape: {} },
+  read_spreadsheet: { description: 'Read a CSV, TSV or Excel (.xlsx) file in a repository as tab-separated rows (first 200 rows per sheet). Totals of numeric columns are computed by rauha over all rows: use them instead of adding numbers yourself.', shape: { ...REPO, path: z.string().describe('Path of the file relative to the repository root') } },
   dependencies: { description: 'Dependencies declared in each repository (package.json, go.mod, requirements.txt, build.gradle, pom.xml) with versions as written. Use name to find which repositories use a library.', shape: { ...REPOS, name: z.string().optional().describe('Only dependencies whose name contains this') } },
 };
 

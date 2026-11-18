@@ -4,7 +4,7 @@ import type { MemberRole } from './member-role.js';
 /** rauha 작업 공간 도구 이름. 팀원에게는 mcp__rauha__<이름> 으로 보인다. */
 export const WORKSPACE_TOOL_NAMES = [
   'workspace_repos', 'repo_changes', 'my_commits', 'todo_list', 'repo_status', 'search_repos', 'file_history', 'show_commit',
-  'ci_runs', 'ci_log', 'past_work', 'company_notes', 'dependencies',
+  'ci_runs', 'ci_log', 'past_work', 'company_notes', 'dependencies', 'read_spreadsheet',
 ] as const;
 export type WorkspaceToolName = (typeof WORKSPACE_TOOL_NAMES)[number];
 

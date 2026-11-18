@@ -60,7 +60,7 @@ export { Standup, type StandupRepo } from './orchestration/domain/standup.js';
 export { TodoAsk, type TodoCard, type TodoItem } from './orchestration/domain/todo-ask.js';
 export { RepoDigest, type DigestRepo } from './orchestration/domain/repo-digest.js';
 export type { WorkspaceFacts } from './orchestration/application/workspace-facts.js';
-export { WorkspaceText, type RepoState, type SearchHit, type CommitLine, type CiRun, type CiJobLog, type Manifest } from './orchestration/domain/workspace-text.js';
+export { WorkspaceText, type RepoState, type SearchHit, type CommitLine, type CiRun, type CiJobLog, type Manifest, type SheetData } from './orchestration/domain/workspace-text.js';
 export { FileRoutineStore } from './orchestration/infrastructure/file-routine-store.js';
 export { SessionBudget, type BudgetLevel, type BudgetWindow } from './orchestration/domain/session-budget.js';
 export { MEMBER_ROLES, ROLE_INFO, type RoleInfo } from './orchestration/domain/member-role.js';

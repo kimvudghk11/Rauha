@@ -60,6 +60,21 @@ export interface Manifest {
   readonly deps: readonly { readonly name: string; readonly version: string; readonly dev: boolean }[];
 }
 
+/** 스프레드시트 시트 하나(칸은 글) */
+export interface SheetData {
+  readonly name: string;
+  readonly rows: readonly (readonly string[])[];
+}
+
+const SHEET_ROWS = 200;
+const CELL_MAX = 80;
+/** "₩1,234", "1,234.5", "-300", "12%" 같은 글을 숫자로. 숫자가 아니면 null */
+function numberOf(cell: string): number | null {
+  const t = cell.trim().replace(/[₩$€¥,\s]/g, '').replace(/원$/, '');
+  if (t === '' || !/^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(t)) return null;
+  return Number(t);
+}
+
 const DEPS_SHOWN = 80;
 const CHANGED_SHOWN = 20;
 const BRANCHES_SHOWN = 6;
@@ -143,6 +158,33 @@ export class WorkspaceText {
       return [head, ...lines, ...more].join('\n');
     });
     return `저장소 ${searched}개의 의존성 파일 ${kept.length}개(버전은 파일에 적힌 그대로, 잠금 파일 아님):\n${sections.join('\n\n')}`;
+  }
+
+  /**
+   * 스프레드시트를 탭으로 나눈 줄로. 시트마다 앞 SHEET_ROWS 줄만 싣고(넘치면 생략 수), 첫 줄을 머리로 보고
+   * 값의 절반 넘게 숫자인 열은 rauha 가 직접 더한 합계를 붙인다(팀원이 손으로 더하다 틀리지 않게).
+   */
+  static spreadsheet(file: string, sheets: readonly SheetData[]): string {
+    if (sheets.length === 0) return `${file}: 시트가 없어요.`;
+    return sheets
+      .map((s) => {
+        const width = Math.max(0, ...s.rows.map((r) => r.length));
+        const head = `■ ${file} › ${s.name} (${s.rows.length}줄 × ${width}칸)`;
+        const shown = s.rows.slice(0, SHEET_ROWS).map((r) => r.map((c) => c.replace(/\s+/g, ' ').slice(0, CELL_MAX)).join('\t'));
+        const more = s.rows.length > SHEET_ROWS ? [`…(${s.rows.length - SHEET_ROWS}줄 더 있음, 합계는 모든 줄로 냈어요)`] : [];
+        const header = s.rows[0] ?? [];
+        const body = s.rows.slice(1);
+        const sums: string[] = [];
+        for (let c = 0; c < width; c += 1) {
+          const values = body.map((r) => r[c] ?? '').filter((v) => v.trim() !== '');
+          const nums = values.map(numberOf).filter((n): n is number => n !== null);
+          if (values.length === 0 || nums.length * 2 <= values.length) continue;
+          const total = nums.reduce((a, b) => a + b, 0);
+          sums.push(`- ${header[c]?.trim() || `${c + 1}열`}: 합계 ${Number(total.toFixed(4)).toLocaleString('en-US')} (숫자 ${nums.length}개${nums.length < values.length ? `, 숫자 아닌 칸 ${values.length - nums.length}개 뺌` : ''})`);
+        }
+        return [head, ...shown, ...more, ...(sums.length > 0 ? ['rauha 가 계산한 열 합계(첫 줄은 머리로 봄):', ...sums] : [])].join('\n');
+      })
+      .join('\n\n');
   }
 
   static ciLog(repo: string, runId: number, jobs: readonly CiJobLog[]): string {

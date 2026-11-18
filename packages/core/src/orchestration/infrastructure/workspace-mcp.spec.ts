@@ -105,3 +105,20 @@ describe('rauha 작업 공간 도구', () => {
     expect(added.tools).toContain('mcp__rauha__repo_changes');
   });
 });
+
+describe('rauha 작업 공간 도구 — 표 읽기', () => {
+  it('read_spreadsheet 는 저장소 안 경로의 표를 읽어 합계까지 보이고, 못 읽으면 이유를 알린다', async () => {
+    const f = facts({
+      readSpreadsheet: async (_r, p) => {
+        if (p === '.env') throw new Error('비밀 파일이라 읽지 않아요');
+        return [{ name: 'Sheet1', rows: [['서비스', '비용'], ['EC2', '120.5'], ['S3', '9.5']] }];
+      },
+    });
+    const seen: string[] = [];
+    const out = await workspaceToolHandlers(f, (p) => seen.push(...p)).read_spreadsheet!({ repo: 'shop', path: 'billing/oct.csv' });
+    expect(out.content[0]!.text).toContain('- 비용: 합계 130');
+    expect(seen).toEqual(['E:/w/shop/billing/oct.csv']);
+    const bad = await workspaceToolHandlers(f, () => undefined).read_spreadsheet!({ repo: 'shop', path: '.env' });
+    expect(bad).toMatchObject({ isError: true, content: [{ text: 'shop/.env: 비밀 파일이라 읽지 않아요' }] });
+  });
+});
