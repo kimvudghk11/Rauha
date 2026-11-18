@@ -4,11 +4,11 @@ import { RoleOverridesDto } from './role-overrides.dto.js';
 import { REQUIRED_ROLES, RoleSettingsDto } from './role-settings.dto.js';
 
 describe('RoleSettingsDto', () => {
-  it('기본값: 접수는 sonnet low, 테스트·구현은 sonnet medium(haiku 는 쓰지 않는다)', () => {
+  it('기본값: 접수는 opus medium, 테스트·구현은 sonnet high(질 먼저, haiku 는 쓰지 않는다)', () => {
     const roles = RoleSettingsDto.defaults();
-    expect(roles.get('intake')).toMatchObject({ tier: 'sonnet', effort: 'low' });
-    expect(roles.get('tester')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
-    expect(roles.get('implementer')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
+    expect(roles.get('intake')).toMatchObject({ tier: 'opus', effort: 'medium' });
+    expect(roles.get('tester')).toMatchObject({ tier: 'sonnet', effort: 'high' });
+    expect(roles.get('implementer')).toMatchObject({ tier: 'sonnet', effort: 'high' });
     expect(roles.entries().every((e) => (e.tier as string) !== 'haiku')).toBe(true);
     expect(roles.get('implementer').tools).toContain('Bash');
     expect(roles.get('intake').tools).not.toContain('Write');
@@ -17,14 +17,14 @@ describe('RoleSettingsDto', () => {
   it('환경 변수로 역할의 모델과 effort를 바꾼다', () => {
     const roles = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_IMPLEMENTER: 'sonnet:high', RAUHA_ROLE_TESTER: 'opus' });
     expect(roles.get('implementer')).toMatchObject({ tier: 'sonnet', effort: 'high' });
-    expect(roles.get('tester')).toMatchObject({ tier: 'opus', effort: 'medium' });
+    expect(roles.get('tester')).toMatchObject({ tier: 'opus', effort: 'high' });
   });
 
   it('구현 시니어(opus)·마지막 시도(fable)는 주니어보다 예산 상한이 크다', () => {
     const roles = RoleSettingsDto.defaults();
-    expect(roles.forAssignment('implementer', 'opus')).toMatchObject({ tier: 'opus', effort: 'medium', maxBudgetUsd: 2 });
-    expect(roles.forAssignment('implementer', 'fable')).toMatchObject({ tier: 'fable', maxBudgetUsd: 2 });
-    expect(roles.forAssignment('implementer', 'sonnet')).toMatchObject({ tier: 'sonnet', maxBudgetUsd: 1 });
+    expect(roles.forAssignment('implementer', 'opus')).toMatchObject({ tier: 'opus', effort: 'high', maxBudgetUsd: 4 });
+    expect(roles.forAssignment('implementer', 'fable')).toMatchObject({ tier: 'fable', maxBudgetUsd: 5 });
+    expect(roles.forAssignment('implementer', 'sonnet')).toMatchObject({ tier: 'sonnet', maxBudgetUsd: 2 });
   });
 
   it('환경 변수로 고정한 역할은 배정 모델과 상관없이 그 모델을 쓴다', () => {
@@ -39,21 +39,21 @@ describe('RoleSettingsDto', () => {
 
   it('리뷰어는 구현보다 한 단계 위인 opus이고 파일을 쓰는 도구가 없다', () => {
     const reviewer = RoleSettingsDto.defaults().get('reviewer');
-    expect(reviewer).toMatchObject({ tier: 'opus', effort: 'medium' });
+    expect(reviewer).toMatchObject({ tier: 'opus', effort: 'high' });
     expect(reviewer.tools).toContain('Read');
     for (const tool of ['Edit', 'Write', 'Bash']) expect(reviewer.tools).not.toContain(tool);
   });
 
-  it('라우터는 도구 없는 sonnet, 답변 팀원은 읽기만 하는 sonnet', () => {
+  it('라우터는 도구 없는 sonnet, 답변 팀원은 파일을 쓰지 않는 opus(질 먼저)', () => {
     const roles = RoleSettingsDto.defaults();
     expect(roles.get('router')).toMatchObject({ tier: 'sonnet', effort: 'low', tools: [] });
-    expect(roles.get('answerer')).toMatchObject({ tier: 'sonnet' });
+    expect(roles.get('answerer')).toMatchObject({ tier: 'opus', effort: 'high' });
     expect(roles.get('answerer').tools).not.toContain('Write');
   });
 
-  it('저장소 조사 팀원은 웹 없이 읽기만 하는 sonnet(모두가 기대는 저장소 메모라 추측이 적어야 한다)', () => {
+  it('저장소 조사 팀원은 웹 없이 읽기만 하는 opus(모두가 기대는 저장소 메모라 추측이 적어야 한다)', () => {
     const surveyor = RoleSettingsDto.defaults().get('surveyor');
-    expect(surveyor).toMatchObject({ tier: 'sonnet', effort: 'low', readsProject: true });
+    expect(surveyor).toMatchObject({ tier: 'opus', effort: 'medium', readsProject: true });
     expect([...surveyor.tools].sort()).toEqual(['Glob', 'Grep', 'Read']);
   });
 
@@ -69,7 +69,7 @@ describe('RoleSettingsDto', () => {
     // 명령 결과를 묻는 질문("테스트 돌려봐", "지금 브랜치 뭐야")은 사용자에게 시키지 않고 직접 돌린다.
     expect(answerer.tools).toContain('Bash');
     expect(answerer.tools).not.toContain('Edit');
-    expect(answerer.effort).toBe('medium');
+    expect(answerer.effort).toBe('high');
     expect(answerer.maxTurns).toBeGreaterThanOrEqual(25);
   });
 
@@ -101,11 +101,11 @@ describe('RoleSettingsDto', () => {
 });
 
 describe('RoleSettingsDto — 가벼운 답변', () => {
-  it('light 답변 팀원은 sonnet(low)이고 턴이 적고 웹·명령 도구가 없다(haiku 는 코드를 덜 읽고 추측으로 답했다)', () => {
+  it('light 답변 팀원(인사·맞장구만)은 sonnet(medium)이고 턴이 적고 웹·명령 도구가 없다', () => {
     const light = RoleSettingsDto.defaults().lightAnswerer();
     expect(light.tier).toBe('sonnet');
-    expect(light.effort).toBe('low');
-    expect(light.maxTurns).toBe(12);
+    expect(light.effort).toBe('medium');
+    expect(light.maxTurns).toBe(25);
     expect(light.tools).toEqual(['Read', 'Grep', 'Glob']);
   });
 

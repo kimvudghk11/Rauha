@@ -136,10 +136,10 @@ describe('AnalysisRun', () => {
     expect(run.next()).toBe('done');
   });
 
-  it('설계 모델은 기본 sonnet이고, 영역이 셋 이상이거나 여러 저장소이거나 기능 요청이면 opus로 올린다', () => {
+  it('설계 모델은 변경 크기와 상관없이 opus(질 먼저)', () => {
     const small = start();
     small.recordInvestigation(investigation());
-    expect(small.designTier({ routedFeature: false, repos: 1, budget: SessionBudget.ample() })).toBe('sonnet');
+    expect(small.designTier({ routedFeature: false, repos: 1, budget: SessionBudget.ample() })).toBe('opus');
     expect(small.designTier({ routedFeature: true, repos: 1, budget: SessionBudget.ample() })).toBe('opus');
     expect(small.designTier({ routedFeature: false, repos: 2, budget: SessionBudget.ample() })).toBe('opus');
 

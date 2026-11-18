@@ -22,8 +22,6 @@ export interface Stopped {
 
 /** 설계·계획을 사용자가 고치게 할 수 있는 횟수 */
 const MAX_REVISIONS = 3;
-/** 짚은 영역이 이 수 이상이면 큰 변경이다 */
-const BIG_AREAS = 3;
 
 const STOP_NOTES: Readonly<Record<StopReason, string>> = {
   user: '그만두기로 해서 여기서 멈췄어요.',
@@ -168,9 +166,9 @@ export class AnalysisRun {
   }
 
   /** 설계·계획을 쓸 모델. 큰 변경(영역 셋 이상, 여러 저장소, 기능 요청)만 opus. 한도가 빠듯하면 올리지 않는다. */
+  /** 설계·계획 모델. 질 먼저(2026-11-18 사용자 결정): 변경 크기와 상관없이 opus, 한도가 빠듯할 때만 sonnet. */
   designTier(p: { routedFeature: boolean; repos: number; budget: SessionBudget }): ModelTier {
-    const big = (this._investigation?.areas().length ?? 0) >= BIG_AREAS || p.repos > 1 || p.routedFeature;
-    return big && !p.budget.saving ? 'opus' : 'sonnet';
+    return p.budget.saving ? 'sonnet' : 'opus';
   }
 
   private assertNext(step: NextStep): void {

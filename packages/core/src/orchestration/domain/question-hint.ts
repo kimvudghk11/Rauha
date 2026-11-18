@@ -16,10 +16,13 @@ export function pointsAtRepository(input: string): boolean {
   return REPO_WORDS.test(input);
 }
 
-/** 질문에 얼마나 깊이 답할지. 저장소를 가리키는 말은 라우터가 light라 해도 deep, 인사는 가볍게, 그 밖에는 라우터 판정을 따른다. */
-export function answerDepthOf(routed: 'light' | 'deep', input: string): 'light' | 'deep' {
+/**
+ * 질문에 얼마나 깊이 답할지. 한도보다 답의 질을 먼저 본다(2026-11-18 사용자 결정): 인사·맞장구만 가볍게, 나머지는 모두 깊게.
+ * 라우터가 light 라고 해도 질문이면 깊게 답한다(가볍게 답했다 "더 깊게"로 다시 묻는 왕복을 없앤다).
+ */
+export function answerDepthOf(_routed: 'light' | 'deep', input: string): 'light' | 'deep' {
   if (pointsAtRepository(input)) return 'deep';
-  return isSmallTalk(input) ? 'light' : routed;
+  return isSmallTalk(input) ? 'light' : 'deep';
 }
 
 const PROCEED = /^\s*(그래도|그냥)\s*(진행|해\s?줘|해|할게|실행)/;

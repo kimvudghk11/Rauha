@@ -197,22 +197,22 @@ describe('AnalysisService', () => {
     expect(team.calls[1]!.userMessage.startsWith(first)).toBe(true);
   });
 
-  it('조사·방향 비교는 sonnet 보고 팀원이, 설계와 계획은 설계 팀원이 effort high로 한다', async () => {
+  it('조사·방향 비교는 opus 보고 팀원이, 설계와 계획은 설계 팀원이 opus effort high로 한다(질 먼저)', async () => {
     const team = new FakeTeam(full());
     const user = fakeUser({ directions: [{ kind: 'pick', id: 'a' }], decisions: [{ kind: 'proceed' }] });
     await service(team, new FakeDocs(), { user: user.port }).run(input());
-    expect(team.calls[0]!.setting).toMatchObject({ tier: 'sonnet' });
-    expect(team.calls[2]!.setting).toMatchObject({ tier: 'sonnet', effort: 'high' });
+    expect(team.calls[0]!.setting).toMatchObject({ tier: 'opus' });
+    expect(team.calls[2]!.setting).toMatchObject({ tier: 'opus', effort: 'high' });
     expect(team.calls.every((c) => c.canWrite('docs/x.md') === false)).toBe(true);
   });
 
-  it('큰 변경(영역이 셋 이상)이면 설계 팀원만 opus로 올린다', async () => {
+  it('큰 변경(영역이 셋 이상)이어도 모두 opus(질 먼저: 기본이 opus)', async () => {
     const wide = { ...investigationOut(), facts: ['packages/a/src/x.ts', 'packages/b/src/y.ts', 'docs/z.md'].map((p) => ({ text: p, evidence: p })) };
     const team = new FakeTeam([wide, directionsOut, blueprintOut]);
     const user = fakeUser({ directions: [{ kind: 'pick', id: 'a' }], decisions: [{ kind: 'proceed' }] });
     const result = await service(team, new FakeDocs(), { user: user.port }).run(input());
-    expect(team.calls.map((c) => c.setting.tier)).toEqual(['sonnet', 'sonnet', 'opus']);
-    expect(result.cost.find((c) => c.tier === 'opus')?.calls).toBe(1);
+    expect(team.calls.map((c) => c.setting.tier)).toEqual(['opus', 'opus', 'opus']);
+    expect(result.cost.find((c) => c.tier === 'opus')?.calls).toBe(3);
   });
 
   it('한도가 빠듯하면(70% 이상) 큰 변경이어도 opus를 쓰지 않는다', async () => {
@@ -407,6 +407,6 @@ describe('AnalysisService', () => {
     const a = await svc.run(input({ reach: 'investigate' }));
     const b = await svc.run(input({ reach: 'investigate' }));
     expect(a.run.id).not.toBe(b.run.id);
-    expect(b.cost).toEqual([{ tier: 'sonnet', calls: 1, costUsd: 0.01 }]);
+    expect(b.cost).toEqual([{ tier: 'opus', calls: 1, costUsd: 0.01 }]);
   });
 });

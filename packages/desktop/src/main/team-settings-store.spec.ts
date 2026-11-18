@@ -11,7 +11,7 @@ describe('memberInfos', () => {
     const infos = memberInfos();
     expect(infos.map((i) => i.role)).toEqual([...MEMBER_ROLES]);
     expect(infos).toHaveLength(23);
-    expect(infos.find((i) => i.role === 'reviewer')).toMatchObject({ title: '리뷰어', required: true, defaults: { tier: 'opus', effort: 'medium' } });
+    expect(infos.find((i) => i.role === 'reviewer')).toMatchObject({ title: '리뷰어', required: true, defaults: { tier: 'opus', effort: 'high' } });
     expect(infos.find((i) => i.role === 'reviewer')!.defaults.tools).not.toContain('Write');
     expect(infos.find((i) => i.role === 'marketer')!.required).toBe(false);
   });
@@ -39,9 +39,9 @@ describe('applyTeamOp', () => {
   });
 
   it('하나·전부 기본값으로 되돌린다', () => {
-    const changed = TeamSettings.initial().change('brand', { name: '이름' }).change('writer', { tier: 'opus' });
+    const changed = TeamSettings.initial().change('brand', { name: '이름' }).change('writer', { tier: 'fable' });
     const one = applyTeamOp(changed, { kind: 'reset', role: 'brand' });
-    expect(one.ok && one.settings.toJSON()).toEqual({ members: { writer: { tier: 'opus' } } });
+    expect(one.ok && one.settings.toJSON()).toEqual({ members: { writer: { tier: 'fable' } } });
     const all = applyTeamOp(changed, { kind: 'resetAll' });
     expect(all.ok && all.settings.toJSON()).toEqual({ members: {} });
   });
@@ -53,8 +53,8 @@ describe('TeamSettingsStore', () => {
     try {
       const store = new TeamSettingsStore(join(dir, 't.json'));
       expect((await store.load()).toJSON()).toEqual({ members: {} });
-      await store.save(TeamSettings.initial().change('brand', { tier: 'opus', name: '이름' }));
-      expect((await store.load()).of('brand')).toEqual({ tier: 'opus', name: '이름' });
+      await store.save(TeamSettings.initial().change('brand', { tier: 'fable', name: '이름' }));
+      expect((await store.load()).of('brand')).toEqual({ tier: 'fable', name: '이름' });
       await writeFile(join(dir, 't.json'), '{깨짐', 'utf8');
       expect((await store.load()).toJSON()).toEqual({ members: {} });
     } finally {

@@ -12,7 +12,7 @@ describe('teamLines', () => {
 
   it('팀원마다 이름·모델·노력 수준·쓰는 도구 종류를 한 줄씩 보여 준다', () => {
     const lines = teamLines(RoleSettingsDto.defaults());
-    expect(lines.some((l) => l.includes('팀장') && l.includes('sonnet'))).toBe(true);
+    expect(lines.some((l) => l.includes('팀장') && l.includes('opus'))).toBe(true);
     expect(lines.some((l) => l.includes('운영 팀원') && l.includes('명령 실행'))).toBe(true);
   });
 

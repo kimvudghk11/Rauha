@@ -313,7 +313,7 @@ describe('MinimalLoopService', () => {
     expect(team.calls).toEqual(['intake', 'tester', 'implementer']);
     expect(outcome.status).toBe('complete');
     expect(outcome.implementerAttempts).toBe(1);
-    expect(outcome.usage.sonnet.calls).toBe(3);
+    expect(outcome.usage.sonnet.calls).toBe(2); // 접수 팀장은 opus(질 먼저);
     expect(outcome.guide.toMarkdown()).toContain('src/money.ts:3');
     expect(outcome.logDir).toBe('/runs/x');
     expect(log.labels).toEqual(['baseline', 'red-1', 'green-1']);

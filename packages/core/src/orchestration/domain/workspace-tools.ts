@@ -8,44 +8,8 @@ export const WORKSPACE_TOOL_NAMES = [
 ] as const;
 export type WorkspaceToolName = (typeof WORKSPACE_TOOL_NAMES)[number];
 
-const ALL: readonly WorkspaceToolName[] = WORKSPACE_TOOL_NAMES;
-/** 기획·마케팅·디자인 부서: 회사가 정한 것, 최근에 나간 기능, 지난 결정 */
-const BUSINESS: readonly WorkspaceToolName[] = ['company_notes', 'workspace_repos', 'repo_changes', 'past_work'];
-
-/**
- * 역할마다 하는 일에 필요한 도구만 붙인다(도구 설명도 입력이라 한도를 쓴다). 빈 목록이면 서버를 붙이지 않는다.
- * 테스트 팀원(정해진 동작만 검증)·라우터(판정만)·조사 팀원(한 레포 지도)은 받지 않는다.
- */
-const BY_ROLE: Readonly<Record<MemberRole, readonly WorkspaceToolName[]>> = {
-  // 답하고, 문서를 쓰고, 원인을 찾고, 전체를 보는 팀원은 모두
-  answerer: ALL,
-  writer: ALL,
-  debugger: ALL,
-  chief: ALL,
-  planner: [...BUSINESS, 'search_repos', 'dependencies', 'repo_status', 'todo_list'],
-  // 개발 흐름
-  intake: ['past_work', 'workspace_repos', 'company_notes'],
-  splitter: ['workspace_repos', 'search_repos', 'repo_status', 'dependencies', 'past_work'],
-  designer: ['workspace_repos', 'repo_changes', 'search_repos', 'file_history', 'show_commit', 'past_work', 'company_notes', 'dependencies'],
-  implementer: ['search_repos', 'file_history', 'past_work'],
-  reviewer: ['search_repos', 'file_history', 'show_commit', 'past_work'],
-  tester: [],
-  router: [],
-  surveyor: [],
-  // 품질·보안
-  riskchecker: ['repo_changes', 'repo_status', 'search_repos', 'file_history', 'show_commit', 'ci_runs', 'ci_log', 'past_work', 'dependencies'],
-  securitychecker: ['search_repos', 'dependencies', 'file_history', 'show_commit', 'repo_changes', 'company_notes'],
-  // 운영
-  operator: ['repo_status', 'repo_changes', 'show_commit', 'ci_runs', 'ci_log', 'past_work'],
-  releaser: ['repo_changes', 'show_commit', 'ci_runs', 'ci_log', 'my_commits', 'company_notes', 'todo_list', 'repo_status'],
-  publisher: ['repo_status', 'repo_changes', 'show_commit', 'ci_runs'],
-  // 기획·마케팅·디자인
-  bm: [...BUSINESS, 'dependencies'],
-  marketer: BUSINESS,
-  growth: BUSINESS,
-  brand: ['company_notes', 'past_work'],
-  uxdesigner: [...BUSINESS, 'search_repos'],
-};
+/** 도구를 받지 않는 역할: 라우터는 입력 종류만 가르고 도구 없이 짧게 끝난다. */
+const NO_TOOLS: ReadonlySet<MemberRole> = new Set(['router']);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const NAMES_MAX = 50;
 const PATH_MAX = 500;
@@ -68,13 +32,16 @@ export function matchRepos<T extends { readonly name: string; readonly root: str
 export class WorkspaceToolAccess {
   private constructor() {}
 
-  /** 이 역할이 쓰는 작업 공간 도구(없으면 빈 목록) */
+  /**
+   * 이 역할이 쓰는 작업 공간 도구(없으면 빈 목록). 한도보다 답의 질을 먼저 본다(2026-11-18 사용자 결정):
+   * 라우터를 뺀 모든 팀원(개발·품질·운영·기획·마케팅·디자인)이 모든 도구를 받아, 필요한 사실을 스스로 가져온다.
+   */
   static toolsFor(role: MemberRole): readonly WorkspaceToolName[] {
-    return BY_ROLE[role];
+    return NO_TOOLS.has(role) ? [] : WORKSPACE_TOOL_NAMES;
   }
 
   static wants(role: MemberRole): boolean {
-    return BY_ROLE[role].length > 0;
+    return WorkspaceToolAccess.toolsFor(role).length > 0;
   }
 }
 

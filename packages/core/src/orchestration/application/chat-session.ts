@@ -50,6 +50,8 @@ export type { RunContextBlocks };
 const CONVERSATION_TURNS = 6;
 /** 결과 글을 얼마나 남기고 넘기는지. 바로 앞 턴은 길게("두 번째 거 더 자세히"가 가리키는 곳이 거기다), 그 전은 짧게. */
 const KEPT_RESULT_CHARS = 1200;
+/** 요청 항목 표에 팀이 더 하면 끝나는 것이 남았을 때 같은 팀원을 다시 부르는 최대 횟수(질은 높이고 끝없이 돌지는 않게) */
+const FOLLOW_UPS = 2;
 
 /** 답 결과에 얹을 "찾아본 것" 한 줄. 도구를 쓰지 않았으면 키 자체가 없다. */
 function toolsPart(tools: readonly ToolCount[] | undefined): { toolsLine?: string } {
@@ -318,7 +320,7 @@ export class ChatSession {
     // 체인지로그·커밋을 물으면 rauha 가 모든 저장소의 최근 변경을 먼저 모아 준다(팀원이 레포를 하나씩 뒤지다 빠뜨리지 않게)
     const digest = workLog === '' ? await this.digestOf(input) : null;
     // 스탠드업·여러 저장소 변경 묶음은 rauha가 모은 사실로 쓰므로 가벼운 질문으로 보지 않는다(근거 확인·빠진 항목 마저 하기를 한다)
-    const depth = workLog !== '' || (digest !== null && digest.repos > 1) ? 'deep' : answerDepthOf(route.depth, input);
+    const depth = force === 'deep' || workLog !== '' || (digest !== null && digest.repos > 1) ? 'deep' : answerDepthOf(route.depth, input);
     const known = await this.knowledgeFor(depth);
     const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''));
     const answered = await this.answer(input, asked, started, depth, also, digest?.seen ?? []);
@@ -766,18 +768,30 @@ ${SINGLE_REPO_NOTE}
   }
 
   /**
-   * 답의 요청 항목 표를 보고, 사용자에게 받을 것 없이 덜 된 항목이나 읽겠다고 하고 열지 않은 곳이 있으면 같은 팀원을 한 번 더 부른다(deep 만).
-   * 다시 부른 결과를 읽지 못하거나 막히면 처음 답을 쓴다.
+   * 답의 요청 항목 표를 보고, 사용자에게 받을 것 없이 덜 된 항목이나 읽겠다고 하고 열지 않은 곳이 있으면 같은 팀원을 다시 부른다(deep 만, 최대 FOLLOW_UPS 번).
+   * 다시 부른 결과를 읽지 못하거나 막히면 그 전 답을 쓴다. extraCostUsd: 최종 결과 말고 앞서 쓴 호출들의 비용.
    */
   private async finishAsks(first: Asked, depth: 'light' | 'deep', seen: readonly string[] = []): Promise<{ result: MemberResult; coverage: RequestCoverage; extraCostUsd: number }> {
-    const coverage = CoverageDto.read(first.result.output, [...seen, ...(first.result.opened ?? [])]);
-    const previous = this.tryRead(() => AnswerDto.from(first.result.output));
-    const followUp = depth === 'deep' && previous !== null ? coverage.followUp() : null;
-    if (followUp === null) return { result: first.result, coverage, extraCostUsd: 0 };
-    this.deps.progress.step('빠진 항목을 마저 확인할게요', 'answerer');
-    const again = await first.again([`<previous_answer>\n${previous!.answer}\n</previous_answer>`, followUp]);
-    if (again.blocked || this.tryRead(() => AnswerDto.from(again.output)) === null) return { result: first.result, coverage, extraCostUsd: again.usage.costUsd };
-    return { result: again, coverage: CoverageDto.read(again.output, [...seen, ...(first.result.opened ?? []), ...(again.opened ?? [])]), extraCostUsd: first.result.usage.costUsd };
+    let result = first.result;
+    let opened = [...seen, ...(first.result.opened ?? [])];
+    let coverage = CoverageDto.read(result.output, opened);
+    let extraCostUsd = 0;
+    for (let round = 0; round < FOLLOW_UPS; round += 1) {
+      const previous = this.tryRead(() => AnswerDto.from(result.output));
+      const followUp = depth === 'deep' && previous !== null ? coverage.followUp() : null;
+      if (followUp === null) break;
+      this.deps.progress.step(round === 0 ? '빠진 항목을 마저 확인할게요' : '아직 남은 항목을 한 번 더 확인할게요', 'answerer');
+      const again = await first.again([`<previous_answer>\n${previous!.answer}\n</previous_answer>`, followUp]);
+      if (again.blocked || this.tryRead(() => AnswerDto.from(again.output)) === null) {
+        extraCostUsd += again.usage.costUsd;
+        break;
+      }
+      extraCostUsd += result.usage.costUsd;
+      result = again;
+      opened = [...opened, ...(again.opened ?? [])];
+      coverage = CoverageDto.read(again.output, opened);
+    }
+    return { result, coverage, extraCostUsd };
   }
 
   /** 인용한 파일 읽기. 현재 레포에 없으면 경로가 가리키는 함께 읽는 레포에서 읽는다(읽기 전용, 비밀·루트 밖은 그 레포의 읽기가 막는다). */

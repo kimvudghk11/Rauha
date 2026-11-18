@@ -49,9 +49,10 @@ describe('answerDepthOf', () => {
     expect(answerDepthOf('light', 'src/money.ts 뭐 해?')).toBe('deep');
   });
 
-  it('인사가 아니면 라우터 판정을 따른다', () => {
-    expect(answerDepthOf('light', '1+1은 얼마야?')).toBe('light');
+  it('인사가 아니면 라우터가 light 라 해도 깊게 답한다(질 먼저)', () => {
+    expect(answerDepthOf('light', '1+1은 얼마야?')).toBe('deep');
     expect(answerDepthOf('deep', '이 함수 어디서 써?')).toBe('deep');
+    expect(answerDepthOf('deep', '안녕')).toBe('light');
   });
 });
 
