@@ -1,3 +1,5 @@
+import { matchRepos } from './workspace-tools.js';
+
 /** rauha 가 git·파일로 직접 읽은 저장소 하나의 최근 변경 */
 export interface DigestRepo {
   readonly name: string;
@@ -48,12 +50,7 @@ export class RepoDigest {
    * names 는 이름(대소문자 무시) 또는 루트 경로 끝으로 맞춘다. 비었으면 모든 저장소. 맞는 것이 없으면 빈 배열.
    */
   static pick(repos: readonly DigestRepo[], names: readonly string[] = [], since: string | null = null): DigestRepo[] {
-    const wanted = names.map((n) => n.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()).filter((n) => n !== '');
-    const hit = (r: DigestRepo): boolean => {
-      const root = r.root.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-      return wanted.some((w) => w === r.name.toLowerCase() || root === w || root.endsWith(`/${w}`));
-    };
-    return repos.filter((r) => wanted.length === 0 || hit(r)).map((r) => (since === null ? r : { ...r, commits: r.commits.filter((c) => c.at.slice(0, 10) >= since) }));
+    return matchRepos(repos, names).map((r) => (since === null ? r : { ...r, commits: r.commits.filter((c) => c.at.slice(0, 10) >= since) }));
   }
 
   /** 저장소 목록 한 줄씩: 이름·루트·브랜치·가장 최근 커밋·태그 */

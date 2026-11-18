@@ -371,7 +371,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, addTodos: addChatTodos, openTodos: openChatTodos, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
@@ -606,14 +606,19 @@ async function openChatTodos(): Promise<string[]> {
 /** CI 지켜보기용 GitHub 읽기(Actions 탭과 같은 방식: gh 로그인 토큰이 있으면 쓰고, 없으면 공개 저장소만·로그 없이) */
 let ciClient: GithubActionsClient | null = null;
 
+/** CI 감시와 팀원의 ci_runs·ci_log 도구가 함께 쓰는 GitHub 읽기(ETag 캐시를 나눠 써 요청 수를 아낀다) */
+function actionsClient(): GithubActionsClient {
+  ciClient ??= GithubActionsClient.create({ fetch: (u, i) => fetch(u, i), ghToken: ghCliToken, userAgent: `rauha/${app.getVersion()}` });
+  return ciClient;
+}
+
 /**
  * 작업이 push 했으면 그 커밋의 GitHub Actions 를 뒤에서 지켜보고, 실패하면 'CI 실패 고치기' 할 일을 만들고 알린다.
  * 스스로 고치기 시작하지 않는다(팀에 넘길지는 사용자가 정한다). 실패해도 작업에는 영향이 없다.
  */
 function watchPushedCi(pushed: PushedCommit): Promise<void> {
-  ciClient ??= GithubActionsClient.create({ fetch: (u, i) => fetch(u, i), ghToken: ghCliToken, userAgent: `rauha/${app.getVersion()}` });
   return followCi(pushed, {
-    client: ciClient,
+    client: actionsClient(),
     addTodo: async (title, note) => void (await todoService.apply({ kind: 'add', title, note, top: true })),
     notify: (title, body) => {
       if (Notification.isSupported()) showNotice({ title, body }, null);

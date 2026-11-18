@@ -46,17 +46,24 @@ import {
   type TodoCard,
   type DigestRepo,
   type WorkspaceFacts,
+  recallBlock,
 } from '@rauha/core';
 import { RepoConversations } from './repo-conversations.js';
 import { standupLog } from '../git/standup-log.js';
 import { repoDigest } from '../git/repo-digest.js';
+import { fileHistory, repoStatus, searchRepos, showCommit } from '../git/workspace-git.js';
+import { ciLog, ciRuns } from '../github/ci-facts.js';
+import type { ActionsClient } from '../github/actions-client.js';
 import { workspaceFileReader } from './workspace-file.js';
 import type { TeamIo, TeamSession } from './team-work.js';
 
-/** 사용자 PC 시간대 기준 YYYY-MM-DD. */
 /** 작업 공간 변경 묶음을 다시 읽지 않고 쓰는 시간 */
 const DIGEST_FRESH_MS = 30_000;
+/** past_work 도구가 꺼내는 기억 수·글 길이 */
+const PAST_WORK_RECALLS = 5;
+const PAST_WORK_CHARS = 6_000;
 
+/** 사용자 PC 시간대 기준 YYYY-MM-DD. */
 function localDate(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -117,6 +124,8 @@ export interface ComposeOptions {
   readonly addTodos?: (card: TodoCard) => Promise<void>;
   /** 할 일 탭의 끝나지 않은 할 일(카드 제목·안 끝난 체크리스트 글) */
   readonly openTodos?: () => Promise<readonly string[]>;
+  /** GitHub Actions 읽기(Actions 탭·CI 감시와 같은 클라이언트). 있으면 팀원이 ci_runs·ci_log 도구를 쓴다 */
+  readonly actions?: () => ActionsClient;
   readonly prompts: PromptLibrary;
   readonly profileFor: (root: string) => Profile;
   /** 1분마다 읽는 구독 사용률. 아직 못 읽었으면 null */
@@ -183,7 +192,21 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     if (changes === null || Date.now() - changes.at > DIGEST_FRESH_MS) changes = { at: Date.now(), value: repoDigest(workspaceRepos) };
     return changes.value;
   };
-  const workspaceFacts: WorkspaceFacts = { repoChanges, myCommits: (since) => standupLog(workspaceRepos, since), today: () => localDate(), ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}) };
+  const actions = options.actions;
+  const workspaceFacts: WorkspaceFacts = {
+    repos: () => workspaceRepos,
+    repoChanges,
+    myCommits: (since) => standupLog(workspaceRepos, since),
+    today: () => localDate(),
+    repoStatus,
+    search: searchRepos,
+    fileHistory,
+    showCommit,
+    // 기억은 아래에서 연다(도구는 팀원이 일하는 중에만 불리므로 그때는 열려 있다)
+    pastWork: async (query) => recallBlock(await memory.search(query, PAST_WORK_RECALLS), PAST_WORK_CHARS),
+    ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}),
+    ...(actions !== undefined ? { ciRuns: (repos) => ciRuns(actions(), repos), ciLog: (repo, runId) => ciLog(actions(), repo, runId) } : {}),
+  };
   const inner = new AgentSdkTeamMember({
     workspace: () => workspaceFacts,
     cwd: root,
