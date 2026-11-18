@@ -248,7 +248,7 @@ export const TODO_SCHEMA: Record<string, unknown> = {
   properties: {
     items: {
       type: 'array',
-      maxItems: 20,
+      maxItems: 50,
       items: {
         type: 'object',
         additionalProperties: false,

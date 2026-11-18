@@ -22,7 +22,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { trayView } from './platform/tray-menu.js';
-import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, extractStyle, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage, type TodoItem } from '@rauha/core';
+import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, extractStyle, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage, type TodoCard } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
 import { boardView, jobView, IPC, type ThreadLink, type ApprovalChoice, type DiagnosticsResult, type RepoRow, type SettingsPatch } from '../shared/ipc.js';
@@ -371,7 +371,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, addTodos: addChatTodos, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, addTodos: addChatTodos, openTodos: openChatTodos, prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
@@ -590,27 +590,17 @@ async function checkApis(jobId: string, io: TeamIo, cwd: string, changed: readon
 }
 
 /**
- * "투두 정리해줘": 팀이 뽑은 할 일을 할 일 탭(첫 칸)에 차례로 넣는다. 끝나지 않은 같은 제목이 이미 있으면 건너뛴다(같은 파일을 두 번 넣어도 겹치지 않게).
- * 파일에서 온 할 일은 메모에 어느 파일에서 왔는지 적는다.
+ * "투두 정리해줘": core 가 묶은 카드 하나를 할 일 탭(첫 칸)에 넣는다. 할 일이 여럿이면 그 카드의 체크리스트가 된다(할 일마다 카드를 만들지 않는다).
  */
-async function addChatTodos(items: readonly TodoItem[]): Promise<{ added: TodoItem[]; skipped: number }> {
-  const key = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase();
-  const open = new Set((await todoService.get()).items.filter((t) => t.completedAt === null).map((t) => key(t.title)));
-  const added: TodoItem[] = [];
-  let skipped = 0;
-  for (const t of items) {
-    if (open.has(key(t.title))) {
-      skipped += 1;
-      continue;
-    }
-    const note = t.source === null ? t.note : [t.note, `출처: ${t.source}`].filter((s) => s !== '').join('\n');
-    const r = await todoService.apply({ kind: 'add', title: t.title, note, due: t.due });
-    if (r.ok) {
-      added.push(t);
-      open.add(key(t.title));
-    }
-  }
-  return { added, skipped };
+async function addChatTodos(card: TodoCard): Promise<void> {
+  const r = await todoService.apply({ kind: 'add', title: card.title, note: card.note, due: card.due, checklist: card.checklist.map((text) => ({ id: randomUUID(), text, done: false })) });
+  if (!r.ok) throw new Error('할 일 탭에 넣지 못했어요.');
+}
+
+/** 할 일 탭의 끝나지 않은 할 일: 끝나지 않은 카드 제목과 그 카드들의 안 끝난 체크리스트 글(같은 할 일을 다시 넣지 않게) */
+async function openChatTodos(): Promise<string[]> {
+  const open = (await todoService.get()).items.filter((t) => t.completedAt === null);
+  return open.flatMap((t) => [t.title, ...t.checklist.filter((c) => !c.done).map((c) => c.text)]);
 }
 
 /** CI 지켜보기용 GitHub 읽기(Actions 탭과 같은 방식: gh 로그인 토큰이 있으면 쓰고, 없으면 공개 저장소만·로그 없이) */

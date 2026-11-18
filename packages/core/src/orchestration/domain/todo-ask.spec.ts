@@ -43,6 +43,36 @@ describe('할 일 정리 요청', () => {
     expect(kept.map((k) => k.title)).toEqual(['결제 모듈 리팩터링', '사용자 말']);
   });
 
+  it('여러 할 일은 카드 하나로 묶고 각 할 일은 그 카드의 체크리스트가 된다', () => {
+    const card = TodoAsk.card([item('결제 API 리뷰', 'q', '2026-11-19'), item('배포 체크리스트 확인', 'q'), item('회의록', 'q', '2026-11-20')], '내일 업무 정리해줘', '2026-11-18');
+    expect(card.title).toBe('내일 할 일');
+    expect(card.checklist).toEqual(['결제 API 리뷰', '배포 체크리스트 확인', '회의록 (2026-11-20)']);
+    expect(card.due).toBe('2026-11-19');
+  });
+
+  it('때를 말하지 않으면 정리한 날로, 한 파일에서 왔으면 그 파일 이름으로 카드 제목을 짓는다', () => {
+    expect(TodoAsk.card([item('a', 'a'), item('b', 'b')], '투두 정리해줘', '2026-11-18').title).toBe('할 일 정리 (11-18)');
+    const fromFile = TodoAsk.card([item('a', 'a', null, 'E:/w/docs/todo.md'), item('b', 'b', null, 'E:\\w\\docs\\todo.md')], 'docs 투두 넣어줘', '2026-11-18');
+    expect(fromFile.title).toBe('할 일 (todo.md)');
+    expect(fromFile.note).toContain('출처: E:/w/docs/todo.md');
+  });
+
+  it('할 일이 하나뿐이면 체크리스트 없이 그 할 일이 카드 제목이다', () => {
+    const card = TodoAsk.card([{ ...item('리뷰', '리뷰', '2026-11-19'), note: '오전에' }], '투두 정리', '2026-11-18');
+    expect(card).toMatchObject({ title: '리뷰', note: '오전에', due: '2026-11-19', checklist: [] });
+  });
+
+  it('이미 끝나지 않은 카드 제목이나 체크리스트에 있는 할 일은 다시 넣지 않는다', () => {
+    const fresh = TodoAsk.fresh([item('결제 API 리뷰', 'q'), item('배포', 'q'), item('새 일', 'q')], ['결제 API  리뷰', '배포 (2026-11-20)']);
+    expect(fresh.items.map((i) => i.title)).toEqual(['새 일']);
+    expect(fresh.skipped).toBe(2);
+  });
+
+  it('여러 할 일을 넣었으면 카드 하나와 체크리스트 수로 알린다', () => {
+    const card = TodoAsk.card([item('a', 'a'), item('b', 'b')], '투두', '2026-11-18');
+    expect(TodoAsk.report(card.items, 0, 0, card)).toBe('할 일 탭에 카드 "할 일 정리 (11-18)" 하나를 만들고 체크리스트 2개를 넣었어요.\n- [ ] a\n- [ ] b');
+  });
+
   it('파일에서 넣었으면 읽은 파일과 이미 있어 건너뛴 수를 알린다', () => {
     const text = TodoAsk.report([item('a', 'a', null, 'docs/todo.md')], 0, 2);
     expect(text).toContain('읽은 파일: docs/todo.md');

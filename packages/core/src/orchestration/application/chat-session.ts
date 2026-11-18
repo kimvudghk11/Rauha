@@ -10,7 +10,8 @@ import { LearningBook } from '../domain/learning-book.js';
 import { RepoPaths } from '../domain/repo-paths.js';
 import { StackTrace } from '../domain/stack-trace.js';
 import { Standup, type StandupRepo } from '../domain/standup.js';
-import { TodoAsk, type TodoItem } from '../domain/todo-ask.js';
+import { TodoAsk, type TodoCard, type TodoItem } from '../domain/todo-ask.js';
+import { RepoDigest, type DigestRepo } from '../domain/repo-digest.js';
 import { TodoItemsDto } from './dto/todo-items.dto.js';
 import type { CompanyEntry } from '../domain/company-book.js';
 import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
@@ -87,8 +88,12 @@ export interface ChatSessionDeps {
   /** 팀원이 일하는 작업 폴더. 문서 팀원이 절대 경로로 보고한 파일을 작업 폴더 기준으로 풀 때 쓴다(없으면 상대 경로로 보고한 것만 받는다). */
   readonly workRoot?: string | undefined;
   readonly folder?: { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
-  /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 넣는다. 넣은 것과 이미 있어 건너뛴 수. 없으면 이 요청도 평소처럼 라우터로 간다. */
-  readonly addTodos?: ((items: readonly TodoItem[]) => Promise<{ readonly added: readonly TodoItem[]; readonly skipped: number }>) | undefined;
+  /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 카드 하나(여럿이면 체크리스트)로 넣는다. 없으면 이 요청도 평소처럼 라우터로 간다. */
+  readonly addTodos?: ((card: TodoCard) => Promise<void>) | undefined;
+  /** 할 일 탭에 이미 있는 끝나지 않은 할 일(카드 제목·안 끝난 체크리스트 글). 같은 할 일을 다시 넣지 않으려고 쓴다. */
+  readonly openTodos?: (() => Promise<readonly string[]>) | undefined;
+  /** 저장소마다 최근 커밋·태그·CHANGELOG 앞부분(rauha 가 git·파일로 읽음). 없으면 팀원이 직접 저장소를 뒤진다. */
+  readonly repoDigest?: (() => Promise<readonly DigestRepo[]>) | undefined;
   /** 할 일 파일 읽기(작업 폴더·작업 공간 폴더 안, 비밀 파일 제외). 없으면 이 저장소 파일만 읽는다. */
   readonly readWorkspaceFile?: ((path: string) => Promise<string | null>) | undefined;
   /** 사용자가 고른 작업 공간 폴더(레포가 하나여도). 할 일 파일을 찾을 때 함께 읽는다. */
@@ -291,7 +296,7 @@ export class ChatSession {
       if (routed.blocked) return { kind: 'blocked', ...routed.blocked };
       route = RouteDto.read(routed.output, input);
     }
-    if (route.mode === 'task') return this.documents.write(input, conversation, also, started);
+    if (route.mode === 'task') return this.documents.write(input, conversation, also, started, await this.digestOf(input));
     if (route.mode === 'ops') return this.ops(input, conversation, started);
     if (route.mode === 'publish') return this.publish(input, conversation, started);
     if (route.mode === 'debug') return this.analysis('debugger', '디버깅', route, input, conversation, also, started);
@@ -310,11 +315,13 @@ export class ChatSession {
     if (route.mode === 'feature' && past === null && this.canDesign()) return this.designs!.run(input, conversation, started);
     if (changesCode) return this.work(input, conversation, past, null, references);
     const workLog = await this.workLogBlock(input);
-    // 스탠드업은 rauha가 모은 커밋으로 쓰므로 가벼운 질문으로 보지 않는다(근거 확인·빠진 항목 마저 하기를 한다)
-    const depth = workLog !== '' ? 'deep' : answerDepthOf(route.depth, input);
+    // 체인지로그·커밋을 물으면 rauha 가 모든 저장소의 최근 변경을 먼저 모아 준다(팀원이 레포를 하나씩 뒤지다 빠뜨리지 않게)
+    const digest = workLog === '' ? await this.digestOf(input) : null;
+    // 스탠드업·여러 저장소 변경 묶음은 rauha가 모은 사실로 쓰므로 가벼운 질문으로 보지 않는다(근거 확인·빠진 항목 마저 하기를 한다)
+    const depth = workLog !== '' || (digest !== null && digest.repos > 1) ? 'deep' : answerDepthOf(route.depth, input);
     const known = await this.knowledgeFor(depth);
-    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog);
-    const answered = await this.answer(input, asked, started, depth, also);
+    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''));
+    const answered = await this.answer(input, asked, started, depth, also, digest?.seen ?? []);
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
     if (answered.kind === 'answer' && depth === 'deep') this.surveyInBackground();
     return answered;
@@ -480,8 +487,12 @@ export class ChatSession {
     // 파일에서 뽑은 항목은 rauha 가 그 파일을 다시 읽어 근거 줄이 정말 있는지 본다
     const files = new Map(await Promise.all(TodoAsk.sources(raw).map(async (path) => [path, await this.readTodoFile(path)] as const)));
     const kept = TodoAsk.keep(raw, said, files);
-    const added = kept.length > 0 ? await this.deps.addTodos!(kept).catch(() => null) : { added: [], skipped: 0 };
-    const answer = added === null ? '할 일 탭에 넣지 못했어요. 작업 폴더를 고른 뒤 다시 말씀해 주세요.' : TodoAsk.report(added.added, raw.length - kept.length, added.skipped);
+    const open = await (this.deps.openTodos?.() ?? Promise.resolve([])).catch(() => [] as readonly string[]);
+    const fresh = TodoAsk.fresh(kept, open);
+    // 할 일마다 카드를 따로 만들지 않고 카드 하나에 체크리스트로 묶는다
+    const card = fresh.items.length > 0 ? TodoAsk.card(fresh.items, input, this.deps.today()) : null;
+    const saved = card === null ? true : await this.deps.addTodos!(card).then(() => true, () => false);
+    const answer = !saved ? '할 일 탭에 넣지 못했어요. 작업 폴더를 고른 뒤 다시 말씀해 주세요.' : TodoAsk.report(fresh.items, raw.length - kept.length, fresh.skipped, card);
     this.turns.push({ input, result: answer.slice(0, KEPT_RESULT_CHARS) });
     return { kind: 'answer', answer, checked: [], costUsd: result.usage.costUsd, durationMs: this.deps.now() - started, basis: null };
   }
@@ -490,6 +501,22 @@ export class ChatSession {
   private async readTodoFile(path: string): Promise<string | null> {
     const wide = await this.deps.readWorkspaceFile?.(path).catch(() => null);
     return wide ?? (await this.deps.workspace.readFile(path).catch(() => null));
+  }
+
+  /**
+   * 체인지로그·커밋·변경 내역을 묻는 요청이면 rauha 가 모든 저장소에서 git·파일로 모은 최근 변경 묶음(모델 호출 없음).
+   * seen: 묶음으로 이미 본 곳(요청 항목 표의 "안 본 곳"에서 뺀다). 스탠드업이거나 모으지 못하면 null.
+   */
+  private async digestOf(input: string): Promise<{ block: string; seen: string[]; repos: number } | null> {
+    if (this.deps.repoDigest === undefined || !RepoDigest.asks(input) || Standup.asks(input)) return null;
+    try {
+      const repos = await this.deps.repoDigest();
+      if (repos.length === 0) return null;
+      this.deps.progress.step(`저장소 ${repos.length}개의 커밋·CHANGELOG 를 먼저 모았어요`, 'answerer');
+      return { block: RepoDigest.block(repos), seen: RepoDigest.seen(repos), repos: repos.length };
+    } catch {
+      return null;
+    }
   }
 
   /** 스탠드업·퇴근 정리 요청이면 rauha가 git 으로 모은 내 커밋 묶음. 아니거나 모으지 못하면 빈 글. */
@@ -713,11 +740,12 @@ ${SINGLE_REPO_NOTE}
     }
   }
 
-  private async answer(input: string, asked: Promise<Asked>, started: number, depth: 'light' | 'deep', also: readonly AlsoRepo[] = []): Promise<TurnOutcome> {
+  /** seen: rauha 가 팀원 대신 이미 본 곳(저장소 변경 묶음). 요청 항목 표에서 연 곳으로 친다. */
+  private async answer(input: string, asked: Promise<Asked>, started: number, depth: 'light' | 'deep', also: readonly AlsoRepo[] = [], seen: readonly string[] = []): Promise<TurnOutcome> {
     const first = await asked;
     const { recalls, basis } = first;
     if (first.result.blocked) return { kind: 'blocked', ...first.result.blocked };
-    const { result, coverage, extraCostUsd } = await this.finishAsks(first, depth);
+    const { result, coverage, extraCostUsd } = await this.finishAsks(first, depth, seen);
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const dto = this.tryRead(() => AnswerDto.from(result.output));
     const claims = dto?.claims() ?? [];
@@ -741,15 +769,15 @@ ${SINGLE_REPO_NOTE}
    * 답의 요청 항목 표를 보고, 사용자에게 받을 것 없이 덜 된 항목이나 읽겠다고 하고 열지 않은 곳이 있으면 같은 팀원을 한 번 더 부른다(deep 만).
    * 다시 부른 결과를 읽지 못하거나 막히면 처음 답을 쓴다.
    */
-  private async finishAsks(first: Asked, depth: 'light' | 'deep'): Promise<{ result: MemberResult; coverage: RequestCoverage; extraCostUsd: number }> {
-    const coverage = CoverageDto.read(first.result.output, first.result.opened);
+  private async finishAsks(first: Asked, depth: 'light' | 'deep', seen: readonly string[] = []): Promise<{ result: MemberResult; coverage: RequestCoverage; extraCostUsd: number }> {
+    const coverage = CoverageDto.read(first.result.output, [...seen, ...(first.result.opened ?? [])]);
     const previous = this.tryRead(() => AnswerDto.from(first.result.output));
     const followUp = depth === 'deep' && previous !== null ? coverage.followUp() : null;
     if (followUp === null) return { result: first.result, coverage, extraCostUsd: 0 };
     this.deps.progress.step('빠진 항목을 마저 확인할게요', 'answerer');
     const again = await first.again([`<previous_answer>\n${previous!.answer}\n</previous_answer>`, followUp]);
     if (again.blocked || this.tryRead(() => AnswerDto.from(again.output)) === null) return { result: first.result, coverage, extraCostUsd: again.usage.costUsd };
-    return { result: again, coverage: CoverageDto.read(again.output, [...(first.result.opened ?? []), ...(again.opened ?? [])]), extraCostUsd: first.result.usage.costUsd };
+    return { result: again, coverage: CoverageDto.read(again.output, [...seen, ...(first.result.opened ?? []), ...(again.opened ?? [])]), extraCostUsd: first.result.usage.costUsd };
   }
 
   /** 인용한 파일 읽기. 현재 레포에 없으면 경로가 가리키는 함께 읽는 레포에서 읽는다(읽기 전용, 비밀·루트 밖은 그 레포의 읽기가 막는다). */

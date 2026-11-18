@@ -40,7 +40,11 @@ export class DocumentDesk {
     private readonly deps: DocumentDeps,
   ) {}
 
-  async write(input: string, conversation: string | null, also: readonly { readonly name: string; readonly root: string }[], started: number): Promise<TurnOutcome> {
+  /**
+   * facts: 체인지로그·커밋 문서면 rauha 가 모든 저장소에서 모은 최근 변경 묶음(block)과 그것으로 이미 본 곳(seen).
+   * 묶음이 있으면 저장소마다 요약하는 호출을 하지 않는다(사실은 이미 다 모였다).
+   */
+  async write(input: string, conversation: string | null, also: readonly { readonly name: string; readonly root: string }[], started: number, facts: { readonly block: string; readonly seen: readonly string[] } | null = null): Promise<TurnOutcome> {
     const costBefore = this.host.spent();
     const current = this.deps.repoName ?? '이 저장소';
     const repos = [`- ${current} (지금 작업 폴더, 문서는 여기에)`, ...also.map((r) => `- ${r.name}: ${r.root}`)];
@@ -48,7 +52,7 @@ export class DocumentDesk {
     const dirs = [...also.map((r) => r.root), ...(folderRoot !== undefined ? [folderRoot] : [])];
 
     let digests = '';
-    if (also.length + 1 > GATHER_ABOVE) {
+    if (facts === null && also.length + 1 > GATHER_ABOVE) {
       const gathered = await this.gather(input, [{ name: current, root: this.deps.folder()?.repos.find((r) => r.name === current)?.root ?? null }, ...also]);
       if ('blocked' in gathered) return { kind: 'blocked', ...gathered.blocked };
       digests = gathered.digests;
@@ -59,6 +63,7 @@ export class DocumentDesk {
       this.host.workspaceBlock(),
       `<repos>\n${repos.join('\n')}\n</repos>`,
       digests !== '' ? `<digests>\n${digests}\n</digests>` : '',
+      facts?.block ?? '',
       `<request>\n${input}\n</request>`,
     ];
     const call = (more: readonly string[]) =>
@@ -71,7 +76,7 @@ export class DocumentDesk {
       );
     const first = await call([]);
     if (first.blocked) return { kind: 'blocked', ...first.blocked };
-    const { result, coverage, earlierFiles } = await this.finishAsks(first, call);
+    const { result, coverage, earlierFiles } = await this.finishAsks(first, call, facts?.seen ?? []);
     const report = WriterReportDto.read(result.output);
     const files = [...new Set([...earlierFiles, ...report.files])];
     this.host.titled(input.slice(0, 60));
@@ -90,15 +95,16 @@ export class DocumentDesk {
   private async finishAsks(
     first: MemberResult,
     call: (more: readonly string[]) => Promise<MemberResult>,
+    seen: readonly string[],
   ): Promise<{ result: MemberResult; coverage: RequestCoverage; earlierFiles: readonly string[] }> {
-    const coverage = CoverageDto.read(first.output, first.opened);
+    const coverage = CoverageDto.read(first.output, [...seen, ...(first.opened ?? [])]);
     const followUp = first.output !== null ? coverage.followUp() : null;
     if (followUp === null) return { result: first, coverage, earlierFiles: [] };
     const before = WriterReportDto.read(first.output);
     this.deps.progress.step('빠진 항목을 마저 채울게요', 'writer');
     const again = await call([`<previous_report>\n${before.summary}\n이미 쓴 문서: ${before.files.join(', ') || '없음'}. 새 파일을 만들지 말고 이 문서를 고쳐 채우세요.\n</previous_report>`, followUp]);
     if (again.blocked || again.output === null) return { result: first, coverage, earlierFiles: [] };
-    return { result: again, coverage: CoverageDto.read(again.output, [...(first.opened ?? []), ...(again.opened ?? [])]), earlierFiles: before.files };
+    return { result: again, coverage: CoverageDto.read(again.output, [...seen, ...(first.opened ?? []), ...(again.opened ?? [])]), earlierFiles: before.files };
   }
 
   /**

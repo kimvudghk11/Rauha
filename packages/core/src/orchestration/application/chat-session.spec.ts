@@ -6,6 +6,7 @@ import type { MemoryPort } from '../../memory/application/memory.port.js';
 import type { MemoryEntry, MemoryNode, Recall } from '../../memory/domain/work-memory.js';
 import type { CheckedClaim } from '../domain/fact-check.js';
 import { LearningBook } from '../domain/learning-book.js';
+import type { TodoCard } from '../domain/todo-ask.js';
 import { CompanyBook } from '../domain/company-book.js';
 import { SessionBudget } from '../domain/session-budget.js';
 import type { AnalysisInput, AnalysisPort, AnalysisResult } from '../../analysis/application/ports.js';
@@ -279,7 +280,7 @@ describe('ChatSession — 질문', () => {
       ],
     });
     const added: string[] = [];
-    const chat = ChatSession.start({ ...sessionDeps({ team }), addTodos: async (items) => (added.push(...items.map((i) => i.title)), { added: items, skipped: 0 }) });
+    const chat = ChatSession.start({ ...sessionDeps({ team }), addTodos: async (card) => void added.push(...card.items.map((i) => i.title)) });
     await chat.handle('내일은 결제 API 리뷰를 해야 해');
     const turn = await chat.handle('투두 정리해줘');
     expect(added).toEqual(['결제 API 리뷰']);
@@ -305,7 +306,7 @@ describe('ChatSession — 질문', () => {
       ...sessionDeps({ team }),
       folder: { root: 'E:/w', repos: [{ name: 'a', root: 'E:/w/a' }, { name: 'b', root: 'E:/w/b' }] },
       readWorkspaceFile: async (p) => (read.push(p), p === 'E:/w/docs/todo.md' ? '# TODO\n- [ ] 결제 모듈 리팩터링\n- [x] 끝난 일' : null),
-      addTodos: async (items) => ({ added: items, skipped: 0 }),
+      addTodos: async () => undefined,
     });
     const turn = await chat.handle('project/docs에 있는 todo 파일들 찾아서 라우하 todo에 넣어달라니까');
     const call = team.calls.find((c) => c.role === 'answerer')!;
@@ -318,10 +319,56 @@ describe('ChatSession — 질문', () => {
     expect(turn.kind === 'answer' && turn.answer).not.toContain('찾아서 라우하');
   });
 
+  it('할 일이 여럿이면 카드를 하나만 만들고 할 일들은 그 카드의 체크리스트로 넣으며, 이미 할 일 탭에 있는 것은 뺀다', async () => {
+    const team = new FakeTeam({
+      answerer: [
+        () => ({
+          items: [
+            { title: '결제 API 리뷰', note: '', due: null, quote: '결제 API 리뷰' },
+            { title: '배포 확인', note: '', due: null, quote: '배포 확인' },
+            { title: '회의록 정리', note: '', due: null, quote: '회의록 정리' },
+          ],
+        }),
+      ],
+    });
+    const cards: TodoCard[] = [];
+    const chat = ChatSession.start({ ...sessionDeps({ team }), openTodos: async () => ['회의록 정리'], addTodos: async (card) => void cards.push(card) });
+    const turn = await chat.handle('내일 결제 API 리뷰, 배포 확인, 회의록 정리 투두 만들어줘');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({ title: '내일 할 일', checklist: ['결제 API 리뷰', '배포 확인'] });
+    expect(turn.kind === 'answer' && turn.answer).toContain('카드 "내일 할 일" 하나를 만들고 체크리스트 2개');
+    expect(turn.kind === 'answer' && turn.answer).toContain('이미 할 일 탭에 있는 1개');
+  });
+
   it('할 일 탭이 없는 화면(터미널)에서는 투두 요청도 평소처럼 라우터로 간다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
     await session({ team }).handle('투두 정리해줘');
     expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer']);
+  });
+
+  it('"모든 레포 체인지로그·커밋 봐줘"면 rauha 가 모든 저장소의 커밋·CHANGELOG 를 먼저 모아 주고, 그 저장소들은 "안 본 곳"에 나오지 않는다', async () => {
+    const team = new FakeTeam({
+      router: [route('question', false, null, { depth: 'light' })],
+      answerer: [() => ({ answer: 'a 는 결제 취소, b 는 로그인 고침', claims: [], asks: [{ ask: 'a 변경', status: 'done', note: '', needs: '' }, { ask: 'b 변경', status: 'done', note: '', needs: '' }], scope: ['E:/w/a', 'E:/w/b/CHANGELOG.md'] })],
+    });
+    const repos = [
+      { name: 'a', root: 'E:/w/a', branch: 'main', tags: ['v1.0.0'], commits: [{ hash: 'aaa1111', at: '2026-11-17', author: '김', subject: '결제 취소 추가' }], changelog: null },
+      { name: 'b', root: 'E:/w/b', branch: 'main', tags: [], commits: [], changelog: { path: 'CHANGELOG.md', head: '## 2.0\n- 로그인 고침' } },
+    ];
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), repoDigest: async () => repos }).handle('모든 레포 체인지로그랑 커밋 다 봐줘');
+    const call = team.calls.find((c) => c.role === 'answerer')!;
+    expect(call.message).toContain('<repo_digest>');
+    expect(call.message).toContain('결제 취소 추가');
+    expect(call.message).toContain('- 로그인 고침');
+    expect(turn.kind === 'answer' && turn.answer).not.toContain('안 본 곳');
+    expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1); // 다시 부르지 않는다
+  });
+
+  it('체인지로그·커밋 이야기가 아닌 질문에는 저장소 변경을 모으지 않는다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
+    let called = 0;
+    await ChatSession.start({ ...sessionDeps({ team }), repoDigest: async () => (called++, []) }).handle('이 함수 뭐 해?');
+    expect(called).toBe(0);
   });
 
   it('스탠드업이 아닌 질문에는 커밋을 모으지 않는다', async () => {
