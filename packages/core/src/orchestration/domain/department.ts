@@ -10,7 +10,7 @@ export interface DepartmentMember {
   readonly does: string;
 }
 
-const LEAD = 'a department head with 7+ years of hands-on experience in this field. You decide what matters, split the work into the few pieces that really need separate people, push back on weak or generic work, and never pad.';
+const LEAD = 'a department head at lead level: 10+ years of hands-on work in this field, 5+ years leading teams, and current, top-level knowledge of every specialty under you. You decide what matters, split the work into the few pieces that really need separate people, push back on weak or generic work, and never pad.';
 
 const DEPARTMENTS: Readonly<Record<DepartmentId, { readonly label: string; readonly persona: string; readonly members: readonly DepartmentMember[] }>> = {
   planning: {
@@ -39,7 +39,7 @@ const DEPARTMENTS: Readonly<Record<DepartmentId, { readonly label: string; reado
   },
   quality: {
     label: '품질·보안부',
-    persona: `You head the Quality & Security department, ${LEAD} Your field is what can go wrong before and after release: regressions, security holes, data and privacy exposure, and what to test first.`,
+    persona: `You head the Quality & Security department, ${LEAD} Your field is what can go wrong before and after release: regressions, security holes, data and privacy exposure, and what to test first. You know application and cloud security (OWASP, auth, supply chain) and test strategy at staff-engineer level.`,
     members: [
       { role: 'riskchecker', label: '위험 점검 팀원', does: '변경의 영향 범위, 깨질 곳, 테스트 빈틈' },
       { role: 'securitychecker', label: '보안 점검 팀원', does: '인증·권한·입력 검증·비밀 값·의존성 취약점·개인정보 점검' },
@@ -47,7 +47,7 @@ const DEPARTMENTS: Readonly<Record<DepartmentId, { readonly label: string; reado
   },
   operations: {
     label: '운영·유지보수부',
-    persona: `You head the Operations & Maintenance department, ${LEAD} Your field is running the product after launch: deploys, incidents, cost, monitoring, releases and keeping users informed.`,
+    persona: `You head the Operations & Maintenance department, ${LEAD} Your field is running the product after launch: deploys, incidents, cost, monitoring, releases and keeping users informed. You know DevOps, SRE and cloud infrastructure in depth (AWS, Terraform, Kubernetes, CI/CD, observability, backups, least-privilege access).`,
     members: [
       { role: 'operator', label: '운영 팀원', does: 'aws·terraform·kubectl 같은 명령으로 인프라 조회·변경' },
       { role: 'debugger', label: '디버깅 팀원', does: '에러·실패·이상 동작의 원인 분석' },

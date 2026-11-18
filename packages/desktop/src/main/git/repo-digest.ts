@@ -25,7 +25,8 @@ export async function repoDigest(repos: readonly { readonly name: string; readon
       const [branch, tags, log, changelog] = await Promise.all([
         out(['branch', '--show-current']),
         out(['for-each-ref', '--sort=-creatordate', `--count=${MAX_TAGS}`, '--format=%(refname:short)', 'refs/tags']),
-        out(['log', '--all', '--no-merges', '--date=format:%Y-%m-%d', `--format=%h${SEP}%ad${SEP}%an${SEP}%s`, '-n', String(MAX_COMMITS)]),
+        // --topo-order: 같은 초에 생긴 커밋도 자식이 부모보다 먼저 온다(시각만으로는 순서가 흔들린다)
+        out(['log', '--all', '--no-merges', '--topo-order', '--date=format:%Y-%m-%d', `--format=%h${SEP}%ad${SEP}%an${SEP}%s`, '-n', String(MAX_COMMITS)]),
         findChangelog(repo.root),
       ]);
       const commits = log === '' ? [] : log.split('\n').flatMap((line) => {

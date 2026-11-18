@@ -10,6 +10,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
+let tick = 0;
 function repo(): { root: string; commit: (msg: string, who: string) => void } {
   const root = mkdtempSync(join(tmpdir(), 'rauha-digest-'));
   dirs.push(root);
@@ -22,7 +23,9 @@ function repo(): { root: string; commit: (msg: string, who: string) => void } {
     commit: (msg, who) => {
       writeFileSync(join(root, `f${n++}.txt`), msg);
       execFileSync('git', ['add', '.'], { cwd: root });
-      execFileSync('git', ['-c', `user.name=${who}`, 'commit', '-qm', msg], { cwd: root });
+      // 커밋마다 다른 시각(같은 초면 순서가 흔들린다)
+      const date = `2026-11-1${(tick++ % 9) + 0}T10:00:00`;
+      execFileSync('git', ['-c', `user.name=${who}`, 'commit', '-qm', msg], { cwd: root, env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } });
     },
   };
 }

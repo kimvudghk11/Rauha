@@ -19,8 +19,8 @@ describe('Department', () => {
     expect(Department.named(null)).toBeNull();
   });
 
-  it('부서장의 지침은 부서마다 다르고, 부서장이 7년차 이상의 판단을 한다고 밝힌다', () => {
-    for (const d of Department.all()) expect(d.persona).toMatch(/7\+ years|seven/i);
+  it('부서장의 지침은 부서마다 다르고, 부서장이 10년차 이상 리드급이라고 밝힌다', () => {
+    for (const d of Department.all()) expect(d.persona).toMatch(/10\+ years of hands-on work in this field, 5\+ years leading teams/);
     expect(Department.of('quality').persona).not.toBe(Department.of('marketing').persona);
   });
 

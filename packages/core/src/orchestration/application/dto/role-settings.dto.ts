@@ -90,7 +90,7 @@ export class RoleSettingsDto {
       // 여러 저장소 요청을 저장소별 일과 그 사이의 약속으로 나누고, 끝난 뒤 약속이 양쪽 코드에서 맞는지 본다. 모든 저장소를 읽어야 해서 턴을 넉넉히.
       splitter: { tier: 'opus', effort: 'high', maxTurns: 100, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       planner: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: READ_TOOLS, readsProject: true },
-      // 부서장: 7년차 이상의 판단으로 부서 일을 나누고(계획) 팀원의 보고를 하나로 모은다(종합). 호출 수가 적어 가장 높은 모델(fable)을 쓴다. 파일은 쓰지 않는다.
+      // 부서장: 10년차 이상 리드급 판단으로 부서 일을 나누고(계획) 팀원의 보고를 하나로 모은다(종합). 호출 수가 적어 가장 높은 모델(fable)을 쓴다. 파일은 쓰지 않는다.
       chief: { tier: 'fable', effort: 'high', maxTurns: 60, maxBudgetUsd: 4, tools: READ_TOOLS, readsProject: true },
       bm: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
       marketer: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
