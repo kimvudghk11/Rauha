@@ -51,6 +51,7 @@ rauha는 Claude 구독 로그인을 그대로 써요. 토큰은 읽지도 옮기
   - `todo_list` 할 일 탭 · `past_work` rauha가 예전에 한 일·결정
   - `company_notes` 회사 부서가 이미 정한 것 · `dependencies` 레포별 의존성과 버전(package.json·go.mod·requirements.txt·gradle·pom) · `read_spreadsheet` CSV·TSV·엑셀(xlsx) 표 읽기(숫자 열 합계는 rauha 가 계산)
   - 라우터(요청 종류만 가름)를 뺀 모든 팀(개발·품질·운영·기획·마케팅·디자인)이 위 도구를 모두 받아요.
+- **모바일·여러 언어 테스트**: 코드 작업(테스트 먼저)이 Node 말고도 테스트를 실제로 돌려요. 안드로이드·자바·코틀린(`gradlew test`), iOS Swift 패키지(`swift test`), 맥의 Xcode 앱(`xcodebuild test`, 스킴과 iPhone 시뮬레이터는 알아서 찾음), Flutter(`flutter test`), Dart, Go, Python(pytest), Rust, Maven. 그 도구가 컴퓨터에 없으면 실패가 아니라 "돌릴 방법 없음"으로 알려요.
 - **전문가 팀(v0.2.25)**: 모든 팀원이 자기 분야 10년차 이상의 최고 수준 지식으로 일해요(운영은 DevOps·SRE·AWS·Terraform·Kubernetes, 보안은 OWASP·공급망, 리뷰는 스태프 엔지니어 등). 접수 팀장과 부서장은 10년차 이상 리드급이에요. 그래도 추측하지 않고 레포에서 읽고 돌린 것으로만 말해요.
 - **질 먼저(v0.2.24)**: 생각하는 팀원(답변·문서·설계·디버깅·위험·보안·기획·마케팅·디자인·운영·릴리스·접수)은 Opus, 대부분 노력 높음. 질문은 인사·맞장구만 가볍게, 나머지는 깊게 답해요. 덜 된 항목은 최대 두 번까지 마저 해요. 구독 한도는 전보다 빨리 써요. 팀 설정에서 팀원마다 모델·노력을 낮출 수 있어요.
 - **에러 붙여 넣기**: 에러 로그·스택 트레이스를 붙이고 "왜 이래?"라고 하면, rauha가 스택에서 이 레포의 파일·줄과 그 파일의 최근 커밋을 찾아 디버깅 팀원에게 먼저 줘요(Node·Java·Python·Go). 이름만 같은 파일이 여럿이면 넣지 않아요.
