@@ -96,7 +96,7 @@ export class NodeProject {
 }
 
 /** 공백·특수 문자가 든 인자만 큰따옴표로 감싼다(cmd.exe와 POSIX 셸 모두 받는 형태). */
-function shellQuote(arg: string): string {
+export function shellQuote(arg: string): string {
   return /^[\w./:@=+,-]+$/.test(arg) ? arg : `"${arg.replace(/"/g, '\\"')}"`;
 }
 
@@ -118,7 +118,7 @@ export function testsOutcome(report: VitestReportDto | null, exitCode: number, o
   return TestRun.of({ passed: run.passed, failed: 1, failureKind: 'compile', failedNames: [`(처리되지 않은 오류: 종료 코드 ${exitCode})`] });
 }
 
-interface CommandResult {
+export interface CommandResult {
   readonly code: number;
   readonly output: string;
 }
@@ -322,37 +322,42 @@ export class NodeChecks implements ChecksPort {
   }
 
   private exec(command: string, cwd: string = this.root): Promise<CommandResult> {
-    return new Promise((resolve) => {
-      const child = spawn(command, {
-        cwd,
-        shell: true,
-        env: { ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' },
-        windowsHide: true,
-      });
-      let output = '';
-      const collect = (chunk: Buffer) => {
-        output += chunk.toString();
-        if (output.length > 2_000_000) output = output.slice(-1_000_000);
-      };
-      child.stdout.on('data', collect);
-      child.stderr.on('data', collect);
-      let settled = false;
-      const settle = (result: CommandResult) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(result);
-      };
-      // 시간 제한: 셸 아래의 프로세스까지 트리째 끄고, close를 기다리지 않고 결과를 확정한다.
-      const timer = setTimeout(() => {
-        void killTree(child.pid).then(() =>
-          settle({ code: 124, output: `${output}\n시간 제한(${Math.round(this.timeoutMs / 1000)}초)을 넘겨 중단했습니다.` }),
-        );
-      }, this.timeoutMs);
-      child.on('close', (code) => settle({ code: code ?? 1, output }));
-      child.on('error', (error) => settle({ code: 1, output: `${output}\n${error.message}` }));
-    });
+    return runShell(command, cwd, this.timeoutMs);
   }
+}
+
+/** 셸 명령 하나를 시간 제한과 함께 돌린다(넘기면 프로세스 트리째 끈다). 출력은 뒤 1MB 남짓만 남긴다. */
+export function runShell(command: string, cwd: string, timeoutMs: number): Promise<CommandResult> {
+  return new Promise((resolve) => {
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      env: { ...process.env, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' },
+      windowsHide: true,
+    });
+    let output = '';
+    const collect = (chunk: Buffer) => {
+      output += chunk.toString();
+      if (output.length > 2_000_000) output = output.slice(-1_000_000);
+    };
+    child.stdout.on('data', collect);
+    child.stderr.on('data', collect);
+    let settled = false;
+    const settle = (result: CommandResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    // 시간 제한: 셸 아래의 프로세스까지 트리째 끄고, close를 기다리지 않고 결과를 확정한다.
+    const timer = setTimeout(() => {
+      void killTree(child.pid).then(() =>
+        settle({ code: 124, output: `${output}\n시간 제한(${Math.round(timeoutMs / 1000)}초)을 넘겨 중단했습니다.` }),
+      );
+    }, timeoutMs);
+    child.on('close', (code) => settle({ code: code ?? 1, output }));
+    child.on('error', (error) => settle({ code: 1, output: `${output}\n${error.message}` }));
+  });
 }
 
 function hasTestScript(pkgPath: string): boolean {

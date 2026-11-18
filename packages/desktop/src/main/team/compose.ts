@@ -22,7 +22,7 @@ import {
   GitWorkspace,
   KnowledgeService,
   MinimalLoopService,
-  NodeChecks,
+  projectChecks,
   RoleSettingsDto,
   type RoleOverrides,
   SessionBudget,
@@ -266,7 +266,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
       new MinimalLoopService({
         team,
         workspace: new GitWorkspace(root, secrets),
-        checks: new NodeChecks(root),
+        // 저장소에 맞는 검사: Node(test 스크립트) 또는 안드로이드·자바·코틀린·Go·Python·Rust·Flutter·Swift 패키지
+        checks: projectChecks(root),
         log: new FileRunLog(profile.runsDir(home), runId, new Date(), prompts.hash),
         progress: io.progress,
         user: io.user,

@@ -14,7 +14,7 @@ import {
   listSecretFiles,
   loadSecretPolicy,
   MinimalLoopService,
-  NodeChecks,
+  projectChecks,
   projectMemoryFile,
   PromptLibrary,
   RoleSettingsDto,
@@ -133,7 +133,7 @@ export function createLoop(ctx: RunContext, prompts: PromptLibrary, team: TeamMe
   return new MinimalLoopService({
     team,
     workspace: new GitWorkspace(ctx.root, loadSecretPolicy(ctx.root)),
-    checks: new NodeChecks(ctx.root),
+    checks: projectChecks(ctx.root),
     log: new FileRunLog(ctx.profile.runsDir(ctx.home), runId, new Date(), prompts.hash),
     progress: ctx.progress,
     user: ctx.user,
