@@ -992,8 +992,11 @@ void app.whenReady().then(async () => {
   const runner = await startRunner();
   ipcMain.handle(IPC.settingsGet, () => (process.env['RAUHA_WORK_DIR'] !== undefined ? { ...settings, workFolder: currentWorkDir(), folderApproved: true, firstRunDone: true } : settings));
   ipcMain.handle(IPC.settingsUpdate, async (_e, patch: unknown) => {
+    const before = { account: settings.account, folder: settings.workFolder };
     settings = updateSettings(settings, (typeof patch === 'object' && patch !== null ? patch : {}) as SettingsPatch);
     await settingsStore.save(settings);
+    // work·personal 계정이나 작업 폴더가 바뀌면 그 계정의 한도를 바로 다시 읽는다(25초 주기를 기다리지 않는다)
+    if (settings.account !== before.account || settings.workFolder !== before.folder) void usage.refresh('account-change');
     return settings;
   });
   ipcMain.handle(IPC.usageGet, () => {

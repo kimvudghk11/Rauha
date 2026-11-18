@@ -65,3 +65,10 @@ describe('읽은 지 얼마나 됐는지', () => {
     expect(isStale(null, NOW)).toBe(true);
   });
 });
+
+describe('계정(work·personal)을 바꾸면', () => {
+  it('방금 읽었어도 바로 다시 읽고, 읽는 중이면 끝난 뒤 한 번 더 읽는다(읽는 중인 값은 앞 계정 것)', () => {
+    expect(decideRead({ reason: 'account-change', lastReadAt: 1_000, inFlight: false, now: 1_500 })).toBe('read');
+    expect(decideRead({ reason: 'account-change', lastReadAt: 1_000, inFlight: true, now: 1_500 })).toBe('after');
+  });
+});
