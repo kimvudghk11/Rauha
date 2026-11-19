@@ -115,3 +115,18 @@ describe('무대 말풍선', () => {
     expect(new Set(night).size).toBeGreaterThan(1);
   });
 });
+
+describe('컨셉 말끝', () => {
+  it('바로 앞 줄과 같은 컨셉 말끝을 연달아 붙이지 않는다', () => {
+    const roles = ['intake', 'tester', 'implementer', 'reviewer', 'writer', 'planner', 'qa', 'md', 'graphic', 'copywriter'];
+    const spices = ['파도 오기 전에 끝낼게요.', '물살 타고 갑니다.', '산호 옆에서 정리할게요.'];
+    for (let seed = 0; seed < 40; seed++) {
+      const notes = roles.map((role) => ({ role, roleName: role, message: '진행 중' }));
+      const chat = teamChat(notes, 20, { set: 'ocean', seed });
+      const tail = chat.map((l) => spices.find((s) => l.text.endsWith(s)) ?? null);
+      tail.forEach((s, i) => {
+        if (s !== null && i > 0) expect(tail[i - 1], `seed ${seed} line ${i}`).not.toBe(s);
+      });
+    }
+  });
+});

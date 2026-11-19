@@ -192,10 +192,17 @@ export function teamChat(notes: readonly NoteLike[], max = 14, options: VoiceOpt
   const team = notes.filter((n): n is NoteLike & { role: string; roleName: string } => n.role !== null && n.roleName !== null);
   const seed = options.seed ?? 0;
   const out: ChatLine[] = [];
+  const spices = options.set === undefined ? [] : (SPICE[options.set] ?? []);
+  let lastSpice: string | null = null;
   team.forEach((n, i) => {
     const prev = team[i - 1];
     const handoff = prev !== undefined && prev.role !== n.role ? `${handoffLine(prev.role, prev.roleName, n.role, i, seed)} ` : '';
-    out.push({ role: n.role, who: n.roleName, text: handoff + voiceOf(n.role, n.message, i, options) });
+    let said = voiceOf(n.role, n.message, i, options);
+    // 바로 앞 줄과 같은 컨셉 말끝이면 뗀다(연달아 "산호 옆에서 정리할게요."는 기계 같다)
+    const spice = spices.find((s) => said.endsWith(` ${s}`)) ?? null;
+    if (spice !== null && spice === lastSpice) said = said.slice(0, -(spice.length + 1));
+    lastSpice = spice !== null && spice !== lastSpice ? spice : null;
+    out.push({ role: n.role, who: n.roleName, text: handoff + said });
   });
   return out.slice(-max);
 }
