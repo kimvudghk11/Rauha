@@ -46,10 +46,8 @@ export class UnreadBadge {
     return count > MAX_SHOWN ? `${MAX_SHOWN}+` : String(count);
   }
 
-  /** 맥 메뉴 막대 아이콘 옆 글자: 안 본 것이 있으면 빨간 점과 숫자를 앞에, 그 뒤에 원래 글자(일하는 수·허락) */
-  static trayTitle(count: number, base: string): string {
-    const dot = count > 0 ? `🔴${UnreadBadge.label(count)}` : '';
-    const text = [dot, base].filter((t) => t !== '').join(' ');
-    return text === '' ? '' : ` ${text}`;
+  /** 메뉴 막대 아이콘에 카톡처럼 빨간 N 을 얹을지: 안 본 것이 있거나 일이 도는(진행·기다림·대기) 동안 */
+  static trayMarked(count: number, jobs: readonly { readonly status: BadgeJobStatus }[]): boolean {
+    return count > 0 || jobs.some((j) => !FINISHED.has(j.status));
   }
 }

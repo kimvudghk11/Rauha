@@ -20,10 +20,10 @@ import { GithubWorkService, type RemoteWork } from './github/github-work-service
 import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { trayView } from './platform/tray-menu.js';
 import { UnreadBadge } from '../shared/unread-badge.js';
-import { redDotBitmap, withRedDot } from '../shared/red-dot.js';
+import { recolored, redDotBitmap, withNewBadge, withRedDot } from '../shared/red-dot.js';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, extractStyle, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage, type TodoCard } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
@@ -690,6 +690,18 @@ function applyBadge(count: number): void {
   }
 }
 
+/**
+ * 맥 메뉴 막대 아이콘에 카톡처럼 빨간 N 을 얹은 것. 템플릿 그림은 흑백으로만 그려지므로 템플릿을 끄고,
+ * 돌고래는 메뉴 막대가 어두우면 흰색·밝으면 검정으로 직접 칠한다. 레티나(@2x) 그림에 그린다.
+ */
+function macTrayIconWithBadge(): Electron.NativeImage {
+  const src = nativeImage.createFromPath(join(app.getAppPath(), 'build', 'trayTemplate@2x.png'));
+  const { width, height } = src.getSize();
+  const gray = nativeTheme.shouldUseDarkColors ? 0xff : 0x00;
+  const bitmap = withNewBadge(recolored(src.toBitmap(), gray), width, height);
+  return nativeImage.createFromBitmap(Buffer.from(bitmap), { width, height, scaleFactor: 2 });
+}
+
 /** Windows 알림 영역 아이콘에 빨간 점을 얹은 것 */
 function trayIconWithDot(): Electron.NativeImage {
   const base = trayIcon();
@@ -704,12 +716,15 @@ function refreshTray(jobs: readonly { id: string; request: string; status: 'queu
   applyBadge(unread);
   if (tray === null) return;
   const view = trayView({ jobs: list.map((j) => ({ id: j.id, request: j.request, status: j.status })), pending: approvals.pending().length, usage: usage.current().plan, now: new Date() });
-  const key = JSON.stringify({ view, unread });
+  const marked = UnreadBadge.trayMarked(unread, list);
+  const key = JSON.stringify({ view, unread, marked, dark: nativeTheme.shouldUseDarkColors });
   if (key === trayKey) return;
   trayKey = key;
-  // 맥 메뉴 막대 아이콘은 흑백(템플릿)이라 빨간 점은 글자(🔴숫자)로, Windows 는 아이콘 그림에 점을 얹는다
-  if (process.platform === 'darwin') tray.setTitle(UnreadBadge.trayTitle(unread, view.title));
-  else tray.setImage(unread > 0 ? trayIconWithDot() : trayIcon());
+  // 맥은 카톡처럼 아이콘 오른쪽 위에 빨간 N(안 본 것이 있거나 일하는 동안), 옆 글자는 붙이지 않는다. Windows 는 안 본 것이 있을 때 빨간 점.
+  if (process.platform === 'darwin') {
+    tray.setTitle('');
+    tray.setImage(marked ? macTrayIconWithBadge() : trayIcon());
+  } else tray.setImage(unread > 0 ? trayIconWithDot() : trayIcon());
   tray.setToolTip(view.tooltip);
   const items = view.items.map((i): MenuItemConstructorOptions => {
     if (i.kind === 'label') return { label: i.text, enabled: false };
@@ -732,6 +747,8 @@ function startTray(): void {
   }
   // Windows 는 왼쪽 클릭으로 창을 연다(메뉴는 오른쪽 클릭). 맥은 누르면 메뉴가 열린다.
   if (process.platform !== 'darwin') tray.on('click', () => showFromTray(null));
+  // 다크·라이트가 바뀌면 빨간 N 아이콘의 돌고래 색을 다시 칠한다
+  nativeTheme.on('updated', () => refreshTray());
   refreshTray();
 }
 

@@ -31,12 +31,18 @@ describe('안 본 것 빨간 배지(카톡처럼)', () => {
     expect(b.count(0)).toBe(0);
   });
 
-  it('배지 글자는 없으면 빈 글, 99 넘으면 99+, 메뉴 막대에는 빨간 점과 숫자를 원래 글자 앞에', () => {
+  it('배지 글자는 없으면 빈 글, 99 넘으면 99+', () => {
     expect(UnreadBadge.label(0)).toBe('');
     expect(UnreadBadge.label(3)).toBe('3');
     expect(UnreadBadge.label(120)).toBe('99+');
-    expect(UnreadBadge.trayTitle(2, '1')).toBe(' 🔴2 1');
-    expect(UnreadBadge.trayTitle(0, '1')).toBe(' 1');
-    expect(UnreadBadge.trayTitle(0, '')).toBe('');
+  });
+
+  it('메뉴 막대 아이콘 빨간 N 은 안 본 것이 있거나 일이 도는(진행·기다림·대기) 동안 켜진다', () => {
+    expect(UnreadBadge.trayMarked(1, [])).toBe(true);
+    expect(UnreadBadge.trayMarked(0, [job('a', 'running')])).toBe(true);
+    expect(UnreadBadge.trayMarked(0, [job('a', 'waiting')])).toBe(true);
+    expect(UnreadBadge.trayMarked(0, [job('a', 'queued')])).toBe(true);
+    expect(UnreadBadge.trayMarked(0, [job('a', 'done'), job('b', 'stopped')])).toBe(false);
+    expect(UnreadBadge.trayMarked(0, [])).toBe(false);
   });
 });
