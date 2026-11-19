@@ -656,7 +656,7 @@ export function buildChat(actions: ChatActions) {
     // 팀원끼리 주고받는 말: 팀 화면을 열지 않아도 Main 에서 결과가 나오기 전까지 실시간으로 따라간다
     const talk = el('div', 'team-chat main-talk');
     talk.hidden = true;
-    body.append(el('div', 'who', leadName()), tx, talk);
+    body.append(el('div', 'who lead-name', leadName()), tx, talk);
     reply.append(av, body);
     msgs.append(me, reply);
     cards.set(job.id, { dot, state, stop, line, talk, talkSeen: '' });
@@ -1140,7 +1140,7 @@ export function buildChat(actions: ChatActions) {
     const tx = el('div', 'tx', t.result ?? (t.status === 'done' ? 'Done.' : `Stopped: ${stopReasonText(t.stopReason)}`));
     if (t.status === 'stopped' && needsLogin(`${t.result ?? ''} ${t.stopReason ?? ''}`)) tx.appendChild(loginCard());
     tx.appendChild(changesPanel(t.id, 'detail'));
-    say.append(el('div', 'who', leadName()), tx);
+    say.append(el('div', 'who lead-name', leadName()), tx);
     m.append(av, say);
     body.appendChild(m);
   }
@@ -1249,6 +1249,8 @@ export function buildChat(actions: ChatActions) {
       paintOnce(headFace, 'intake', 2);
       paintOnce(emptyFace, 'intake', 5);
       leadHint.textContent = leadHintText();
+      // 이미 쓴 팀장 이름표도 새 컨셉 이름으로
+      for (const n of root.querySelectorAll<HTMLElement>('.lead-name')) n.textContent = leadName();
       // 팀 대화 줄은 컨셉마다 이름·말투가 달라서, 이미 그린 카드도 새 컨셉으로 다시 쓴다
       for (const [id, card] of cards) {
         card.talkSeen = '';
@@ -1268,7 +1270,7 @@ export function buildChat(actions: ChatActions) {
       if (typeof content === 'string') tx.textContent = content;
       else tx.appendChild(content);
       const body = el('div');
-      body.append(el('div', 'who', leadName()), tx);
+      body.append(el('div', 'who lead-name', leadName()), tx);
       m.append(av, body);
       msgs.appendChild(m);
       toBottom();
