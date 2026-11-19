@@ -33,7 +33,7 @@ export interface SettingsApi {
   auth?: AuthApi;
   /** 새 버전 알림(없으면 그 구역을 그리지 않는다) */
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown>; install(): Promise<unknown> };
-  /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
+  /** 팀 설정(팀원 전체). 없으면 그 구역을 그리지 않는다. */
   team?: { build(): { readonly root: HTMLElement; repaint(): void } };
   /** 커넥터·MCP·플러그인은 확장 탭으로 옮겼다: 설정에는 그리로 가는 단추만 */
   openExtensions?: () => void;
@@ -89,7 +89,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
   let unsubscribe: (() => void) | null = null;
   let unsubscribeUsage: (() => void) | null = null;
 
-  // 스스로 늦게 채워지는 칸(로그인 확인·답변 취향·팀원 22명)은 한 번만 만들어 다시 그릴 때도 그대로 옮겨 단다.
+  // 스스로 늦게 채워지는 칸(로그인 확인·답변 취향·팀원 목록)은 한 번만 만들어 다시 그릴 때도 그대로 옮겨 단다.
   // 다시 만들면 빈 칸이 먼저 보였다가 채워지면서 화면이 깜빡이고 높이가 튄다.
   const loginControl = api.auth === undefined ? null : createLoginControl(api.auth, { onSuccess: () => void api.usage().then(() => undefined) });
   const styleParts = api.style === undefined ? null : buildStyle(api.style);
@@ -246,7 +246,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     page.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
     if (styleParts !== null) page.appendChild(section('Your style', ...styleParts));
 
-    // 캐릭터 컨셉: 드롭다운으로 고르면 22역할의 그림이 한 번에 바뀌고, 무대 5칸에서 대표 캐릭터가 움직인다
+    // 캐릭터 컨셉: 드롭다운으로 고르면 모든 역할의 그림이 한 번에 바뀌고, 무대 5칸에서 대표 캐릭터가 움직인다
     const picker = buildThemePicker(s.characterSet, (id) => void api.update({ characterSet: id }).then((next) => api.onCharacterSet?.(next.characterSet)));
     page.appendChild(section('Character theme', picker, el('div', 'hint pad', `${CHARACTER_SETS.length} concepts. Changing it switches all teammates at once. Characters you picked per teammate in Team settings stay as they are.`)));
 

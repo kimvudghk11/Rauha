@@ -39,7 +39,7 @@ const isCharacter = (v: unknown): v is string => isRole(v) || (typeof v === 'str
 const isRole = (v: unknown): v is MemberRole => typeof v === 'string' && (MEMBER_ROLES as readonly string[]).includes(v);
 
 /**
- * 팀 설정: 팀원 22명의 켜기·끄기, 모델 등급, 도구, 추가 지시, 이름, 캐릭터. 값은 불변이다.
+ * 팀 설정: 팀원 모두의 켜기·끄기, 모델 등급, 도구, 추가 지시, 이름, 캐릭터. 값은 불변이다.
  * 아무것도 안 바꾼 설정(initial)은 코어의 기본 역할 설정을 그대로 쓰므로 동작이 달라지지 않는다.
  */
 export class TeamSettings {

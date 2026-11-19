@@ -18,7 +18,7 @@ const TOOL_LABEL: Readonly<Record<string, string>> = { Read: '읽기', Grep: '�
 
 
 /**
- * 팀 설정(설정 탭 안): 팀원 22명 각각의 켜기·끄기, 모델 등급, 노력, 도구·쓰기, 추가 지시, 이름, 캐릭터, 기본값 복원.
+ * 팀 설정(설정 탭 안): 팀원 각각의 켜기·끄기, 모델 등급, 노력, 도구·쓰기, 추가 지시, 이름, 캐릭터, 기본값 복원.
  * 아무것도 안 바꾸면 기본 동작 그대로고, 바꾼 값은 다음 작업부터 엔진에 반영된다. 규칙은 TeamSettings·코어가 지키고 화면은 그리기만 한다.
  */
 export function buildTeam(api: TeamApi) {
