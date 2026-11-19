@@ -1,6 +1,7 @@
 import { limitTone, type Settings } from '../shared/settings.js';
 import type { AccountsView, AuthApi, DiagnosticsResult, SettingsPatch, UsageView, UsageWindowView } from '../shared/ipc.js';
 import { el } from './dom.js';
+import { keepScroll } from './keep-scroll.js';
 import type { UpdateView } from '../shared/update-record.js';
 import { installStateText, isInstallBusy } from '../shared/update-install.js';
 import { checkedText, GATEKEEPER_NOTE } from './update-text.js';
@@ -104,6 +105,8 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       return null;
     });
     if (loaded === null) return;
+    // 다시 쓰는 칸을 새 화면으로 옮기기 전에 읽는다(옮기면 높이가 줄어 스크롤이 깎인다)
+    const restoreScroll = keepScroll(root);
     const [s, usage, accounts] = loaded;
     unsubscribe?.();
     unsubscribe = null;
@@ -245,7 +248,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
 
     // 캐릭터 컨셉: 드롭다운으로 고르면 22역할의 그림이 한 번에 바뀌고, 무대 5칸에서 대표 캐릭터가 움직인다
     const picker = buildThemePicker(s.characterSet, (id) => void api.update({ characterSet: id }).then((next) => api.onCharacterSet?.(next.characterSet)));
-    page.appendChild(section('Character theme', picker, el('div', 'hint pad', `${CHARACTER_SETS.length} concepts. Changing it switches all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.`)));
+    page.appendChild(section('Character theme', picker, el('div', 'hint pad', `${CHARACTER_SETS.length} concepts. Changing it switches all teammates at once. Characters you picked per teammate in Team settings stay as they are.`)));
 
     if (api.openExtensions !== undefined) {
       const go = el('button', 'btn', 'Open Extensions');
@@ -270,9 +273,8 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       });
       page.appendChild(section('Help', row('Copy the app state as one block', copy), status));
     }
-    const top = root.scrollTop;
     root.replaceChildren(page);
-    root.scrollTop = top;
+    restoreScroll();
   }
 
   void render();
