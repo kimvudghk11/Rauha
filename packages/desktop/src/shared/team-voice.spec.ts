@@ -93,3 +93,12 @@ describe('넘겨받는 말', () => {
     expect(all).toMatch(/기획이 |나래가 /);
   });
 });
+
+describe('작업마다 다른 말', () => {
+  it('작업(seed)이 바뀌면 같은 팀원도 같은 순서에서 다른 말투를 쓴다(홀수 작업끼리도)', () => {
+    for (const role of ['qa', 'legal', 'bm', 'growth', 'pm', 'md', 'sales', 'planner', 'implementer', 'reviewer', 'tester', 'intake']) {
+      const said = new Set([1, 3, 5, 7, 9, 11].map((seed) => voiceOf(role, '진행 중', 0, { seed })));
+      expect(said.size, role).toBeGreaterThan(1);
+    }
+  });
+});
