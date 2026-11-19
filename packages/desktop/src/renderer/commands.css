@@ -43,6 +43,7 @@
 .team { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
 .tlist { display: flex; flex-direction: column; gap: 5px; padding: 0 10px; }
 .tm { padding-top: var(--s1); padding-bottom: var(--s1); }
+.ex-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1); }
 .tdept { margin-top: var(--s2); padding: 0 2px; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .02em; }
 .tdept:first-child { margin-top: 0; }
 .tmtop { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
