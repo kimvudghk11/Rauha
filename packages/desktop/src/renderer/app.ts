@@ -56,6 +56,7 @@ let current: TabId = 'chat';
 /** 한 번 만들어 두고 다시 쓰는 탭 화면(다시 만들면 깜빡인다) */
 let settingsView: ReturnType<typeof buildSettings> | null = null;
 let gitView: ReturnType<typeof buildGit> | null = null;
+let dockerView: ReturnType<typeof buildDocker> | null = null;
 const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), openCommit: (repoRoot, hash) => (requestGitHistory(hash), openGit(repoRoot)), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
@@ -213,7 +214,13 @@ function show(id: TabId): void {
   else if (id === 'settings') screen.replaceChildren((settingsView = buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), recent: { status: () => window.rauha.recentFolderStatus(), forget: (p) => window.rauha.forgetRecentFolder(p) }, auth: window.rauha.auth, style: { list: () => window.rauha.listStyle(), forget: (id) => window.rauha.forgetStyle(id) }, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), onCharacterSet: applyCharacterSet, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }) }, openExtensions: () => show('extensions') }, pickLayout)).root);
   else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
   else if (id === 'api') screen.replaceChildren(buildApi({ api: window.rauha.api, copy: copyText, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
-  else if (id === 'docker') screen.replaceChildren(buildDocker({ api: window.rauha.docker, copy: copyText }).root);
+  else if (id === 'docker') {
+    // docker 탭도 한 번 만들어 두고 다시 열면 보던 목록 그대로 새로 읽는다(새로 만들면 목록이 0.1초쯤 늦게 채워졌다)
+    const fresh = dockerView === null;
+    dockerView ??= buildDocker({ api: window.rauha.docker, copy: copyText });
+    screen.replaceChildren(dockerView.root);
+    if (!fresh) void dockerView.refresh();
+  }
   else if (id === 'db') screen.replaceChildren(buildDb({ api: window.rauha.db, copy: copyText }).root);
   else if (id === 'interview') screen.replaceChildren(buildInterview({ api: window.rauha.interview, openMyWork: () => show('git'), toMain: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'extensions') screen.replaceChildren(buildExtensions({ connectors: window.rauha.connectors, plugins: window.rauha.plugins, toChat: (text) => (show('chat'), chat.fill(text)) }).root);

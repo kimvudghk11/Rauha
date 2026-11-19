@@ -509,10 +509,8 @@ export function buildDocker(deps: DockerViewDeps) {
     }
   }
 
-  const timer = window.setInterval(() => {
-    if (!root.isConnected) window.clearInterval(timer);
-    else void refresh(false);
-  }, deps.refreshMs ?? 5000);
+  // 화면은 한 번 만들어 두고 탭을 오가며 다시 쓴다. 숨어 있는 동안에는 refresh(false) 가 그냥 건너뛴다.
+  window.setInterval(() => void refresh(false), deps.refreshMs ?? 5000);
 
   paintStatus();
   paintTools();
