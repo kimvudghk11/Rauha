@@ -91,17 +91,117 @@ function drawProp(px: (x: number, y: number, w: number, h: number, c: string) =>
   }
 }
 
-/** 배경(벽·바닥·점)과 소품을 그린다. cols·rows 는 칸 수, scale 은 칸 하나의 화면 픽셀 */
-export function drawScene(ctx: CanvasRenderingContext2D, id: CharacterSetId, cols: number, rows: number, scale: number, tick: number): void {
+type Px = (x: number, y: number, w: number, h: number, c: string) => void;
+
+/** 시간대(작업마다 고른다): 0 낮, 1 저녁, 2 밤. 벽 밝기와 하늘 색에 쓴다 */
+const LIGHT = [1.25, 0.95, 0.7] as const;
+
+/** 왼쪽→오른쪽으로 흘러가는 위치(칸). speed 는 걸음당 칸, offset 은 시작 자리 */
+const drift = (tick: number, speed: number, cols: number, offset: number, span = 12): number => ((Math.floor(tick * speed) + offset) % (cols + span)) - span / 2;
+
+/**
+ * 컨셉마다 늘 조금씩 움직이는 배경(물고기·반딧불·구름·별똥별·창밖 도시·김·횃불 …). 소품 뒤, 팀원 뒤에 그린다.
+ * variant 는 시간대(LIGHT)이고, 같은 작업이면 같은 시간대다.
+ */
+function drawAmbient(px: Px, id: CharacterSetId, cols: number, ground: number, tick: number, variant: number): void {
+  const night = variant === 2;
+  const dusk = variant === 1;
+  switch (id) {
+    case 'ocean': {
+      // 빛줄기, 오가는 물고기 셋, 올라가는 거품
+      for (let i = 0; i < 3; i++) px((cols * (i + 1)) / 4 + Math.round(Math.sin((tick + i * 20) / 18) * 2), 0, 2, ground - 4, night ? '#0f3048' : '#16405a');
+      for (let i = 0; i < 3; i++) {
+        const x = drift(tick, 0.35 + i * 0.15, cols, i * 37);
+        const y = 3 + i * 4;
+        const c = ['#f0a040', '#e86a8a', '#6ad0e0'][i]!;
+        px(x, y, 3, 2, c); px(x - 1, y, 1, 2, c); px(x + 2, y, 1, 1, '#10202a');
+      }
+      for (let i = 0; i < 4; i++) px((i * 53 + 11) % cols, ground - 2 - ((tick + i * 9) % (ground - 2)), 1, 1, '#a8e0f8');
+      break;
+    }
+    case 'forest': {
+      if (night) for (let i = 0; i < 7; i++) if ((tick + i * 5) % 14 < 9) px((i * 41 + Math.round(Math.sin((tick + i * 13) / 9) * 3)) % cols, 3 + ((i * 7) % (ground - 8)), 1, 1, '#e8f070');
+      else for (let i = 0; i < 4; i++) px((i * 47 + Math.round(Math.sin((tick + i * 11) / 7) * 2)) % cols, (tick + i * 15) % ground, 1, 1, dusk ? '#d87a3a' : '#7aa84a');
+      // 뒤쪽 나무 그림자
+      for (let x = 4; x < cols; x += 23) px(x, ground - 9, 3, 9, '#0f2216');
+      break;
+    }
+    case 'farm': {
+      // 해·달, 흘러가는 구름, 가끔 나는 새
+      px(cols - 14, 2, 4, 4, night ? '#e8e8d0' : dusk ? '#f08a3a' : '#f8d84a');
+      for (let i = 0; i < 3; i++) {
+        const x = drift(tick, 0.12 + i * 0.05, cols, i * 61, 20);
+        px(x, 3 + i * 2, 8, 2, night ? '#5a6a8a' : '#f0f4f8'); px(x + 2, 2 + i * 2, 4, 1, night ? '#5a6a8a' : '#f0f4f8');
+      }
+      if (!night && tick % 200 < 80) { const x = drift(tick, 0.9, cols, 0); px(x, 6 + ((tick >> 2) % 2), 1, 1, '#2a2a2a'); px(x + 1, 5, 1, 1, '#2a2a2a'); px(x + 2, 6 + ((tick >> 2) % 2), 1, 1, '#2a2a2a'); }
+      break;
+    }
+    case 'space': {
+      // 반짝이는 별, 행성, 가끔 별똥별
+      for (let i = 0; i < cols; i += 7) if ((i + tick) % 23 !== 0) px(i + ((i * 5) % 3), (i * 11) % Math.max(1, ground - 5), 1, 1, (i + tick) % 17 === 0 ? '#ffffff' : '#8890c8');
+      px(Math.round(cols * 0.62), 2, 5, 5, dusk ? '#c87a5a' : '#6a5aa8'); px(Math.round(cols * 0.62) - 1, 4, 7, 1, '#b8a8e8');
+      const fall = tick % 90;
+      if (fall < 12) px(cols - 10 - fall * 3, 1 + fall, 2, 1, '#ffffff');
+      break;
+    }
+    case 'office': {
+      // 창밖 도시(밤엔 불 켜진 창), 벽시계
+      const wx = Math.round(cols * 0.18);
+      const ww = Math.min(30, Math.round(cols * 0.22));
+      px(wx, 2, ww, 9, night ? '#0e1630' : dusk ? '#e89a6a' : '#8ac0e8');
+      for (let b = 0; b < ww; b += 4) {
+        const h = 3 + ((b * 7) % 5);
+        px(wx + b, 11 - h, 3, h, night ? '#1a2238' : '#4a5668');
+        if (night && (b + tick) % 9 < 6) px(wx + b + 1, 11 - h + 1, 1, 1, '#f8d86a');
+      }
+      const cx = Math.round(cols * 0.62);
+      px(cx, 2, 5, 5, '#d8dde0'); px(cx + 2, 3, 1, 2, '#2a2a2a'); px(cx + 2 + ((tick >> 4) % 2), 4, 1, 1, '#c84a3a');
+      break;
+    }
+    case 'school': {
+      // 창문, 종이비행기, 시계
+      const wx = Math.round(cols * 0.8);
+      px(wx, 2, 12, 8, night ? '#1a2a4a' : dusk ? '#e8a06a' : '#9ad0f0'); px(wx + 5, 2, 1, 8, '#5a442c'); px(wx, 6, 12, 1, '#5a442c');
+      if (tick % 160 < 70) { const t = tick % 160; px(Math.round(cols * 0.15) + t, 4 + Math.round(Math.sin(t / 6) * 2), 3, 1, '#f8f8f8'); }
+      px(Math.round(cols * 0.45), 2, 4, 4, '#e8e0c8'); px(Math.round(cols * 0.45) + 1 + ((tick >> 5) % 2), 3, 1, 1, '#2a2a2a');
+      break;
+    }
+    case 'cafe': {
+      // 매달린 조명(밤엔 더 밝게), 컵에서 오르는 김
+      for (let x = 10; x < cols; x += 26) { px(x, 0, 1, 3, '#3a2a20'); px(x - 1, 3, 3, 2, night || dusk ? '#f8d070' : '#c8a060'); }
+      const cx = Math.round(cols / 2);
+      for (let i = 0; i < 3; i++) px(cx - 2 + i * 2 + Math.round(Math.sin((tick + i * 4) / 4)), ground - 7 - ((tick + i * 3) % 5), 1, 1, '#e8e0d8');
+      break;
+    }
+    case 'fantasy': {
+      // 깃발과 흔들리는 횃불
+      for (let x = 8; x < cols; x += 30) {
+        px(x, 3, 1, 6, '#5a3a22');
+        const f = (tick + x) % 3;
+        px(x - 1, 1 - (f === 0 ? 1 : 0), 3, 2, '#f08a2a'); px(x, 0 + (f === 2 ? 1 : 0), 1, 1, '#f8e06a');
+      }
+      for (let x = 22; x < cols; x += 30) { px(x, 2, 5, 6, dusk ? '#7a2a3a' : '#3a4a8a'); px(x + 1, 7 + ((tick >> 3) % 2), 3, 1, dusk ? '#7a2a3a' : '#3a4a8a'); px(x + 2, 4, 1, 1, '#e8c84a'); }
+      break;
+    }
+  }
+}
+
+/**
+ * 배경(벽·바닥·점·움직이는 배경)과 소품을 그린다. cols·rows 는 칸 수, scale 은 칸 하나의 화면 픽셀.
+ * variant 는 작업마다 고르는 시간대(0 낮, 1 저녁, 2 밤)
+ */
+export function drawScene(ctx: CanvasRenderingContext2D, id: CharacterSetId, cols: number, rows: number, scale: number, tick: number, variant = 0): void {
   const bg = BG[id];
-  const px = (x: number, y: number, w: number, h: number, c: string): void => {
+  const px: Px = (x, y, w, h, c) => {
     ctx.fillStyle = c;
     ctx.fillRect(Math.round(x) * scale, Math.round(y) * scale, w * scale, h * scale);
   };
   const ground = rows - 1;
-  px(0, 0, cols, ground, bg.wall);
+  const v = Math.abs(variant) % LIGHT.length;
+  px(0, 0, cols, ground, shade(bg.wall, LIGHT[v]!));
   px(0, ground, cols, rows - ground, bg.floor);
   if (bg.dots !== undefined) for (let i = 0; i < cols; i += 9) px(i + ((i * 7) % 5), (i * 3) % Math.max(1, ground - 6), 1, 1, bg.dots);
+  drawAmbient(px, id, cols, ground, tick, v);
   const s = sceneOf(id);
   const all: Station[] = [s.center, ...s.stations];
   for (const st of all) {

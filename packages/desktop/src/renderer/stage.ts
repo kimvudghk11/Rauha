@@ -26,6 +26,8 @@ interface Mounted {
   readonly rows: number;
   /** 컨셉 배경을 깔고 팀원이 소품 사이를 오가게 할지(작업 카드 무대) */
   readonly scene: (() => CharacterSetId) | null;
+  /** 작업마다 고르는 배경 시간대(0 낮, 1 저녁, 2 밤) */
+  readonly variant: () => number;
   cols: number;
   visible: boolean;
   /** 부모 크기 관찰을 시작했는지(붙기 전에 등록된 캔버스는 붙은 뒤에 시작한다) */
@@ -79,7 +81,7 @@ function draw(m: Mounted): void {
   // 장면 무대: 배경·소품을 깔고, 팀원은 맡은 일의 두 소품 사이를 걸어 다닌다(팀장은 가운데)
   if (m.scene !== null && m.cols >= 40) {
     const id = m.scene();
-    drawScene(ctx, id, m.cols, m.rows, m.scale, tick);
+    drawScene(ctx, id, m.cols, m.rows, m.scale, tick, m.variant());
     actors.forEach((a, i) => {
       const { w, h } = art.size(a.role);
       art.draw(ctx, a.role, a.state, tick, { x: actorX(id, a.role, i, tick, m.cols, w), y: m.rows - 1 - h, scale: m.scale, seed: i });
@@ -131,8 +133,8 @@ requestAnimationFrame(frame);
  * 캐릭터를 그릴 캔버스를 등록한다. scale은 정수(흐려지지 않게). rows는 칸 높이.
  * fit이면 부모 너비를 채우고 캐릭터가 고르게 선다.
  */
-export function mountStage(canvas: HTMLCanvasElement, options: { scale: number; rows: number; actors: () => readonly Actor[]; fit?: boolean; scene?: () => CharacterSetId }): { redraw(): void } {
-  const m: Mounted = { canvas, scale: options.scale, actors: options.actors, fit: options.fit === true, rows: options.rows, scene: options.scene ?? null, cols: 0, visible: true, observed: false, waiting: 0 };
+export function mountStage(canvas: HTMLCanvasElement, options: { scale: number; rows: number; actors: () => readonly Actor[]; fit?: boolean; scene?: () => CharacterSetId; variant?: () => number }): { redraw(): void } {
+  const m: Mounted = { canvas, scale: options.scale, actors: options.actors, fit: options.fit === true, rows: options.rows, scene: options.scene ?? null, variant: options.variant ?? (() => 0), cols: 0, visible: true, observed: false, waiting: 0 };
   canvas.height = options.rows * options.scale;
   canvas.style.height = `${options.rows * options.scale}px`;
   if (!m.fit) {

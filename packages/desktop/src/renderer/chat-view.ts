@@ -1,7 +1,7 @@
 import type { InfraRisk } from '@rauha/core/jobs';
 import type { ApprovalSummary } from '../shared/approval-summary.js';
 import { providerOf, type AiProviderId } from '../shared/external-ai.js';
-import { teamChat } from '../shared/team-voice.js';
+import { seedOf, stageBubble, teamChat } from '../shared/team-voice.js';
 import { buildAiBar, type AiBarDeps, type ChatTarget } from './ai-bar.js';
 import { AI_LOGO_SVG, aiLogoUrl } from './ai-logos.js';
 import type { AiResult } from '../shared/external-ai-ipc.js';
@@ -666,7 +666,7 @@ export function buildChat(actions: ChatActions) {
   /** 진행 글 → 팀원 얼굴·이름·말풍선 줄(성격은 말투로만, shared/team-voice.ts). 직책 대신 지금 컨셉의 캐릭터 이름으로 부른다 */
   function talkOf(t: JobView, max: number): { readonly role: string; readonly who: string; readonly text: string }[] {
     const titleOf = new Map(t.notes.filter((n) => n.role !== null).map((n) => [n.role as string, n.roleName ?? '']));
-    return teamChat(t.notes.map((n) => (n.role !== null && isRole(n.role) ? { ...n, roleName: nameOf(n.role) } : n)), max).map((l) => ({ ...l, who: `${l.who}${titleOf.get(l.role) ? ` · ${titleOf.get(l.role)}` : ''}` }));
+    return teamChat(t.notes.map((n) => (n.role !== null && isRole(n.role) ? { ...n, roleName: nameOf(n.role) } : n)), max, { set: characterSetId(), seed: seedOf(rootIdOf(t.id)) }).map((l) => ({ ...l, who: `${l.who}${titleOf.get(l.role) ? ` · ${titleOf.get(l.role)}` : ''}` }));
   }
 
   function paintTalk(box: HTMLElement, lines: readonly { readonly role: string; readonly who: string; readonly text: string }[]): void {
@@ -789,6 +789,8 @@ export function buildChat(actions: ChatActions) {
       actors: () => current.cast.filter(isRole).map((role) => ({ role, state: characterStateOf(current) })),
       // 컨셉 배경과 소품 사이를 오가는 팀원(카페: 커피머신 ↔ 설거지대, 왕국: 왕좌·훈련장 …)
       scene: characterSetId,
+      // 작업마다 낮·저녁·밤이 달라 매번 같은 무대가 아니다(같은 작업이면 그대로)
+      variant: () => seedOf(rootIdOf(current.id)) % 3,
     });
     return {
       root: room,
@@ -804,7 +806,7 @@ export function buildChat(actions: ChatActions) {
         const need = mineAsks.length > 0;
         time.textContent = need ? needLabel(mineAsks) : next.status === 'queued' ? 'Queued' : elapsedText(next.queuedAt, next.endedAt, Date.now());
         time.className = need ? 'time chip yellow' : 'time';
-        bubble.textContent = next.status === 'done' ? '끝!' : next.status === 'stopped' ? '멈췄어요' : (next.lastLine !== null ? short(next.lastLine, 18) : '시작하는 중');
+        bubble.textContent = next.status === 'done' || next.status === 'stopped' ? stageBubble(characterSetId(), next.status, seedOf(next.id)) : (next.lastLine !== null ? short(next.lastLine, 18) : '시작하는 중');
         bubble.classList.toggle('t', next.status === 'running');
         steps.replaceChildren(...next.steps.map((s) => el('i', s.state === 'done' ? 'd' : 'n')));
         stepLabels.replaceChildren(...next.steps.map((s) => el('span', undefined, s.label)));
@@ -1247,6 +1249,12 @@ export function buildChat(actions: ChatActions) {
       paintOnce(headFace, 'intake', 2);
       paintOnce(emptyFace, 'intake', 5);
       leadHint.textContent = leadHintText();
+      // 팀 대화 줄은 컨셉마다 이름·말투가 달라서, 이미 그린 카드도 새 컨셉으로 다시 쓴다
+      for (const [id, card] of cards) {
+        card.talkSeen = '';
+        const job = jobs.get(id);
+        if (job !== undefined) updateCard(job);
+      }
     },
     /** 명령 결과 같은 안내를 메인 칸에 말풍선으로 보인다 */
     notice(content: string | HTMLElement): void {

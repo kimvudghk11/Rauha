@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { teamChat, voiceOf } from './team-voice.js';
+import { stageBubble, teamChat, voiceOf } from './team-voice.js';
 
 describe('팀원 말투(실제 진행 글은 그대로, 성격은 말투로만)', () => {
   it('역할마다 성격이 다르고, 진행 글이 문장 안에 그대로 들어 있다', () => {
@@ -20,15 +20,51 @@ describe('팀원 말투(실제 진행 글은 그대로, 성격은 말투로만)'
 });
 
 describe('팀 대화 줄', () => {
-  it('담당이 바뀌면 넘겨받는 말이 붙고, 같은 팀원이 이어 말하면 안 붙는다', () => {
+  it('담당이 바뀌면 앞 사람을 부르며 넘겨받는 말이 붙고, 같은 팀원이 이어 말하면 안 붙는다', () => {
     const lines = teamChat([
       { role: 'intake', roleName: '델피', message: '요청을 읽는 중' },
       { role: 'tester', roleName: '집게', message: '재현 테스트를 쓰는 중' },
       { role: 'tester', roleName: '집게', message: '테스트가 실패하는지 확인' },
     ]);
     expect(lines.map((l) => l.who)).toEqual(['델피', '집게', '집게']);
-    expect(lines[1]!.text.startsWith('델피, 이어받을게요.')).toBe(true);
-    expect(lines[2]!.text.includes('이어받을게요')).toBe(false);
+    expect(lines[1]!.text.startsWith('델피')).toBe(true);
+    expect(lines[1]!.text).toContain('재현 테스트를 쓰는 중');
+    expect(lines[2]!.text.startsWith('델피')).toBe(false);
+  });
+
+  it('만든 것을 확인 팀원이 넘겨받으면 장난스럽게 따지거나, 만드는 팀원이 넘겨받으면 반기며 더 해 보겠다고 한다', () => {
+    const fromBuilder = Array.from({ length: 40 }, (_, i) => i).map((seed) => teamChat([{ role: 'implementer', roleName: '토비', message: '구현' }, { role: 'reviewer', roleName: '루루', message: '검토' }], 14, { seed })[1]!.text);
+    expect(fromBuilder.some((t) => t.includes('왜 이렇게 했어요'))).toBe(true);
+    const toMaker = Array.from({ length: 40 }, (_, i) => i).map((seed) => teamChat([{ role: 'planner', roleName: '보리', message: '계획' }, { role: 'implementer', roleName: '토비', message: '구현' }], 14, { seed })[1]!.text);
+    expect(toMaker.some((t) => /좋은데요/.test(t) && /제가 더/.test(t))).toBe(true);
+  });
+
+  it('작업(seed)마다 말이 달라지고, 같은 작업이면 다시 그려도 같다', () => {
+    const notes = [{ role: 'intake', roleName: '델피', message: '읽는 중' }, { role: 'implementer', roleName: '토비', message: '고치는 중' }, { role: 'reviewer', roleName: '루루', message: '보는 중' }];
+    const texts = [1, 2, 3, 4, 5, 6, 7].map((seed) => teamChat(notes, 14, { seed }).map((l) => l.text).join('|'));
+    expect(new Set(texts).size).toBeGreaterThan(3);
+    expect(teamChat(notes, 14, { seed: 9 })).toEqual(teamChat(notes, 14, { seed: 9 }));
+  });
+
+  it('컨셉(스킨)에 맞는 말투가 섞인다: 카페는 주문, 우주는 교신, 왕국은 퀘스트', () => {
+    const say = (set: string) => [0, 1, 2, 3, 4, 5, 6, 7, 8].map((seed) => voiceOf('implementer', '고치는 중', 0, { set, seed })).join(' ');
+    expect(say('cafe')).toMatch(/주문/);
+    expect(say('space')).toMatch(/교신|궤도/);
+    expect(say('fantasy')).toMatch(/퀘스트|길드/);
+  });
+
+  it('새 부서 팀원도 자기 말투가 있다(진행 글은 그대로)', () => {
+    for (const role of ['copywriter', 'video', 'md', 'ecommerce', 'logistics', 'productdesigner', 'graphic', 'pm', 'qa', 'frontend', 'legal']) {
+      const t = voiceOf(role, '읽는 중', 0);
+      expect(t, role).toContain('읽는 중');
+      expect(t, role).not.toBe('읽는 중.');
+    }
+  });
+
+  it('무대 말풍선: 끝·멈춤 말이 컨셉마다 다르고 작업마다 고른다', () => {
+    expect(stageBubble('cafe', 'done', 0)).not.toBe(stageBubble('space', 'done', 0));
+    expect(new Set([0, 1, 2, 3].map((s) => stageBubble('ocean', 'done', s))).size).toBeGreaterThan(1);
+    expect(stageBubble('office', 'stopped', 1).length).toBeGreaterThan(0);
   });
   it('팀원이 아닌 줄(role 없음)은 빼고, 마지막 n 개만', () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ role: 'implementer', roleName: '토비', message: `단계 ${i}` }));
