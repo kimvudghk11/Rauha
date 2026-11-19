@@ -15,6 +15,7 @@ export const CHARACTER_ROLES = [
   'debugger', 'riskchecker', 'planner', 'chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'splitter', 'publisher',
   'pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa',
   'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr',
+  'copywriter', 'video', 'productdesigner', 'graphic', 'md', 'ecommerce', 'logistics',
 ] as const;
 export type CharacterRole = (typeof CHARACTER_ROLES)[number];
 

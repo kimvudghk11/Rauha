@@ -166,7 +166,7 @@ export class PluginPick {
  * 설치한 플러그인·사용자 스킬을 붙이는 팀원. 플러그인은 세션 시작 훅·스킬 목록으로 호출마다 입력을 늘리므로,
  * 실제로 일하는 팀원에게만 붙이고 분류·접수·나누기 같은 짧은 판정 호출에는 붙이지 않는다(한도 절약).
  */
-const PLUGIN_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'implementer', 'tester', 'debugger', 'designer', 'planner', 'writer', 'reviewer', 'uxdesigner', 'operator', 'riskchecker', 'securitychecker', 'pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa', 'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr']);
+const PLUGIN_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'implementer', 'tester', 'debugger', 'designer', 'planner', 'writer', 'reviewer', 'uxdesigner', 'operator', 'riskchecker', 'securitychecker', 'pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa', 'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr', 'copywriter', 'video', 'productdesigner', 'graphic', 'md', 'ecommerce', 'logistics']);
 
 export class PluginReach {
   private constructor() {}

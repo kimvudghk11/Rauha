@@ -1,10 +1,11 @@
 /** 회사의 부서. 개발부(접수·테스트·구현·리뷰)는 작업 흐름이 따로 있어 여기에 없다. */
-export type DepartmentId = 'planning' | 'engineering' | 'marketing' | 'design' | 'quality' | 'operations' | 'finance' | 'data' | 'legal' | 'customer' | 'sales' | 'people';
+export type DepartmentId = 'planning' | 'engineering' | 'marketing' | 'design' | 'quality' | 'operations' | 'finance' | 'data' | 'legal' | 'customer' | 'sales' | 'people' | 'content' | 'commerce';
 /** 부서에 속한 팀원 역할 이름(바깥 설정 타입에 기대지 않으려고 여기서 따로 적는다) */
 export type DepartmentMemberRole =
   | 'planner' | 'bm' | 'pm' | 'marketer' | 'growth' | 'uxdesigner' | 'brand' | 'riskchecker' | 'securitychecker' | 'qa' | 'operator' | 'debugger' | 'releaser'
   | 'accountant' | 'finops' | 'analyst' | 'dataengineer' | 'legal' | 'support' | 'voc' | 'sales' | 'recruiter'
-  | 'frontend' | 'backend' | 'ios' | 'android' | 'crossplatform' | 'content' | 'performance' | 'pr';
+  | 'frontend' | 'backend' | 'ios' | 'android' | 'crossplatform' | 'content' | 'performance' | 'pr'
+  | 'copywriter' | 'video' | 'productdesigner' | 'graphic' | 'md' | 'ecommerce' | 'logistics';
 
 export interface DepartmentMember {
   readonly role: DepartmentMemberRole;
@@ -23,6 +24,7 @@ const DEPARTMENTS: Readonly<Record<DepartmentId, { readonly label: string; reado
       { role: 'planner', label: '기획 팀원', does: '사업·제품 아이디어, 앱과 웹의 역할 분담, 알맞은 아키텍처·패턴 제안' },
       { role: 'bm', label: '사업 모델 팀원', does: '수익 모델(BM), 가격 정책·실험, 단위 경제(CAC·LTV·마진), 12~36개월 매출·비용 예측, 시장 규모(TAM/SAM/SOM), 경쟁 분석, 투자 자료' },
       { role: 'pm', label: 'PM 팀원', does: '문제 정의, PRD, 사용자 스토리와 수용 기준, 우선순위(RICE), 로드맵, 성공 지표, 무엇을 먼저 만들지' },
+      { role: 'md', label: '상품기획 MD', does: '실물·디지털 상품 구성과 라인업, 소싱·제조처, 원가·마진·판매가, 시즌·기획전, 재고 회전, 경쟁 상품 비교' },
     ],
   },
   engineering: {
@@ -42,17 +44,18 @@ const DEPARTMENTS: Readonly<Record<DepartmentId, { readonly label: string; reado
     members: [
       { role: 'marketer', label: '마케팅 팀원', does: '포지셔닝, 광고 문구와 캠페인 계획, 스토어 설명, 랜딩 페이지 카피, 이메일·SNS 글' },
       { role: 'growth', label: '그로스 팀원', does: '지표 설계, 가입·유지 개선 실험, 스토어 검색 최적화(ASO), SEO' },
-      { role: 'content', label: '콘텐츠 마케팅 팀원', does: '블로그·SNS(인스타·유튜브·X·스레드) 콘텐츠 계획과 글, 콘텐츠 캘린더, 뉴스레터' },
       { role: 'performance', label: '퍼포먼스 마케팅 팀원', does: '메타·구글·애플 검색 광고 구조, 타깃·소재·예산 배분, ROAS·CPA, 전환 추적(픽셀·SKAN·MMP)' },
       { role: 'pr', label: 'PR·커뮤니티 팀원', does: '보도자료, 런칭 공지(프로덕트헌트 등), 커뮤니티 운영, 위기 대응 문구' },
     ],
   },
   design: {
     label: '디자인부',
-    persona: `You head the Design department, ${LEAD} Your field is product and brand design for apps and web: user flows, screens, consistency between app and web, and a brand that fits the business.`,
+    persona: `You head the Design department, ${LEAD} Your field is product and brand design for apps, web and physical goods: user flows, screens, consistency between app and web, a brand that fits the business, product and package design, product detail pages, and ad and social visuals.`,
     members: [
       { role: 'uxdesigner', label: 'UX 디자인 팀원', does: '사용자 흐름, 화면 구성 명세, 앱·웹 일관성, 접근성' },
       { role: 'brand', label: '브랜드 팀원', does: '이름 후보, 톤앤매너, 색·글꼴 방향, 한 줄 소개' },
+      { role: 'productdesigner', label: '상품 디자이너', does: '상품·패키지 디자인 방향과 사양(소재·규격·인쇄), 상세페이지 구성과 촬영 컷 목록, 제작 업체에 줄 디자인 브리프' },
+      { role: 'graphic', label: '그래픽 디자이너', does: '광고 소재·SNS 이미지·배너·썸네일 시안 방향, 레이아웃과 문구 배치, 사이즈별 규격, 이미지 생성 프롬프트' },
     ],
   },
   quality: {
@@ -102,6 +105,23 @@ const DEPARTMENTS: Readonly<Record<DepartmentId, { readonly label: string; reado
       { role: 'voc', label: '고객 의견 팀원', does: '리뷰·문의·피드백을 주제로 묶고 개수와 영향으로 개선 우선순위' },
     ],
   },
+  content: {
+    label: '콘텐츠부',
+    persona: `You head the Content department, ${LEAD} Your field is everything people read and watch about the business: content strategy and calendars, blog and social posts, ad and product copy, short-form and YouTube video, newsletters, all in a voice that fits the brand.`,
+    members: [
+      { role: 'content', label: '콘텐츠 마케팅 팀원', does: '블로그·SNS(인스타·유튜브·X·스레드) 콘텐츠 계획과 글, 콘텐츠 캘린더, 뉴스레터' },
+      { role: 'copywriter', label: '카피라이터', does: '광고 카피·슬로건·헤드라인, 상세페이지·랜딩 문구, 앱스토어·스마트스토어 상품 설명, 푸시·알림톡 문구' },
+      { role: 'video', label: '영상 PD', does: '숏폼(릴스·쇼츠·틱톡)·유튜브 기획, 대본·콘티, 촬영 컷 목록, 편집 지시와 자막, 썸네일 방향' },
+    ],
+  },
+  commerce: {
+    label: '커머스부',
+    persona: `You head the Commerce department, ${LEAD} Your field is selling and delivering goods online in Korea and abroad: Naver Smart Store, Coupang, own stores (Cafe24, Shopify, Imweb), listings and promotions, orders, inventory, fulfilment, returns and settlement.`,
+    members: [
+      { role: 'ecommerce', label: '이커머스 운영 팀원', does: '스마트스토어·쿠팡·자사몰 입점과 상품 등록, 옵션·가격·쿠폰·기획전, 주문·정산·수수료 계산, 리뷰 관리' },
+      { role: 'logistics', label: '물류 팀원', does: '재고 관리·발주점, 택배·3PL·풀필먼트(로켓그로스 등) 선택, 배송비 계산, 반품·교환 절차, 해외 배송' },
+    ],
+  },
   sales: {
     label: '영업·사업개발부',
     persona: `You head the Sales & Business Development department, ${LEAD} Your field is winning customers and partners for a software product, especially B2B.`,
@@ -119,7 +139,7 @@ const IDS = Object.keys(DEPARTMENTS) as DepartmentId[];
 /** 런칭 계획에서 부서장이 한 번씩 쓰는 순서. 앞 부서의 글이 뒤 부서의 입력이 된다. */
 export const LAUNCH_ORDER: readonly DepartmentId[] = ['planning', 'engineering', 'design', 'marketing', 'legal', 'quality', 'operations', 'finance'];
 /** 회사 장부·목록에 보이는 부서 순서 */
-export const DEPARTMENT_ORDER: readonly DepartmentId[] = ['planning', 'engineering', 'design', 'marketing', 'sales', 'customer', 'data', 'legal', 'quality', 'operations', 'finance', 'people'];
+export const DEPARTMENT_ORDER: readonly DepartmentId[] = ['planning', 'engineering', 'design', 'marketing', 'content', 'sales', 'commerce', 'customer', 'data', 'legal', 'quality', 'operations', 'finance', 'people'];
 
 export class Department {
   private constructor(readonly id: DepartmentId) {}

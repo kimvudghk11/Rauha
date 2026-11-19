@@ -130,6 +130,14 @@ export class RoleSettingsDto {
       content: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
       performance: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
       pr: { tier: 'opus', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      // 사업 하나를 할 수 있는 회사(2026-11-19): 콘텐츠·디자인은 웹에서 사례를 찾아 쓰고, MD·커머스·물류는 표(주문·재고·원가)를 읽고 계산한다. 모두 파일은 쓰지 않는다.
+      copywriter: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      video: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      productdesigner: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      graphic: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      md: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      ecommerce: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      logistics: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       qa: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
     });
   }

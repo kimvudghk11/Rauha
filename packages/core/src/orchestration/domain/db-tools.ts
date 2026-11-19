@@ -14,7 +14,7 @@ export const DB_PROBE_SQL_MAX_CHARS = 10_000;
 const TABLE_NAME_MAX = 128;
 
 /** 코드를 쓰거나 고치거나 검토하는 팀원. 이들만 레포에 연결된 DB 를 본다. */
-const DB_ROLES: ReadonlySet<MemberRole> = new Set(['tester', 'implementer', 'reviewer', 'debugger', 'analyst', 'dataengineer', 'qa', 'backend']);
+const DB_ROLES: ReadonlySet<MemberRole> = new Set(['tester', 'implementer', 'reviewer', 'debugger', 'analyst', 'dataengineer', 'qa', 'backend', 'md', 'ecommerce', 'logistics']);
 
 /** DB 도구를 붙일지. 연결된 DB 가 없으면 아무것도 붙지 않는다(도구 설명만큼의 입력도 쓰지 않는다). */
 export class DbToolAccess {

@@ -28,6 +28,8 @@ export const TEAM_CHOICES: readonly { readonly id: string; readonly label: strin
   { id: 'customer', label: '고객 성공부' },
   { id: 'sales', label: '영업·사업개발부' },
   { id: 'people', label: '인사·조직부' },
+  { id: 'content', label: '콘텐츠부' },
+  { id: 'commerce', label: '커머스부' },
 ];
 
 export const TITLE_LIMIT = 120;

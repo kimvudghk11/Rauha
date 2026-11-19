@@ -8,6 +8,8 @@ export const MEMBER_ROLES = [
   'pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa',
   // 개발 자문부(설계·검토·출시 자문, 코드는 작업 흐름이 쓴다)와 마케팅 세분화
   'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr',
+  // 사업 하나를 할 수 있는 회사(2026-11-19): 콘텐츠부(카피·영상), 상품·그래픽 디자인, 상품기획 MD, 커머스부(입점·물류)
+  'copywriter', 'video', 'productdesigner', 'graphic', 'md', 'ecommerce', 'logistics',
 ] as const;
 
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -69,4 +71,11 @@ export const ROLE_INFO: Readonly<Record<MemberRole, RoleInfo>> = {
   content: info('콘텐츠 마케팅 팀원', '콘텐츠'),
   performance: info('퍼포먼스 마케팅 팀원', '광고'),
   pr: info('PR·커뮤니티 팀원', 'PR'),
+  copywriter: info('카피라이터', '카피'),
+  video: info('영상 PD', '영상'),
+  productdesigner: info('상품 디자이너', '상품디자인'),
+  graphic: info('그래픽 디자이너', '그래픽'),
+  md: info('상품기획 MD', 'MD'),
+  ecommerce: info('이커머스 운영 팀원', '커머스'),
+  logistics: info('물류 팀원', '물류'),
 };
