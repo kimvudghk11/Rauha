@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stageBubble, teamChat, voiceOf } from './team-voice.js';
+import { handoffLine, stageBubble, teamChat, voiceOf } from './team-voice.js';
 
 describe('팀원 말투(실제 진행 글은 그대로, 성격은 말투로만)', () => {
   it('역할마다 성격이 다르고, 진행 글이 문장 안에 그대로 들어 있다', () => {
@@ -69,5 +69,27 @@ describe('팀 대화 줄', () => {
   it('팀원이 아닌 줄(role 없음)은 빼고, 마지막 n 개만', () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ role: 'implementer', roleName: '토비', message: `단계 ${i}` }));
     expect(teamChat([{ role: null, roleName: null, message: 'system' }, ...many], 12)).toHaveLength(12);
+  });
+});
+
+describe('넘겨받는 말', () => {
+  const lines = (from: string, name: string, to: string): string[] => Array.from({ length: 60 }, (_, i) => handoffLine(from, name, to, i % 7, i));
+
+  it('계획을 받아 만드는 팀원은 받지도 않은 지적에 고마워하지 않는다', () => {
+    for (const line of lines('planner', '기획', 'implementer')) expect(line).not.toMatch(/지적|고쳐/);
+  });
+
+  it('확인 팀원이 넘기면 만드는 팀원은 지적을 받아 고치겠다고 한다', () => {
+    expect(lines('reviewer', '리뷰어', 'implementer').some((l) => /고치|고쳐|손볼/.test(l))).toBe(true);
+  });
+
+  it('만든 것을 확인 팀원이 받으면 가끔 "왜 이렇게 했어요!!" 하고 따진다', () => {
+    expect(lines('implementer', '구현', 'reviewer').some((l) => l.includes('왜 이렇게 했어요!!'))).toBe(true);
+  });
+
+  it('이름 뒤 조사는 받침에 맞춘다(기획이·나래가)', () => {
+    const all = [...lines('planner', '기획', 'implementer'), ...lines('planner', '나래', 'implementer')].join('\n');
+    expect(all).not.toMatch(/기획가|나래이/);
+    expect(all).toMatch(/기획이 |나래가 /);
   });
 });

@@ -79,12 +79,14 @@ const SPICE: Readonly<Record<string, readonly string[]>> = {
   fantasy: ['길드의 이름으로!', '이번 퀘스트도 깰게요.', '검 갈아 두겠습니다.'],
 };
 
-/** 넘겨받는 말. {p} 는 앞 사람 이름 */
-const HANDOFF: Readonly<Record<'checkBuild' | 'toBuild' | 'toMake' | 'any', readonly string[]>> = {
+/** 넘겨받는 말. {p} 는 앞 사람 이름, {p이} 는 이름 + 받침에 맞는 이/가 */
+const HANDOFF: Readonly<Record<'checkBuild' | 'planToBuild' | 'fixAfterCheck' | 'toMake' | 'any', readonly string[]>> = {
   // 만든 것을 확인 팀원이 받을 때: 장난스럽게 따지기도 한다(사실 판정은 진행 글이 한다)
   checkBuild: ['{p}, 왜 이렇게 했어요!! …농담이고요, 꼼꼼히 볼게요.', '{p}님 거 넘겨받았어요. 냉정하게 볼게요!', '{p}, 이거 받았어요. 빈틈부터 찔러 볼게요.', '{p}, 오 생각보다 괜찮은데요? 그래도 봐야죠.'],
-  // 계획·확인을 받아 만드는 팀원이 받을 때
-  toBuild: ['오 {p}, 이거 좋은데요? 제가 더 만들어 볼게요.', '{p}, 받았어요! 바로 손댈게요.', '{p}가 잡아 준 대로 만들어 볼게요.', '{p}, 지적 고마워요. 제가 더 고쳐 볼게요.'],
+  // 계획을 받아 만드는 팀원이 받을 때
+  planToBuild: ['오 {p}, 이거 좋은데요? 제가 더 만들어 볼게요.', '{p}, 받았어요! 바로 손댈게요.', '{p이} 잡아 준 대로 만들어 볼게요.', '{p}, 계획 깔끔하네요. 이대로 갑니다!'],
+  // 확인 팀원이 짚은 것을 받아 다시 만드는 팀원이 받을 때
+  fixAfterCheck: ['{p}, 지적 고마워요. 제가 더 고쳐 볼게요.', '앗 {p}, 거기 놓쳤네요! 바로 고칠게요.', '{p} 말이 맞아요. 다시 손볼게요.'],
   // 쓰고 꾸미는 팀원이 받을 때
   toMake: ['오 이거 좋은데요, {p}! 제가 더 다듬어 볼게요.', '{p}, 재료 좋네요. 제가 살려 볼게요.', '{p}, 받았어요. 예쁘게 만들어 볼게요.'],
   any: ['{p}, 이어받을게요.', '{p}, 바통 받았어요!', '{p}, 수고했어요. 여기서부터 제가 할게요.', '{p}, 넘겨준 거 잘 받았어요.'],
@@ -134,7 +136,8 @@ function handoffKind(from: string, to: string): keyof typeof HANDOFF {
   const a = GROUP[from];
   const b = GROUP[to];
   if (b === 'check' && (a === 'build' || a === 'make')) return 'checkBuild';
-  if (b === 'build' && (a === 'plan' || a === 'check')) return 'toBuild';
+  if (b === 'build' && a === 'plan') return 'planToBuild';
+  if (b === 'build' && a === 'check') return 'fixAfterCheck';
   if (b === 'make') return 'toMake';
   return 'any';
 }
@@ -145,7 +148,14 @@ export function handoffLine(from: string, fromName: string, to: string, index: n
   const list = HANDOFF[kind];
   // 반응 말은 셋 중 둘 꼴로, 나머지는 평범하게 이어받는다(늘 같은 반응이면 금방 질린다)
   const use = kind !== 'any' && pick(from, to, index, seed, 'k') % 3 === 0 ? HANDOFF.any : list;
-  return use[pick(from, to, index, seed) % use.length]!.replace('{p}', fromName);
+  return use[pick(from, to, index, seed) % use.length]!.replace('{p이}', withSubject(fromName)).replace('{p}', fromName);
+}
+
+/** 이름 + 주격 조사(받침이 있으면 이, 없거나 한글이 아니면 가): 기획이 · 나래가 · MD가 */
+function withSubject(name: string): string {
+  const code = name.charCodeAt(name.length - 1) - 0xac00;
+  const batchim = code >= 0 && code < 11172 && code % 28 !== 0;
+  return `${name}${batchim ? '이' : '가'}`;
 }
 
 /** 무대 말풍선: 끝·멈춤 말을 컨셉마다 작업(seed)마다 고른다 */
