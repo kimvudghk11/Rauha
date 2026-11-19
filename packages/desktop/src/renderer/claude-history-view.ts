@@ -110,7 +110,7 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
     const items = shown();
     count.textContent = `${items.length} of ${sessions.length} conversations`;
     autoText.textContent = `Show automated runs (${sessions.filter((s) => s.automated).length})`;
-    if (items.length === 0) return void list.append(el('div', 'hint pad', sessions.length === 0 ? 'No Claude Code conversations found on this computer.' : 'Nothing matches.'));
+    if (items.length === 0) return void list.append(el('div', 'hint pad', sessions.length === 0 ? 'No Claude Code, Kiro or ChatGPT (Codex) conversations found on this computer.' : 'Nothing matches.'));
     const now = deps.now();
     for (const s of items.slice(0, 500)) {
       const row = el('div', `chist-row${s.id === selected ? ' on' : ''}`);

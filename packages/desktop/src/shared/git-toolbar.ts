@@ -65,11 +65,14 @@ export interface CommitInput {
   readonly staged: number;
   readonly subject: string;
   readonly conflicts: boolean;
+  /** 바뀐 파일 수(모르면 빼 둔다) */
+  readonly changed?: number;
 }
 
 /** 커밋 버튼을 못 누르는 이유(누를 수 있으면 null) */
 export function commitBlockReason(i: CommitInput): string | null {
   if (i.conflicts) return 'There are unresolved conflicts. Resolve them first.';
+  if (i.staged === 0 && i.changed === 0) return 'Nothing to commit. No files changed.';
   if (i.staged === 0) return 'Nothing to commit. Check files on the left to stage them.';
   if (i.subject.trim() === '') return 'Please enter a commit subject.';
   return null;

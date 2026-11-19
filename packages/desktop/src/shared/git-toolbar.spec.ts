@@ -103,6 +103,11 @@ describe('커밋 버튼을 못 누르는 이유', () => {
     expect(commitBlockReason({ ...base, staged: 0 })).toMatch(/stage/);
     expect(commitBlockReason({ ...base, subject: ' ' })).toMatch(/subject/);
   });
+  it('바뀐 파일이 하나도 없으면 스테이지하라고 하지 않고 바뀐 것이 없다고 한다', () => {
+    const reason = commitBlockReason({ ...base, staged: 0, changed: 0 });
+    expect(reason).toMatch(/No files changed/);
+    expect(reason).not.toMatch(/stage/);
+  });
 });
 
 describe('앞섬·뒤처짐 표기', () => {

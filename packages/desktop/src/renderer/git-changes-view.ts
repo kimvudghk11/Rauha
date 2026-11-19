@@ -128,7 +128,7 @@ export function buildChanges(ctx: GitCtx) {
       count.className = st.warn ? 'fld-count warn' : 'fld-count';
       count.title = st.warn ? 'The subject is long. Under 72 characters reads best (you can still commit).' : '';
       sum.textContent = stagedCount > 0 ? stageSummary(stagedCount, view?.staged?.added ?? null, view?.staged?.removed ?? null) : '';
-      const reason = commitBlockReason({ staged: stagedCount, subject, conflicts: blocked });
+      const reason = commitBlockReason({ staged: stagedCount, subject, conflicts: blocked, changed: view?.files.length ?? 0 });
       go.disabled = reason !== null;
       why.textContent = reason ?? (st.warn ? `The subject is over ${SUBJECT_LIMIT} characters. Shorter is better, but you can still commit.` : '');
       why.className = reason === null && st.warn ? 'err' : 'hint';
