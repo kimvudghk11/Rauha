@@ -218,15 +218,18 @@ export function buildTodo(deps: TodoViewDeps) {
       render();
     },
   );
-  void deps.repos().then(
-    (names) => {
-      known = names;
-      renderTools();
-    },
-    () => undefined,
-  );
+  const loadRepos = (): void =>
+    void deps.repos().then(
+      (names) => {
+        known = names;
+        renderTools();
+      },
+      () => undefined,
+    );
+  loadRepos();
 
-  return { root };
+  // 다시 열 때: 카드는 onChange 로 늘 최신이라 다시 그리기만 한다(날짜가 바뀌었으면 "오늘" 표시도 새로). 저장소 목록은 새로 읽는다
+  return { root, refresh: () => (render(), loadRepos()) };
 }
 
 /** 채팅 등 할 일 탭 밖에서 쓰는 더하기. 화면 없이 main에 요청만 보낸다. */

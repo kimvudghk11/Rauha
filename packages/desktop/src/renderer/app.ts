@@ -58,6 +58,7 @@ let settingsView: ReturnType<typeof buildSettings> | null = null;
 let gitView: ReturnType<typeof buildGit> | null = null;
 let dockerView: ReturnType<typeof buildDocker> | null = null;
 let recordsView: ReturnType<typeof buildRecordsSwitch> | null = null;
+let todoView: ReturnType<typeof buildTodo> | null = null;
 const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), openCommit: (repoRoot, hash) => (requestGitHistory(hash), openGit(repoRoot)), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
@@ -219,7 +220,13 @@ function show(id: TabId): void {
     screen.replaceChildren(settingsView.root);
     if (!fresh) settingsView.reopen();
   }
-  else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
+  else if (id === 'todo') {
+    // 할 일도 한 번 만들어 두고 다시 열면 그 자리에서 다시 그린다
+    const fresh = todoView === null;
+    todoView ??= buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) });
+    screen.replaceChildren(todoView.root);
+    if (!fresh) todoView.refresh();
+  }
   else if (id === 'api') screen.replaceChildren(buildApi({ api: window.rauha.api, copy: copyText, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'docker') {
     // docker 탭도 한 번 만들어 두고 다시 열면 보던 목록 그대로 새로 읽는다(새로 만들면 목록이 0.1초쯤 늦게 채워졌다)
