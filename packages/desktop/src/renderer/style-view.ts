@@ -10,7 +10,7 @@ export interface StyleApi {
  * Settings 의 "Your style" 구역: rauha 가 내 말에서 배운 답변 취향 목록과 근거(내가 한 말). 지우면 팀원 프롬프트와
  * 계정 CLAUDE.md 의 rauha 구역에서도 빠진다. 새로 배우는 건 채팅에서 "앞으로는 …", "… 말고" 처럼 말할 때뿐이다.
  */
-export function buildStyle(api: StyleApi): HTMLElement[] {
+export function buildStyle(api: StyleApi): { readonly parts: readonly HTMLElement[]; refresh(): void } {
   const list = el('div', 'style-list');
   const hint = el(
     'div',
@@ -37,6 +37,7 @@ export function buildStyle(api: StyleApi): HTMLElement[] {
       list.appendChild(row);
     }
   };
-  void api.list().then(paint);
-  return [hint, list];
+  const refresh = (): void => void api.list().then(paint);
+  refresh();
+  return { parts: [hint, list], refresh };
 }

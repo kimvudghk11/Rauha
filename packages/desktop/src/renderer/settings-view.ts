@@ -244,7 +244,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
 
     // 모델 이름: 등급마다 부를 모델 ID(계정마다 쓸 수 있는 모델이 다르다)
     page.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
-    if (styleParts !== null) page.appendChild(section('Your style', ...styleParts));
+    if (styleParts !== null) page.appendChild(section('Your style', ...styleParts.parts));
 
     // 캐릭터 컨셉: 드롭다운으로 고르면 모든 역할의 그림이 한 번에 바뀌고, 무대 5칸에서 대표 캐릭터가 움직인다
     const picker = buildThemePicker(s.characterSet, (id) => void api.update({ characterSet: id }).then((next) => api.onCharacterSet?.(next.characterSet)));
@@ -278,7 +278,16 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
   }
 
   void render();
+  /**
+   * 설정 탭을 다시 열 때: 화면은 그대로 두고(빈 화면·맨 위로 튐 없음) 값과 로그인 상태·답변 취향만 새로 읽는다.
+   * 팀 목록은 바뀔 때마다 스스로 다시 그린다.
+   */
+  const reopen = (): void => {
+    void render();
+    void loginControl?.refresh();
+    styleParts?.refresh();
+  };
   /** 캐릭터 테마가 바뀌었을 때: 팀원 목록의 이름·그림만 새 컨셉으로 다시 칠한다(화면 전체를 다시 만들지 않는다) */
   const repaintTeam = (): void => team?.repaint();
-  return { root, refresh: render, repaintTeam };
+  return { root, refresh: render, reopen, repaintTeam };
 }

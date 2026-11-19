@@ -212,7 +212,13 @@ function show(id: TabId): void {
     screen.replaceChildren(gitView.root);
     if (!fresh) void gitView.reopen();
   }
-  else if (id === 'settings') screen.replaceChildren((settingsView = buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), recent: { status: () => window.rauha.recentFolderStatus(), forget: (p) => window.rauha.forgetRecentFolder(p) }, auth: window.rauha.auth, style: { list: () => window.rauha.listStyle(), forget: (id) => window.rauha.forgetStyle(id) }, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), onCharacterSet: applyCharacterSet, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }) }, openExtensions: () => show('extensions') }, pickLayout)).root);
+  else if (id === 'settings') {
+    // 설정도 한 번 만들어 두고 다시 열면 보던 자리 그대로 값만 새로 읽는다(새로 만들면 잠깐 비고 맨 위로 돌아갔다)
+    const fresh = settingsView === null;
+    settingsView ??= buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), recent: { status: () => window.rauha.recentFolderStatus(), forget: (p) => window.rauha.forgetRecentFolder(p) }, auth: window.rauha.auth, style: { list: () => window.rauha.listStyle(), forget: (id) => window.rauha.forgetStyle(id) }, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), onCharacterSet: applyCharacterSet, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }) }, openExtensions: () => show('extensions') }, pickLayout);
+    screen.replaceChildren(settingsView.root);
+    if (!fresh) settingsView.reopen();
+  }
   else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
   else if (id === 'api') screen.replaceChildren(buildApi({ api: window.rauha.api, copy: copyText, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'docker') {
@@ -273,8 +279,8 @@ function applyCharacterSet(id: string): void {
   chat.repaintCharacters();
   // 설정의 팀원 목록·채팅 카드처럼 한 번 그려 둔 캐릭터도 새 컨셉으로
   repaintAll();
-  // 팀원 이름도 컨셉마다 달라서, 설정 화면이면 팀원 목록만 그 자리에서 다시 칠한다(설정 화면을 새로 만들면 깜빡인다)
-  if (current === 'settings') settingsView?.repaintTeam();
+  // 팀원 이름도 컨셉마다 달라서 팀원 목록만 그 자리에서 다시 칠한다(설정 화면은 한 번 만들어 두고 다시 쓰므로 숨어 있어도 칠한다)
+  settingsView?.repaintTeam();
 }
 void window.rauha.getSettings().then((s) => applyCharacterSet(s.characterSet));
 void window.rauha.getTeam().then((v) => useLooks(TeamSettings.from(v.settings).looks()));
