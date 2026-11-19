@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Department, DEPARTMENT_ORDER } from '@rauha/core';
 import { MEMBER_ROLES } from '@rauha/core/jobs';
 import { describe, expect, it } from 'vitest';
 import { TeamSettings } from '../shared/team-settings.js';
@@ -9,11 +10,21 @@ import { applyTeamOp, memberInfos, TeamSettingsStore } from './team-settings-sto
 describe('memberInfos', () => {
   it('팀원 49명의 기본값(코어의 역할 설정)과 끌 수 있는지를 담는다', () => {
     const infos = memberInfos();
-    expect(infos.map((i) => i.role)).toEqual([...MEMBER_ROLES]);
+    expect([...infos.map((i) => i.role)].sort()).toEqual([...MEMBER_ROLES].sort());
     expect(infos).toHaveLength(49);
     expect(infos.find((i) => i.role === 'reviewer')).toMatchObject({ title: '리뷰어', required: true, defaults: { tier: 'opus', effort: 'high' } });
     expect(infos.find((i) => i.role === 'reviewer')!.defaults.tools).not.toContain('Write');
     expect(infos.find((i) => i.role === 'marketer')!.required).toBe(false);
+  });
+
+  it('작업 흐름 팀원이 먼저 오고, 그다음 회사 부서 순서대로 부서 이름을 달고 모여 있다', () => {
+    const infos = memberInfos();
+    expect(infos[0]).toMatchObject({ role: 'intake', department: null });
+    expect(infos.find((i) => i.role === 'copywriter')!.department).toBe(Department.of('content').label);
+    // 한 부서 사람은 흩어지지 않고 이어서 나오며, 부서는 DEPARTMENT_ORDER 순서다
+    const order = infos.map((i) => i.department).filter((d, n, all) => d !== null && all[n - 1] !== d);
+    expect(order).toEqual(DEPARTMENT_ORDER.map((id) => Department.of(id).label));
+    expect(infos.findIndex((i) => i.department !== null)).toBeGreaterThan(infos.findLastIndex((i) => i.department === null));
   });
 });
 

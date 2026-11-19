@@ -388,6 +388,8 @@ export interface TeamMemberInfo {
   /** 맡은 일 이름(예: 리뷰어) */
   readonly title: string;
   readonly stage: string | null;
+  /** 회사 부서 이름(예: 콘텐츠부). 작업 흐름 팀원은 null */
+  readonly department: string | null;
   /** 작업 흐름에 꼭 필요해서 끌 수 없다 */
   readonly required: boolean;
   readonly defaults: MemberDefaults;

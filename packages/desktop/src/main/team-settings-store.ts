@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { RoleSettingsDto } from '@rauha/core';
+import { Department, DEPARTMENT_ORDER, RoleSettingsDto } from '@rauha/core';
 import { MEMBER_ROLES, REQUIRED_ROLES, ROLE_INFO, type MemberRole } from '@rauha/core/jobs';
 import type { TeamMemberInfo, TeamOp, TeamView } from '../shared/ipc.js';
 import { TeamSettings, TeamSettingsError, type MemberDefaults } from '../shared/team-settings.js';
@@ -11,9 +11,18 @@ export function defaultsOf(role: MemberRole): MemberDefaults {
   return { tier: s.tier, effort: s.effort, tools: s.tools };
 }
 
-/** 화면이 팀원 목록을 그릴 때 쓰는 정보(이름·단계·기본값·끌 수 있는지) */
+/**
+ * 화면이 팀원 목록을 그릴 때 쓰는 정보(이름·단계·부서·기본값·끌 수 있는지).
+ * 작업 흐름 팀원이 먼저, 그다음 회사 부서 순서(DEPARTMENT_ORDER)대로 부서 사람끼리 모아 둔다.
+ */
 export function memberInfos(): readonly TeamMemberInfo[] {
-  return MEMBER_ROLES.map((role) => ({ role, title: ROLE_INFO[role].name, stage: ROLE_INFO[role].stage, required: REQUIRED_ROLES.includes(role), defaults: defaultsOf(role) }));
+  const info = (role: MemberRole, department: string | null): TeamMemberInfo => ({ role, title: ROLE_INFO[role].name, stage: ROLE_INFO[role].stage, department, required: REQUIRED_ROLES.includes(role), defaults: defaultsOf(role) });
+  const flow = MEMBER_ROLES.filter((role) => Department.ofMember(role) === null).map((role) => info(role, null));
+  const company = DEPARTMENT_ORDER.flatMap((id) => {
+    const d = Department.of(id);
+    return MEMBER_ROLES.filter((role) => d.hasMember(role)).map((role) => info(role, d.label));
+  });
+  return [...flow, ...company];
 }
 
 export const teamView = (settings: TeamSettings): TeamView => ({ settings: settings.toJSON(), members: memberInfos() });

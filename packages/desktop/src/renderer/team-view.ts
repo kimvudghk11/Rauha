@@ -151,7 +151,17 @@ export function buildTeam(api: TeamApi) {
   function render(): void {
     list.replaceChildren();
     if (view === null) return;
-    for (const info of view.members) list.appendChild(row(info, view.settings.members[info.role] ?? {}));
+    // 회사처럼 부서마다 제목을 달아 묶는다(작업 흐름 팀원 → 기획·전략부 → 개발 자문부 …)
+    let group: string | null | undefined;
+    for (const info of view.members) {
+      if (info.department !== group) {
+        group = info.department;
+        const label = group ?? '작업 흐름 팀';
+        const count = view.members.filter((m) => m.department === group).length;
+        list.appendChild(el('div', 'tdept', `${label} · ${count}명`));
+      }
+      list.appendChild(row(info, view.settings.members[info.role] ?? {}));
+    }
     resetAll.disabled = Object.keys(view.settings.members).length === 0;
   }
 
