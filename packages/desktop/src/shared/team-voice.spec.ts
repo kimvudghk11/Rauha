@@ -102,3 +102,10 @@ describe('작업마다 다른 말', () => {
     }
   });
 });
+
+describe('무대 말풍선', () => {
+  it('같은 시간대(seed % 3 이 같은 작업)라도 끝 말풍선이 늘 같지는 않다', () => {
+    const night = [2, 5, 8, 11, 14, 17, 20, 23].map((seed) => stageBubble('ocean', 'done', seed));
+    expect(new Set(night).size).toBeGreaterThan(1);
+  });
+});

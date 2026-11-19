@@ -163,7 +163,8 @@ function withSubject(name: string): string {
 export function stageBubble(set: string, status: 'done' | 'stopped', seed: number): string {
   const b = BUBBLE[set] ?? BUBBLE['ocean']!;
   const list = b[status];
-  return list[Math.abs(seed) % list.length]!;
+  // 시간대(seed % 3)와 따로 고른다: 그냥 seed % 3 이면 밤 무대는 늘 같은 말풍선이었다
+  return list[pick(set, status, seed) % list.length]!;
 }
 
 /** 작업 id 같은 글을 seed 수로 */
