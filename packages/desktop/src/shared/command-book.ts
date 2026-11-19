@@ -156,7 +156,7 @@ const BUILTIN_DEFS: readonly BuiltinDef[] = [
   },
   {
     name: 'routine', group: 'Work', action: app('tab', 'todo'),
-    description: '정기 업무(Todo 탭)를 열어요', detail: '매일·매주 하는 일을 보고 등록하는 곳(Todo 탭)으로 가요. 자동으로 돌지는 않고, 때가 된 것을 실행해요. Todo 탭이 아직 안 열렸으면 "곧 열려요"가 보여요.',
+    description: '정기 업무(Todo 탭)를 열어요', detail: '매일·매주 하는 일을 보고 등록하는 곳(Todo 탭)으로 가요. 자동으로 돌지는 않고, 때가 된 것을 실행해요.',
   },
   {
     name: 'learn', group: 'Team · Company', action: prompt('내 코드({{범위|이 저장소 전체}})에서 쓰인 디자인 패턴과 아키텍처를 패턴별로 모아, 왜 그렇게 썼는지 복습할 수 있게 정리해줘.'),
