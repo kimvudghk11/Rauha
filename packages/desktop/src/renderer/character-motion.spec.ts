@@ -32,6 +32,19 @@ describe('motionFor', () => {
     expect(motionFor('think', 4, 0).dx).not.toBe(motionFor('think', 4, 2).dx);
   });
 
+  it('일하다가 가끔 기지개(점프)·두리번(방향 바꿈)을 하고, 생각하다 가끔 번뜩(기쁜 얼굴)한다', () => {
+    const work = Array.from({ length: 400 }, (_, t) => motionFor('work', t, 1));
+    expect(work.some((m) => m.dy <= -2)).toBe(true);
+    expect(work.some((m) => m.flip === true)).toBe(true);
+    const think = Array.from({ length: 400 }, (_, t) => motionFor('think', t, 1));
+    expect(think.some((m) => m.frame === FRAME.happy)).toBe(true);
+  });
+
+  it('팀원마다(seed) 몸짓이 나오는 때가 다르다', () => {
+    const at = (seed: number) => Array.from({ length: 400 }, (_, t) => motionFor('work', t, seed).dy <= -2).join('');
+    expect(at(1)).not.toBe(at(4));
+  });
+
   it('가끔 눈을 깜빡인다', () => {
     expect(motionFor('idle', 0).frame).toBe(FRAME.blink);
     expect(motionFor('idle', 10).frame).toBe(FRAME.idle);
