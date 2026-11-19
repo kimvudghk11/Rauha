@@ -1,4 +1,4 @@
-import { RoleSettingsDto } from '@rauha/core';
+import { Department, DEPARTMENT_ORDER, RoleSettingsDto } from '@rauha/core';
 import { describe, expect, it } from 'vitest';
 import { teamLines } from './team-lines.js';
 
@@ -35,7 +35,14 @@ describe('teamLines — 부서별', () => {
   it('부서마다 제목 아래에 부서장과 팀원을 묶어 보여 준다', () => {
     for (const title of ['개발부', '기획·전략부', '마케팅·그로스부', '디자인부', '품질·보안부', '운영·유지보수부']) expect(at(title)).toBeGreaterThan(-1);
     expect(at('마케팅·그로스부')).toBeLessThan(at('마케팅 팀원'));
-    expect(at('마케팅 팀원')).toBeLessThan(at('디자인부'));
+    expect(at('마케팅 팀원')).toBeLessThan(at('콘텐츠부'));
+  });
+
+  it('부서는 데스크톱 팀 설정과 같은 회사 순서(DEPARTMENT_ORDER)로 놓인다', () => {
+    const titles = DEPARTMENT_ORDER.map((id) => Department.of(id).label);
+    const where = titles.map((title) => lines.findIndex((l) => l.trim() === title));
+    expect(where.every((n) => n > -1)).toBe(true);
+    expect([...where].sort((a, b) => a - b)).toEqual(where);
   });
 
   it('부서장은 10년차 이상 리드급, 팀원은 모두 10년차 이상 전문가라고 밝힌다', () => {
@@ -65,8 +72,10 @@ describe('teamLines — 할 수 있는 일 표현', () => {
   });
 
   it('운영 팀원만 인프라를 바꾸는 명령 실행이라고 적는다', () => {
-    expect(lines.find((l) => l.includes('운영 팀원'))).toContain('명령 실행');
-    expect(lines.find((l) => l.includes('운영 팀원'))).not.toContain('조회');
+    // 이커머스 운영 팀원과 헷갈리지 않게 이름으로 시작하는 줄을 찾는다
+    const operator = lines.find((l) => l.trim().startsWith('운영 팀원'));
+    expect(operator).toContain('명령 실행');
+    expect(operator).not.toContain('조회');
   });
 });
 

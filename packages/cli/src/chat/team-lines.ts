@@ -1,4 +1,4 @@
-import { Department, ROLE_INFO, type MemberRole, type RoleSettingsDto } from '@rauha/core';
+import { Department, DEPARTMENT_ORDER, ROLE_INFO, type MemberRole, type RoleSettingsDto } from '@rauha/core';
 import { displayWidth } from '../text-width.js';
 
 /** 개발부와 회사 공통은 작업 흐름이 따로 있어 부서 정의(Department)에 없다. */
@@ -25,7 +25,7 @@ export function teamLines(roles: RoleSettingsDto, columns = Number.POSITIVE_INFI
   };
   const groups: { readonly title: string; readonly rows: ReturnType<typeof row>[] }[] = [
     { title: '개발부', rows: DEVELOPMENT.map((r) => row(r)) },
-    ...Department.all().map((d) => ({ title: d.label, rows: [row('chief', '부서장'), ...d.members.map((m) => row(m.role))] })),
+    ...DEPARTMENT_ORDER.map((id) => Department.of(id)).map((d) => ({ title: d.label, rows: [row('chief', '부서장'), ...d.members.map((m) => row(m.role))] })),
     { title: '회사 공통', rows: COMMON.map((c) => row(c.role, c.title)) },
   ];
   const all = groups.flatMap((g) => g.rows);
