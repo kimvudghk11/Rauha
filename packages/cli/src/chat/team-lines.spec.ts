@@ -38,8 +38,10 @@ describe('teamLines — 부서별', () => {
     expect(at('마케팅 팀원')).toBeLessThan(at('디자인부'));
   });
 
-  it('부서장은 7년차 이상의 판단을 하는 상위 모델이라고 밝힌다', () => {
+  it('부서장은 10년차 이상 리드급, 팀원은 모두 10년차 이상 전문가라고 밝힌다', () => {
+    expect(lines.some((l) => l.includes('부서장은 10년차 이상 리드급') && l.includes('팀원은 모두 10년차 이상'))).toBe(true);
     expect(lines.some((l) => l.includes('부서장') && l.includes('fable'))).toBe(true);
+    expect(lines.some((l) => l.includes('7년차'))).toBe(false);
   });
 
   it('개발부에는 접수 팀장과 테스트·구현·리뷰가, 회사 공통에는 대표(라우터)가 있다', () => {

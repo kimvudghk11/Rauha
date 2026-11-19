@@ -38,5 +38,5 @@ export function teamLines(roles: RoleSettingsDto, columns = Number.POSITIVE_INFI
     const one = `${head}${pad(r.detail, detailWidth)}  ${r.ability}`;
     return displayWidth(one) <= columns - 1 ? [one] : [`${head}${r.detail}`, `${' '.repeat(displayWidth(head))}${r.ability}`];
   };
-  return ['', '  rauha 회사 구성 (부서장은 7년차 이상의 판단을 하는 상위 모델로, 넓은 요청에서만 부르고 작은 요청은 팀원이 바로 해요)', ...groups.flatMap((g) => ['', `  ${g.title}`, ...g.rows.flatMap(rowLines)]), ''];
+  return ['', '  rauha 회사 구성 (부서장은 10년차 이상 리드급, 팀원은 모두 10년차 이상 전문가예요. 부서장은 넓은 요청에서만 부르고 작은 요청은 팀원이 바로 해요)', ...groups.flatMap((g) => ['', `  ${g.title}`, ...g.rows.flatMap(rowLines)]), ''];
 }
