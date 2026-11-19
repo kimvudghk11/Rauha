@@ -167,7 +167,7 @@ const BUILTIN_DEFS: readonly BuiltinDef[] = [
     description: '회사가 정한 것을 부서별로 요약해요', detail: '기획·마케팅·디자인 같은 부서별로 가장 최근에 정해진 결과를 요약해서 보여줘요.',
   },
   {
-    name: 'team', group: 'Team · Company', action: app('tab', 'settings'),
+    name: 'team', group: 'Team · Company', action: app('tab', 'settings#team'),
     description: '팀 설정을 열어요', detail: '팀원 모두의 켜기·끄기, 모델 등급, 도구, 추가 지시, 이름·캐릭터를 바꾸는 설정으로 가요.',
   },
   { name: 'clear', group: 'Chat', action: app('clear'), description: '채팅 화면을 비워요', detail: '채팅 화면의 오래된 말들을 지워요. 돌고 있는 작업과 지난 작업 기억은 그대로 남아요. 저장해 둔 말풍선도 비워져서 앱을 다시 켜도 돌아오지 않아요.' },

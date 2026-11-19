@@ -36,6 +36,10 @@ describe('별칭', () => {
     expect(book.resolve('/improve rauha 보안')).toMatchObject({ kind: 'send' });
   });
 
+  it('/team 은 설정 탭의 팀 설정 칸으로 바로 간다', () => {
+    expect(book.resolve('/team')).toMatchObject({ kind: 'app', action: 'tab', tab: 'settings#team' });
+  });
+
   it('/진단과 /diagnose는 같은 앱 동작(진단 정보 복사)이다', () => {
     expect(book.resolve('/진단')).toMatchObject({ kind: 'app', action: 'diagnose' });
     expect(book.resolve('/diagnose')).toMatchObject({ kind: 'app', action: 'diagnose' });

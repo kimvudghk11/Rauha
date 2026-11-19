@@ -33,7 +33,7 @@ import { installClickGuard } from './click-guard.js';
 import { createUpdateFeed } from './update-view.js';
 import { modeOf, tierOf, type Layout } from './layout.js';
 import { statusText } from './status-line.js';
-import { resolveTab, TABS, type TabId } from './tabs.js';
+import { resolveTab, resolveTarget, TABS, type TabId } from './tabs.js';
 import { mergeTabOrder, moveTab } from '../shared/tab-order.js';
 
 installClickGuard();
@@ -268,9 +268,11 @@ const runner = createRunner({
     chat.clearScreen();
     void window.rauha.clearChatHistory();
   },
-  openTab: (tab) => {
-    const id = resolveTab(tab);
-    if (id !== null) show(id);
+  openTab: (target) => {
+    const to = resolveTarget(target);
+    if (to === null) return;
+    show(to.tab);
+    if (to.tab === 'settings' && to.section !== null) settingsView?.reveal(to.section);
   },
   openJob: (id) => {
     show('chat');

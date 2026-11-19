@@ -87,6 +87,10 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
   };
 
   let unsubscribe: (() => void) | null = null;
+  /** 명령(/team)이 바로 갈 칸 */
+  let teamPane: HTMLElement | null = null;
+  /** 가장 최근 다시 그리기(칸으로 가기는 그게 끝난 뒤에 한다) */
+  let painted: Promise<void> = Promise.resolve();
   let unsubscribeUsage: (() => void) | null = null;
 
   // 스스로 늦게 채워지는 칸(로그인 확인·답변 취향·팀원 목록)은 한 번만 만들어 다시 그릴 때도 그대로 옮겨 단다.
@@ -255,7 +259,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       go.addEventListener('click', () => api.openExtensions?.());
       page.appendChild(section('Connectors, MCP & plugins', el('div', 'hint pad', 'These moved to the Extensions tab (puzzle icon on the left): connect Notion · Confluence · other MCP servers, and install Claude Code plugins.'), go));
     }
-    if (team !== null) page.appendChild(section('Team settings', team.root));
+    if (team !== null) page.appendChild((teamPane = section('Team settings', team.root)));
     page.appendChild(section('Data storage', el('div', 'dim pad', 'Records are stored only on this computer for now (Records tab). Sending summaries to your AWS (S3) will open later.')));
     if (api.diagnostics !== undefined) {
       const run = api.diagnostics;
@@ -277,17 +281,22 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     restoreScroll();
   }
 
-  void render();
+  painted = render();
   /**
    * 설정 탭을 다시 열 때: 화면은 그대로 두고(빈 화면·맨 위로 튐 없음) 값과 로그인 상태·답변 취향만 새로 읽는다.
    * 팀 목록은 바뀔 때마다 스스로 다시 그린다.
    */
   const reopen = (): void => {
-    void render();
+    painted = render();
     void loginControl?.refresh();
     styleParts?.refresh();
   };
   /** 캐릭터 테마가 바뀌었을 때: 팀원 목록의 이름·그림만 새 컨셉으로 다시 칠한다(화면 전체를 다시 만들지 않는다) */
   const repaintTeam = (): void => team?.repaint();
-  return { root, refresh: render, reopen, repaintTeam };
+  /** 칸으로 바로 간다(지금은 'team' = 팀 설정). 다시 그리기가 끝난 뒤 그 칸을 맨 위에 둔다 */
+  const reveal = (key: string): void =>
+    void painted.then(() => {
+      if (key === 'team') teamPane?.scrollIntoView({ block: 'start' });
+    });
+  return { root, refresh: render, reopen, reveal, repaintTeam };
 }

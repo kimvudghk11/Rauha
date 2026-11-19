@@ -35,3 +35,12 @@ export function resolveTab(id: string): TabId | null {
   const name = id === 'repos' ? 'code' : id;
   return TABS.find((t) => t.id === name)?.id ?? null;
 }
+
+/** 명령이 가리키는 곳("settings#team" = 설정 탭의 팀 설정 칸). 칸이 없으면 탭만, 모르는 탭이면 null */
+export function resolveTarget(target: string): { readonly tab: TabId; readonly section: string | null } | null {
+  const at = target.indexOf('#');
+  const tab = resolveTab(at < 0 ? target : target.slice(0, at));
+  if (tab === null) return null;
+  const section = at < 0 ? '' : target.slice(at + 1);
+  return { tab, section: section === '' ? null : section };
+}
