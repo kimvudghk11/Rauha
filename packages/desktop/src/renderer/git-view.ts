@@ -350,7 +350,8 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   }
 
   async function load(): Promise<void> {
-    body.replaceChildren(el('div', 'dim pad', 'Looking for repos…'));
+    // 처음 열 때만 안내 글. 이미 무언가 보이면 새 화면이 준비될 때까지 그대로 둔다(비웠다 채우면 깜빡인다)
+    if (body.childElementCount === 0) body.replaceChildren(el('div', 'dim pad', 'Looking for repos…'));
     const [all, prot] = await Promise.all([listRepos(), protectedNames()]);
     protectedList = ProtectedBranches.of(prot);
     repos = all.filter((r) => r.kind === 'repo');
@@ -367,6 +368,19 @@ export function buildGit(listRepos: () => Promise<readonly RepoRow[]>, protected
   window.addEventListener('focus', () => {
     if (root.isConnected && repo !== null && !busy) void refreshAll();
   });
+  /**
+   * 탭을 다시 열었을 때: 보던 화면은 그대로 두고 상태만 다시 읽는다. 다른 곳이 다른 레포·History 를 열어 달라고 했거나
+   * 보던 레포가 목록에서 사라졌으면(작업 폴더를 바꿈) 처음부터 다시 연다.
+   */
+  async function reopen(): Promise<void> {
+    if (repo === null || pendingView !== null || remembered() !== repo) return load();
+    const [all, prot] = await Promise.all([listRepos(), protectedNames()]);
+    protectedList = ProtectedBranches.of(prot);
+    repos = all.filter((r) => r.kind === 'repo');
+    if (!repos.some((r) => r.root === repo)) return load();
+    if (!busy) await refreshAll();
+  }
+
   void load();
-  return { root, refresh: load };
+  return { root, refresh: load, reopen };
 }

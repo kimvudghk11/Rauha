@@ -80,7 +80,20 @@ export function buildAiBar(deps: AiBarDeps, onPick: (t: ChatTarget) => void) {
     }
   };
 
+  // 로고 그림은 한 번만 만들어 다시 그릴 때 옮겨 단다(새로 만들면 그림을 다시 읽는 동안 한 박자 비어 깜빡인다)
+  const logos = new Map<ChatTarget, HTMLElement>();
+  const logoOf = (t: ChatTarget): HTMLElement => {
+    const made = logos.get(t) ?? logo(t);
+    logos.set(t, made);
+    return made;
+  };
+  // 보이는 것이 그대로면 다시 그리지 않는다(창에 초점이 올 때마다 다시 읽는데, 같으면 손대지 않아 깜빡임·선택 칸 초점 잃음이 없다)
+  let paintedKey = '';
+
   function paint(): void {
+    const key = JSON.stringify({ target, claude, others, note, busy, accounts });
+    if (key === paintedKey) return;
+    paintedKey = key;
     const chips = el('div', 'ai-chips');
     for (const t of ['team', ...AI_PROVIDERS.map((p) => p.id)] as ChatTarget[]) {
       const s = state(t);
@@ -88,7 +101,7 @@ export function buildAiBar(deps: AiBarDeps, onPick: (t: ChatTarget) => void) {
       b.type = 'button';
       b.setAttribute('aria-pressed', String(t === target));
       b.title = `${LABEL(t)} · ${s.text}${s.who === '' ? '' : ` · ${s.who}`}`;
-      b.append(logo(t), el('span', undefined, LABEL(t)), el('span', `ai-dot ${s.tone}`));
+      b.append(logoOf(t), el('span', undefined, LABEL(t)), el('span', `ai-dot ${s.tone}`));
       b.addEventListener('click', () => {
         target = t;
         note = '';
@@ -130,7 +143,14 @@ export function buildAiBar(deps: AiBarDeps, onPick: (t: ChatTarget) => void) {
         pick.value = accounts.selected ?? '';
         pick.disabled = busy;
         const choose = deps.accounts.choose;
-        pick.addEventListener('change', () => void run(() => choose(pick.value === '' ? null : pick.value), `The team now uses ${pick.value === '' ? 'the folder rules' : `the ${pick.value} account`} from the next task.`));
+        // 계정 고르기는 설정 한 줄만 바꾸므로 단추를 "…"로 잠그지 않는다(잠갔다 푸는 동안 막대가 깜빡인다). 로그인 상태는 뒤에서 조용히 다시 읽는다.
+        pick.addEventListener('change', () => {
+          const name = pick.value === '' ? null : pick.value;
+          void choose(name)
+            .then(() => (note = `The team now uses ${name === null ? 'the folder rules' : `the ${name} account`} from the next task.`))
+            .catch((e: unknown) => (note = e instanceof Error ? e.message : String(e)))
+            .then(load);
+        });
         acct.prepend(pick);
       }
       if (s.tone === 'warn') btn('Sign in', true, () => void run(() => deps.auth.login(), `A browser opened to sign in to Claude${accounts?.selected ? ` (${accounts.selected} account)` : ''}.`));

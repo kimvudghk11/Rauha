@@ -33,7 +33,7 @@ export interface SettingsApi {
   /** 새 버전 알림(없으면 그 구역을 그리지 않는다) */
   updates?: { readonly feed: UpdateFeed; check(): Promise<unknown>; install(): Promise<unknown> };
   /** 팀 설정(팀원 22명). 없으면 그 구역을 그리지 않는다. */
-  team?: { build(): HTMLElement };
+  team?: { build(): { readonly root: HTMLElement; repaint(): void } };
   /** 커넥터·MCP·플러그인은 확장 탭으로 옮겼다: 설정에는 그리로 가는 단추만 */
   openExtensions?: () => void;
   /** 캐릭터 테마가 바뀌었을 때(화면의 캐릭터에 바로 반영) */
@@ -88,26 +88,44 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
   let unsubscribe: (() => void) | null = null;
   let unsubscribeUsage: (() => void) | null = null;
 
+  // 스스로 늦게 채워지는 칸(로그인 확인·답변 취향·팀원 22명)은 한 번만 만들어 다시 그릴 때도 그대로 옮겨 단다.
+  // 다시 만들면 빈 칸이 먼저 보였다가 채워지면서 화면이 깜빡이고 높이가 튄다.
+  const loginControl = api.auth === undefined ? null : createLoginControl(api.auth, { onSuccess: () => void api.usage().then(() => undefined) });
+  const styleParts = api.style === undefined ? null : buildStyle(api.style);
+  const team = api.team?.build() ?? null;
+
+  /**
+   * 설정을 다시 읽어 그린다. 새 화면은 붙이기 전에 다 만들어 두고 한 번에 바꿔 끼우며, 보던 스크롤 자리를 지킨다
+   * (지우고 기다렸다 다시 그리면 한 번 하얗게 깜빡인다).
+   */
   async function render(): Promise<void> {
+    const loaded = await Promise.all([api.get(), api.usage(), api.accounts()]).catch((error: unknown) => {
+      root.replaceChildren(el('div', 'err pad', `Could not load settings: ${error instanceof Error ? error.message : String(error)}`));
+      return null;
+    });
+    if (loaded === null) return;
+    const [s, usage, accounts] = loaded;
     unsubscribe?.();
     unsubscribe = null;
     unsubscribeUsage?.();
     unsubscribeUsage = null;
-    const [s, usage, accounts] = await Promise.all([api.get(), api.usage(), api.accounts()]).catch((error: unknown) => {
-      root.replaceChildren(el('div', 'err pad', `Could not load settings: ${error instanceof Error ? error.message : String(error)}`));
-      return [null, null, null] as const;
-    });
-    if (s === null || accounts === null) return;
+    const page = document.createDocumentFragment();
     const head = el('div', 'rhead');
     head.appendChild(el('b', undefined, 'Settings'));
-    root.replaceChildren(head);
+    page.appendChild(head);
 
     // 계정·한도
     const account = el('select');
     account.appendChild(new Option('Follow folder rules', ''));
     for (const n of accounts.names) account.appendChild(new Option(n, n));
     account.value = s.account ?? '';
-    account.addEventListener('change', () => void api.update({ account: account.value === '' ? null : account.value }).then(render));
+    // 계정을 바꾸면 로그인 상태와 한도만 그 계정 것으로 다시 읽는다(나머지 화면은 그대로)
+    account.addEventListener('change', () =>
+      void api.update({ account: account.value === '' ? null : account.value }).then(() => {
+        void loginControl?.refresh();
+        void api.usage().then((view) => paintLimits(view, api.usageFeed?.current()?.readAt ?? null));
+      }),
+    );
     const limits = el('div', 'limits');
     const paintLimits = (view: UsageView | null, readAt: number | null): void => {
       limits.replaceChildren(limitBar('Session (5h)', view?.session ?? null), limitBar('This week', view?.weekly ?? null), el('div', 'hint pad', usageTooltip(view === null ? null : { session: view.session, weekly: view.weekly, readAt })));
@@ -117,8 +135,8 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       const stop = api.usageFeed.subscribe((view) => (limits.isConnected ? paintLimits(view, view.readAt) : stop()));
       unsubscribeUsage = stop;
     }
-    const login = api.auth === undefined ? [] : [createLoginControl(api.auth, { onSuccess: () => void api.usage().then(() => undefined) }).root];
-    root.appendChild(section('Account · Limits', ...login, row('Account to use', account), limits, el('div', 'hint pad', 'One account is one Claude Code config folder. You log in in the browser; tokens are never read.')));
+    const login = loginControl === null ? [] : [loginControl.root];
+    page.appendChild(section('Account · Limits', ...login, row('Account to use', account), limits, el('div', 'hint pad', 'One account is one Claude Code config folder. You log in in the browser; tokens are never read.')));
 
     // 작업 폴더
     const change = el('button', 'btn', 'Change');
@@ -140,14 +158,14 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
                 ),
             }),
           ];
-    root.appendChild(section('Work folder', row(s.workFolder ?? 'Not chosen yet', change), ...recentList));
+    page.appendChild(section('Work folder', row(s.workFolder ?? 'Not chosen yet', change), ...recentList));
 
     // 편집기: 자동 저장
     const autoSave = el('select');
     for (const mode of AUTO_SAVE_MODES) autoSave.appendChild(new Option(autoSaveLabel(mode), mode));
     autoSave.value = s.autoSave;
     autoSave.addEventListener('change', () => void api.update({ autoSave: parseAutoSaveMode(autoSave.value) }));
-    root.appendChild(section('Editor', row('Auto save', autoSave), el('div', 'hint pad', 'Saves open files in the Repo tab for you. Read-only files and secret files are never saved, and a file that changed on disk is left for you to decide.')));
+    page.appendChild(section('Editor', row('Auto save', autoSave), el('div', 'hint pad', 'Saves open files in the Repo tab for you. Read-only files and secret files are never saved, and a file that changed on disk is left for you to decide.')));
 
     // 알림
     const toggles = [['choice', 'When I need to allow or choose'], ['done', 'When a job finishes or stops on its own'], ['limit', 'When a limit reaches 90% and when it runs out'], ['step', 'When a job moves to the next step (off by default)']] as const;
@@ -158,7 +176,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       box.addEventListener('change', () => void api.update({ notify: { [key]: box.checked } }));
       return row(label, box);
     });
-    root.appendChild(section('Notifications', ...notify));
+    page.appendChild(section('Notifications', ...notify));
 
     // 새 버전: 현재 버전 · 확인 · 마지막 확인 · 자동 확인
     if (api.updates !== undefined) {
@@ -188,7 +206,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       };
       paint(feed.current());
       unsubscribe = feed.subscribe(paint);
-      root.appendChild(section('New version', head, status, row('Check automatically (every 6 hours)', auto), el('div', 'hint pad', GATEKEEPER_NOTE)));
+      page.appendChild(section('New version', head, status, row('Check automatically (every 6 hours)', auto), el('div', 'hint pad', GATEKEEPER_NOTE)));
     }
 
     // 화면
@@ -200,7 +218,7 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
       void api.update({ layout: next });
       onLayout(next);
     });
-    root.appendChild(section('Display', row('Chat layout', layout), el('div', 'hint pad', 'When the window is narrow, the layout switches to stacked or main-only automatically.')));
+    page.appendChild(section('Display', row('Chat layout', layout), el('div', 'hint pad', 'When the window is narrow, the layout switches to stacked or main-only automatically.')));
 
     // 권한
     const branches = el('input');
@@ -212,30 +230,30 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
     concurrency.max = '6';
     concurrency.value = String(s.concurrency);
     concurrency.addEventListener('change', () => void api.update({ concurrency: Number(concurrency.value) }).then(render));
-    root.appendChild(section('Permissions', row('Protected branches (comma-separated)', branches), row('Jobs running at once (from next launch)', concurrency)));
+    page.appendChild(section('Permissions', row('Protected branches (comma-separated)', branches), row('Jobs running at once (from next launch)', concurrency)));
 
     // 분석: 조사 → 방향 비교 → 설계·계획 단계를 쓸지
     const flow = el('input');
     flow.type = 'checkbox';
     flow.checked = s.analysisFlow;
     flow.addEventListener('change', () => void api.update({ analysisFlow: flow.checked }));
-    root.appendChild(section('Analysis', row('Use analysis steps (research → compare → design/plan)', flow), el('div', 'hint pad', 'Used only for requests that ask for causes, risks or approaches. When off, analysis is a single teammate call with no question cards. Applies from the next request.')));
+    page.appendChild(section('Analysis', row('Use analysis steps (research → compare → design/plan)', flow), el('div', 'hint pad', 'Used only for requests that ask for causes, risks or approaches. When off, analysis is a single teammate call with no question cards. Applies from the next request.')));
 
     // 모델 이름: 등급마다 부를 모델 ID(계정마다 쓸 수 있는 모델이 다르다)
-    root.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
-    if (api.style !== undefined) root.appendChild(section('Your style', ...buildStyle(api.style)));
+    page.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
+    if (styleParts !== null) page.appendChild(section('Your style', ...styleParts));
 
     // 캐릭터 컨셉: 드롭다운으로 고르면 22역할의 그림이 한 번에 바뀌고, 무대 5칸에서 대표 캐릭터가 움직인다
     const picker = buildThemePicker(s.characterSet, (id) => void api.update({ characterSet: id }).then((next) => api.onCharacterSet?.(next.characterSet)));
-    root.appendChild(section('Character theme', picker, el('div', 'hint pad', `${CHARACTER_SETS.length} concepts. Changing it switches all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.`)));
+    page.appendChild(section('Character theme', picker, el('div', 'hint pad', `${CHARACTER_SETS.length} concepts. Changing it switches all 22 teammates at once. Characters you picked per teammate in Team settings stay as they are.`)));
 
     if (api.openExtensions !== undefined) {
       const go = el('button', 'btn', 'Open Extensions');
       go.addEventListener('click', () => api.openExtensions?.());
-      root.appendChild(section('Connectors, MCP & plugins', el('div', 'hint pad', 'These moved to the Extensions tab (puzzle icon on the left): connect Notion · Confluence · other MCP servers, and install Claude Code plugins.'), go));
+      page.appendChild(section('Connectors, MCP & plugins', el('div', 'hint pad', 'These moved to the Extensions tab (puzzle icon on the left): connect Notion · Confluence · other MCP servers, and install Claude Code plugins.'), go));
     }
-    if (api.team !== undefined) root.appendChild(section('Team settings', api.team.build()));
-    root.appendChild(section('Data storage', el('div', 'dim pad', 'Records are stored only on this computer for now (Records tab). Sending summaries to your AWS (S3) will open later.')));
+    if (team !== null) page.appendChild(section('Team settings', team.root));
+    page.appendChild(section('Data storage', el('div', 'dim pad', 'Records are stored only on this computer for now (Records tab). Sending summaries to your AWS (S3) will open later.')));
     if (api.diagnostics !== undefined) {
       const run = api.diagnostics;
       const copy = el('button', 'btn', 'Copy diagnostics');
@@ -250,10 +268,15 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
             copy.disabled = false;
           });
       });
-      root.appendChild(section('Help', row('Copy the app state as one block', copy), status));
+      page.appendChild(section('Help', row('Copy the app state as one block', copy), status));
     }
+    const top = root.scrollTop;
+    root.replaceChildren(page);
+    root.scrollTop = top;
   }
 
   void render();
-  return { root, refresh: render };
+  /** 캐릭터 테마가 바뀌었을 때: 팀원 목록의 이름·그림만 새 컨셉으로 다시 칠한다(화면 전체를 다시 만들지 않는다) */
+  const repaintTeam = (): void => team?.repaint();
+  return { root, refresh: render, repaintTeam };
 }

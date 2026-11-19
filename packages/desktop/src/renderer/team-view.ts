@@ -161,5 +161,6 @@ export function buildTeam(api: TeamApi) {
     api.onChange(v);
     render();
   });
-  return { root };
+  /** 팀원 이름·그림이 컨셉마다 달라서, 캐릭터 테마가 바뀌면 같은 자리에서 다시 칠한다 */
+  return { root, repaint: render };
 }

@@ -53,6 +53,9 @@ window.rauha.onFullScreen((on) => chrome.setFullScreen(on));
 const tabsNav = document.getElementById('tabs')!;
 const screen = document.getElementById('screen')!;
 let current: TabId = 'chat';
+/** 한 번 만들어 두고 다시 쓰는 탭 화면(다시 만들면 깜빡인다) */
+let settingsView: ReturnType<typeof buildSettings> | null = null;
+let gitView: ReturnType<typeof buildGit> | null = null;
 const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), openCommit: (repoRoot, hash) => (requestGitHistory(hash), openGit(repoRoot)), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
@@ -107,11 +110,15 @@ function renderTabs(): void {
   const topBox = el('div', 'act-top');
   scroller.appendChild(topBox);
   const bottomBox = el('div', 'act-bottom');
+  // 다시 그려도 막대를 스크롤해 둔 자리는 지킨다(탭을 누를 때마다 맨 위로 튀었다가 돌아오지 않게)
+  const keptTop = tabsNav.querySelector<HTMLElement>('.act-top')?.scrollTop ?? 0;
   tabsNav.replaceChildren(scroller, bottomBox);
   const add = (t: (typeof TABS)[number], into: HTMLElement) => {
     const b = el('button');
     const at = tabOrder().indexOf(t);
-    b.title = `${t.label} (${platform === 'darwin' ? '⌘' : 'Ctrl+'}${at < 10 ? (at + 1) % 10 : ','})`;
+    // 숫자 키는 열 개(Ctrl+1~9, 0)까지. 설정만 Ctrl+, 이고, 그 밖에 열째를 넘는 탭은 단축키가 없다
+    const key = t.id === 'settings' ? ',' : at < 10 ? String((at + 1) % 10) : null;
+    b.title = key === null ? t.label : `${t.label} (${platform === 'darwin' ? '⌘' : 'Ctrl+'}${key})`;
     b.classList.toggle('on', t.id === current);
     b.append(icon(t.icon), el('span', undefined, t.label));
     b.addEventListener('click', () => show(t.id));
@@ -154,6 +161,7 @@ function renderTabs(): void {
   };
   topBox.addEventListener('scroll', edges, { passive: true });
   scrollerEdges = edges;
+  topBox.scrollTop = keptTop;
   topBox.querySelector('button.on')?.scrollIntoView({ block: 'nearest' });
   edges();
 }
@@ -195,8 +203,14 @@ function show(id: TabId): void {
   const tab = TABS.find((t) => t.id === id)!;
   if (id === 'chat') (screen.replaceChildren(chat.root), chat.onShow());
   else if (id === 'code') (screen.replaceChildren(code.root), void code.onShow());
-  else if (id === 'git') screen.replaceChildren(buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches).root);
-  else if (id === 'settings') screen.replaceChildren(buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), recent: { status: () => window.rauha.recentFolderStatus(), forget: (p) => window.rauha.forgetRecentFolder(p) }, auth: window.rauha.auth, style: { list: () => window.rauha.listStyle(), forget: (id) => window.rauha.forgetStyle(id) }, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), onCharacterSet: applyCharacterSet, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }).root }, openExtensions: () => show('extensions') }, pickLayout).root);
+  else if (id === 'git') {
+    // git 탭은 한 번 만들어 두고 다시 열 때는 보던 화면 그대로 상태만 다시 읽는다(새로 만들면 0.5초쯤 빈 화면이 깜빡였다)
+    const fresh = gitView === null;
+    gitView ??= buildGit(() => window.rauha.listRepos(), async () => (await window.rauha.getSettings()).protectedBranches);
+    screen.replaceChildren(gitView.root);
+    if (!fresh) void gitView.reopen();
+  }
+  else if (id === 'settings') screen.replaceChildren((settingsView = buildSettings({ get: () => window.rauha.getSettings(), update: (p) => window.rauha.updateSettings(p).then((s) => (chrome.setFolder(s.workFolder), s)), usage: () => usageFeed.refresh('settings-open').then((v) => v ?? window.rauha.getUsage()), usageFeed, accounts: () => window.rauha.listAccounts(), pickFolder: () => window.rauha.pickFolder(), recent: { status: () => window.rauha.recentFolderStatus(), forget: (p) => window.rauha.forgetRecentFolder(p) }, auth: window.rauha.auth, style: { list: () => window.rauha.listStyle(), forget: (id) => window.rauha.forgetStyle(id) }, updates: { feed: updates, check: () => window.rauha.update.check(), install: () => window.rauha.update.install() }, diagnostics: () => window.rauha.copyDiagnostics(), onCharacterSet: applyCharacterSet, team: { build: () => buildTeam({ get: () => window.rauha.getTeam(), apply: (op) => window.rauha.applyTeam(op), onChange: (v) => useLooks(TeamSettings.from(v.settings).looks()) }) }, openExtensions: () => show('extensions') }, pickLayout)).root);
   else if (id === 'todo') screen.replaceChildren(buildTodo({ api: window.rauha.todo, repos: async () => (await window.rauha.listRepos()).filter((r) => r.kind === 'repo').map((r) => r.name), today: localToday, openJob: (jobId) => (show('chat'), chat.open(jobId)) }).root);
   else if (id === 'api') screen.replaceChildren(buildApi({ api: window.rauha.api, copy: copyText, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'docker') screen.replaceChildren(buildDocker({ api: window.rauha.docker, copy: copyText }).root);
@@ -247,16 +261,8 @@ function applyCharacterSet(id: string): void {
   chat.repaintCharacters();
   // 설정의 팀원 목록·채팅 카드처럼 한 번 그려 둔 캐릭터도 새 컨셉으로
   repaintAll();
-  // 팀원 이름도 컨셉마다 달라서, 설정 화면이면 다시 그린다(보던 자리는 지킨다)
-  if (current === 'settings') {
-    const scroller = screen.querySelector<HTMLElement>('.settings') ?? screen;
-    const top = scroller.scrollTop;
-    show('settings');
-    setTimeout(() => {
-      const again = screen.querySelector<HTMLElement>('.settings') ?? screen;
-      again.scrollTop = top;
-    }, 400);
-  }
+  // 팀원 이름도 컨셉마다 달라서, 설정 화면이면 팀원 목록만 그 자리에서 다시 칠한다(설정 화면을 새로 만들면 깜빡인다)
+  if (current === 'settings') settingsView?.repaintTeam();
 }
 void window.rauha.getSettings().then((s) => applyCharacterSet(s.characterSet));
 void window.rauha.getTeam().then((v) => useLooks(TeamSettings.from(v.settings).looks()));
