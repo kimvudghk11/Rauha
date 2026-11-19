@@ -87,6 +87,12 @@ describe('넘겨받는 말', () => {
     expect(lines('implementer', '구현', 'reviewer').some((l) => l.includes('왜 이렇게 했어요!!'))).toBe(true);
   });
 
+  it('테스트 팀원이 실패하는 테스트를 넘기면 구현 팀원은 지적이 아니라 빨간불·초록불로 받는다', () => {
+    const got = lines('tester', '맛봄', 'implementer');
+    for (const line of got) expect(line).not.toMatch(/지적/);
+    expect(got.some((l) => /빨간불|초록불|테스트/.test(l))).toBe(true);
+  });
+
   it('이름 뒤 조사는 받침에 맞춘다(기획이·나래가)', () => {
     const all = [...lines('planner', '기획', 'implementer'), ...lines('planner', '나래', 'implementer')].join('\n');
     expect(all).not.toMatch(/기획가|나래이/);

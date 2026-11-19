@@ -80,11 +80,13 @@ const SPICE: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** 넘겨받는 말. {p} 는 앞 사람 이름, {p이} 는 이름 + 받침에 맞는 이/가 */
-const HANDOFF: Readonly<Record<'checkBuild' | 'planToBuild' | 'fixAfterCheck' | 'toMake' | 'any', readonly string[]>> = {
+const HANDOFF: Readonly<Record<'checkBuild' | 'planToBuild' | 'testToBuild' | 'fixAfterCheck' | 'toMake' | 'any', readonly string[]>> = {
   // 만든 것을 확인 팀원이 받을 때: 장난스럽게 따지기도 한다(사실 판정은 진행 글이 한다)
   checkBuild: ['{p}, 왜 이렇게 했어요!! …농담이고요, 꼼꼼히 볼게요.', '{p}님 거 넘겨받았어요. 냉정하게 볼게요!', '{p}, 이거 받았어요. 빈틈부터 찔러 볼게요.', '{p}, 오 생각보다 괜찮은데요? 그래도 봐야죠.'],
   // 계획을 받아 만드는 팀원이 받을 때
   planToBuild: ['오 {p}, 이거 좋은데요? 제가 더 만들어 볼게요.', '{p}, 받았어요! 바로 손댈게요.', '{p이} 잡아 준 대로 만들어 볼게요.', '{p}, 계획 깔끔하네요. 이대로 갑니다!'],
+  // TDD: 테스트 팀원이 실패하는 테스트를 넘길 때
+  testToBuild: ['{p}, 빨간불 잘 받았어요! 초록불로 바꿔 볼게요.', '{p이} 써 준 테스트대로 가 볼게요.', '{p}, 실패하는 거 확인했어요. 이제 제 차례!'],
   // 확인 팀원이 짚은 것을 받아 다시 만드는 팀원이 받을 때
   fixAfterCheck: ['{p}, 지적 고마워요. 제가 더 고쳐 볼게요.', '앗 {p}, 거기 놓쳤네요! 바로 고칠게요.', '{p} 말이 맞아요. 다시 손볼게요.'],
   // 쓰고 꾸미는 팀원이 받을 때
@@ -138,6 +140,7 @@ function handoffKind(from: string, to: string): keyof typeof HANDOFF {
   const b = GROUP[to];
   if (b === 'check' && (a === 'build' || a === 'make')) return 'checkBuild';
   if (b === 'build' && a === 'plan') return 'planToBuild';
+  if (b === 'build' && from === 'tester') return 'testToBuild';
   if (b === 'build' && a === 'check') return 'fixAfterCheck';
   if (b === 'make') return 'toMake';
   return 'any';
