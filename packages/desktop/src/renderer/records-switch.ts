@@ -4,7 +4,13 @@ const KEY = 'rauha.records.view';
 type View = 'records' | 'claude';
 
 /** Records 탭 위의 전환: rauha 작업 기록 ↔ Claude 대화 내역(이 컴퓨터의 모든 Claude Code 대화). 마지막 고른 쪽을 기억한다 */
-export function buildRecordsSwitch(make: Readonly<Record<View, () => HTMLElement>>): { readonly root: HTMLElement } {
+interface Pane {
+  readonly root: HTMLElement;
+  /** 다시 열 때 보던 화면 그대로 새로 읽기(없으면 그대로 둔다) */
+  readonly refresh?: () => void;
+}
+
+export function buildRecordsSwitch(make: Readonly<Record<View, () => Pane>>): { readonly root: HTMLElement; reopen(): void } {
   const root = el('section', 'records-switch');
   const tabs = el('div', 'tabs records-tabs');
   const host = el('div', 'records-host');
@@ -15,7 +21,7 @@ export function buildRecordsSwitch(make: Readonly<Record<View, () => HTMLElement
   } catch {
     /* 기억은 없어도 된다 */
   }
-  const built = new Map<View, HTMLElement>();
+  const built = new Map<View, Pane>();
   const buttons = new Map<View, HTMLButtonElement>();
   const show = (v: View): void => {
     view = v;
@@ -25,12 +31,12 @@ export function buildRecordsSwitch(make: Readonly<Record<View, () => HTMLElement
       /* 무시 */
     }
     for (const [id, b] of buttons) b.classList.toggle('on', id === v);
-    let node = built.get(v);
-    if (node === undefined) {
-      node = make[v]();
-      built.set(v, node);
+    let pane = built.get(v);
+    if (pane === undefined) {
+      pane = make[v]();
+      built.set(v, pane);
     }
-    host.replaceChildren(node);
+    host.replaceChildren(pane.root);
   };
   for (const [id, label] of [['claude', 'All conversations'], ['records', 'rauha task records']] as const) {
     const b = el('button', 'tab', label);
@@ -41,5 +47,7 @@ export function buildRecordsSwitch(make: Readonly<Record<View, () => HTMLElement
   }
   root.append(tabs, host);
   show(view);
-  return { root };
+  /** Records 탭을 다시 열 때: 보던 쪽만 새로 읽는다(화면은 새로 만들지 않아 "읽는 중"이 다시 깜빡이지 않는다) */
+  const reopen = (): void => built.get(view)?.refresh?.();
+  return { root, reopen };
 }

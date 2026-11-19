@@ -648,5 +648,6 @@ export function buildRecords(deps: RecordsViewDeps) {
     },
   );
 
-  return { root };
+  // 다시 열 때는 목록만 다시 그린다("몇 분 전" 같은 시각이 낡지 않게). 내용은 onChange 로 늘 최신이다
+  return { root, refresh: () => renderList() };
 }

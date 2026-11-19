@@ -238,7 +238,8 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
   }
 
   async function load(): Promise<void> {
-    list.replaceChildren(el('div', 'hint pad', 'Reading conversations…'));
+    // 처음 읽을 때만 "읽는 중"을 보인다. 다시 읽을 때는 보던 목록을 두고 새 목록으로 바꿔 끼운다
+    if (sessions.length === 0) list.replaceChildren(el('div', 'hint pad', 'Reading conversations…'));
     const r = await deps.api.list();
     if (!r.ok) return void list.replaceChildren(el('div', 'err pad', r.error));
     sessions = r.data.sessions;
@@ -248,5 +249,5 @@ export function buildClaudeHistory(deps: ClaudeHistoryDeps) {
     if (selected === null) detail.replaceChildren(el('div', 'hint pad', `Pick a conversation on the left. Reading from ${r.data.roots.join(' and ')}.`));
   }
   void load();
-  return { root };
+  return { root, refresh: () => void load() };
 }

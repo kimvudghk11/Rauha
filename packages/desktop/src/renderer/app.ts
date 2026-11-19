@@ -57,6 +57,7 @@ let current: TabId = 'chat';
 let settingsView: ReturnType<typeof buildSettings> | null = null;
 let gitView: ReturnType<typeof buildGit> | null = null;
 let dockerView: ReturnType<typeof buildDocker> | null = null;
+let recordsView: ReturnType<typeof buildRecordsSwitch> | null = null;
 const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), openCommit: (repoRoot, hash) => (requestGitHistory(hash), openGit(repoRoot)), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
 const updates = createUpdateFeed(window.rauha.update, document.getElementById('update-banner')!, window.rauha.platform, () => window.rauha.copyDiagnostics());
 const usageFeed = createUsageFeed();
@@ -224,13 +225,17 @@ function show(id: TabId): void {
   else if (id === 'db') screen.replaceChildren(buildDb({ api: window.rauha.db, copy: copyText }).root);
   else if (id === 'interview') screen.replaceChildren(buildInterview({ api: window.rauha.interview, openMyWork: () => show('git'), toMain: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'extensions') screen.replaceChildren(buildExtensions({ connectors: window.rauha.connectors, plugins: window.rauha.plugins, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
-  else if (id === 'records')
-    screen.replaceChildren(
-      buildRecordsSwitch({
-        records: () => buildRecords({ api: window.rauha.records, now: () => Date.now(), copy: copyText, blog: { api: window.rauha.blog, names: { get: async () => (await window.rauha.getSettings()).blogNames, set: async (names) => (await window.rauha.updateSettings({ blogNames: names })).blogNames } } }).root,
-        claude: () => buildClaudeHistory({ api: window.rauha.claudeHistory, now: () => Date.now(), copy: copyText, blog: { api: window.rauha.blog, names: { get: async () => (await window.rauha.getSettings()).blogNames, set: async (names) => (await window.rauha.updateSettings({ blogNames: names })).blogNames } } }).root,
-      }).root,
-    );
+  else if (id === 'records') {
+    // Records 탭도 한 번 만들어 두고 다시 열면 보던 쪽만 새로 읽는다(새로 만들면 "읽는 중"이 매번 먼저 보였다)
+    const fresh = recordsView === null;
+    const blog = { api: window.rauha.blog, names: { get: async () => (await window.rauha.getSettings()).blogNames, set: async (names: readonly string[]) => (await window.rauha.updateSettings({ blogNames: names })).blogNames } };
+    recordsView ??= buildRecordsSwitch({
+      records: () => buildRecords({ api: window.rauha.records, now: () => Date.now(), copy: copyText, blog }),
+      claude: () => buildClaudeHistory({ api: window.rauha.claudeHistory, now: () => Date.now(), copy: copyText, blog }),
+    });
+    screen.replaceChildren(recordsView.root);
+    if (!fresh) recordsView.reopen();
+  }
   else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);
   else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid), update: (r) => window.rauha.updateRule(r), defaults: { list: () => window.rauha.listDefaultRules(), apply: (op) => window.rauha.applyDefaultRule(op) } }).root);
   else {
