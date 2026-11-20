@@ -94,7 +94,6 @@ window.addEventListener('contextmenu', (e) => {
 
 // ── 마이크 ──
 let mic: { stop(): void } | null = null;
-let speakingUntil = 0;
 
 async function openMic(): Promise<{ stop(): void }> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
@@ -106,8 +105,6 @@ async function openMic(): Promise<{ stop(): void }> {
   mute.gain.value = 0;
   const gate = SpeechGate.start(audio.sampleRate);
   proc.onaudioprocess = (e) => {
-    // 델피가 말하는 동안은 자기 목소리를 듣지 않는다
-    if (performance.now() < speakingUntil) return;
     const seg = gate.push(new Float32Array(e.inputBuffer.getChannelData(0)));
     micDot.dataset['voice'] = gate.inSpeech ? '1' : '0';
     if (seg !== null) window.pet.sendSegment(toSixteenK(seg, audio.sampleRate));
@@ -143,27 +140,6 @@ function syncMic(want: boolean): void {
     mic = null;
   }
 }
-
-// ── 소리 내어 말하기(Windows 기본 한국어 목소리) ──
-function koreanVoice(): SpeechSynthesisVoice | null {
-  const voices = speechSynthesis.getVoices();
-  return voices.find((v) => v.lang === 'ko-KR' && /Heami|SunHi|InJoon/i.test(v.name)) ?? voices.find((v) => v.lang.startsWith('ko')) ?? null;
-}
-speechSynthesis.onvoiceschanged = () => undefined;
-
-window.pet.onSpeak((text) => {
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ko-KR';
-  const voice = koreanVoice();
-  if (voice !== null) u.voice = voice;
-  u.rate = 1.05;
-  u.pitch = 1.1;
-  speakingUntil = performance.now() + 60_000;
-  u.onend = () => (speakingUntil = performance.now() + 400);
-  u.onerror = () => (speakingUntil = 0);
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
-});
 
 window.pet.onView((next) => {
   view = next;

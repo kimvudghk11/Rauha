@@ -62,9 +62,9 @@ export class DeskDelfi {
     this.transcriber = new LocalTranscriber(deps.modelDir, (state, detail) => {
       if (state === 'failed') {
         deps.log(`받아쓰기 모델을 못 올림: ${detail ?? ''}`);
-        this.speakAndSay('받아쓰기 준비에 실패했어요. 인터넷 연결을 확인해 주세요.', 6000);
+        this.say('받아쓰기 준비에 실패했어요. 인터넷 연결을 확인해 주세요.', 6000);
       }
-      if (state === 'ready' && this.prefs.mic) this.speakAndSay('이제 들을 수 있어요!', 3000, false);
+      if (state === 'ready' && this.prefs.mic) this.say('이제 들을 수 있어요!', 3000);
       this.push();
     });
   }
@@ -106,7 +106,7 @@ export class DeskDelfi {
     ipc.on(PET_IPC.micFailed, (_e, reason: unknown) => {
       this.deps.log(`마이크를 못 엶: ${String(reason)}`);
       this.setPrefs({ ...this.prefs, mic: false });
-      this.speakAndSay('마이크를 열지 못했어요. Windows 설정 > 개인 정보 > 마이크를 확인해 주세요.', 7000);
+      this.say('마이크를 열지 못했어요. Windows 설정 > 개인 정보 > 마이크를 확인해 주세요.', 7000);
     });
   }
 
@@ -171,7 +171,7 @@ export class DeskDelfi {
     if (on) {
       if (!this.prefs.visible) this.show();
       void this.transcriber.warm();
-      this.speakAndSay(this.templates.ready ? '"델피~" 하고 부르면 대답할게요.' : '듣고 있어요. 오른쪽 클릭 > "내 목소리로 이름 알려 주기"를 하면 더 잘 알아들어요.', 6000);
+      this.say(this.templates.ready ? '"델피~" 하고 부르면 대답할게요.' : '듣고 있어요. 오른쪽 클릭 > "내 목소리로 이름 알려 주기"를 하면 더 잘 알아들어요.', 6000);
     } else {
       this.ear = this.ear.done();
       this.say('마이크를 껐어요.', 3000);
@@ -188,7 +188,7 @@ export class DeskDelfi {
     this.pet = busy ? this.pet.working(now) : this.pet.allDone(now);
     if (wasWorking && !busy) {
       const last = jobs.find((j) => j.id === this.lastJob);
-      this.speakAndSay(last !== undefined && !last.done ? '일이 멈췄어요. 저를 눌러서 확인해 주세요.' : '다 했어요! 저를 누르면 결과를 보여 드릴게요.', 6000);
+      this.say(last !== undefined && !last.done ? '일이 멈췄어요. 저를 눌러서 확인해 주세요.' : '다 했어요! 저를 누르면 결과를 보여 드릴게요.', 6000);
     }
     this.push();
   }
@@ -267,7 +267,7 @@ export class DeskDelfi {
     const now = Date.now();
     this.ear = this.ear.awaitCommand(now);
     this.pet = this.pet.call(now);
-    if (answer) this.speakAndSay('네? 말씀하세요.', 8000);
+    if (answer) this.say('네? 말씀하세요.', 8000);
     this.push();
   }
 
@@ -278,20 +278,19 @@ export class DeskDelfi {
     this.ear = this.ear.done();
     if (this.pet !== null) this.pet = this.pet.dismiss(now, Math.random);
     if (spoken.isCancel) {
-      this.speakAndSay('알겠어요.', 2500);
+      this.say('알겠어요.', 2500);
       return;
     }
     const task = spoken.forTask();
     const job = this.deps.submit(task);
     this.deps.log(job === null ? '일 맡기기 실패' : `일 맡김 ${job.id}`);
     if (job === null) {
-      this.speakAndSay('지금은 일을 맡을 수 없어요. 저를 눌러 rauha 창을 확인해 주세요.', 7000);
+      this.say('지금은 일을 맡을 수 없어요. 저를 눌러 rauha 창을 확인해 주세요.', 7000);
       return;
     }
     this.lastJob = job.id;
     if (this.pet !== null) this.pet = this.pet.working(now);
     this.say(`“${task.length > 40 ? `${task.slice(0, 40)}…` : task}” 맡을게요!`, 6000);
-    this.speak('네, 맡을게요!');
     this.push();
   }
 
@@ -323,14 +322,14 @@ export class DeskDelfi {
     }
     this.ear = this.ear.done();
     writeJson(this.voiceFile, WakeTemplatesDto.fromEntity(this.templates));
-    this.speakAndSay('목소리 외웠어요! 이제 "델피~" 하고 불러 주세요.', 6000);
+    this.say('목소리 외웠어요! 이제 "델피~" 하고 불러 주세요.', 6000);
   }
 
   private startTraining(): void {
     if (!this.prefs.mic) this.setMic(true);
     this.templates = this.templates.reset();
     this.ear = this.ear.train();
-    this.speakAndSay(`"델피"라고 ${WAKE_SAMPLES_NEEDED}번, 한 번씩 쉬면서 불러 주세요.`, 10_000);
+    this.say(`"델피"라고 ${WAKE_SAMPLES_NEEDED}번, 한 번씩 쉬면서 불러 주세요.`, 10_000);
   }
 
   private popupMenu(): void {
@@ -349,16 +348,6 @@ export class DeskDelfi {
   private say(text: string, ms: number): void {
     if (this.pet !== null) this.pet = this.pet.say(text, Date.now(), ms);
     this.push();
-  }
-
-  private speak(text: string): void {
-    const w = this.window;
-    if (w !== null && !w.isDestroyed()) w.webContents.send(PET_IPC.speak, text);
-  }
-
-  private speakAndSay(text: string, ms: number, voice = true): void {
-    this.say(text, ms);
-    if (voice) this.speak(text.replace(/[“”"]/g, ''));
   }
 
   private micState(): MicState {

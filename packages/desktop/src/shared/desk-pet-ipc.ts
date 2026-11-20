@@ -12,8 +12,6 @@ export const PET_IPC = {
   micFailed: 'pet:mic-failed',
   /** main → 창: 보일 모습 */
   view: 'pet:view',
-  /** main → 창: 소리 내어 말하기 */
-  speak: 'pet:speak',
 } as const;
 
 export type MicState = 'off' | 'loading' | 'on' | 'training';
@@ -34,5 +32,4 @@ export interface PetBridge {
   menu(): void;
   micFailed(reason: string): void;
   onView(listener: (view: PetView) => void): void;
-  onSpeak(listener: (text: string) => void): void;
 }
