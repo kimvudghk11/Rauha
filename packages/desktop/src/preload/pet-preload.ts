@@ -9,6 +9,9 @@ const bridge: PetBridge = {
   menu: () => ipcRenderer.send(PET_IPC.menu),
   micFailed: (reason) => ipcRenderer.send(PET_IPC.micFailed, String(reason).slice(0, 300)),
   onView: (listener) => void ipcRenderer.on(PET_IPC.view, (_e, view: PetView) => listener(view)),
-  onSpeak: (listener) => void ipcRenderer.on(PET_IPC.speak, (_e, text: string) => listener(String(text))),
+  onSpeak: (listener) =>
+    void ipcRenderer.on(PET_IPC.speak, (_e, sound: { audio?: unknown; rate?: unknown }) => {
+      if (sound?.audio instanceof Float32Array && typeof sound.rate === 'number') listener({ audio: sound.audio, rate: sound.rate });
+    }),
 };
 contextBridge.exposeInMainWorld('pet', bridge);

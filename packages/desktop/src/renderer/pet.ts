@@ -144,25 +144,25 @@ function syncMic(want: boolean): void {
   }
 }
 
-// ── 소리 내어 말하기(Windows 기본 한국어 목소리) ──
-function koreanVoice(): SpeechSynthesisVoice | null {
-  const voices = speechSynthesis.getVoices();
-  return voices.find((v) => v.lang === 'ko-KR' && /Heami|SunHi|InJoon/i.test(v.name)) ?? voices.find((v) => v.lang.startsWith('ko')) ?? null;
-}
-speechSynthesis.onvoiceschanged = () => undefined;
-
-window.pet.onSpeak((text) => {
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ko-KR';
-  const voice = koreanVoice();
-  if (voice !== null) u.voice = voice;
-  u.rate = 1.05;
-  u.pitch = 1.1;
-  speakingUntil = performance.now() + 60_000;
-  u.onend = () => (speakingUntil = performance.now() + 400);
-  u.onerror = () => (speakingUntil = 0);
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+// ── 소리 내어 말하기: main 의 로컬 말하기 모델이 만든 소리를 튼다(새 말이 오면 앞 말은 끊는다) ──
+let player: { ctx: AudioContext; source: AudioBufferSourceNode } | null = null;
+window.pet.onSpeak((sound) => {
+  player?.source.stop();
+  void player?.ctx.close();
+  const ctx = new AudioContext({ sampleRate: sound.rate });
+  const buffer = ctx.createBuffer(1, sound.audio.length, sound.rate);
+  buffer.getChannelData(0).set(sound.audio);
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  // 델피가 말하는 동안(과 끝난 뒤 조금)은 마이크가 자기 목소리를 듣지 않는다
+  speakingUntil = performance.now() + buffer.duration * 1000 + 400;
+  source.onended = () => {
+    if (player?.source === source) player = null;
+    void ctx.close();
+  };
+  source.start();
+  player = { ctx, source };
 });
 
 window.pet.onView((next) => {
