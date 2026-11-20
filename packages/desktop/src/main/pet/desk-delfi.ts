@@ -2,12 +2,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { BrowserWindow, Menu, screen, type IpcMain, type IpcMainEvent, type WebContents } from 'electron';
 import { DeskPet } from '../../shared/desk-pet.js';
-import { PET_IPC, toDelfiVoice, type DelfiVoice, type MicState, type PetView } from '../../shared/desk-pet-ipc.js';
+import { PET_IPC, type MicState, type PetView } from '../../shared/desk-pet-ipc.js';
 import { Ear } from '../../shared/voice/ear.js';
 import { mfcc } from '../../shared/voice/mfcc.js';
 import { SpokenText } from '../../shared/voice/spoken.js';
 import { WAKE_SAMPLES_NEEDED, WakeTemplates, WakeTemplatesDto } from '../../shared/voice/wake-match.js';
-import { LocalSpeaker } from '../voice/local-speaker.js';
 import { LocalTranscriber } from '../voice/local-transcriber.js';
 
 /** 창 크기: 아래쪽에 캐릭터, 위쪽에 말풍선 */
@@ -35,7 +34,6 @@ export interface DeskDelfiDeps {
 interface Prefs {
   readonly visible: boolean;
   readonly mic: boolean;
-  readonly voice: DelfiVoice;
 }
 
 /**
@@ -53,7 +51,6 @@ export class DeskDelfi {
   private lastView = '';
   private lastJob: string | null = null;
   private readonly transcriber: LocalTranscriber;
-  private readonly speaker: LocalSpeaker;
   private readonly prefsFile: string;
   private readonly voiceFile: string;
 
@@ -62,7 +59,6 @@ export class DeskDelfi {
     this.voiceFile = join(deps.dataDir, 'delfi-voice.json');
     this.prefs = readPrefs(this.prefsFile);
     this.templates = WakeTemplatesDto.from(readJson(this.voiceFile)).toEntity();
-    this.speaker = new LocalSpeaker(deps.modelDir, deps.log);
     this.transcriber = new LocalTranscriber(deps.modelDir, (state, detail) => {
       if (state === 'failed') {
         deps.log(`받아쓰기 모델을 못 올림: ${detail ?? ''}`);
@@ -161,7 +157,6 @@ export class DeskDelfi {
     screen.on('display-metrics-changed', this.onDisplay);
     this.timer = setInterval(() => this.tick(), TICK_MS);
     if (this.prefs.mic) void this.transcriber.warm();
-    if (this.prefs.voice !== 'off') void this.speaker.warm();
   }
 
   hide(): void {
@@ -346,14 +341,6 @@ export class DeskDelfi {
       { type: 'separator' },
       { label: '"델피~" 듣기 (마이크)', type: 'checkbox', checked: this.prefs.mic, click: () => this.setMic(!this.prefs.mic) },
       { label: this.templates.ready ? '내 목소리로 이름 다시 알려 주기' : '내 목소리로 이름 알려 주기', click: () => this.startTraining() },
-      {
-        label: '목소리',
-        submenu: [
-          { label: '남자 (M3)', type: 'radio', checked: this.prefs.voice === 'M3', click: () => this.setVoice('M3') },
-          { label: '여자 (F5)', type: 'radio', checked: this.prefs.voice === 'F5', click: () => this.setVoice('F5') },
-          { label: '말하지 않기 (말풍선만)', type: 'radio', checked: this.prefs.voice === 'off', click: () => this.setVoice('off') },
-        ],
-      },
       { type: 'separator' },
       { label: '바탕화면 델피 숨기기', click: () => this.hide() },
     ]).popup({ window: w });
@@ -364,27 +351,9 @@ export class DeskDelfi {
     this.push();
   }
 
-  /** 로컬 말하기 모델로 소리를 만들어 델피 창에 틀게 한다. 모델을 아직 받는 중이거나 실패하면 말풍선만 남는다 */
   private speak(text: string): void {
-    const voice = this.prefs.voice;
-    if (voice === 'off') return;
-    void this.speaker.speak(text, voice).then(
-      (sound) => {
-        const w = this.window;
-        if (w !== null && !w.isDestroyed()) w.webContents.send(PET_IPC.speak, { audio: sound.audio, rate: sound.rate });
-        this.deps.log(`말함 ${voice} ${(sound.audio.length / sound.rate).toFixed(1)}초`);
-      },
-      (error: unknown) => this.deps.log(`말하기 실패: ${error instanceof Error ? error.message : String(error)}`),
-    );
-  }
-
-  private setVoice(voice: DelfiVoice): void {
-    this.setPrefs({ ...this.prefs, voice });
-    if (voice === 'off') {
-      this.say('이제 말풍선으로만 말할게요.', 3000);
-      return;
-    }
-    this.speakAndSay('이 목소리로 말할게요.', 3000);
+    const w = this.window;
+    if (w !== null && !w.isDestroyed()) w.webContents.send(PET_IPC.speak, text);
   }
 
   private speakAndSay(text: string, ms: number, voice = true): void {
@@ -409,7 +378,7 @@ export class DeskDelfi {
   }
 
   private setPrefs(next: Prefs): void {
-    const same = next.visible === this.prefs.visible && next.mic === this.prefs.mic && next.voice === this.prefs.voice;
+    const same = next.visible === this.prefs.visible && next.mic === this.prefs.mic;
     this.prefs = next;
     writeJson(this.prefsFile, next);
     if (!same) this.deps.changed();
@@ -435,10 +404,9 @@ function writeJson(file: string, value: unknown): void {
 
 /** 처음에는 Windows 에서만 보이고, 마이크는 사용자가 켤 때까지 꺼 둔다 */
 function readPrefs(file: string): Prefs {
-  const raw = readJson(file) as { visible?: unknown; mic?: unknown; voice?: unknown } | null;
+  const raw = readJson(file) as { visible?: unknown; mic?: unknown } | null;
   return {
     visible: typeof raw?.visible === 'boolean' ? raw.visible : process.platform === 'win32',
     mic: raw?.mic === true,
-    voice: toDelfiVoice(raw?.voice),
   };
 }
