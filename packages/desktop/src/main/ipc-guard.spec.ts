@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { guardIpcMain, isTrustedSender, type GuardableIpc } from './ipc-guard.js';
+import { guardIpcMain, isPetChannel, isTrustedSender, type GuardableIpc } from './ipc-guard.js';
 
 const page = 'file:///app/dist/renderer/index.html?platform=win32';
 const good = { fromWindow: true, frameUrl: 'file:///app/dist/renderer/index.html', isTopFrame: true };
@@ -60,5 +60,17 @@ describe('ipcMain 감싸기', () => {
     guardIpcMain(ipc, () => false);
     for (const c of ['x', 'y', 'z']) ipc.handle(c, () => 1);
     for (const c of ['x', 'y', 'z']) expect(() => ipc.invoke(c, {})).toThrow();
+  });
+  it('믿을지 가를 때 어느 통로로 왔는지도 함께 본다(델피 창은 pet: 통로만)', () => {
+    const ipc = fake();
+    const got: string[] = [];
+    guardIpcMain(ipc, (e, channel) => ((e as { pet: boolean }).pet ? isPetChannel(channel) : !isPetChannel(channel)));
+    ipc.on('pet:click', () => void got.push('pet:click'));
+    ipc.on('job:submit', () => void got.push('job:submit'));
+    ipc.send('pet:click', { pet: true });
+    ipc.send('job:submit', { pet: true });
+    ipc.send('pet:click', { pet: false });
+    ipc.send('job:submit', { pet: false });
+    expect(got).toEqual(['pet:click', 'job:submit']);
   });
 });

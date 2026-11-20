@@ -6,6 +6,7 @@ directories:
 files:
   - dist/main.cjs
   - dist/preload.cjs
+  - dist/pet-preload.cjs
   - dist/renderer/**
   - dist/ts-worker.cjs
   - dist/ts-lib/**
@@ -27,6 +28,11 @@ asarUnpack:
   - node_modules/@playwright/**
   - node_modules/playwright/**
   - node_modules/playwright-core/**
+  # 바탕화면 델피의 받아쓰기(Whisper): onnxruntime·sharp 의 네이티브 .node 는 asar 안에서 못 읽는다
+  - node_modules/onnxruntime-node/**
+  - node_modules/onnxruntime-common/**
+  - node_modules/sharp/**
+  - node_modules/@img/**
 # 팀원 프롬프트는 resources/prompts (main.ts의 promptsDir()가 읽는 곳)
 extraResources:
   - from: ../../prompts

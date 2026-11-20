@@ -28,17 +28,20 @@ export interface GuardableIpc {
  * 감싼 뒤에 등록하는 채널(다른 파일에서 ipcMain 을 넘겨받아 등록하는 것 포함)도 모두 같은 확인을 거친다.
  * handle 은 오류로 거절하고, on(보내고 끝) 은 조용히 버린다.
  */
-export function guardIpcMain(ipc: GuardableIpc, trusted: (event: unknown) => boolean): void {
+export function guardIpcMain(ipc: GuardableIpc, trusted: (event: unknown, channel: string) => boolean): void {
   const handle = ipc.handle.bind(ipc) as (c: string, l: (e: unknown, ...a: unknown[]) => unknown) => unknown;
   const on = ipc.on.bind(ipc) as (c: string, l: (e: unknown, ...a: unknown[]) => void) => unknown;
   const mutable = ipc as unknown as { handle: typeof handle; on: typeof on };
   mutable.handle = (channel, listener) =>
     handle(channel, (event, ...args) => {
-      if (!trusted(event)) throw new Error('Blocked an IPC call from an untrusted page.');
+      if (!trusted(event, channel)) throw new Error('Blocked an IPC call from an untrusted page.');
       return listener(event, ...args);
     });
   mutable.on = (channel, listener) =>
     on(channel, (event, ...args) => {
-      if (trusted(event)) listener(event, ...args);
+      if (trusted(event, channel)) listener(event, ...args);
     });
 }
+
+/** 바탕화면 델피 창이 쓰는 통로인지('pet:' 로 시작). 이 통로는 델피 창만, 나머지 통로는 메인 창만 쓸 수 있다 */
+export const isPetChannel = (channel: string): boolean => channel.startsWith('pet:');

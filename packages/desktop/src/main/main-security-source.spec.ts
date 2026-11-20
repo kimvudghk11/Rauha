@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const main = readFileSync(join(__dirname, 'main.ts'), 'utf8');
-const preload = readFileSync(join(__dirname, '..', 'preload', 'preload.ts'), 'utf8') + readFileSync(join(__dirname, '..', 'preload', 'usage-bridge.ts'), 'utf8');
+const preload = readFileSync(join(__dirname, '..', 'preload', 'preload.ts'), 'utf8') + readFileSync(join(__dirname, '..', 'preload', 'usage-bridge.ts'), 'utf8') + readFileSync(join(__dirname, '..', 'preload', 'pet-preload.ts'), 'utf8');
 
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {

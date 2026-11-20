@@ -1,0 +1,79 @@
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent !important;
+  user-select: none;
+  font-family: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;
+}
+
+#stage {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  image-rendering: pixelated;
+}
+
+.bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%);
+  max-width: 220px;
+  width: max-content;
+  box-sizing: border-box;
+  padding: 7px 11px;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--bright);
+  border: 2px solid var(--delfi);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  border: 7px solid transparent;
+  border-top-color: var(--delfi);
+  border-bottom: 0;
+}
+
+/* 마이크 표시: 듣는 중 하늘색 점, 모델 준비 중 회색 깜빡임, 이름 녹음 중 빨간 점 */
+.mic {
+  position: absolute;
+  right: 74px;
+  bottom: 58px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--bright);
+  background: var(--delfi);
+}
+
+.mic[data-state='loading'] {
+  background: var(--muted);
+  animation: blink 1s steps(2) infinite;
+}
+
+.mic[data-state='training'] {
+  background: var(--red);
+}
+
+.mic[data-voice='1'] {
+  box-shadow: 0 0 0 3px rgba(111, 189, 235, 0.55);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}

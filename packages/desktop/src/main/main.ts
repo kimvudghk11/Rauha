@@ -116,7 +116,9 @@ import { askCardFlow } from './team/ask-flow.js';
 import { newlyChanged, snapshotChanges } from './team/changed-files.js';
 import { recordInputOf } from './team/record-input.js';
 import { externalUrlOf, isAppPage } from '../shared/navigation-guard.js';
-import { guardIpcMain, isTrustedSender } from './ipc-guard.js';
+import { guardIpcMain, isPetChannel, isTrustedSender } from './ipc-guard.js';
+import { DeskDelfi } from './pet/desk-delfi.js';
+import { readWav16k } from './voice/wav.js';
 
 /** VS Code Dark Modern 바탕색. 창이 그려지기 전 번쩍이지 않게 같은 색으로 연다. */
 const BACKGROUND = '#1f1f1f';
@@ -129,9 +131,13 @@ const openSafe = async (url: string): Promise<void> => {
 };
 
 let window: BrowserWindow | null = null;
+/** 바탕화면을 돌아다니는 델피(앱이 준비되면 만든다) */
+let deskDelfi: DeskDelfi | null = null;
 
 // 모든 IPC(handle·on)는 우리 창의 최상위 앱 화면에서 온 것만 받는다. 이 아래에서 등록하는 채널(다른 파일이 ipcMain 을 받아 등록하는 것 포함)이 모두 해당된다.
-guardIpcMain(ipcMain, (event) => {
+// 'pet:' 통로는 바탕화면 델피 창에서 온 것만 받는다(그 창은 다른 통로를 쓸 수 없다).
+guardIpcMain(ipcMain, (event, channel) => {
+  if (isPetChannel(channel)) return deskDelfi?.isSender(event) === true;
   const e = event as IpcMainInvokeEvent;
   const frame = e.senderFrame ?? null;
   return isTrustedSender({ fromWindow: window !== null && e.sender === window.webContents, frameUrl: frame?.url, isTopFrame: frame !== null && frame.parent === null }, window?.webContents.getURL() ?? '');
@@ -423,6 +429,7 @@ async function startRunner(): Promise<JobRunner> {
       const view = boardView(board, threads);
       window?.webContents.send(IPC.board, view);
       refreshTray(board.jobs);
+      deskDelfi?.observe(board.jobs.map((j) => ({ id: j.id, over: j.isOver, done: j.status === 'done' })));
       void chatHistoryReady.then(() => chatHistory.observe(view.jobs));
       for (const job of board.jobs) {
         if (!job.isOver) continue;
@@ -717,7 +724,7 @@ function refreshTray(jobs: readonly { id: string; request: string; status: 'queu
   if (tray === null) return;
   const view = trayView({ jobs: list.map((j) => ({ id: j.id, request: j.request, status: j.status })), pending: approvals.pending().length, usage: usage.current().plan, now: new Date() });
   const marked = UnreadBadge.trayMarked(unread, list);
-  const key = JSON.stringify({ view, unread, marked, dark: nativeTheme.shouldUseDarkColors });
+  const key = JSON.stringify({ view, unread, marked, dark: nativeTheme.shouldUseDarkColors, delfi: [deskDelfi?.visible, deskDelfi?.micOn] });
   if (key === trayKey) return;
   trayKey = key;
   // 맥은 카톡처럼 아이콘 오른쪽 위에 빨간 N(안 본 것이 있거나 일하는 동안), 옆 글자는 붙이지 않는다. Windows 는 안 본 것이 있을 때 빨간 점.
@@ -734,6 +741,17 @@ function refreshTray(jobs: readonly { id: string; request: string; status: 'queu
     if (i.kind === 'separator') return { type: 'separator' };
     return { role: 'quit', label: 'rauha 종료' };
   });
+  const desk = deskDelfi;
+  if (desk !== null) {
+    const at = Math.max(0, items.findIndex((i) => i.role === 'quit'));
+    items.splice(
+      at,
+      0,
+      { label: '바탕화면 델피', type: 'checkbox', checked: desk.visible, click: () => (desk.visible ? desk.hide() : desk.show()) },
+      { label: '"델피~" 듣기 (마이크)', type: 'checkbox', checked: desk.micOn, click: () => desk.setMic(!desk.micOn) },
+      { type: 'separator' },
+    );
+  }
   tray.setContextMenu(Menu.buildFromTemplate(items));
 }
 
@@ -793,8 +811,13 @@ function open(runner: JobRunner): void {
       void openSafe(url).catch(() => undefined);
     }
   });
-  window.webContents.session.setPermissionRequestHandler((_wc, _permission, done) => done(false));
-  window.webContents.session.setPermissionCheckHandler(() => false);
+  // 권한은 모두 거절한다. 단 바탕화면 델피 창의 마이크(소리만)는 사용자가 "델피~ 듣기"를 켰을 때만 허락한다.
+  window.webContents.session.setPermissionRequestHandler((wc, permission, done, details) =>
+    done(deskDelfi?.allowsMedia(wc, permission, 'mediaTypes' in details ? details.mediaTypes : undefined) === true),
+  );
+  window.webContents.session.setPermissionCheckHandler((wc, permission, _origin, details) =>
+    wc !== null && deskDelfi?.allowsMedia(wc, permission, details.mediaType === undefined ? undefined : [details.mediaType]) === true,
+  );
   if (remembers() && !auto) {
     let timer: NodeJS.Timeout | undefined;
     const save = () => {
@@ -818,7 +841,11 @@ function open(runner: JobRunner): void {
     badge = badge.seen();
     refreshTray();
   });
-  window.on('closed', () => (window = null));
+  window.on('closed', () => {
+    window = null;
+    // 바탕화면 델피 창이 남아 있어도 메인 창을 닫으면 지금처럼 앱을 끈다(맥은 Dock 에 남는다)
+    if (quitWhenAllClosed(process.platform)) app.quit();
+  });
   window.webContents.on('console-message', (details) => {
     if (details.level === 'error') appLog.record('renderer', `${details.message} (${basename(details.sourceId)}:${details.lineNumber})`);
   });
@@ -1618,7 +1645,56 @@ void app.whenReady().then(async () => {
   startUpdates();
   open(runner);
   startTray();
+  startDeskDelfi();
 }).catch(reportStartupFailure);
+
+/** 바탕화면 델피: 시험 실행(가짜 팀)에서는 띄우지 않는다(RAUHA_DESK_DELFI=1 이면 띄운다) */
+function startDeskDelfi(): void {
+  if (deskDelfi !== null || (isAutomatedRun(process.env) && process.env['RAUHA_DESK_DELFI'] !== '1')) return;
+  deskDelfi = new DeskDelfi({
+    preload: join(__dirname, 'pet-preload.cjs'),
+    page: join(__dirname, 'renderer', 'pet.html'),
+    dataDir,
+    modelDir: join(app.getPath('userData'), 'voice-models'),
+    submit: (text) => submitJob(text),
+    openMain: (jobId) => showFromTray(jobId === null ? null : { job: jobId }),
+    log: (text) => appLog.record('main', `[델피] ${text}`),
+    changed: () => refreshTray(),
+    // 확인용 실행(RAUHA_DISPLAY=2)은 그 모니터에서 돌아다닌다
+    area: () => {
+      const all = workAreas();
+      const n = Number(testDisplay(process.env));
+      return (Number.isInteger(n) && n >= 1 ? all[n - 1] : undefined) ?? all[0]!;
+    },
+  });
+  deskDelfi.register(ipcMain);
+  deskDelfi.start();
+  refreshTray();
+  // 확인용: RAUHA_DELFI_FEED=a.wav;b.wav 면 진짜 마이크 대신 그 소리(16kHz 모노)를 차례로 들려준다.
+  // RAUHA_DELFI_TRAIN=t1.wav;t2.wav;t3.wav 면 먼저 그 소리로 이름을 녹음한다. 소리마다 델피 창 그림을 데이터 폴더에 남긴다.
+  const feed = process.env['RAUHA_DELFI_FEED'];
+  if (feed !== undefined) {
+    const desk = deskDelfi;
+    const files = (v: string | undefined) => (v ?? '').split(';').filter((f) => f !== '');
+    const hear = async (file: string, shot: string) => {
+      const samples = readWav16k(readFileSync(file));
+      appLog.record('main', `[델피] 시험 소리 ${basename(file)} ${samples === null ? '읽기 실패' : `${samples.length} 샘플`}`);
+      if (samples !== null) await desk.feed(samples).catch((e: unknown) => appLog.record('main', `[델피] 시험 실패 ${String(e)}`));
+      await new Promise((r) => setTimeout(r, 1500));
+      await desk.snapshot(join(dataDir, shot)).catch(() => undefined);
+    };
+    setTimeout(() => {
+      void (async () => {
+        await desk.snapshot(join(dataDir, 'delfi-0.png')).catch(() => undefined);
+        const train = files(process.env['RAUHA_DELFI_TRAIN']);
+        if (train.length > 0) desk.beginTrainingForTest();
+        for (const [i, file] of train.entries()) await hear(file, `delfi-train-${i + 1}.png`);
+        for (const [i, file] of files(feed).entries()) await hear(file, `delfi-${i + 1}.png`);
+        appLog.record('main', '[델피] 시험 소리 끝');
+      })();
+    }, 4000);
+  }
+}
 app.on('window-all-closed', () => {
   if (quitWhenAllClosed(process.platform)) app.quit();
 });
