@@ -49,6 +49,8 @@ describe('RoleSettingsDto', () => {
     expect(roles.get('router')).toMatchObject({ tier: 'sonnet', effort: 'low', tools: [] });
     expect(roles.get('answerer')).toMatchObject({ tier: 'sonnet', effort: 'high' });
     expect(roles.deeperAnswerer()).toMatchObject({ tier: 'opus', effort: 'high' });
+    expect(roles.lightAnswerer().plugins).toBe(false);
+    expect(roles.get('answerer').plugins).toBeUndefined();
     expect(roles.get('answerer').tools).not.toContain('Write');
   });
 

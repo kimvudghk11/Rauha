@@ -265,7 +265,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const kits = withWorkspace(withDatabase(withConnectors(kitServers(call.kits ?? [], this.options.env), (call.kits ?? []).includes('connectors') ? this.options.connectors?.() : undefined), db), facts, (paths) => session.opened.push(...paths), allowed);
     const base = this.options.prompts.system(call.role, call.kits ?? []);
     const system = kits.guide === '' ? base : `${base}\n\n${kits.guide}`;
-    const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? []);
+    const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? [], call.setting.plugins !== false);
     return {
       ...pluginLoad,
       model: modelOf(call),
@@ -308,8 +308,8 @@ export function withUserNotes(system: string, rules: string, style: string): str
   return parts.join('\n\n');
 }
 
-export function pluginOptions(role: MemberRole, loads: readonly PluginLoad[]): Pick<Options, 'plugins' | 'skills'> & { readonly tools: readonly string[] } {
-  if (loads.length === 0 || !PluginReach.loads(role)) return { tools: [] };
+export function pluginOptions(role: MemberRole, loads: readonly PluginLoad[], wanted = true): Pick<Options, 'plugins' | 'skills'> & { readonly tools: readonly string[] } {
+  if (!wanted || loads.length === 0 || !PluginReach.loads(role)) return { tools: [] };
   return { plugins: loads.map((p) => ({ type: 'local' as const, path: p.path, skipMcpDiscovery: true })), skills: 'all', tools: ['Skill'] };
 }
 

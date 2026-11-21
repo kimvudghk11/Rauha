@@ -16,6 +16,8 @@ export interface RoleSetting {
   readonly readsProject: boolean;
   /** 사용자가 이 팀원에게 더한 지시(팀 설정). 시스템 프롬프트 끝에 붙는다. */
   readonly extraInstruction?: string;
+  /** false 면 켜 둔 플러그인·스킬을 붙이지 않는다(가벼운 답: 세션 시작 훅·스킬 목록이 호출마다 입력을 늘린다). 없으면 역할 기준대로. */
+  readonly plugins?: false;
 }
 
 /** 팀 설정에서 쓸 수 있는 도구 */
@@ -216,7 +218,7 @@ export class RoleSettingsDto {
   lightAnswerer(): RoleSetting {
     const base = this.settings.answerer;
     if (this.pinned.has('answerer')) return base;
-    return { ...base, tier: 'sonnet', effort: 'medium', maxTurns: 25, maxBudgetUsd: 0.5, tools: ['Read', 'Grep', 'Glob'] };
+    return { ...base, tier: 'sonnet', effort: 'medium', maxTurns: 25, maxBudgetUsd: 0.5, tools: ['Read', 'Grep', 'Glob'], plugins: false };
   }
 
   /** "더 깊게"로 다시 묻는 답: 기본 답변보다 한 단계 위(opus). 사용자가 답변 팀원 모델을 고정했으면 그 모델을 따른다. */

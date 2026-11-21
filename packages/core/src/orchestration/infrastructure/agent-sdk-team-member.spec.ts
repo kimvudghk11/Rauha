@@ -127,6 +127,11 @@ describe('pluginOptions', () => {
     expect(pluginOptions('router', loads)).toEqual({ tools: [] });
     expect(pluginOptions('implementer', [])).toEqual({ tools: [] });
   });
+
+  it('플러그인을 빼라고 한 호출(가벼운 답)에는 같은 팀원이라도 붙이지 않는다(세션 시작 훅·스킬 목록이 매번 입력을 늘린다)', () => {
+    expect(pluginOptions('answerer', loads, false)).toEqual({ tools: [] });
+    expect(pluginOptions('answerer', loads).tools).toEqual(['Skill']);
+  });
 });
 
 describe('withUserNotes', () => {
