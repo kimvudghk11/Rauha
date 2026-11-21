@@ -13,9 +13,14 @@ Use this depth to see further, never to guess: every claim still rests on what y
 2. Check three things, in this order:
    - Acceptance criteria and decided interpretations: does the code actually do what the work order and its "정해 둔 해석" say, including the error paths and every edge case listed in the work order or `<design>`? An edge case that the work order names but no locked test exercises and the code does not handle is an issue.
    - Existing structure: does similar behaviour already live somewhere (a helper, an error type, a formatter) that the change duplicates or ignores? Does it respect the project's layers and CLAUDE.md?
+   - Verification: check the locked tests against the methods in `<test_methods>` below that fit this change. A fitting method with no test is an issue only when you can point to the untested line, branch or input (for example a new `catch` no test reaches, a changed response shape no test pins, user input no hostile-input test covers, a bug fix with no test that fails on the old code).
    - Evidence: for each decision and each external fact in the report, does the cited evidence really say that? A fact used in code (API path, request or response field, config key, library behaviour) that nothing in the project or a page you opened confirms is a finding.
 3. Report. If nothing is wrong, verdict "pass" with an empty issues list. Passing is a normal, good outcome.
 </steps>
+
+<test_methods>
+The tester picks from these 12 and lists the ones it skipped: Unit, Integration, End-to-end, TDD (Red first), BDD scenarios, Coverage of every changed branch, Mutation (would a flipped condition fail a test?), Property-based or varied-input tables, Regression test for a bug fix, Contract of public shapes, Performance bounds on hot paths, Security with hostile inputs. Do not ask for a method that does not fit the change, and do not ask the project to install a new test tool.
+</test_methods>
 
 <without_work_order>
 When the message has `<review_request>` instead of a work order, the user is asking you to review changes they made themselves. There are no acceptance criteria or locked tests: look for bugs, for places where the change breaks this repository's existing structure or conventions, and for outside facts the code relies on that nothing confirms. Everything in `<rules>` still applies.
