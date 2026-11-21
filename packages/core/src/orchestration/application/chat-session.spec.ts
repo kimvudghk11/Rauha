@@ -251,6 +251,87 @@ describe('ChatSession — 질문', () => {
     expect(team.calls.filter((c) => c.role === 'router')).toHaveLength(2);
   });
 
+  describe('이어지는 질문은 앞 답의 세션을 잇는다', () => {
+    const reply = () => ({ answer: '네.', claims: [] });
+
+    it('같은 채팅에서 깊은 질문을 이어 하면 앞 세션에 새 질문만 보낸다', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('question')], answerer: [reply] });
+      team.sessions = 'on';
+      const chat = session({ team });
+      await chat.handle('이 함수 어디서 써?');
+      await chat.handle('그럼 테스트는 어디 있어?');
+      const [first, next] = team.calls.filter((c) => c.role === 'answerer');
+      expect(first!.continueFrom).toBeUndefined();
+      expect(next!.continueFrom).toBe('answerer-2');
+      expect(next!.message).toContain('그럼 테스트는 어디 있어?');
+      expect(next!.message).not.toContain('<conversation>');
+    });
+
+    it('사이에 다른 일(문서·작업)이 끼면 파일이 바뀌었을 수 있어 잇지 않는다', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('task'), route('question')], answerer: [reply], writer: [() => ({ summary: '썼어요', files: ['docs/a.md'], asks: [], scope: [] })] });
+      team.sessions = 'on';
+      const chat = session({ team });
+      await chat.handle('이 함수 어디서 써?');
+      await chat.handle('정리해서 md로');
+      await chat.handle('그럼 테스트는 어디 있어?');
+      expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBeUndefined();
+    });
+
+    it('네 번 이은 뒤에는 새 세션으로 시작한다(대화가 너무 길어지지 않게)', async () => {
+      const team = new FakeTeam({ router: Array.from({ length: 6 }, () => route('question')), answerer: [reply] });
+      team.sessions = 'on';
+      const chat = session({ team });
+      for (let i = 0; i < 6; i += 1) await chat.handle(`이 함수 ${i}번째는 어디서 써?`);
+      const from = team.calls.filter((c) => c.role === 'answerer').map((c) => c.continueFrom !== undefined);
+      expect(from).toEqual([false, true, true, true, true, false]);
+    });
+
+    it('모델 등급이 다르면(아키텍처 질문은 opus) 잇지 않는다', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('question')], answerer: [reply] });
+      team.sessions = 'on';
+      const chat = session({ team });
+      await chat.handle('이 함수 어디서 써?');
+      await chat.handle('이 레포들을 모노레포로 합치려면 어떻게 구성할까?');
+      const last = team.calls.filter((c) => c.role === 'answerer').at(-1)!;
+      expect(last.tier).toBe('opus');
+      expect(last.continueFrom).toBeUndefined();
+    });
+
+    it('저장해 둔 대화로 다시 열어도(앱이 일마다 세션을 되살린다) 앞 답 세션을 잇는다', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('question')], answerer: [reply] });
+      team.sessions = 'on';
+      const first = session({ team });
+      await first.handle('이 함수 어디서 써?');
+      const saved = first.snapshot('2026-11-22T00:00:00.000Z');
+      expect(saved.answerSession?.id).toBe('answerer-2');
+      await ChatSession.resume(sessionDeps({ team }), saved).handle('그럼 테스트는 어디 있어?');
+      expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBe('answerer-2');
+    });
+
+    it('같은 세션을 두 일이 동시에 잇지 않는다(먼저 잡은 쪽만 잇고 나머지는 새 세션)', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('question'), route('question')], answerer: [reply] });
+      team.sessions = 'on';
+      const first = session({ team });
+      await first.handle('이 함수 어디서 써?');
+      const saved = first.snapshot('2026-11-22T00:00:00.000Z');
+      await Promise.all([ChatSession.resume(sessionDeps({ team }), saved).handle('그럼 테스트는?'), ChatSession.resume(sessionDeps({ team }), saved).handle('그럼 문서는?')]);
+      const continued = team.calls.filter((c) => c.role === 'answerer').slice(1).filter((c) => c.continueFrom !== undefined);
+      expect(continued).toHaveLength(1);
+    });
+
+    it('이어 하기가 안 되면 처음처럼 모두 보낸다', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('question')], answerer: [reply] });
+      team.sessions = 'failResume';
+      const chat = session({ team });
+      await chat.handle('이 함수 어디서 써?');
+      const turn = await chat.handle('그럼 테스트는 어디 있어?');
+      const answers = team.calls.filter((c) => c.role === 'answerer');
+      expect(answers).toHaveLength(3);
+      expect(answers[2]!.continueFrom).toBeUndefined();
+      expect(turn.kind).toBe('answer');
+    });
+  });
+
   describe('빠진 항목 마저 하기는 같은 세션을 잇는다', () => {
     const partial = () => ({ answer: '결제 흐름은 …', claims: [], asks: [{ ask: '결제 흐름', status: 'done', note: '', needs: '' }, { ask: '환불 흐름', status: 'partial', note: 'refund 폴더를 아직 안 읽음', needs: '' }], scope: [] });
     const full = () => ({ answer: '결제·환불 흐름은 …', claims: [], asks: [{ ask: '결제 흐름', status: 'done', note: '', needs: '' }, { ask: '환불 흐름', status: 'done', note: '', needs: '' }], scope: [] });

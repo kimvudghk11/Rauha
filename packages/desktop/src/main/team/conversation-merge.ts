@@ -12,6 +12,8 @@ export class ConversationMerge {
   private constructor(
     private readonly baseTurns: number,
     private readonly baseCarried: ReadonlySet<string>,
+    /** 업무가 시작할 때 본 앞 답 세션 id(없으면 null) */
+    private readonly baseAnswer: string | null = null,
   ) {}
 
   /** 초기화한 레포에 남기는 빈 저장본(대화·이어 일할 파일 없음) */
@@ -37,12 +39,13 @@ export class ConversationMerge {
     const turns = parts.flatMap(({ snapshot, label }) => snapshot.turns.map((t) => (label === null ? t : { input: `[${label}] ${t.input}`, result: t.result })));
     const carried = own?.carried ?? [];
     if (turns.length === 0 && carried.length === 0) return null;
-    return { version: 1, turns: turns.slice(-MAX_KEPT_TURNS), carried, lastTitle: own?.lastTitle ?? null, savedAt: own?.savedAt ?? parts[parts.length - 1]?.snapshot.savedAt ?? '' };
+    // 앞 답 세션은 작업 폴더마다 달라서 이 레포 것만 잇는다
+    return { version: 1, turns: turns.slice(-MAX_KEPT_TURNS), carried, lastTitle: own?.lastTitle ?? null, savedAt: own?.savedAt ?? parts[parts.length - 1]?.snapshot.savedAt ?? '', ...(own?.answerSession !== undefined ? { answerSession: own.answerSession } : {}) };
   }
 
   /** 업무가 시작할 때 읽은 대화(없으면 null)로 규칙을 연다. */
   static startingFrom(base: ChatSnapshot | null): ConversationMerge {
-    return new ConversationMerge(base?.turns.length ?? 0, new Set((base?.carried ?? []).map(([path]) => path)));
+    return new ConversationMerge(base?.turns.length ?? 0, new Set((base?.carried ?? []).map(([path]) => path)), base?.answerSession?.id ?? null);
   }
 
   /**
@@ -56,12 +59,15 @@ export class ConversationMerge {
     const removed = new Set([...this.baseCarried].filter((path) => !finalPaths.has(path)));
     const carried = new Map((stored?.carried ?? []).filter(([path]) => !removed.has(path)));
     for (const [path, value] of final.carried) carried.set(path, value);
+    // 앞 답 세션: 이 업무가 건드리지 않았으면(시작 때와 같으면) 그 사이 저장된 것을 지키고, 새로 잡았거나 버렸으면 그대로 따른다
+    const answerSession = (final.answerSession?.id ?? null) === this.baseAnswer ? stored?.answerSession : final.answerSession;
     return {
       version: 1,
       turns: [...(stored?.turns ?? []), ...added].slice(-MAX_KEPT_TURNS),
       carried: [...carried],
       lastTitle: final.lastTitle ?? stored?.lastTitle ?? null,
       savedAt: final.savedAt,
+      ...(answerSession !== undefined ? { answerSession } : {}),
     };
   }
 }

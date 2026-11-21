@@ -59,6 +59,35 @@ describe('ConversationMerge', () => {
     expect(merged.carried).toEqual([['keep.ts', 'h1']]);
   });
 
+  describe('앞 답 세션', () => {
+    const s1 = { id: 's1', tier: 'sonnet' as const, at: 1, count: 0 };
+    const s2 = { id: 's2', tier: 'sonnet' as const, at: 2, count: 0 };
+
+    it('이 업무가 새로 잡은 앞 답 세션을 저장한다', () => {
+      const base = snap(['앞']);
+      expect(ConversationMerge.startingFrom(base).finishedWith(base, { ...snap(['앞', 'Q']), answerSession: s1 }).answerSession).toEqual(s1);
+    });
+
+    it('이 업무가 다른 일을 해서 세션을 버렸으면 저장본에서도 버린다(파일이 바뀌었을 수 있다)', () => {
+      const base = { ...snap(['앞']), answerSession: s1 };
+      const merged = ConversationMerge.startingFrom(base).finishedWith(base, snap(['앞', '작업']));
+      expect(merged).not.toHaveProperty('answerSession');
+    });
+
+    it('이 업무가 세션을 건드리지 않았으면 그 사이 다른 업무가 저장한 세션을 지킨다', () => {
+      const base = { ...snap(['앞']), answerSession: s1 };
+      const stored = { ...snap(['앞', '다른 질문']), answerSession: s2 };
+      expect(ConversationMerge.startingFrom(base).finishedWith(stored, { ...snap(['앞', '인사']), answerSession: s1 }).answerSession).toEqual(s2);
+    });
+
+    it('다른 레포 대화를 함께 볼 때는 이 레포의 세션만 쓴다(세션은 작업 폴더마다 다르다)', () => {
+      const own = { ...snap(['내 것']), answerSession: s1 };
+      const other = { ...snap(['남의 것'], [], null, '2026-11-09T09:00:00.000Z'), answerSession: s2 };
+      expect(ConversationMerge.alongside(own, [{ name: 'web', snapshot: other }])?.answerSession).toEqual(s1);
+      expect(ConversationMerge.alongside(null, [{ name: 'web', snapshot: other }])).not.toHaveProperty('answerSession');
+    });
+  });
+
   it('앞 대화는 최근 것만 남기고 오래된 것부터 버린다', () => {
     const many = Array.from({ length: MAX_KEPT_TURNS }, (_, i) => `t${i}`);
     const base = snap(many);

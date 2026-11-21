@@ -20,4 +20,18 @@ describe('ChatSnapshotDto', () => {
       expect(ChatSnapshotDto.from(bad)).toBeNull();
     }
   });
+
+  it('앞 답 세션도 그대로 되읽고, 없는 옛 파일도 읽는다', () => {
+    const withSession: ChatSnapshot = { ...snapshot, answerSession: { id: 's1', tier: 'sonnet', at: 1_000, count: 2 } };
+    expect(ChatSnapshotDto.from(JSON.parse(ChatSnapshotDto.of(withSession).toJson()))?.value).toEqual(withSession);
+    expect(ChatSnapshotDto.from(JSON.parse(ChatSnapshotDto.of(snapshot).toJson()))?.value).not.toHaveProperty('answerSession');
+  });
+
+  it('앞 답 세션 모양이 틀리면 그 칸만 버리고 대화는 살린다', () => {
+    for (const bad of [{ id: '', tier: 'sonnet', at: 1, count: 0 }, { id: 's', tier: 'haiku', at: 1, count: 0 }, { id: 's', tier: 'opus', at: 'x', count: 0 }, { id: 's', tier: 'opus', at: 1, count: -1 }, 'x']) {
+      const read = ChatSnapshotDto.from({ ...snapshot, answerSession: bad });
+      expect(read?.value.turns).toEqual(snapshot.turns);
+      expect(read?.value).not.toHaveProperty('answerSession');
+    }
+  });
 });

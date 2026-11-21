@@ -126,6 +126,13 @@ export interface WorkspaceKnown {
   readonly block: string | null;
 }
 
+/** 이어지는 질문이 앞 답의 세션을 잇는 횟수와 시간 상한 */
+const CHAIN_MAX = 4;
+const CHAIN_MS = 30 * 60 * 1000;
+const CHAIN_NOTE = '같은 대화의 다음 질문입니다. 앞에서 읽은 파일과 저장소 지식은 다시 열지 말고, 이 질문에 새로 필요한 것만 여세요.';
+/** 지금 누가 잇고 있는 답 세션. 앱은 같은 저장본으로 여러 일을 동시에 돌리므로, 같은 세션을 둘이 동시에 이으면 대화가 꼬인다 */
+const CHAINS_IN_USE = new Set<string>();
+
 /** 작업 공간 지식 묶음의 전체 상한(저장소마다 상한은 지식을 읽어 오는 쪽이 정한다) */
 const WORKSPACE_KNOWLEDGE_CHARS = 18_000;
 
@@ -220,6 +227,8 @@ export class ChatSession {
   private surveyed = false;
   /** 이번 차례에 붙일 작업 공간 지식 묶음(깊은 일에서만 채운다) */
   private workspaceKnown = '';
+  /** 마지막 깊은 답의 세션(이어지는 질문이 잇는다). 다른 일을 하면 버린다 */
+  private answerChain: { readonly id: string; readonly tier: ModelTier; readonly at: number; readonly count: number } | null = null;
   private held: HeldRequest | null = null;
   /** 방금 한 질문과 그 답. 코드를 바꾸는 일이 있거나 /clear 하면 비운다. */
   private answered = new Map<string, { answer: string; at: number }>();
@@ -276,12 +285,13 @@ export class ChatSession {
     session.turns = snapshot.turns.map((t) => ({ input: t.input, result: t.result }));
     session.carried = new Map(snapshot.carried);
     session.lastTitle = snapshot.lastTitle;
+    session.answerChain = snapshot.answerSession ?? null;
     return session;
   }
 
   /** 다시 열 때 필요한 상태. savedAt: ISO 시각 */
   snapshot(savedAt: string): ChatSnapshot {
-    return { version: 1, turns: [...this.turns], carried: [...this.carried], lastTitle: this.lastTitle, savedAt };
+    return { version: 1, turns: [...this.turns], carried: [...this.carried], lastTitle: this.lastTitle, savedAt, ...(this.answerChain !== null ? { answerSession: this.answerChain } : {}) };
   }
 
   /**
@@ -319,7 +329,11 @@ export class ChatSession {
     }
     // 질문 말고 다른 일(작업·회사 부서·문서·설계 등)은 깊은 일이라 작업 공간 지식을 붙인다. 질문은 깊이를 정한 뒤에.
     this.workspaceKnown = '';
-    if (route.mode !== 'question') await this.loadWorkspaceKnown();
+    if (route.mode !== 'question') {
+      // 질문이 아닌 일은 파일을 바꿀 수 있어서 이어지던 답 세션을 버린다
+      this.answerChain = null;
+      await this.loadWorkspaceKnown();
+    }
     if (route.mode === 'task') return this.documents.write(input, conversation, also, started, await this.digestOf(input));
     if (route.mode === 'ops') return this.ops(input, conversation, started);
     if (route.mode === 'publish') return this.publish(input, conversation, started);
@@ -357,6 +371,7 @@ export class ChatSession {
   }
 
   clear(): void {
+    this.answerChain = null;
     this.turns = [];
     this.answered.clear();
   }
@@ -750,15 +765,31 @@ ${SINGLE_REPO_NOTE}
       extra,
       `<question>\n${input}\n</question>`,
     ];
-    const send = (more: readonly string[], from?: string): Promise<MemberResult> => this.member(
+    const setting = depth === 'light' ? this.deps.roles.lightAnswerer() : deeper ? this.deps.roles.deeperAnswerer() : this.deps.roles.get('answerer');
+    const send = (more: readonly string[], from?: string, note: string = CONTINUE_NOTE): Promise<MemberResult> => this.member(
       'answerer',
-      from !== undefined ? [...more, CONTINUE_NOTE] : [...parts, ...more],
+      from !== undefined ? [...more, note] : [...parts, ...more],
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
       // light는 도구 묶음(브라우저·AWS 설명이 수천 자)을 붙이지 않는다.
-      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : deeper ? { setting: this.deps.roles.deeperAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])], ...(from !== undefined ? { continueFrom: from } : {}) },
+      { ...(depth === 'light' || deeper ? { setting } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])], ...(from !== undefined ? { continueFrom: from } : {}) },
     );
-    const result = await send([]);
+    // 같은 채팅에서 이어지는 깊은 질문은 앞 답의 세션을 잇는다: 앞에서 읽은 파일·지식·대화가 그 세션에 남아 있어 새 질문만 보낸다.
+    // 등급이 같고, 사이에 다른 일이 없었고(파일이 바뀌었을 수 있다), 30분 안이고, 네 번까지만(대화가 너무 길어지지 않게).
+    const chain = this.answerChain;
+    const canChain = depth === 'deep' && chain !== null && chain.tier === setting.tier && chain.count < CHAIN_MAX && this.deps.now() - chain.at < CHAIN_MS && others.length === 0 && extra === '' && past === null && !CHAINS_IN_USE.has(chain.id);
+    let chained: MemberResult | null = null;
+    if (canChain) {
+      CHAINS_IN_USE.add(chain.id);
+      try {
+        chained = await send([`<today>${this.deps.today()}</today>`, `<now>${this.deps.nowText()}</now>`, block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '', `<question>\n${input}\n</question>`], chain.id, CHAIN_NOTE);
+      } finally {
+        CHAINS_IN_USE.delete(chain.id);
+      }
+    }
+    const kept = chained !== null && (chained.output !== null || chained.blocked) ? chained : null;
+    const result = kept ?? (await send([]));
+    if (depth === 'deep') this.answerChain = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, tier: setting.tier, at: this.deps.now(), count: kept !== null ? chain!.count + 1 : 0 } : null;
     // 빠진 항목 마저 하기는 같은 세션을 이어서 새 말만 보낸다(읽은 파일을 다시 읽지 않게). 이어 하기가 안 되면 처음처럼 모두 보낸다.
     let last = result.sessionId;
     const call = async (more: readonly string[]): Promise<MemberResult> => {

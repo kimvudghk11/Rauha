@@ -7,9 +7,30 @@ export interface ChatSnapshot {
   readonly lastTitle: string | null;
   /** ISO 시각 */
   readonly savedAt: string;
+  /** 마지막 깊은 답의 팀원 세션(이어지는 질문이 잇는다). 없으면 새 세션으로 답한다. 옛 파일에는 없다 */
+  readonly answerSession?: AnswerSession;
+}
+
+export interface AnswerSession {
+  readonly id: string;
+  readonly tier: 'sonnet' | 'opus' | 'fable';
+  /** epoch ms */
+  readonly at: number;
+  /** 지금까지 이은 횟수 */
+  readonly count: number;
 }
 
 const isString = (v: unknown): v is string => typeof v === 'string';
+
+/** 저장본의 answerSession. 모양이 틀리면 버린다(대화 전체를 버리지는 않는다) */
+function answerSessionFrom(v: unknown): AnswerSession | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  const tier = o['tier'];
+  if (!isString(o['id']) || o['id'] === '' || (tier !== 'sonnet' && tier !== 'opus' && tier !== 'fable')) return undefined;
+  if (typeof o['at'] !== 'number' || !Number.isFinite(o['at']) || typeof o['count'] !== 'number' || !Number.isInteger(o['count']) || o['count'] < 0) return undefined;
+  return { id: o['id'], tier, at: o['at'], count: o['count'] };
+}
 
 /**
  * 저장해 둔 대화 파일 ↔ 스냅숏. 파일은 rauha 밖에서 바뀌거나 옛 형식일 수 있어서,
@@ -33,12 +54,14 @@ export class ChatSnapshotDto {
     const validTurns = turns.every((t) => typeof t === 'object' && t !== null && isString((t as Record<string, unknown>)['input']) && isString((t as Record<string, unknown>)['result']));
     const validCarried = carried.every((c) => Array.isArray(c) && c.length === 2 && isString(c[0]) && isString(c[1]));
     if (!validTurns || !validCarried) return null;
+    const answerSession = answerSessionFrom(o['answerSession']);
     return new ChatSnapshotDto({
       version: 1,
       turns: turns.map((t) => ({ input: (t as { input: string }).input, result: (t as { result: string }).result })),
       carried: carried.map((c) => [c[0] as string, c[1] as string] as const),
       lastTitle: o['lastTitle'] as string | null,
       savedAt: o['savedAt'],
+      ...(answerSession !== undefined ? { answerSession } : {}),
     });
   }
 
