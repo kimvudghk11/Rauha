@@ -82,7 +82,9 @@ type Script = (call: MemberCall, ws: FakeWorkspace) => unknown;
 
 class FakeTeam implements TeamMemberPort {
   readonly calls: MemberRole[] = [];
-  readonly log: { role: MemberRole; tier: string; message: string; request?: string | undefined }[] = [];
+  readonly log: { role: MemberRole; tier: string; message: string; request?: string | undefined; continueFrom?: string | undefined }[] = [];
+  /** 켜면 호출마다 세션 id 를 돌려준다. failResume 이면 이어 하기 호출은 결과 없이 끝난다 */
+  sessions: 'off' | 'on' | 'failResume' = 'off';
   constructor(
     private readonly ws: FakeWorkspace,
     private readonly scripts: Partial<Record<MemberRole, Script[]>>,
@@ -92,7 +94,11 @@ class FakeTeam implements TeamMemberPort {
   ) {}
   async run(call: MemberCall): Promise<MemberResult> {
     this.calls.push(call.role);
-    this.log.push({ role: call.role, tier: call.setting.tier, message: call.userMessage, request: call.request });
+    this.log.push({ role: call.role, tier: call.setting.tier, message: call.userMessage, request: call.request, continueFrom: call.continueFrom });
+    const sessionId = this.sessions === 'off' ? {} : { sessionId: `${call.role}-${this.log.length}` };
+    if (this.sessions === 'failResume' && call.continueFrom !== undefined) {
+      return { output: null, error: 'No conversation found', blocked: null, usage: { model: call.setting.tier, durationMs: 1, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' }, fetched: [] };
+    }
     const queue = this.scripts[call.role] ?? [];
     const script = queue.length > 1 ? (queue.shift() as Script) : queue[0];
     const limited = call.role === this.limitOn ? "You've hit your session limit · resets 5:40pm" : null;
@@ -102,6 +108,7 @@ class FakeTeam implements TeamMemberPort {
       blocked: limited === null ? null : { reason: this.blockReason, message: limited },
       usage: { model: call.setting.tier, durationMs: 10, costUsd: 0.001, turns: 3, inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, denials: [], endReason: 'success' },
       fetched: [],
+      ...sessionId,
     };
   }
 }
@@ -487,6 +494,34 @@ describe('MinimalLoopService', () => {
     expect(outcome.status).toBe('complete');
     expect(outcome.escalated).toBe(true);
     expect(outcome.finalTier).toBe('opus');
+  });
+
+  it('같은 등급으로 다시 시도하면 앞 세션을 이어 실패 내용만 보내고, 등급이 오르면 새 세션으로 처음부터 본다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implementWrong, implementWrong, implement] });
+    team.sessions = 'on';
+    const outcome = await service(ws, team, new FakeChecks(ws)).run('Money에 할인 추가');
+    const [first, second, senior] = team.log.filter((c) => c.role === 'implementer');
+    expect(first!.continueFrom).toBeUndefined();
+    expect(second!.continueFrom).toBe(`implementer-${team.log.indexOf(first!) + 1}`);
+    expect(second!.message).toContain('<last_failure>');
+    expect(second!.message).not.toContain('<locked_tests>');
+    expect(senior!.tier).toBe('opus');
+    expect(senior!.continueFrom).toBeUndefined();
+    expect(senior!.message).toContain('<locked_tests>');
+    expect(outcome.status).toBe('complete');
+  });
+
+  it('구현 팀원 이어 하기가 안 되면 그 시도만 처음처럼 모두 보낸다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implementWrong, implement] });
+    team.sessions = 'failResume';
+    const outcome = await service(ws, team, new FakeChecks(ws)).run('Money에 할인 추가');
+    const implementers = team.log.filter((c) => c.role === 'implementer');
+    expect(implementers).toHaveLength(3);
+    expect(implementers[2]!.continueFrom).toBeUndefined();
+    expect(implementers[2]!.message).toContain('<locked_tests>');
+    expect(outcome.status).toBe('complete');
   });
 
   it('시니어도 실패하면 needs-support로 멈춘다', async () => {

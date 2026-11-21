@@ -219,6 +219,8 @@ export class MinimalLoopService {
   private startState: WorkspaceState = WorkspaceState.of([]);
   /** 테스트를 실행할 방법이 없어 Red 없이 진행한 실행인지 */
   private testless = false;
+  /** 마지막 팀원 호출의 세션(결과를 냈을 때만). 다음 시도가 이을 수 있다 */
+  private lastSessionId: string | undefined;
   /** 구현 팀원이 업무 지시서의 범위를 넘어 고친 파일 */
   private readonly outOfScope = new Set<string>();
 
@@ -284,6 +286,8 @@ export class MinimalLoopService {
     const review = new ReviewState();
     let redFeedback: string | null = null;
     let lastFailure: string | null = null;
+    /** 구현 팀원의 앞 세션과 그때 등급(같은 등급이 다시 하면 잇는다) */
+    let implementerSession: { readonly id: string; readonly tier: ModelTier } | null = null;
     let lockedTests: string[] = [];
     let verdict: VerificationVerdict | null = null;
     let explanation: ExplanationDto | null = null;
@@ -369,10 +373,23 @@ export class MinimalLoopService {
       ]
         .filter((s) => s !== '')
         .join('\n\n');
+      // 같은 등급이 다시 하면 앞 세션을 이어 실패·리뷰 지적만 보낸다(지시서·테스트·파일을 다시 읽지 않게). 등급이 오르면 새 눈으로 처음부터.
+      const tier = decision.assignment.tier;
+      const resumable = implementerSession !== null && implementerSession.tier === tier ? implementerSession.id : undefined;
+      const followUp = [
+        lastFailure !== null ? `<last_failure>\n방금 시도에서 rauha가 직접 본 실패 메시지입니다.\n${lastFailure}\n</last_failure>` : '',
+        review.feedback !== null ? `<review>\n리뷰에서 근거가 확인된 지적과 사용자 정정입니다. 이것만 고치고, 다른 곳은 건드리지 마세요.\n${review.feedback}\n</review>` : '',
+        `<task>앞 시도를 이어서 위 내용만 고치세요. 이미 읽은 파일은 다시 훑지 말고, 고칠 파일만 다시 열어 지금 내용을 확인한 뒤 고치세요(rauha 가 되돌린 곳이 있을 수 있습니다).${order.testsWaived || this.testless ? '' : ' 테스트 파일은 고칠 수 없습니다.'}</task>`,
+      ]
+        .filter((s) => s !== '')
+        .join('\n\n');
       review.feedback = null;
       const before = await workspace.snapshot();
       tally.escalated ||= order.isEscalated();
-      const output = await this.call('implementer', message, IMPLEMENTER_REPORT_SCHEMA, order, tally, decision.assignment.tier);
+      let output = await this.call('implementer', resumable !== undefined ? followUp : message, IMPLEMENTER_REPORT_SCHEMA, order, tally, tier, resumable);
+      // 이어 하기가 안 되면(세션이 없어짐 등) 이 시도만 처음처럼 모두 보낸다
+      if (resumable !== undefined && output === null) output = await this.call('implementer', message, IMPLEMENTER_REPORT_SCHEMA, order, tally, tier);
+      implementerSession = this.lastSessionId !== undefined ? { id: this.lastSessionId, tier } : null;
       const changed = workspace.changesBetween(before, await workspace.snapshot()).map((c) => c.path);
       const thisTry = this.readExplanation(output);
       explanation = thisTry ?? explanation;
@@ -636,6 +653,8 @@ export class MinimalLoopService {
     order: WorkOrder | null,
     tally: RunTally,
     tier?: ModelTier,
+    /** 같은 팀원의 앞 세션을 잇는다(userMessage 에는 새 말만) */
+    continueFrom?: string,
   ): Promise<unknown> {
     const setting = tier === undefined ? this.deps.roles.get(role) : this.deps.roles.forAssignment(role, tier);
     const writeRole = ROLE_INFO[role].writeRole;
@@ -647,9 +666,11 @@ export class MinimalLoopService {
       canWrite: (path) => order !== null && order.allowsWrite(writeRole, path),
       kits: ToolKits.for(role, tally.request),
       request: tally.request,
+      ...(continueFrom !== undefined ? { continueFrom } : {}),
     };
     this.deps.progress.step(`${ROLE_INFO[role].stepName} 작업 중…`, role);
     const result = await this.deps.team.run(call);
+    this.lastSessionId = result.output !== null ? result.sessionId : undefined;
     const attempt = tally.add(call, result);
     await this.deps.log.recordCall(role, attempt, call, result);
     if (result.blocked) {
