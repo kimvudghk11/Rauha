@@ -173,6 +173,26 @@ describe('AnalysisService', () => {
     expect(result.brief).toBeNull();
   });
 
+  it('방향 비교는 같은 팀원의 조사 세션을 이어서 한다(조사 내용·요청을 다시 보내지 않아 다시 읽지 않는다)', async () => {
+    const team = new FakeTeam([{ ...ok(investigationOut()), sessionId: 'inv-1' }, directionsOut]);
+    const user = fakeUser({ directions: [{ kind: 'pick', id: 'b', reason: '락이 단순하다' }] });
+    await service(team, new FakeDocs(), { user: user.port }).run(input({ reach: 'compare' }));
+    expect(team.calls[0]!.continueFrom).toBeUndefined();
+    expect(team.calls[1]!.continueFrom).toBe('inv-1');
+    expect(team.calls[1]!.userMessage).toContain('<job>compare</job>');
+    expect(team.calls[1]!.userMessage).not.toContain('<investigation>');
+  });
+
+  it('조사 세션 이어 하기가 안 되면 방향 비교만 처음처럼 모두 보낸다', async () => {
+    const team = new FakeTeam([{ ...ok(investigationOut()), sessionId: 'inv-1' }, { output: null, error: 'No conversation found', fetched: [], usage }, directionsOut]);
+    const user = fakeUser({ directions: [{ kind: 'pick', id: 'b', reason: '락이 단순하다' }] });
+    const result = await service(team, new FakeDocs(), { user: user.port }).run(input({ reach: 'compare' }));
+    expect(team.calls).toHaveLength(3);
+    expect(team.calls[2]!.continueFrom).toBeUndefined();
+    expect(team.calls[2]!.userMessage).toContain('<investigation>');
+    expect(result.run.directions).not.toBeNull();
+  });
+
   it('방향 비교만 하기로 했어도 "설계·계획까지"를 고르면 이어 간다', async () => {
     const team = new FakeTeam(full());
     const user = fakeUser({ directions: [{ kind: 'pick', id: 'a', goOn: true }], decisions: [{ kind: 'proceed' }] });

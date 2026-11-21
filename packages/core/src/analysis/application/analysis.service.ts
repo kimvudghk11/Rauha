@@ -43,6 +43,8 @@ interface Session {
   path: string | null;
   docProblem: string | null;
   readonly cost: Record<ModelTier, { calls: number; costUsd: number }>;
+  /** 마지막으로 보고를 낸 팀원과 그 세션. 같은 팀원이 다음 단계를 맡으면 이어서 한다(읽은 파일을 다시 읽지 않게) */
+  last: { readonly role: MemberRole; readonly id: string } | null;
 }
 
 /**
@@ -55,7 +57,7 @@ export class AnalysisService implements AnalysisPort {
 
   async run(input: AnalysisInput): Promise<AnalysisResult> {
     const run = AnalysisRun.start({ id: this.deps.newId(), request: input.request, reach: AnalysisReach.of(input.reach, input.request).limitedBy(this.budget()), date: this.deps.today() });
-    const s: Session = { run, input, path: null, docProblem: null, cost: { sonnet: { calls: 0, costUsd: 0 }, opus: { calls: 0, costUsd: 0 }, fable: { calls: 0, costUsd: 0 } } };
+    const s: Session = { run, input, path: null, docProblem: null, cost: { sonnet: { calls: 0, costUsd: 0 }, opus: { calls: 0, costUsd: 0 }, fable: { calls: 0, costUsd: 0 } }, last: null };
 
     for (let step = run.next(); step !== 'done'; step = run.next()) {
       if (run.pauseIfTight(this.budget())) break;
@@ -91,7 +93,10 @@ export class AnalysisService implements AnalysisPort {
     const { run, input } = s;
     this.deps.progress.step('고치는 방향을 비교하는 중…', input.role);
     const parts = [...this.head(input), this.investigationBlock(run), '<job>compare</job>'];
-    const read = await this.ask(s, input.role, this.deps.roles.get(input.role), parts, DIRECTIONS_SCHEMA, (out) => DirectionsDto.from(out).toEntity(), ToolKits.for(input.role, input.request));
+    // 조사한 팀원이 그대로 비교하면 조사 세션을 잇는다: 요청·조사 내용·읽은 파일이 대화에 이미 있다
+    const from = s.last?.role === input.role ? s.last.id : undefined;
+    const followUp = from !== undefined ? { continueFrom: from, parts: ['<job>compare</job>', '방금 조사한 내용으로 고치는 방향을 비교하세요. 이미 읽은 파일은 다시 열지 말고, 새로 필요한 것만 여세요.'] } : undefined;
+    const read = await this.ask(s, input.role, this.deps.roles.get(input.role), parts, DIRECTIONS_SCHEMA, (out) => DirectionsDto.from(out).toEntity(), ToolKits.for(input.role, input.request), followUp);
     if (read !== null) run.offerDirections(read);
   }
 
@@ -146,8 +151,19 @@ export class AnalysisService implements AnalysisPort {
    * 팀원 한 번 호출. 보고 형식이 안 맞으면 이유를 달아 한 번 더 부르고, 그래도 안 되면 분석을 멈춘다.
    * 계정 문제로 막혔으면 바로 멈춘다(다시 불러도 같다). 읽은 값, 못 읽었으면 null.
    */
-  private async ask<T>(s: Session, role: MemberRole, setting: RoleSetting, parts: readonly string[], schema: Record<string, unknown>, read: (output: unknown) => T, kits: ReturnType<typeof ToolKits.for>): Promise<T | null> {
+  private async ask<T>(
+    s: Session,
+    role: MemberRole,
+    setting: RoleSetting,
+    parts: readonly string[],
+    schema: Record<string, unknown>,
+    read: (output: unknown) => T,
+    kits: ReturnType<typeof ToolKits.for>,
+    /** 같은 팀원의 앞 세션을 이을 때 보낼 새 말. 이어 하기가 안 되면 parts 를 모두 보낸다 */
+    followUp?: { readonly continueFrom: string; readonly parts: readonly string[] },
+  ): Promise<T | null> {
     let feedback: string | null = null;
+    let continuing = followUp;
     for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
       const result: MemberResult = await this.deps.team.run({
         role,
@@ -156,11 +172,18 @@ export class AnalysisService implements AnalysisPort {
         canWrite: () => false,
         ...(s.input.readDirs !== undefined && s.input.readDirs.length > 0 ? { additionalDirectories: s.input.readDirs } : {}),
         ...(kits.length > 0 ? { kits } : {}),
-        userMessage: [...parts, feedback === null ? '' : `<previous_attempt>\n지난 보고가 거부됐습니다: ${feedback}\n</previous_attempt>`].filter((p) => p !== '').join('\n\n'),
+        userMessage: [...(continuing?.parts ?? parts), feedback === null ? '' : `<previous_attempt>\n지난 보고가 거부됐습니다: ${feedback}\n</previous_attempt>`].filter((p) => p !== '').join('\n\n'),
+        ...(continuing !== undefined ? { continueFrom: continuing.continueFrom } : {}),
       });
       const spent = s.cost[setting.tier];
       spent.calls += 1;
       spent.costUsd += result.usage.costUsd;
+      // 이어 하기가 안 되면(세션이 없어짐 등) 시도 수를 쓰지 않고 처음처럼 모두 보내 다시 한다
+      if (continuing !== undefined && result.output === null && !result.blocked) {
+        continuing = undefined;
+        attempt -= 1;
+        continue;
+      }
       if (result.blocked) {
         if (result.blocked.reason === 'cancelled') s.run.stop('user', '작업을 멈춰서 여기서 멈췄어요.');
         else s.run.stop('blocked', result.blocked.message);
@@ -173,7 +196,9 @@ export class AnalysisService implements AnalysisPort {
         return null;
       }
       try {
-        return read(result.output);
+        const value = read(result.output);
+        s.last = result.sessionId !== undefined ? { role, id: result.sessionId } : null;
+        return value;
       } catch (error) {
         if (!(error instanceof DomainError)) throw error;
         feedback = error.message;
