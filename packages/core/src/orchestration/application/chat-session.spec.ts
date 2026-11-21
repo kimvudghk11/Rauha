@@ -1569,9 +1569,16 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
 
   it('저장소를 가리키지 않는 가벼운 질문은 라우터가 light 면 가볍게(sonnet) 답하고 더 깊게 물을 수 있다', async () => {
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
-    const turn = await session({ team }).handle('모노레포할 때 어떻게 구성할까?');
+    const turn = await session({ team }).handle('REST가 뭐야?');
     expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
     expect(turn).toMatchObject({ kind: 'answer', canGoDeeper: true });
+  });
+
+  it('아키텍처 질문(구성·합치기·나누기·전환)은 내 환경을 읽고 처음부터 한 단계 위(opus)가 답한다', async () => {
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
+    const turn = await session({ team }).handle('찢어진 레포들을 모노레포로 합치려면 어떻게 구성할까?');
+    expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'opus' });
+    expect(turn).toMatchObject({ kind: 'answer', canGoDeeper: false });
   });
 
   it('light 답은 이미 저장된 저장소 지식이 있으면 그것만 쓴다', async () => {

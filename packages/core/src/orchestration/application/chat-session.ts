@@ -14,7 +14,7 @@ import { TodoAsk, type TodoCard, type TodoItem } from '../domain/todo-ask.js';
 import { RepoDigest, type DigestRepo } from '../domain/repo-digest.js';
 import { TodoItemsDto } from './dto/todo-items.dto.js';
 import type { CompanyEntry } from '../domain/company-book.js';
-import { answerDepthOf, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
+import { answerDepthOf, asksArchitecture, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
 import { AnswerDto } from './dto/answer.dto.js';
 import { CoverageDto } from './dto/coverage.dto.js';
@@ -321,11 +321,13 @@ export class ChatSession {
     const digest = workLog === '' ? await this.digestOf(input) : null;
     // 스탠드업·여러 저장소 변경 묶음은 rauha가 모은 사실로 쓰므로 가벼운 질문으로 보지 않는다(근거 확인·빠진 항목 마저 하기를 한다)
     const depth = force === 'deep' || workLog !== '' || (digest !== null && digest.repos > 1) ? 'deep' : answerDepthOf(route.depth, input);
+    // 아키텍처 질문은 조언의 질이 크게 갈려서 "더 깊게"를 기다리지 않고 처음부터 한 단계 위가 답한다
+    const deeper = force === 'deep' || asksArchitecture(input);
     const known = await this.knowledgeFor(depth);
-    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''), force === 'deep');
+    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''), deeper);
     const first = await this.answer(input, asked, started, depth, also, digest?.seen ?? []);
     // sonnet 이 깊게 답했어도 "더 깊게"로 한 단계 위(opus)에게 다시 물을 수 있다
-    const answered = first.kind === 'answer' && force !== 'deep' && this.deps.roles.deeperAnswerer().tier !== this.deps.roles.get('answerer').tier ? { ...first, canGoDeeper: true } : first;
+    const answered = first.kind === 'answer' && !deeper && this.deps.roles.deeperAnswerer().tier !== this.deps.roles.get('answerer').tier ? { ...first, canGoDeeper: true } : first;
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
     if (answered.kind === 'answer' && depth === 'deep') this.surveyInBackground();
     return answered;

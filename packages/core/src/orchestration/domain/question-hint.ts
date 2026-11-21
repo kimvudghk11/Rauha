@@ -19,12 +19,22 @@ export function pointsAtRepository(input: string): boolean {
   return REPO_WORDS.test(input.replace(REPO_CONCEPTS, ' '));
 }
 
+const ARCHITECTURE = /구성|구조|설계|아키텍[처쳐]|모노\s?레포|멀티\s?레포|폴리\s?레포|(레포|저장소|서비스|모듈|프로젝트|패키지|앱).{0,12}(합치|합칠|통합|나누|나눌|쪼개|분리)|(합치|합칠|통합|나누|나눌|쪼개|분리).{0,12}(레포|저장소|서비스|모듈|프로젝트|패키지|앱)|마이크로\s?서비스|전환할|마이그레이션|도입할|확장성|트레이드\s?오프|\bvs\.?\b|\b(architect\w*|monorepo|polyrepo|microservices?|trade-?offs?|scalability)\b/i;
+
 /**
- * 질문에 얼마나 깊이 답할지. 이 저장소를 가리키면 깊게, 인사는 가볍게, 나머지는 라우터 판단을 따른다.
+ * 구성·설계·합치기·나누기·전환·비교 같은 아키텍처 질문인지. 이런 질문은 갈라진 저장소를 합치는지, 새로 짜는지, 어떤 스택·배포 환경인지에 따라
+ * 답이 달라서(2026-11-21 사용자: "무조건 모노는 아니야, 찢어진 걸 모노로 만들 수도 있고 다양한 환경에서") 일반론으로 가볍게 답하지 않는다.
+ */
+export function asksArchitecture(input: string): boolean {
+  return ARCHITECTURE.test(input);
+}
+
+/**
+ * 질문에 얼마나 깊이 답할지. 이 저장소를 가리키거나 아키텍처 질문이면 깊게, 인사는 가볍게, 나머지는 라우터 판단을 따른다.
  * (2026-11-21 사용자: 간단한 질문까지 깊게 돌려 세션을 크게 쓰지 말고, 일마다 알맞게 나눠 툭툭 끝낼 것)
  */
 export function answerDepthOf(routed: 'light' | 'deep', input: string): 'light' | 'deep' {
-  if (pointsAtRepository(input)) return 'deep';
+  if (pointsAtRepository(input) || asksArchitecture(input)) return 'deep';
   return isSmallTalk(input) ? 'light' : routed;
 }
 

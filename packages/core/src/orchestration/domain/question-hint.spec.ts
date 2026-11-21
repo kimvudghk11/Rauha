@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerDepthOf, isSmallTalk, pointsAtRepository, onlyDocuments, sameQuestionKey, wantsToProceed } from './question-hint.js';
+import { answerDepthOf, asksArchitecture, isSmallTalk, pointsAtRepository, onlyDocuments, sameQuestionKey, wantsToProceed } from './question-hint.js';
 
 describe('isSmallTalk', () => {
   it('짧은 인사·맞장구는 인사로 본다', () => {
@@ -49,11 +49,29 @@ describe('answerDepthOf', () => {
     expect(answerDepthOf('light', 'src/money.ts 뭐 해?')).toBe('deep');
   });
 
+  it('구성·설계·합치기·나누기 같은 아키텍처 질문은 내 환경을 읽어야 해서 라우터가 light 라 해도 deep 이다', () => {
+    for (const text of ['모노레포할 때 어떻게 구성할까?', '찢어진 레포들을 모노레포로 합치려면?', '서비스를 마이크로서비스로 나눌까?', 'REST에서 GraphQL로 전환할까', 'Nx vs Turborepo 뭐가 나아?']) expect(answerDepthOf('light', text), text).toBe('deep');
+  });
+
   it('저장소를 가리키지 않는 질문은 라우터 판단을 따른다(간단한 질문은 가볍게 빨리)', () => {
     expect(answerDepthOf('light', '1+1은 얼마야?')).toBe('light');
-    expect(answerDepthOf('light', '모노레포할 때 어떻게 구성할까?')).toBe('light');
+    expect(answerDepthOf('light', 'REST가 뭐야?')).toBe('light');
     expect(answerDepthOf('deep', '이 함수 어디서 써?')).toBe('deep');
     expect(answerDepthOf('deep', '안녕')).toBe('light');
+  });
+});
+
+describe('asksArchitecture', () => {
+  it('구성·설계·아키텍처·합치기·나누기·전환·비교는 아키텍처 질문이다', () => {
+    for (const text of ['모노레포 구성', '폴더 구조를 어떻게 설계할까', '아키텍처 추천해줘', '레포 합치기', '모듈 분리', 'DB 마이그레이션 전략', 'Nx vs Turborepo', 'monorepo setup', 'how should we architect this']) expect(asksArchitecture(text), text).toBe(true);
+  });
+
+  it('인사·용어 뜻·산수는 아키텍처 질문이 아니다', () => {
+    for (const text of ['안녕', 'REST가 뭐야?', '1+1은 얼마야?', '오늘 날짜']) expect(asksArchitecture(text), text).toBe(false);
+  });
+
+  it('흔한 말에 섞인 낱말로 opus 를 부르지 않는다(이전 답, git merge, eslint setup, 이미지 scale)', () => {
+    for (const text of ['이전 답 다시 보여줘', 'git merge 하는 법', 'eslint setup 어떻게 해', '이미지 scale 하는 css', 'split 함수 쓰는 법', '분리수거 요일']) expect(asksArchitecture(text), text).toBe(false);
   });
 });
 
