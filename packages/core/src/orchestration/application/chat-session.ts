@@ -20,7 +20,7 @@ import { AnswerDto } from './dto/answer.dto.js';
 import { CoverageDto } from './dto/coverage.dto.js';
 import type { RequestCoverage } from '../domain/request-coverage.js';
 import type { MemberRole, RoleSetting, RoleSettingsDto } from './dto/role-settings.dto.js';
-import type { ChatSnapshot } from './dto/chat-snapshot.dto.js';
+import type { AnswerSession, ChatSnapshot } from './dto/chat-snapshot.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import { RouteDto, type Route } from './dto/route.dto.js';
@@ -129,6 +129,8 @@ export interface WorkspaceKnown {
 /** 이어지는 질문이 앞 답의 세션을 잇는 횟수와 시간 상한 */
 const CHAIN_MAX = 4;
 const CHAIN_MS = 30 * 60 * 1000;
+/** 앞 답 때 모습으로 남겨 둘 커밋 안 한 파일 수 상한(넘으면 바뀐 파일을 알려 주지 않는다) */
+const CHAIN_FILES_MAX = 200;
 const CHAIN_NOTE = '같은 대화의 다음 질문입니다. 앞에서 읽은 파일과 저장소 지식은 다시 열지 말고, 이 질문에 새로 필요한 것만 여세요.';
 const DEEPER_NOTE = '같은 질문을 더 깊게 다시 답합니다. 앞 답에서 빠졌거나 확인하지 않은 것을 확인해 더 정확하고 자세하게 답하세요. 이미 읽은 파일은 다시 열지 마세요.';
 /** 지금 누가 잇고 있는 답 세션. 앱은 같은 저장본으로 여러 일을 동시에 돌리므로, 같은 세션을 둘이 동시에 이으면 대화가 꼬인다 */
@@ -229,7 +231,7 @@ export class ChatSession {
   /** 이번 차례에 붙일 작업 공간 지식 묶음(깊은 일에서만 채운다) */
   private workspaceKnown = '';
   /** 마지막 깊은 답의 세션(이어지는 질문이 잇는다). 다른 일을 하면 버린다 */
-  private answerChain: { readonly id: string; readonly tier: ModelTier; readonly at: number; readonly count: number } | null = null;
+  private answerChain: AnswerSession | null = null;
   /** 바로 앞 답(가벼운 답 포함)의 세션과 그 질문. "더 깊게"로 같은 질문을 다시 물으면 잇는다 */
   private lastAnswer: { readonly id: string; readonly key: string } | null = null;
   private held: HeldRequest | null = null;
@@ -723,6 +725,27 @@ ${SINGLE_REPO_NOTE}
     return this.workspaceKnown === '' ? listing : `${listing}\n\n${this.workspaceKnown}`;
   }
 
+  /** 커밋 안 한 파일 → 내용 해시(앞 답 때의 모습). 못 읽거나 너무 많으면 undefined(그때는 바뀐 파일을 알려 주지 못한다) */
+  private async dirtyFiles(): Promise<readonly (readonly [string, string])[] | undefined> {
+    try {
+      const snap = await this.deps.workspace.snapshot?.();
+      if (snap === undefined || snap.files.size > CHAIN_FILES_MAX) return undefined;
+      return [...snap.files].sort(([a], [b]) => a.localeCompare(b));
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** 앞 답 뒤에 내용이 바뀌었거나 생기거나 사라진 파일(커밋 안 한 것 기준). 앞 모습을 모르면 빈 목록 */
+  private async changedSince(before: readonly (readonly [string, string])[] | undefined): Promise<string[]> {
+    if (before === undefined) return [];
+    const now = await this.dirtyFiles();
+    if (now === undefined) return [];
+    const a = new Map(before);
+    const b = new Map(now);
+    return [...new Set([...a.keys(), ...b.keys()])].filter((p) => a.get(p) !== b.get(p)).sort();
+  }
+
   /** 깊은 일 직전에 작업 공간 저장소들의 저장해 둔 지식을 읽어 둔다(파일만, 모델 호출 없음). 가벼운 일에는 비워 둔다. */
   private async loadWorkspaceKnown(): Promise<void> {
     this.workspaceKnown = '';
@@ -799,14 +822,20 @@ ${SINGLE_REPO_NOTE}
     if (from !== null) {
       CHAINS_IN_USE.add(from);
       try {
-        chained = await send([`<today>${this.deps.today()}</today>`, `<now>${this.deps.nowText()}</now>`, block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '', `<question>\n${input}\n</question>`], from, redo !== null ? DEEPER_NOTE : CHAIN_NOTE);
+        // 앞 답 뒤에 바뀐 파일(사용자가 편집기에서 고친 것 등)은 다시 열어 보게 한다: 대화에 남은 예전 내용으로 답하지 않게
+        const changed = canChain ? await this.changedSince(chain!.files) : [];
+        const changedBlock = changed.length > 0 ? `<changed_since>\n앞 답 뒤에 바뀐 파일입니다. 이 파일은 대화에 남은 내용을 믿지 말고 다시 열어 지금 내용을 확인하세요.\n${changed.map((p) => `- ${p}`).join('\n')}\n</changed_since>` : '';
+        chained = await send([`<today>${this.deps.today()}</today>`, `<now>${this.deps.nowText()}</now>`, block !== '' ? `<memory>\n기억된 지난 작업과 그때의 결정입니다.\n${block}\n</memory>` : '', changedBlock, `<question>\n${input}\n</question>`], from, redo !== null ? DEEPER_NOTE : CHAIN_NOTE);
       } finally {
         CHAINS_IN_USE.delete(from);
       }
     }
     const kept = chained !== null && (chained.output !== null || chained.blocked) ? chained : null;
     const result = kept ?? (await send([]));
-    if (depth === 'deep') this.answerChain = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, tier: setting.tier, at: this.deps.now(), count: kept !== null && redo === null ? chain!.count + 1 : 0 } : null;
+    if (depth === 'deep') {
+      const files = result.sessionId !== undefined && result.output !== null ? await this.dirtyFiles() : undefined;
+      this.answerChain = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, tier: setting.tier, at: this.deps.now(), count: kept !== null && redo === null ? chain!.count + 1 : 0, ...(files !== undefined ? { files } : {}) } : null;
+    }
     this.lastAnswer = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, key: sameQuestionKey(input) } : null;
     // 빠진 항목 마저 하기는 같은 세션을 이어서 새 말만 보낸다(읽은 파일을 다시 읽지 않게). 이어 하기가 안 되면 처음처럼 모두 보낸다.
     let last = result.sessionId;

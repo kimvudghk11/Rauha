@@ -267,6 +267,24 @@ describe('ChatSession — 질문', () => {
       expect(next!.message).not.toContain('<conversation>');
     });
 
+    it('앞 답 뒤에 사용자가 고친 파일은 이어지는 질문에 알려 다시 열어 확인하게 한다(예전 내용으로 답하지 않게)', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('question'), route('question')], answerer: [reply] });
+      team.sessions = 'on';
+      let files = new Map([['src/a.ts', 'h1']]);
+      const deps = sessionDeps({ team });
+      const chat = ChatSession.start({ ...deps, workspace: { ...deps.workspace, snapshot: async () => ({ files }) } });
+      await chat.handle('이 함수 어디서 써?');
+      files = new Map([['src/a.ts', 'h2'], ['src/b.ts', 'h3']]);
+      await chat.handle('그럼 테스트는 어디 있어?');
+      const second = team.calls.filter((c) => c.role === 'answerer')[1]!;
+      expect(second.continueFrom).toBeDefined();
+      expect(second.message).toContain('<changed_since>');
+      expect(second.message).toContain('src/a.ts');
+      expect(second.message).toContain('src/b.ts');
+      await chat.handle('문서는?');
+      expect(team.calls.filter((c) => c.role === 'answerer')[2]!.message).not.toContain('<changed_since>');
+    });
+
     it('사이에 다른 일(문서·작업)이 끼면 파일이 바뀌었을 수 있어 잇지 않는다', async () => {
       const team = new FakeTeam({ router: [route('question'), route('task'), route('question')], answerer: [reply], writer: [() => ({ summary: '썼어요', files: ['docs/a.md'], asks: [], scope: [] })] });
       team.sessions = 'on';

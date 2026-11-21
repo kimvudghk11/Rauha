@@ -31,6 +31,8 @@ export interface AnswerSession {
   readonly at: number;
   /** 지금까지 이은 횟수 */
   readonly count: number;
+  /** 그 답 때 커밋 안 한 파일 → 내용 해시(다음 질문 전에 바뀐 파일을 알려 주려고). 못 읽었으면 없다 */
+  readonly files?: readonly (readonly [string, string])[];
 }
 
 const isString = (v: unknown): v is string => typeof v === 'string';
@@ -42,7 +44,9 @@ function answerSessionFrom(v: unknown): AnswerSession | undefined {
   const tier = o['tier'];
   if (!isString(o['id']) || o['id'] === '' || (tier !== 'sonnet' && tier !== 'opus' && tier !== 'fable')) return undefined;
   if (typeof o['at'] !== 'number' || !Number.isFinite(o['at']) || typeof o['count'] !== 'number' || !Number.isInteger(o['count']) || o['count'] < 0) return undefined;
-  return { id: o['id'], tier, at: o['at'], count: o['count'] };
+  const files = o['files'];
+  const validFiles = Array.isArray(files) && files.every((f) => Array.isArray(f) && f.length === 2 && isString(f[0]) && isString(f[1]));
+  return { id: o['id'], tier, at: o['at'], count: o['count'], ...(validFiles ? { files: (files as [string, string][]).map(([p, h]) => [p, h] as const) } : {}) };
 }
 
 /**
