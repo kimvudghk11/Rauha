@@ -49,7 +49,9 @@ class FakeMemory implements MemoryPort {
 type Script = (call: MemberCall) => unknown;
 
 class FakeTeam implements TeamMemberPort {
-  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; effort: string; maxTurns: number; request?: string | undefined }[] = [];
+  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; effort: string; maxTurns: number; request?: string | undefined; continueFrom?: string | undefined }[] = [];
+  /** 켜면 호출마다 세션 id 를 돌려준다(이어 하기 확인용). failResume 이면 이어 하기 호출은 결과 없이 끝난다. */
+  sessions: 'off' | 'on' | 'failResume' = 'off';
   readonly prepared: MemberRole[] = [];
   /** 라우터가 이 약속이 풀릴 때까지 답하지 않게 한다(동시에 도는지 보려고). */
   routerGate: Promise<void> = Promise.resolve();
@@ -64,7 +66,11 @@ class FakeTeam implements TeamMemberPort {
     this.prepared.push(call.role);
   }
   async run(call: MemberCall): Promise<MemberResult> {
-    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier, effort: call.setting.effort, maxTurns: call.setting.maxTurns, request: call.request });
+    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier, effort: call.setting.effort, maxTurns: call.setting.maxTurns, request: call.request, continueFrom: call.continueFrom });
+    const sessionId = this.sessions === 'off' ? {} : { sessionId: `${call.role}-${this.calls.length}` };
+    if (this.sessions === 'failResume' && call.continueFrom !== undefined) {
+      return { output: null, error: 'No conversation found', fetched: [], usage: { model: call.setting.tier, durationMs: 1, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' } };
+    }
     if (call.role === 'router') await this.routerGate;
     if (call.role === this.limitOn) {
       const limited = "You've hit your session limit · resets 9:40pm";
@@ -77,6 +83,7 @@ class FakeTeam implements TeamMemberPort {
       error: null,
       usage: { model: call.setting.tier, durationMs: 5, costUsd: 0.002, turns: 1, inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, denials: [], endReason: 'success', ...(this.tools[call.role] !== undefined ? { tools: this.tools[call.role] } : {}) },
       fetched: [],
+      ...sessionId,
     };
   }
 }
@@ -224,6 +231,50 @@ describe('ChatSession — 질문', () => {
     expect(message).toContain('<memory>');
     expect(message).toContain('Math.floor를 할인 후 금액에 씀');
     expect(turn.kind === 'answer' && turn.checked[0]!.isGuess).toBe(false);
+  });
+
+  describe('빠진 항목 마저 하기는 같은 세션을 잇는다', () => {
+    const partial = () => ({ answer: '결제 흐름은 …', claims: [], asks: [{ ask: '결제 흐름', status: 'done', note: '', needs: '' }, { ask: '환불 흐름', status: 'partial', note: 'refund 폴더를 아직 안 읽음', needs: '' }], scope: [] });
+    const full = () => ({ answer: '결제·환불 흐름은 …', claims: [], asks: [{ ask: '결제 흐름', status: 'done', note: '', needs: '' }, { ask: '환불 흐름', status: 'done', note: '', needs: '' }], scope: [] });
+
+    it('답변 팀원: 앞 세션을 이어 새 말만 보낸다(질문·저장소 지식을 다시 보내지 않는다)', async () => {
+      const team = new FakeTeam({ router: [route('question', false, null, { depth: 'deep' })], answerer: [partial, full] });
+      team.sessions = 'on';
+      const turn = await session({ team }).handle('결제랑 환불 흐름 정리해줘');
+      const [first, again] = team.calls.filter((c) => c.role === 'answerer');
+      expect(first!.continueFrom).toBeUndefined();
+      expect(again!.continueFrom).toBe(first && 'answerer-2');
+      expect(again!.message).not.toContain('<question>');
+      expect(again!.message).toContain('다시 열지');
+      expect(turn.kind === 'answer' && turn.answer).toContain('결제·환불 흐름은');
+    });
+
+    it('답변 팀원: 이어 하기가 안 되면 처음처럼 모두 보내 마저 한다', async () => {
+      const team = new FakeTeam({ router: [route('question', false, null, { depth: 'deep' })], answerer: [partial, full] });
+      team.sessions = 'failResume';
+      const turn = await session({ team }).handle('결제랑 환불 흐름 정리해줘');
+      const answers = team.calls.filter((c) => c.role === 'answerer');
+      expect(answers).toHaveLength(3);
+      expect(answers[2]!.continueFrom).toBeUndefined();
+      expect(answers[2]!.message).toContain('<question>');
+      expect(turn.kind === 'answer' && turn.answer).toContain('결제·환불 흐름은');
+    });
+
+    it('문서 팀원: 앞 세션을 이어 빠진 것만 채운다', async () => {
+      const team = new FakeTeam({
+        router: [route('task')],
+        writer: [
+          () => ({ summary: '1차', files: ['docs/a.md'], asks: [{ ask: '두 저장소 정리', status: 'done', note: '', needs: '' }], scope: ['shop-web'] }),
+          () => ({ summary: '2차', files: ['docs/a.md'], asks: [{ ask: '두 저장소 정리', status: 'done', note: '', needs: '' }], scope: [] }),
+        ],
+      });
+      team.sessions = 'on';
+      await ChatSession.start({ ...sessionDeps({ team }), repoName: 'shop-api' }).handle('두 레포 정리해서 md로', [{ name: 'shop-web', root: 'E:/w/shop-web', knowledge: null }]);
+      const [first, again] = team.calls.filter((c) => c.role === 'writer');
+      expect(first!.continueFrom).toBeUndefined();
+      expect(again!.continueFrom).toBeDefined();
+      expect(again!.message).not.toContain('<request>');
+    });
   });
 
   it('팀이 더 하면 끝나는 항목이 남으면 같은 답변 팀원을 한 번 더 불러 마저 하게 하고, 끝난 표를 답 아래에 붙인다', async () => {

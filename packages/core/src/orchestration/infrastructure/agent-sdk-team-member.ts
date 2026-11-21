@@ -147,7 +147,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     if (this.cancelled || call.signal?.aborted === true) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, 0), fetched: [], blocked: CANCELLED };
     const db = await this.databaseFor(call);
     // DB 도구를 붙이는 호출은 띄울 때의 설정이 달라 미리 띄운 프로세스를 쓰지 않는다(그 프로세스는 남겨 둔다)
-    const spare = db === null ? this.takeSpare(call) : null;
+    const spare = db === null && call.continueFrom === undefined ? this.takeSpare(call) : null;
     // 가드는 도구 호출 때마다 이 값을 읽는다. 미리 띄운 프로세스도 메시지를 보내기 전에 이번 요청으로 맞춘다.
     const intent = GitPublishIntent.from(call.request ?? '');
     const connectorIntent = ConnectorWriteIntent.from(call.request ?? '');
@@ -217,7 +217,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       const error = `${result.subtype}: ${result.errors.join(' / ')}`;
       return { output: null, error, usage, fetched, blocked: accountBlock(error), partial, opened: [...openedPaths] };
     }
-    return { output: result.structured_output ?? null, error: result.structured_output === undefined ? '구조화 출력이 없습니다.' : null, usage, fetched, partial, opened: [...openedPaths] };
+    return { output: result.structured_output ?? null, error: result.structured_output === undefined ? '구조화 출력이 없습니다.' : null, usage, fetched, partial, opened: [...openedPaths], sessionId: result.session_id };
   }
 
   /** 다른 폴더도 읽거나 도구 묶음을 붙이는 호출은 띄울 때의 설정이 달라서 미리 띄운 프로세스를 쓰지 않는다. */
@@ -243,7 +243,9 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const session = newSession();
     session.intent.current = intent;
     session.connectorIntent.current = ConnectorWriteIntent.from(call.request ?? '');
-    return { ...session, messages: query({ prompt: call.userMessage, options: this.sdkOptions(call, session, db) }) };
+    // 앞 호출을 이으면 그 세션을 다시 연다: 읽은 파일이 대화에 남아 있어 새로 할 말만 보낸다
+    const options = this.sdkOptions(call, session, db);
+    return { ...session, messages: query({ prompt: call.userMessage, options: call.continueFrom !== undefined ? { ...options, resume: call.continueFrom } : options }) };
   }
 
   /** 한 호출 동안은 처음 읽은 목록을 다시 쓴다(도구 호출마다 git을 부르지 않게). */

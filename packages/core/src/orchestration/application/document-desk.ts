@@ -1,5 +1,5 @@
 import { ToolKits } from '../domain/tool-kit.js';
-import type { DeskHost } from './desk-host.js';
+import { CONTINUE_NOTE, type DeskHost } from './desk-host.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
 import { CoverageDto } from './dto/coverage.dto.js';
 import type { RequestCoverage } from '../domain/request-coverage.js';
@@ -68,15 +68,23 @@ export class DocumentDesk {
       facts?.block ?? '',
       `<request>\n${input}\n</request>`,
     ];
-    const call = (more: readonly string[]) =>
+    const send = (more: readonly string[], from?: string) =>
       this.host.member(
         'writer',
-        [...parts, ...more],
+        from !== undefined ? [...more, CONTINUE_NOTE] : [...parts, ...more],
         WRITER_SCHEMA,
         // 노션·컨플루언스 같은 업무 도구에 정리하라는 요청이면 커넥터를 붙이고, 시킨 쓰기는 묻지 않게 요청을 넘긴다
-        { dirs, canWrite: (path) => /\.md$/i.test(path), kits: ToolKits.for('writer', input), ...(ToolKits.for('writer', input).includes('connectors') ? { request: input } : {}) },
+        { dirs, canWrite: (path) => /\.md$/i.test(path), kits: ToolKits.for('writer', input), ...(ToolKits.for('writer', input).includes('connectors') ? { request: input } : {}), ...(from !== undefined ? { continueFrom: from } : {}) },
       );
-    const first = await call([]);
+    const first = await send([]);
+    // 빠진 항목 마저 채우기는 같은 세션을 잇는다(읽은 파일을 다시 읽지 않게). 이어 하기가 안 되면 처음처럼 모두 보낸다.
+    const call = async (more: readonly string[]) => {
+      if (first.sessionId !== undefined) {
+        const continued = await send(more, first.sessionId);
+        if (continued.output !== null || continued.blocked) return continued;
+      }
+      return send(more);
+    };
     if (first.blocked) return { kind: 'blocked', ...first.blocked };
     const { result, coverage, earlierFiles } = await this.finishAsks(first, call, facts?.seen ?? []);
     const report = WriterReportDto.read(result.output);

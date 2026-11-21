@@ -32,7 +32,7 @@ import type { RunContextBlocks, RunOutcome } from './minimal-loop.service.js';
 import type { SessionBudget } from '../domain/session-budget.js';
 import { ToolKits } from '../domain/tool-kit.js';
 import { CompanyDesk } from './company-desk.js';
-import type { DeskHost, Known, MemberOptions } from './desk-host.js';
+import { CONTINUE_NOTE, type DeskHost, type Known, type MemberOptions } from './desk-host.js';
 import { DesignDesk } from './design-desk.js';
 import { DocumentDesk } from './document-desk.js';
 import { ManyRepoDesk, type RepoRunner } from './many-repo-desk.js';
@@ -744,15 +744,29 @@ ${SINGLE_REPO_NOTE}
       extra,
       `<question>\n${input}\n</question>`,
     ];
-    const call = (more: readonly string[]): Promise<MemberResult> => this.member(
+    const send = (more: readonly string[], from?: string): Promise<MemberResult> => this.member(
       'answerer',
-      [...parts, ...more],
+      from !== undefined ? [...more, CONTINUE_NOTE] : [...parts, ...more],
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
       // light는 도구 묶음(브라우저·AWS 설명이 수천 자)을 붙이지 않는다.
-      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : deeper ? { setting: this.deps.roles.deeperAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])] },
+      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : deeper ? { setting: this.deps.roles.deeperAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])], ...(from !== undefined ? { continueFrom: from } : {}) },
     );
-    const result = await call([]);
+    const result = await send([]);
+    // 빠진 항목 마저 하기는 같은 세션을 이어서 새 말만 보낸다(읽은 파일을 다시 읽지 않게). 이어 하기가 안 되면 처음처럼 모두 보낸다.
+    let last = result.sessionId;
+    const call = async (more: readonly string[]): Promise<MemberResult> => {
+      if (last !== undefined) {
+        const continued = await send(more, last);
+        if (continued.output !== null || continued.blocked) {
+          last = continued.sessionId ?? last;
+          return continued;
+        }
+      }
+      const fresh = await send(more);
+      last = fresh.sessionId ?? last;
+      return fresh;
+    };
     const basis =
       others.length === 0
         ? (known?.basis ?? null)
@@ -946,6 +960,7 @@ ${SINGLE_REPO_NOTE}
       ...(additionalDirectories.length > 0 ? { additionalDirectories } : {}),
       ...((options.kits?.length ?? 0) > 0 ? { kits: options.kits } : {}),
       ...(options.request !== undefined ? { request: options.request } : {}),
+      ...(options.continueFrom !== undefined ? { continueFrom: options.continueFrom } : {}),
     });
     this.costUsd += result.usage.costUsd;
     this.calls[call.setting.tier] += 1;

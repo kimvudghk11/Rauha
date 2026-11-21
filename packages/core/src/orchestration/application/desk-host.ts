@@ -21,7 +21,12 @@ export interface MemberOptions {
   readonly kits?: readonly ToolKit[];
   /** 사용자 원문 요청. 가드가 커밋·push·PR을 시켰는지 볼 때만 쓴다(없으면 시키지 않은 것). */
   readonly request?: string;
+  /** 같은 팀원의 앞 호출 세션을 잇는다(parts 에는 새로 할 말만). 읽은 파일을 다시 읽지 않게 */
+  readonly continueFrom?: string;
 }
+
+/** 앞 세션을 이을 때 덧붙이는 한 줄 */
+export const CONTINUE_NOTE = '이미 읽은 파일은 다시 열지 말고, 위에서 말한 빠진 것만 새로 여세요.';
 
 /**
  * 세션이 부서 데스크(회사 부서, 문서)에 빌려주는 것.

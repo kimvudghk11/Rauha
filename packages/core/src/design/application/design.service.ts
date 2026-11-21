@@ -82,19 +82,31 @@ export class DesignService implements DesignPort {
     let revisions = 0;
     let feedback: string | null = null;
     let retried = false;
+    /** 앞 차례의 세션. 이으면 그때 읽은 파일이 대화에 남아 있어 다시 읽지 않는다(새 답·고칠 점만 보낸다). */
+    let session: string | undefined;
 
     while (cost.calls < MAX_CALLS) {
       progress.step('설계를 정리하는 중…', 'designer');
-      const result = await team.run({
-        role: 'designer',
-        setting,
-        outputSchema: DESIGN_SCHEMA,
-        canWrite: () => false,
-        kits: ToolKits.for('designer', input.request),
-        userMessage: this.message(input, dialog, asked >= MAX_QUESTIONS, feedback),
-      });
+      const call = (continueFrom: string | undefined) =>
+        team.run({
+          role: 'designer',
+          setting,
+          outputSchema: DESIGN_SCHEMA,
+          canWrite: () => false,
+          kits: ToolKits.for('designer', input.request),
+          userMessage: continueFrom !== undefined ? this.followUp(dialog, asked >= MAX_QUESTIONS, feedback) : this.message(input, dialog, asked >= MAX_QUESTIONS, feedback),
+          ...(continueFrom !== undefined ? { continueFrom } : {}),
+        });
+      let result = await call(session);
       cost.calls += 1;
       cost.costUsd += result.usage.costUsd;
+      // 이어 하기가 안 되면(세션이 없어짐 등) 이 차례만 처음처럼 모두 보내 다시 한다
+      if (session !== undefined && result.output === null && !result.blocked) {
+        result = await call(undefined);
+        cost.calls += 1;
+        cost.costUsd += result.usage.costUsd;
+      }
+      session = result.sessionId ?? session;
       if (result.blocked) return { kind: 'blocked', block: result.blocked, cost: total() };
       const halt = stoppedMember(result);
       if (halt !== null) return { kind: 'stopped', message: halt.report(result.partial ?? null), cost: total() };
@@ -147,6 +159,20 @@ export class DesignService implements DesignPort {
       dialog.note !== null ? `<revision>\n사용자가 설계안을 보고 말한 고칠 점입니다. 반영해서 설계안을 다시 쓰세요.\n${dialog.note}\n</revision>` : '',
       mustDraft ? '<limits>\n더 묻지 말고 지금까지의 답으로 설계안을 쓰세요. 모르는 것은 추천값으로 정하고 decisions에 by "rauha"로 남기세요.\n</limits>' : '',
       feedback !== null ? `<previous_attempt>\n지난 답이 거부됐습니다: ${feedback}\n</previous_attempt>` : '',
+    ]
+      .filter((p) => p !== '')
+      .join('\n\n');
+  }
+
+  /** 같은 세션을 이을 때 보낼 새 말만: 방금 받은 답, 고칠 점, 한도, 거부 이유. 요청·지식·앞 초안은 대화에 이미 있다. */
+  private followUp(dialog: Dialog, mustDraft: boolean, feedback: string | null): string {
+    const last = dialog.note === null ? dialog.qa.at(-1) : undefined;
+    return [
+      last !== undefined ? `<answer>\n질문 ${dialog.qa.length}: ${last.q}\n답: ${last.a}\n</answer>` : '',
+      dialog.note !== null ? `<revision>\n사용자가 방금 쓴 설계안을 보고 말한 고칠 점입니다. 반영해서 설계안을 다시 쓰세요.\n${dialog.note}\n</revision>` : '',
+      mustDraft ? '<limits>\n더 묻지 말고 지금까지의 답으로 설계안을 쓰세요. 모르는 것은 추천값으로 정하고 decisions에 by "rauha"로 남기세요.\n</limits>' : '',
+      feedback !== null ? `<previous_attempt>\n지난 답이 거부됐습니다: ${feedback}\n</previous_attempt>` : '',
+      '이미 읽은 파일은 다시 열지 말고, 새로 필요한 것만 여세요.',
     ]
       .filter((p) => p !== '')
       .join('\n\n');

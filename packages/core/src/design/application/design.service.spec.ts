@@ -25,11 +25,18 @@ const draft = (title = '쿠폰 할인') => ({
 
 class FakeDesigner {
   readonly calls: MemberCall[] = [];
-  constructor(private readonly replies: unknown[], private readonly blockedAt: number | null = null) {}
+  constructor(
+    private readonly replies: unknown[],
+    private readonly blockedAt: number | null = null,
+    /** 이어 하기(continueFrom)를 실패로 돌려줄 호출 번호 */
+    private readonly resumeFailsAt: number | null = null,
+  ) {}
   async run(call: MemberCall): Promise<MemberResult> {
     this.calls.push(call);
-    if (this.blockedAt === this.calls.length) return { output: null, error: 'limit', fetched: [], usage, blocked: { reason: 'usage-limit', message: "You've hit your session limit" } };
-    return { output: this.replies.length > 1 ? this.replies.shift() : this.replies[0], error: null, fetched: [], usage };
+    const n = this.calls.length;
+    if (this.blockedAt === n) return { output: null, error: 'limit', fetched: [], usage, blocked: { reason: 'usage-limit', message: "You've hit your session limit" } };
+    if (this.resumeFailsAt === n && call.continueFrom !== undefined) return { output: null, error: 'No conversation found', fetched: [], usage };
+    return { output: this.replies.length > 1 ? this.replies.shift() : this.replies[0], error: null, fetched: [], usage, sessionId: `s${n}` };
   }
 }
 
@@ -62,6 +69,41 @@ function service(designer: FakeDesigner, u: DesignUserPort, saved: { name: strin
 
 const input = { request: '쿠폰 기능 만들어줘', repo: 'shop-api', knowledge: '<repo_knowledge/>', memory: null, conversation: null, basis: 'main (a1b2c3d)' };
 
+describe('DesignService — 같은 대화 잇기', () => {
+  it('다음 차례는 앞 세션을 이어서 새 답만 보낸다(저장소 지식·요청을 다시 보내지 않아 다시 읽지 않는다)', async () => {
+    const designer = new FakeDesigner([ask('중복 사용 되나요?'), draft()]);
+    const u = user({ answers: ['안 돼요'], approvals: [{ kind: 'approve' }] });
+    await service(designer, u.port).run(input);
+    const [first, second] = designer.calls;
+    expect(first!.continueFrom).toBeUndefined();
+    expect(first!.userMessage).toContain('<repo_knowledge/>');
+    expect(second!.continueFrom).toBe('s1');
+    expect(second!.userMessage).toContain('안 돼요');
+    expect(second!.userMessage).not.toContain('<repo_knowledge/>');
+    expect(second!.userMessage).not.toContain('<request>');
+  });
+
+  it('고칠 점을 말하면 같은 세션에 고칠 점만 보낸다', async () => {
+    const designer = new FakeDesigner([draft(), draft('쿠폰 할인 v2')]);
+    const u = user({ approvals: [{ kind: 'revise', note: '만료일 빼 주세요' }, { kind: 'approve' }] });
+    await service(designer, u.port).run(input);
+    expect(designer.calls[1]!.continueFrom).toBe('s1');
+    expect(designer.calls[1]!.userMessage).toContain('만료일 빼 주세요');
+    expect(designer.calls[1]!.userMessage).not.toContain('<last_draft>');
+  });
+
+  it('이어 하기가 실패하면(세션이 없어짐 등) 그 차례만 처음처럼 모두 보내 다시 한다', async () => {
+    const designer = new FakeDesigner([ask('중복 사용 되나요?'), draft()], null, 2);
+    const u = user({ answers: ['안 돼요'], approvals: [{ kind: 'approve' }] });
+    const result = await service(designer, u.port).run(input);
+    expect(result.kind).toBe('approved');
+    expect(designer.calls).toHaveLength(3);
+    expect(designer.calls[2]!.continueFrom).toBeUndefined();
+    expect(designer.calls[2]!.userMessage).toContain('<repo_knowledge/>');
+    expect(designer.calls[2]!.userMessage).toContain('안 돼요');
+  });
+});
+
 describe('DesignService', () => {
   it('요청이 분명하면 묻지 않고 바로 설계안을 만들어 승인받는다', async () => {
     const designer = new FakeDesigner([draft()]);
@@ -76,16 +118,25 @@ describe('DesignService', () => {
     expect(u.shown[0]!.summary.join('\n')).toContain('쿠폰 할인');
   });
 
-  it('한 번에 질문 하나씩 묻고, 답을 쌓아 다음 호출에 넘긴다', async () => {
+  it('한 번에 질문 하나씩 묻고, 같은 대화에 차례마다 새 답을 넘긴다', async () => {
     const designer = new FakeDesigner([ask('쿠폰은 중복 사용이 되나요?', '주문당 1개'), ask('만료일이 있나요?'), draft()]);
     const u = user({ answers: ['안 돼요', '네, 30일'], approvals: [{ kind: 'approve' }] });
     await service(designer, u.port).run(input);
     expect(u.asked.map((q) => q.question)).toEqual(['쿠폰은 중복 사용이 되나요?', '만료일이 있나요?']);
     expect(u.asked[0]).toMatchObject({ suggestion: '주문당 1개', round: 1 });
-    const last = designer.calls.at(-1)!.userMessage;
-    expect(last).toContain('쿠폰은 중복 사용이 되나요?');
-    expect(last).toContain('안 돼요');
-    expect(last).toContain('네, 30일');
+    expect(designer.calls[1]!.userMessage).toContain('안 돼요');
+    expect(designer.calls[2]!.userMessage).toContain('네, 30일');
+    expect(designer.calls[2]!.continueFrom).toBe('s2');
+  });
+
+  it('새 세션으로 처음부터 보낼 때는 그동안의 문답을 모두 담는다', async () => {
+    const designer = new FakeDesigner([ask('쿠폰은 중복 사용이 되나요?'), ask('만료일이 있나요?'), draft()], null, 3);
+    await service(designer, user({ answers: ['안 돼요', '네, 30일'], approvals: [{ kind: 'approve' }] }).port).run(input);
+    const fresh = designer.calls.at(-1)!;
+    expect(fresh.continueFrom).toBeUndefined();
+    expect(fresh.userMessage).toContain('쿠폰은 중복 사용이 되나요?');
+    expect(fresh.userMessage).toContain('안 돼요');
+    expect(fresh.userMessage).toContain('네, 30일');
   });
 
   it('"알아서 해"라고 답하면 추천값으로 정했다고 기록해 넘긴다', async () => {
@@ -108,8 +159,8 @@ describe('DesignService', () => {
     expect(result.kind).toBe('cancelled');
   });
 
-  it('고칠 점을 말하면 그 말과 지난 설계안을 넘겨 다시 쓰고, 승인되면 끝낸다', async () => {
-    const designer = new FakeDesigner([draft('쿠폰 할인'), draft('쿠폰 할인 v2')]);
+  it('고칠 점을 말하면 그 말로 다시 쓰고(새 세션이면 지난 설계안도 넘긴다), 승인되면 끝낸다', async () => {
+    const designer = new FakeDesigner([draft('쿠폰 할인'), draft('쿠폰 할인 v2')], null, 2);
     const u = user({ approvals: [{ kind: 'revise', note: '만료일도 넣어 주세요' }, { kind: 'approve' }] });
     const saved: { name: string; markdown: string }[] = [];
     const result = await service(designer, u.port, saved).run(input);

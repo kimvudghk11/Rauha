@@ -28,6 +28,11 @@ export interface MemberCall {
   readonly kits?: readonly ToolKit[];
   /** 사용자가 이번에 한 원문 요청. 가드가 커밋·push·PR을 시켰는지 보는 데만 쓴다. */
   readonly request?: string;
+  /**
+   * 같은 팀원의 앞 호출(MemberResult.sessionId)을 이어서 한다. 그때 읽은 파일이 대화에 남아 있어 다시 읽지 않고,
+   * userMessage 에는 새로 할 말만 담는다(설계 대화의 다음 차례, 빠진 항목 마저 하기). 없으면 새 세션.
+   */
+  readonly continueFrom?: string;
 }
 
 /** 미리 띄워 둘 호출. 보낼 메시지만 아직 모른다. */
@@ -66,6 +71,8 @@ export interface MemberResult {
   readonly partial?: string | null;
   /** 이번 호출에서 읽기 도구가 연 경로(Read 파일, Grep·Glob 폴더, git -C 저장소). 모으지 않는 구현은 없다. */
   readonly opened?: readonly string[];
+  /** 이 호출의 세션. 다음 호출의 continueFrom 으로 넘기면 같은 대화를 잇는다. 모으지 않는 구현은 없다. */
+  readonly sessionId?: string;
 }
 
 /**
