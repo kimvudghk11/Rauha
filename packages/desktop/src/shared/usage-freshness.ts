@@ -1,7 +1,7 @@
 /** 구독 한도를 언제 다시 읽을지, 읽은 지 얼마나 됐는지에 대한 순수 규칙. 시간은 모두 밀리초(epoch). */
 
 /** 한도를 읽는 이유. interval은 평소 간격, 나머지는 사용자 동작이나 일의 끝. */
-export type ReadReason = 'interval' | 'focus' | 'settings-open' | 'job-over' | 'account-change';
+export type ReadReason = 'interval' | 'focus' | 'settings-open' | 'job-start' | 'job-over' | 'account-change';
 
 /** 평소 읽는 간격(20~30초). 읽는 호출이 모델을 부르지 않아서 짧게 잡아도 된다. */
 export const READ_EVERY_MS = 25_000;
@@ -24,7 +24,7 @@ export function decideRead(ctx: ReadContext): ReadDecision {
   // 계정(work·personal)이나 작업 폴더가 바뀌면 읽는 중인 값은 앞 계정 것이라 끝난 뒤 한 번 더 읽는다
   if (ctx.inFlight) return ctx.reason === 'job-over' || ctx.reason === 'account-change' ? 'after' : 'join';
   if (ctx.lastReadAt === null) return 'read';
-  if (ctx.reason === 'settings-open' || ctx.reason === 'job-over' || ctx.reason === 'account-change') return 'read';
+  if (ctx.reason === 'settings-open' || ctx.reason === 'job-start' || ctx.reason === 'job-over' || ctx.reason === 'account-change') return 'read';
   const gap = ctx.reason === 'interval' ? READ_EVERY_MS : MIN_GAP_MS;
   return ctx.now - ctx.lastReadAt >= gap ? 'read' : 'skip';
 }

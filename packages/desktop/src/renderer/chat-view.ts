@@ -309,6 +309,14 @@ export function buildChat(actions: ChatActions) {
   /** talk: Main 카드 아래에 실시간으로 쌓이는 팀 대화, talkSeen: 마지막으로 그린 진행 글 수(같으면 다시 그리지 않는다) */
   const cards = new Map<string, { dot: HTMLElement; state: HTMLElement; stop: HTMLButtonElement; line: HTMLElement; talk: HTMLElement; talkSeen: string }>();
   const reported = new Set<string>();
+  /** 끝난 일 카드의 세션 한 줄 자리(한도를 다시 읽은 뒤 채운다) */
+  const sessionLines = new Map<string, HTMLElement>();
+  function lateSessionLine(job: JobView): void {
+    const slot = sessionLines.get(job.id);
+    if (slot === undefined || job.sessionLine === undefined || slot.textContent === job.sessionLine) return;
+    slot.textContent = job.sessionLine;
+    slot.hidden = false;
+  }
   /** 화면 지우기(/clear)로 비운 끝난 작업. 다시 그리지 않는다. */
   const cleared = new Set<string>();
   const roomEls = new Map<string, RoomEl>();
@@ -710,7 +718,8 @@ export function buildChat(actions: ChatActions) {
 
   /** 끝난 일의 결과는 메인(팀장)이 한 번 말해 준다. 태스크 안에서 이어 물은 것의 결과도 Main 에 올린다 */
   function report(job: JobView): void {
-    if (reported.has(job.id) || (job.status !== 'done' && job.status !== 'stopped')) return;
+    if (reported.has(job.id)) return lateSessionLine(job);
+    if (job.status !== 'done' && job.status !== 'stopped') return;
     reported.add(job.id);
     const m = el('div', 'm');
     const av = el('div', 'av');
@@ -726,6 +735,11 @@ export function buildChat(actions: ChatActions) {
     if (job.knowledgeMissing) card.appendChild(el('div', 'kn', 'Repo info is not read yet. It is loading in the background, so later questions will be more accurate.'));
     // 팀원이 찾아본 도구(Grep·Read 횟수): 폴더를 제대로 훑었는지 보이게 작게 한 줄. 쓴 도구가 없으면 줄이 없다.
     if (job.toolsLine !== null) card.appendChild(el('div', 'kn', `Looked up: ${job.toolsLine}`));
+    // 이 일이 세션 한도를 얼마나 썼는지(시작·끝 사용률 차이). 끝난 뒤 한도를 다시 읽어야 알아서 보통 조금 늦게 온다.
+    const session = el('div', 'kn', job.sessionLine ?? '');
+    session.hidden = job.sessionLine === undefined;
+    sessionLines.set(job.id, session);
+    card.appendChild(session);
     // 코드를 고친 일이면 무엇이 바뀌었는지 보고 되돌릴 수 있다(바뀐 게 없으면 숨는다)
     card.appendChild(changesPanel(job.id, 'card'));
     // 멈춘 일은 같은 요청을 그대로 다시 맡길 수 있다(로그인 때문이면 로그인한 뒤 누른다)

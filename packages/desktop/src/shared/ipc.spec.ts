@@ -19,6 +19,13 @@ describe('boardView', () => {
     const view = boardView(JobBoard.empty().add(job().stop('사용자가 멈춤', AT)));
     expect(view.jobs[0]?.stopReason).toBe('사용자가 멈춤');
   });
+
+  it('일마다 세션을 쓴 한 줄을 알면 붙이고, 모르면 붙이지 않는다', () => {
+    const board = JobBoard.empty().add(job('a')).add(job('b'));
+    const view = boardView(board, new Map(), (id) => (id === 'a' ? 'Session: +2%' : null));
+    expect(view.jobs.find((j) => j.id === 'a')?.sessionLine).toBe('Session: +2%');
+    expect(view.jobs.find((j) => j.id === 'b')).not.toHaveProperty('sessionLine');
+  });
 });
 
 describe('jobView', () => {

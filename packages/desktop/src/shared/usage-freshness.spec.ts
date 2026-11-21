@@ -34,6 +34,11 @@ describe('한도 읽기 시점', () => {
     expect(decideRead({ reason: 'job-over', lastReadAt: NOW - 1000, inFlight: false, now: NOW })).toBe('read');
   });
 
+  it('일이 시작할 때도 방금 읽었어도 바로 읽고(그 일이 쓴 몫의 시작값), 읽는 중이면 같이 받는다', () => {
+    expect(decideRead({ reason: 'job-start', lastReadAt: NOW - 1000, inFlight: false, now: NOW })).toBe('read');
+    expect(decideRead({ reason: 'job-start', lastReadAt: NOW - 1000, inFlight: true, now: NOW })).toBe('join');
+  });
+
   it('평소 간격 읽기는 읽을 때가 되기 전에는 건너뛴다', () => {
     expect(decideRead({ reason: 'interval', lastReadAt: NOW - (READ_EVERY_MS - 5000), inFlight: false, now: NOW })).toBe('skip');
     expect(decideRead({ reason: 'interval', lastReadAt: NOW - READ_EVERY_MS, inFlight: false, now: NOW })).toBe('read');

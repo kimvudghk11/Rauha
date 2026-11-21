@@ -148,6 +148,8 @@ export interface JobView {
   readonly knowledgeMissing: boolean;
   /** 팀원이 찾아본 도구 한 줄("Grep 3 · Read 5"). 쓰지 않았으면 null이라 화면에 안 보인다. */
   readonly toolsLine: string | null;
+  /** 이 일이 세션 한도를 얼마나 썼는지("Session: +2%"). 모르면 없다. */
+  readonly sessionLine?: string;
   readonly notes: readonly NoteView[];
   /** 이어진 작업이면 처음 태스크 id(그 태스크 대화에 쌓인다), 아니면 null */
   readonly thread: string | null;
@@ -460,6 +462,15 @@ export function jobView(job: Job, link: ThreadLink | null = null): JobView {
   };
 }
 
-export function boardView(board: JobBoard, links: ReadonlyMap<string, ThreadLink> = new Map()): BoardView {
-  return { jobs: board.jobs.map((j) => jobView(j, links.get(j.id) ?? null)), ...board.counts(), limit: board.limit };
+/** sessionLine: 일마다 세션을 얼마나 썼는지 한 줄(SessionMeter). 모르면 null 이라 줄을 붙이지 않는다. */
+export function boardView(board: JobBoard, links: ReadonlyMap<string, ThreadLink> = new Map(), sessionLine: (id: string) => string | null = () => null): BoardView {
+  return {
+    jobs: board.jobs.map((j) => {
+      const view = jobView(j, links.get(j.id) ?? null);
+      const line = sessionLine(j.id);
+      return line === null ? view : { ...view, sessionLine: line };
+    }),
+    ...board.counts(),
+    limit: board.limit,
+  };
 }

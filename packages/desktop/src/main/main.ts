@@ -85,6 +85,8 @@ import { UsageService } from './usage/usage-service.js';
 import { registerUsageIpc, toUsageView } from './usage/usage-ipc.js';
 import { USAGE_IPC } from '../shared/usage-api.js';
 import { READ_EVERY_MS } from '../shared/usage-freshness.js';
+import { SessionMeter } from '../shared/session-meter.js';
+import type { JobBoard } from '@rauha/core/jobs';
 import { measureTyping } from './measure-typing.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { registerWorkbench } from './workbench-ipc.js';
@@ -426,7 +428,9 @@ async function startRunner(): Promise<JobRunner> {
     },
     now: () => new Date().toISOString(),
     onChange: (board) => {
-      const view = boardView(board, threads);
+      lastBoard = board;
+      meterJobs(board);
+      const view = boardView(board, threads, (id) => sessionMeter.line(id));
       window?.webContents.send(IPC.board, view);
       refreshTray(board.jobs);
       deskDelfi?.observe(board.jobs.map((j) => ({ id: j.id, over: j.isOver, done: j.status === 'done' })));
@@ -435,10 +439,6 @@ async function startRunner(): Promise<JobRunner> {
         if (!job.isOver) continue;
         onJobOver(job);
         approvals.closeJob(job.id);
-        if (!usageOverSeen.has(job.id)) {
-          usageOverSeen.add(job.id);
-          void usage.refresh('job-over');
-        }
         if (!doneNotified.has(job.id)) {
           doneNotified.add(job.id);
           notifyDone(job);
@@ -450,7 +450,34 @@ async function startRunner(): Promise<JobRunner> {
 }
 
 const doneNotified = new Set<string>();
-const usageOverSeen = new Set<string>();
+
+/** 일마다 세션을 얼마나 썼는지: 일이 돌기 시작할 때와 끝날 때 한도를 읽어 차이를 결과 카드에 붙인다(모델 호출 없음). */
+let sessionMeter = SessionMeter.empty();
+let lastBoard: JobBoard | null = null;
+const meterStarted = new Set<string>();
+const meterFinished = new Set<string>();
+const sessionPercent = (s: { readonly plan: PlanUsage | null }): number | null => s.plan?.session?.percent ?? null;
+function meterJobs(board: JobBoard): void {
+  for (const job of board.jobs) {
+    if (job.status !== 'queued' && !meterStarted.has(job.id)) {
+      meterStarted.add(job.id);
+      // 끝난 채로 처음 보이는 일(기록에서 되살림 등)은 시작값이 없어서 재지 않는다
+      if (job.isOver) continue;
+      sessionMeter = sessionMeter.start(job.id, sessionPercent(usage.current()));
+      void usage.refresh('job-start').then((s) => {
+        // 읽는 사이에 끝났으면 시작값은 처음 값 그대로 둔다
+        if (!meterFinished.has(job.id)) sessionMeter = sessionMeter.restart(job.id, sessionPercent(s));
+      });
+    }
+    if (job.isOver && meterStarted.has(job.id) && !meterFinished.has(job.id)) {
+      meterFinished.add(job.id);
+      void usage.refresh('job-over').then((s) => {
+        sessionMeter = sessionMeter.finish(job.id, sessionPercent(s));
+        if (lastBoard !== null && sessionMeter.line(job.id) !== null) window?.webContents.send(IPC.board, boardView(lastBoard, threads, (id) => sessionMeter.line(id)));
+      });
+    }
+  }
+}
 
 /** 할 일·기록(앱 데이터 폴더의 JSON 파일). 기록은 이 PC에만 둔다. 확인용으로 RAUHA_DATA_DIR로 폴더를 바꿀 수 있다. */
 const dataDir = process.env['RAUHA_DATA_DIR'] ?? join(homedir(), '.rauha', 'desktop');
