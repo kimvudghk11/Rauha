@@ -9,6 +9,25 @@ export function isSmallTalk(input: string): boolean {
   return text.length <= SMALL_TALK_CHARS && !ACTION.test(text) && !QUESTION.test(text);
 }
 
+const HELLO = new Set(['ㅎㅇ', 'ㅎㅇㅎㅇ', '안녕', '안녕하세요', '안뇽', '하이', '헬로', 'hi', 'hello', 'hey', 'helo']);
+const THANKS = new Set(['고마워', '고마워요', '고맙습니다', '감사', '감사해', '감사해요', '감사합니다', 'ㄳ', 'ㄱㅅ', 'ㄱㅅㄱㅅ', '땡큐', 'thanks', 'thank you', 'thx', 'ty']);
+const BYE = new Set(['잘자', '잘자요', '바이', 'ㅂㅇ', 'ㅂㅂ', 'bye', 'byebye', '수고', '수고해', '수고했어', '수고했어요', '수고하셨습니다']);
+
+/**
+ * 정해 둔 인사·감사·작별 인사면 모델 없이 바로 할 답(2026-11-21 사용자: "ㅎㅇ만 보내도 세션을 1% 먹는다").
+ * "응·ㅇㅇ·진행"처럼 앞 대화에 대한 대답일 수 있는 말이나, 인사에 다른 말이 붙은 것은 null(라우터가 판단한다).
+ */
+export function greetingReply(input: string): string | null {
+  const plain = input.trim().toLowerCase().replace(/[!~.^?,]+/gu, '').replace(/\s+/g, ' ').trim();
+  // "안녕ㅎㅎ", "고마워ㅋㅋ" 처럼 끝에 붙은 웃음은 뗀다("ㅎㅇ"는 ㅇ 으로 끝나 그대로다)
+  const word = plain.replace(/[ㅋㅎ]+$/u, '') || plain;
+  const is = (set: ReadonlySet<string>) => set.has(plain) || set.has(word);
+  if (is(HELLO)) return '안녕하세요! 무엇을 도와드릴까요?';
+  if (is(THANKS)) return '천만에요. 더 필요한 게 있으면 말씀해 주세요.';
+  if (is(BYE)) return '수고하셨어요. 또 불러 주세요.';
+  return null;
+}
+
 const REPO_WORDS = /폴더|디렉터리|디렉토리|구조|레포|저장소|파일|경로|\b(repo|repository|folder|directory|files?|path)\b|\w\.(ts|tsx|js|jsx|mjs|cjs|py|java|kt|go|rs|rb|php|cs|swift|sql|sh|css|scss|html|json|ya?ml|toml|md|mdx|txt)\b|\w\/\w|어디\s?(에|서|있|쯤)/i;
 
 /** 레포 방식을 가리키는 일반 개념(모노레포·멀티레포·폴리레포). 이 말 속의 "레포"는 이 저장소가 아니다. */

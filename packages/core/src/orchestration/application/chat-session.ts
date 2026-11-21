@@ -14,7 +14,7 @@ import { TodoAsk, type TodoCard, type TodoItem } from '../domain/todo-ask.js';
 import { RepoDigest, type DigestRepo } from '../domain/repo-digest.js';
 import { TodoItemsDto } from './dto/todo-items.dto.js';
 import type { CompanyEntry } from '../domain/company-book.js';
-import { answerDepthOf, asksArchitecture, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
+import { answerDepthOf, asksArchitecture, greetingReply, sameQuestionKey, wantsToProceed } from '../domain/question-hint.js';
 import type { ModelTier } from '../domain/team.js';
 import { AnswerDto } from './dto/answer.dto.js';
 import { CoverageDto } from './dto/coverage.dto.js';
@@ -296,6 +296,12 @@ export class ChatSession {
     if (heldRequest !== null && wantsToProceed(input)) return this.rerun(heldRequest, conversation, started);
     const again = force === 'deep' ? null : this.repeated(input);
     if (again !== null) return { kind: 'answer', answer: again, checked: [], costUsd: 0, durationMs: 0, basis: null };
+    // "ㅎㅇ"·"고마워" 같은 정해 둔 인사는 라우터도 답변 팀원도 부르지 않고 바로 답한다(세션을 쓰지 않는다)
+    const hello = force === undefined ? greetingReply(input) : null;
+    if (hello !== null) {
+      this.turns.push({ input, result: `답: ${hello}` });
+      return { kind: 'answer', answer: hello, checked: [], costUsd: 0, durationMs: this.deps.now() - started, basis: null, canGoDeeper: false };
+    }
     // /design: 라우터를 거치지 않고 바로 설계부터 한다.
     if (force === 'design') {
       if (also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };

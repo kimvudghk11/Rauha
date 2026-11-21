@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerDepthOf, asksArchitecture, isSmallTalk, pointsAtRepository, onlyDocuments, sameQuestionKey, wantsToProceed } from './question-hint.js';
+import { answerDepthOf, asksArchitecture, greetingReply, isSmallTalk, pointsAtRepository, onlyDocuments, sameQuestionKey, wantsToProceed } from './question-hint.js';
 
 describe('isSmallTalk', () => {
   it('짧은 인사·맞장구는 인사로 본다', () => {
@@ -58,6 +58,18 @@ describe('answerDepthOf', () => {
     expect(answerDepthOf('light', 'REST가 뭐야?')).toBe('light');
     expect(answerDepthOf('deep', '이 함수 어디서 써?')).toBe('deep');
     expect(answerDepthOf('deep', '안녕')).toBe('light');
+  });
+});
+
+describe('greetingReply', () => {
+  it('인사·감사·작별 인사는 모델 없이 바로 답한다', () => {
+    for (const text of ['ㅎㅇ', 'ㅎㅇㅎㅇ', '안녕', '안녕하세요!', '하이~', 'hi', 'Hello', '헬로']) expect(greetingReply(text), text).toMatch(/안녕/);
+    for (const text of ['고마워', '감사합니다', 'ㄳ', 'ㄱㅅ', '땡큐', 'thanks', 'thank you']) expect(greetingReply(text), text).toMatch(/천만에요|별말씀/);
+    for (const text of ['잘자', '바이', 'ㅂㅇ', 'bye', '수고했어']) expect(greetingReply(text), text).toMatch(/수고|안녕히|또/);
+  });
+
+  it('앞 대화에 대한 대답일 수 있는 말과 무언가를 묻거나 시키는 말은 모델에게 맡긴다', () => {
+    for (const text of ['응', 'ㅇㅇ', 'ㅇㅋ', '진행', '그래', '네', '안녕 이 함수 뭐야', '고마워 근데 테스트도 돌려줘', 'hi, fix the bug', '안녕?? 어디야']) expect(greetingReply(text), text).toBeNull();
   });
 });
 
