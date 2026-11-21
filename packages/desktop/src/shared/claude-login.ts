@@ -1,4 +1,4 @@
-/** 앱 안 Claude 로그인의 규칙(순수 함수). 토큰은 읽지 않고, `auth status`의 loggedIn 여부와 출력의 https 주소만 다룬다. */
+/** 앱 안 Claude 로그인의 규칙(순수 함수). 토큰은 읽지 않고, `auth status`의 loggedIn 여부만 다룬다. */
 
 export type LoginState = 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
 
@@ -16,17 +16,6 @@ export function parseLoginStatus(stdout: string): boolean | null {
   } catch {
     return null;
   }
-}
-
-const URL_AT = /https:\/\/[^\s\u0000-\u001f\u007f"'<>`]+/;
-const TRAILING = /[.,;:!?)\]}]+$/;
-
-/** 로그인 출력에서 브라우저로 열 주소 하나를 뽑는다. https만 허용하고 문장부호는 뗀다. 없으면 null. */
-export function loginUrlFrom(output: string): string | null {
-  const found = URL_AT.exec(output)?.[0];
-  if (found === undefined) return null;
-  const url = found.replace(TRAILING, '');
-  return url.length > 'https://'.length ? url : null;
 }
 
 const NEEDS_LOGIN = /로그인(이 필요|되어 있지|이 만료|해 주세요)|Not logged in|Please run \/login|rauha login/i;

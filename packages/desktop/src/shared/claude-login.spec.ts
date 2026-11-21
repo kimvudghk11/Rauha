@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { failureReason, loginText, loginUrlFrom, needsLogin, parseLoginStatus } from './claude-login.js';
+import { failureReason, loginText, needsLogin, parseLoginStatus } from './claude-login.js';
 
 describe('parseLoginStatus', () => {
   it('claude auth status의 JSON에서 로그인 여부만 읽는다', () => {
@@ -11,31 +11,6 @@ describe('parseLoginStatus', () => {
     expect(parseLoginStatus('')).toBeNull();
     expect(parseLoginStatus('not json')).toBeNull();
     expect(parseLoginStatus('{"loggedIn": "yes"}')).toBeNull();
-  });
-});
-
-describe('loginUrlFrom', () => {
-  it('출력에서 https 주소 하나를 뽑는다', () => {
-    expect(loginUrlFrom('Opening browser...\nIf it does not open, visit: https://claude.ai/oauth/authorize?code=true&client_id=abc\n')).toBe('https://claude.ai/oauth/authorize?code=true&client_id=abc');
-  });
-
-  it('문장 끝 마침표·괄호는 주소에 넣지 않는다', () => {
-    expect(loginUrlFrom('Visit https://claude.ai/login.')).toBe('https://claude.ai/login');
-    expect(loginUrlFrom('(https://claude.ai/login)')).toBe('https://claude.ai/login');
-  });
-
-  it('http나 다른 프로토콜은 열지 않는다', () => {
-    expect(loginUrlFrom('http://claude.ai/login')).toBeNull();
-    expect(loginUrlFrom('file:///etc/passwd javascript:alert(1)')).toBeNull();
-  });
-
-  it('주소가 없으면 null이다', () => {
-    expect(loginUrlFrom('')).toBeNull();
-    expect(loginUrlFrom('Waiting for login')).toBeNull();
-  });
-
-  it('주소에 공백·제어 문자가 섞이면 거기서 끊는다', () => {
-    expect(loginUrlFrom('https://claude.ai/a\u001b[0m next')).toBe('https://claude.ai/a');
   });
 });
 

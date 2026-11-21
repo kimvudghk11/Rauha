@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it } from 'vitest';
-import { ClaudeLogin, quietBrowserEnv } from './claude-login.js';
+import { ClaudeLogin } from './claude-login.js';
 import type { LoginView } from '../../shared/claude-login.js';
 
 interface Script {
@@ -42,43 +42,39 @@ function fake(scripts: { login?: Script; status?: Script }) {
 
 function setup(scripts: Parameters<typeof fake>[0], extra: { executable?: string | undefined; timeoutMs?: number } = {}) {
   const f = fake(scripts);
-  const opened: string[] = [];
   const views: LoginView[] = [];
   const login = new ClaudeLogin({
     executable: () => ('executable' in extra ? extra.executable : '/Applications/rauha.app/claude'),
     env: async () => ({ PATH: '', HOME: '/home/kim', CLAUDE_CONFIG_DIR: '/home/kim/.claude-work', ELECTRON_RUN_AS_NODE: '1' }),
-    openExternal: async (url) => void opened.push(url),
     onChange: (v) => views.push(v),
     spawn: f.spawn,
     timeoutMs: extra.timeoutMs ?? 5000,
     statusTimeoutMs: 50,
   });
-  return { ...f, login, opened, views };
+  return { ...f, login, views };
 }
 
 const LOGGED_IN = { stdout: '{"loggedIn": true}' };
 
 describe('ClaudeLogin', () => {
-  it('앱 안 실행 파일을 계정의 설정 폴더로 auth login 하고, 출력의 https 주소를 브라우저로 연다', async () => {
-    const s = setup({ login: { stdout: 'Visit https://claude.ai/oauth/authorize?x=1 to sign in\n' }, status: LOGGED_IN });
+  it('앱 안 실행 파일을 계정의 설정 폴더로 auth login 한다', async () => {
+    const s = setup({ login: {}, status: LOGGED_IN });
     const done = await s.login.start();
     expect(done).toEqual({ state: 'success', message: null });
     expect(s.calls[0]).toMatchObject({ file: '/Applications/rauha.app/claude', args: ['auth', 'login'] });
     expect(s.calls[0]!.env['CLAUDE_CONFIG_DIR']).toBe('/home/kim/.claude-work');
     expect(s.calls[0]!.env['ELECTRON_RUN_AS_NODE']).toBeUndefined();
-    expect(s.opened).toEqual(['https://claude.ai/oauth/authorize?x=1']);
   });
 
-  it('같은 주소가 여러 번 나와도 브라우저는 한 번만 연다', async () => {
-    const s = setup({ login: { stdout: 'https://claude.ai/a\nhttps://claude.ai/a\n', stderr: 'https://claude.ai/a' }, status: LOGGED_IN });
+  it('브라우저는 로그인 도구가 직접 연다(자동으로 끝나는 localhost 주소라서 BROWSER를 막지 않는다)', async () => {
+    const s = setup({ login: {}, status: LOGGED_IN });
     await s.login.start();
-    expect(s.opened).toHaveLength(1);
+    expect(s.calls[0]!.env['BROWSER']).toBeUndefined();
   });
 
-  it('http 주소는 열지 않는다', async () => {
-    const s = setup({ login: { stdout: 'http://evil.example/login\n' }, status: LOGGED_IN });
-    await s.login.start();
-    expect(s.opened).toEqual([]);
+  it('출력에 인증 코드용 주소가 찍혀도 그대로 기다렸다가 로그인 상태로 끝낸다', async () => {
+    const s = setup({ login: { stdout: "If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback\nPaste code here if prompted >" }, status: LOGGED_IN });
+    expect(await s.login.start()).toEqual({ state: 'success', message: null });
   });
 
   it('진행 중 → 성공 순서로 상태를 알린다', async () => {
@@ -170,14 +166,7 @@ describe('ClaudeLogin', () => {
 
   it('계정 상태: 계정 설정을 읽다 실패하면 그 이유를 말한다', async () => {
     const f = fake({});
-    const login = new ClaudeLogin({ executable: () => '/x/claude', env: async () => Promise.reject(new Error('config.toml이 깨졌어요')), openExternal: async () => undefined, onChange: () => undefined, spawn: f.spawn });
+    const login = new ClaudeLogin({ executable: () => '/x/claude', env: async () => Promise.reject(new Error('config.toml이 깨졌어요')), onChange: () => undefined, spawn: f.spawn });
     expect((await login.check()).state).toEqual({ kind: 'unknown', reason: 'Could not read the account settings: config.toml이 깨졌어요' });
-  });
-});
-
-describe('로그인 창이 두 번 뜨지 않게', () => {
-  it('로그인 자식이 스스로 브라우저를 열지 않도록 BROWSER를 비워 준다', () => {
-    expect(quietBrowserEnv({ A: '1' }, 'darwin')).toEqual({ A: '1', BROWSER: 'true' });
-    expect(quietBrowserEnv({}, 'win32')['BROWSER']).toContain('exit');
   });
 });

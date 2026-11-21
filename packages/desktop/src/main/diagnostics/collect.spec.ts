@@ -16,7 +16,7 @@ function fakeClaude(stdout: string, code = 0): ClaudeLogin {
     });
     return child;
   }) as never;
-  return new ClaudeLogin({ executable: () => '/Applications/Rauha.app/claude', env: async () => ({ CLAUDE_CONFIG_DIR: `${HOME}/.claude`, HOME }), openExternal: async () => undefined, onChange: () => undefined, spawn, statusTimeoutMs: 200 });
+  return new ClaudeLogin({ executable: () => '/Applications/Rauha.app/claude', env: async () => ({ CLAUDE_CONFIG_DIR: `${HOME}/.claude`, HOME }), onChange: () => undefined, spawn, statusTimeoutMs: 200 });
 }
 
 function deps(patch: Partial<CollectDeps> = {}): CollectDeps {

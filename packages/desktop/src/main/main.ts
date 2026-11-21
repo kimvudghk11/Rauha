@@ -1028,7 +1028,6 @@ function startAuth(): void {
       if (dir !== undefined) mkdirSync(dir, { recursive: true });
       return { ...process.env, ...agentEnv };
     },
-    openExternal: (url) => openSafe(url),
     onChange: (view) => window?.webContents.send(IPC.authState, view),
   });
   authCheck = () => login.check();

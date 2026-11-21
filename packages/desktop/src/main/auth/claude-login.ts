@@ -1,13 +1,12 @@
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { accountFromStatus, shortPath, unknownBecause, type AccountCheck, type AccountState } from '../../shared/account-state.js';
-import { failureReason, loginUrlFrom, type LoginFailure, type LoginView } from '../../shared/claude-login.js';
+import { failureReason, type LoginFailure, type LoginView } from '../../shared/claude-login.js';
 
 export interface ClaudeLoginDeps {
   /** 앱에 들어 있는 Claude Code 실행 파일(없으면 undefined). PATH의 claude는 쓰지 않는다(맥 Finder 실행에는 PATH가 없다). */
   readonly executable: () => string | undefined;
   /** 로그인할 계정의 환경(CLAUDE_CONFIG_DIR 포함). 토큰은 다루지 않는다. */
   readonly env: () => Promise<NodeJS.ProcessEnv>;
-  readonly openExternal: (url: string) => Promise<void>;
   readonly onChange: (view: LoginView) => void;
   readonly spawn?: typeof nodeSpawn;
   readonly timeoutMs?: number;
@@ -24,16 +23,10 @@ const cleanEnv = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
 };
 
 /**
- * 로그인 자식이 스스로 브라우저를 열지 않게 한다. 주소는 앱이 한 번만 열기 때문에(BROWSER가 먹지 않아도 앱이 여는 한 번은 그대로다).
- * 먹으면 창이 한 번, 안 먹으면 두 번이 될 수 있어 따로 한 번 더 막는 장치("이미 열었음")도 둔다.
- */
-export function quietBrowserEnv(env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
-  return { ...env, BROWSER: platform === 'win32' ? 'cmd.exe /d /c exit' : 'true' };
-}
-
-/**
- * 앱 안 Claude 로그인. 앱에 들어 있는 실행 파일을 계정의 CLAUDE_CONFIG_DIR로 `auth login` 하고,
- * 출력에 나온 https 주소를 브라우저로 연다. 끝나면 `auth status`로 로그인 상태를 다시 읽는다.
+ * 앱 안 Claude 로그인. 앱에 들어 있는 실행 파일을 계정의 CLAUDE_CONFIG_DIR로 `auth login` 한다.
+ * 브라우저는 로그인 도구가 직접 연다: 도구가 여는 주소는 localhost로 돌아와 저절로 끝나고,
+ * 출력에 찍히는 "브라우저가 안 열렸으면" 주소는 인증 코드를 붙여 넣어야 해서(stdin이 없는 앱에서는 못 끝낸다) 열지 않는다.
+ * 끝나면 `auth status`로 로그인 상태를 다시 읽는다.
  * 한 번에 하나만 돈다. 토큰 파일은 읽지도 옮기지도 않는다.
  */
 export class ClaudeLogin {
@@ -119,7 +112,6 @@ export class ClaudeLogin {
     }
     return new Promise((resolve) => {
       let output = '';
-      let opened = false;
       let ended = false;
       const end = (view: LoginView) => {
         if (ended) return;
@@ -130,7 +122,7 @@ export class ClaudeLogin {
       };
       let child: ChildProcess;
       try {
-        child = this.spawn(exe, ['auth', 'login'], { env: quietBrowserEnv(env), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        child = this.spawn(exe, ['auth', 'login'], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
       } catch {
         return end(this.fail({ kind: 'no-executable' }));
       }
@@ -141,11 +133,6 @@ export class ClaudeLogin {
       }, this.deps.timeoutMs ?? LOGIN_TIMEOUT_MS);
       const take = (d: Buffer) => {
         output += d.toString();
-        if (opened) return;
-        const url = loginUrlFrom(output);
-        if (url === null) return;
-        opened = true;
-        void this.deps.openExternal(url).catch(() => undefined);
       };
       child.stdout?.on('data', take);
       child.stderr?.on('data', take);
