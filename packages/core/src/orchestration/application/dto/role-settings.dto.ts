@@ -63,7 +63,7 @@ export class RoleSettingsDto {
 
   static defaults(): RoleSettingsDto {
     return new RoleSettingsDto({
-      intake: { tier: 'opus', effort: 'medium', maxTurns: 40, maxBudgetUsd: 1.5, tools: READ_TOOLS, readsProject: true },
+      intake: { tier: 'sonnet', effort: 'medium', maxTurns: 40, maxBudgetUsd: 1.5, tools: READ_TOOLS, readsProject: true },
       tester: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 1, tools: WRITE_TOOLS, readsProject: true },
       implementer: { tier: 'sonnet', effort: 'high', maxTurns: 120, maxBudgetUsd: 2, tools: WRITE_TOOLS, readsProject: true },
       // 리뷰어는 읽기만 한다. 같은 모델은 같은 실수를 놓치기 쉬워서 구현보다 한 단계 위(opus).
@@ -72,73 +72,73 @@ export class RoleSettingsDto {
       router: { tier: 'sonnet', effort: 'low', maxTurns: 4, maxBudgetUsd: 0.05, tools: [], readsProject: false },
       // 질문에는 코드나 공식 문서를 읽고 답하되 파일은 쓰지 않는다. 일반 기술 질문은 문서 여러 장을 열어 봐야 해서 턴·예산을 넉넉히.
       // "테스트 돌려봐", "git log 보여줘"처럼 명령 결과를 묻는 말은 사용자에게 시키지 않고 직접 돌려 답한다(위험한 명령은 ToolRisk가 묻는다).
-      answerer: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      answerer: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 저장소 지식의 영역 메모를 쓴다. 이 저장소 파일만 보면 되니 웹 없이. 다른 팀원이 모두 이 메모에 기대므로
       // 예전 haiku 의 얕은 메모(구조를 덜 읽고 추측)가 뒤 작업 전체를 흐렸다 → sonnet(low). 한 번 쓰고 오래 쓰여 호출 수는 적다.
-      surveyor: { tier: 'opus', effort: 'medium', maxTurns: 60, maxBudgetUsd: 1.5, tools: ['Read', 'Grep', 'Glob'], readsProject: true },
+      surveyor: { tier: 'sonnet', effort: 'medium', maxTurns: 60, maxBudgetUsd: 1.5, tools: ['Read', 'Grep', 'Glob'], readsProject: true },
       // 코드가 아닌 결과물(포트폴리오·보고서·정리 문서)을 만든다. git 기록을 읽어야 해서 Bash, 문서만 쓰므로 Write·Edit은 .md로 막는다.
-      writer: { tier: 'opus', effort: 'high', maxTurns: 160, maxBudgetUsd: 6, tools: ['Read', 'Grep', 'Glob', 'Bash', 'Write', 'Edit'], readsProject: true },
+      writer: { tier: 'sonnet', effort: 'high', maxTurns: 160, maxBudgetUsd: 6, tools: ['Read', 'Grep', 'Glob', 'Bash', 'Write', 'Edit'], readsProject: true },
       // 설계 대화: 사용자와 여러 번 주고받으며 설계안을 쓴다. 코드와 문서는 읽기만 한다.
       designer: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 4, tools: READ_TOOLS, readsProject: true },
       // 운영 요청(aws 같은 CLI로 조회·변경하고 결과를 알린다). 파일은 쓰지 않고 명령만 실행한다. 위험한 명령은 도구 검사가 사용자에게 묻는다.
-      operator: { tier: 'opus', effort: 'medium', maxTurns: 80, maxBudgetUsd: 3, tools: ['Read', 'Grep', 'Glob', 'Bash', 'WebSearch', 'WebFetch'], readsProject: true },
+      operator: { tier: 'sonnet', effort: 'medium', maxTurns: 80, maxBudgetUsd: 3, tools: ['Read', 'Grep', 'Glob', 'Bash', 'WebSearch', 'WebFetch'], readsProject: true },
       // 증상을 받아 원인을 찾는다. 재현하려고 테스트를 돌릴 수 있지만 파일은 고치지 않고 보고만 한다(고치는 일은 사용자가 따로 시키면 작업 흐름으로 간다).
       debugger: { tier: 'opus', effort: 'high', maxTurns: 120, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 바꾸기 전에 영향받을 곳과 깨질 수 있는 곳을 짚는다. git 기록·diff를 읽을 수 있지만 파일은 고치지 않는다.
-      riskchecker: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      riskchecker: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 사업·제품 아이디어와 앱·웹 구성, 알맞은 아키텍처·패턴을 제안한다. 비슷한 서비스를 찾아볼 수 있어야 해서 웹 도구를 쓰고, 파일은 쓰지 않는다. 참신함이 중요해 노력 수준을 높인다.
       // 여러 저장소 요청을 저장소별 일과 그 사이의 약속으로 나누고, 끝난 뒤 약속이 양쪽 코드에서 맞는지 본다. 모든 저장소를 읽어야 해서 턴을 넉넉히.
       splitter: { tier: 'opus', effort: 'high', maxTurns: 100, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       planner: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: READ_TOOLS, readsProject: true },
-      // 부서장: 10년차 이상 리드급 판단으로 부서 일을 나누고(계획) 팀원의 보고를 하나로 모은다(종합). 호출 수가 적어 가장 높은 모델(fable)을 쓴다. 파일은 쓰지 않는다.
-      chief: { tier: 'fable', effort: 'high', maxTurns: 60, maxBudgetUsd: 4, tools: READ_TOOLS, readsProject: true },
-      bm: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      marketer: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      growth: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      uxdesigner: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      brand: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      // 부서장: 10년차 이상 리드급 판단으로 부서 일을 나누고(계획) 팀원의 보고를 하나로 모은다(종합). 판단이 커서 opus(2026-11-21 fable 에서 내림: 세션을 너무 씀). 파일은 쓰지 않는다.
+      chief: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 4, tools: READ_TOOLS, readsProject: true },
+      bm: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      marketer: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      growth: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      uxdesigner: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      brand: { tier: 'sonnet', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
       // 의존성 점검 같은 읽기 명령을 돌릴 수 있다. 파일은 고치지 않는다.
       securitychecker: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 릴리스 노트를 쓰려고 git 기록을 읽는다.
-      releaser: { tier: 'opus', effort: 'medium', maxTurns: 60, maxBudgetUsd: 2, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      releaser: { tier: 'sonnet', effort: 'medium', maxTurns: 60, maxBudgetUsd: 2, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 커밋·push·PR만 한다. git log로 메시지 관례를 읽고 git·gh 명령을 실행할 뿐 파일은 고치지 않는다. 판단이 작아 가장 낮은 등급(sonnet)으로.
       publisher: { tier: 'sonnet', effort: 'low', maxTurns: 30, maxBudgetUsd: 0.3, tools: ['Read', 'Grep', 'Glob', 'Bash'], readsProject: true },
-      // ── 큰 회사 부서. 모두 파일은 쓰지 않는다(보고만). 질 먼저라 opus·high.
+      // ── 큰 회사 부서. 모두 파일은 쓰지 않는다(보고만). 기본은 sonnet(2026-11-21: 일반 플랜에서 opus 는 세션이 금방 찬다), 어려운 판단만 opus.
       // PM: 제품 요구 사항·우선순위·로드맵. 지금 제품을 읽고 웹에서 비슷한 서비스를 찾는다.
-      pm: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      pm: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
       // 회계: 비용처리·분류·예산 대비. 레포의 CSV·엑셀 내보내기를 읽고 계산한다.
-      accountant: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      accountant: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 클라우드 비용: aws ce 같은 읽기 명령을 직접 돌린다(바꾸는 명령은 도구 검사가 묻는다). 없으면 IaC 로 추정.
-      finops: { tier: 'opus', effort: 'high', maxTurns: 90, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      finops: { tier: 'sonnet', effort: 'high', maxTurns: 90, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 데이터 분석: 연결된 DB 가 있으면 읽기 전용 DB 도구로 쿼리를 직접 돌린다.
-      analyst: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      dataengineer: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      analyst: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      dataengineer: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 법무: 약관·개인정보·라이선스. 법령은 웹에서 찾아 읽는다.
-      legal: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      support: { tier: 'opus', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
-      voc: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
-      sales: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
-      recruiter: { tier: 'opus', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      legal: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      support: { tier: 'sonnet', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      voc: { tier: 'sonnet', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      sales: { tier: 'sonnet', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      recruiter: { tier: 'sonnet', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
       // QA: 테스트 계획·회귀 체크리스트. 테스트를 돌려 볼 수 있지만 고치지 않는다.
       // 개발 자문부: 코드를 읽고 빌드·테스트 명령을 돌려 보며 설계·검토·출시를 자문한다. 파일은 쓰지 않는다(고치는 일은 작업 흐름).
-      frontend: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      backend: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      ios: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      android: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      crossplatform: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      frontend: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      backend: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      ios: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      android: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      crossplatform: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 4, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
       // 마케팅 세분화: 웹에서 채널·사례를 찾아 쓴다.
-      content: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      performance: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      pr: { tier: 'opus', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      content: { tier: 'sonnet', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      performance: { tier: 'sonnet', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      pr: { tier: 'sonnet', effort: 'medium', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
       // 사업 하나를 할 수 있는 회사(2026-11-19): 콘텐츠·디자인은 웹에서 사례를 찾아 쓰고, MD·커머스·물류는 표(주문·재고·원가)를 읽고 계산한다. 모두 파일은 쓰지 않는다.
-      copywriter: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
-      video: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
-      productdesigner: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
-      graphic: { tier: 'opus', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
-      md: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      ecommerce: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      logistics: { tier: 'opus', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
-      qa: { tier: 'opus', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      copywriter: { tier: 'sonnet', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      video: { tier: 'sonnet', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      productdesigner: { tier: 'sonnet', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: READ_TOOLS, readsProject: true },
+      graphic: { tier: 'sonnet', effort: 'high', maxTurns: 50, maxBudgetUsd: 2, tools: READ_TOOLS, readsProject: true },
+      md: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      ecommerce: { tier: 'sonnet', effort: 'high', maxTurns: 70, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      logistics: { tier: 'sonnet', effort: 'high', maxTurns: 60, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
+      qa: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 3, tools: [...READ_TOOLS, 'Bash'], readsProject: true },
     });
   }
 
@@ -217,6 +217,13 @@ export class RoleSettingsDto {
     const base = this.settings.answerer;
     if (this.pinned.has('answerer')) return base;
     return { ...base, tier: 'sonnet', effort: 'medium', maxTurns: 25, maxBudgetUsd: 0.5, tools: ['Read', 'Grep', 'Glob'] };
+  }
+
+  /** "더 깊게"로 다시 묻는 답: 기본 답변보다 한 단계 위(opus). 사용자가 답변 팀원 모델을 고정했으면 그 모델을 따른다. */
+  deeperAnswerer(): RoleSetting {
+    const base = this.settings.answerer;
+    if (this.pinned.has('answerer') || base.tier !== 'sonnet') return base;
+    return { ...base, tier: 'opus', maxBudgetUsd: Math.max(base.maxBudgetUsd, 3) };
   }
 
   /** 분석의 설계·계획 호출: 설계 팀원을 effort high로. 환경 변수로 고정한 역할은 고정한 그대로. */

@@ -322,8 +322,10 @@ export class ChatSession {
     // 스탠드업·여러 저장소 변경 묶음은 rauha가 모은 사실로 쓰므로 가벼운 질문으로 보지 않는다(근거 확인·빠진 항목 마저 하기를 한다)
     const depth = force === 'deep' || workLog !== '' || (digest !== null && digest.repos > 1) ? 'deep' : answerDepthOf(route.depth, input);
     const known = await this.knowledgeFor(depth);
-    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''));
-    const answered = await this.answer(input, asked, started, depth, also, digest?.seen ?? []);
+    const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''), force === 'deep');
+    const first = await this.answer(input, asked, started, depth, also, digest?.seen ?? []);
+    // sonnet 이 깊게 답했어도 "더 깊게"로 한 단계 위(opus)에게 다시 물을 수 있다
+    const answered = first.kind === 'answer' && force !== 'deep' && this.deps.roles.deeperAnswerer().tier !== this.deps.roles.get('answerer').tier ? { ...first, canGoDeeper: true } : first;
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
     if (answered.kind === 'answer' && depth === 'deep') this.surveyInBackground();
     return answered;
@@ -677,6 +679,8 @@ ${SINGLE_REPO_NOTE}
     depth: 'light' | 'deep',
     others: readonly AlsoKnown[] = [],
     extra = '',
+    /** 사용자가 "더 깊게"로 다시 물었는지. 그때만 한 단계 위 모델로 답한다. */
+    deeper = false,
   ): Promise<Asked> {
     const recalls = past !== null ? [past] : await this.deps.memory.search(input, CANDIDATES);
     const block = recallBlock(recalls, MEMORY_CHARS);
@@ -697,7 +701,7 @@ ${SINGLE_REPO_NOTE}
       ANSWER_SCHEMA,
       // 여러 저장소를 함께 묻는 질문에는 작업 공간 폴더도 열어 준다("상위 폴더를 스캔해줘").
       // light는 도구 묶음(브라우저·AWS 설명이 수천 자)을 붙이지 않는다.
-      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])] },
+      { ...(depth === 'light' ? { setting: this.deps.roles.lightAnswerer() } : deeper ? { setting: this.deps.roles.deeperAnswerer() } : {}), kits: depth === 'light' ? [] : ToolKits.for('answerer', input), ...(depth !== 'light' && ToolKits.for('answerer', input).includes('connectors') ? { request: input } : {}), dirs: [...others.map((o) => o.root), ...(this.deps.folder !== undefined && this.deps.folder.repos.length > 1 ? [this.deps.folder.root] : [])] },
     );
     const result = await call([]);
     const basis =

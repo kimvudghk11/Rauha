@@ -638,21 +638,21 @@ describe('ChatSession — 여러 저장소', () => {
       expect(team.calls.find((c) => c.role === 'answerer')!.message).not.toContain('<workspace');
     });
 
-    it('저장소가 4개 넘으면 저장소마다 문서 팀원(opus)이 나눠 읽고(문서는 쓰지 않음), 모은 요약으로 문서 한 번 쓴다', async () => {
+    it('저장소가 4개 넘으면 저장소마다 문서 팀원(sonnet)이 나눠 읽고(문서는 쓰지 않음), 모은 요약으로 문서 한 번 쓴다', async () => {
       const team = new FakeTeam({ router: [route('task')], writer: [(c) => (c.userMessage.includes('<gather') ? { summary: `요약-${c.userMessage.match(/<gather repo="([^"]+)"/)![1]}`, files: [] } : done())] });
       const steps: string[] = [];
       const turn = await ChatSession.start({ ...sessionDeps({ team, steps }), repoName: 'shop-api', folder: folder(6) }).handle('모든 레포 이력서 정리', alsoOf(6));
       const writers = team.calls.filter((c) => c.role === 'writer');
       const gathers = writers.filter((c) => c.message.includes('<gather'));
       expect(gathers).toHaveLength(6);
-      expect(gathers.every((c) => c.tier === 'opus' && !c.canWrite('RESUME.md'))).toBe(true);
+      expect(gathers.every((c) => c.tier === 'sonnet' && !c.canWrite('RESUME.md'))).toBe(true);
       // 각 저장소는 자기 폴더만 열어 읽는다.
       expect(gathers.find((c) => c.message.includes('repo3'))!.dirs).toEqual(['E:/w/repo3']);
       const last = writers.at(-1)!;
       expect(last.message).not.toContain('<gather');
       expect(last.message).toContain('<digests>');
       expect(last.message).toContain('요약-repo5');
-      expect(last.tier).toBe('opus'); // 모은 요약으로 쓰는 문서는 질 먼저
+      expect(last.tier).toBe('sonnet');
       expect(last.canWrite('RESUME.md')).toBe(true);
       expect(steps.some((s) => /저장소 읽는 중 \d+\/6/.test(s))).toBe(true);
       expect(turn.kind === 'answer' && turn.answer).toContain('RESUME.md');
@@ -1161,7 +1161,7 @@ describe('ChatSession — 회사 부서', () => {
     expect(turn).toMatchObject({ kind: 'answer', answer: '구독이 맞아요.' });
   });
 
-  it('부서장은 계획(일 나누기)과 종합 모두 가장 높은 모델을 쓴다(질 먼저)', async () => {
+  it('부서장은 계획(일 나누기)과 종합 모두 opus 를 쓴다(fable 은 세션을 너무 써서 기본에서 뺌)', async () => {
     const team = new FakeTeam({
       router: [route('company', false, null, { department: 'design', member: null })],
       chief: [chief([{ member: 'uxdesigner', brief: 'a' }, { member: 'brand', brief: 'b' }])],
@@ -1170,7 +1170,7 @@ describe('ChatSession — 회사 부서', () => {
     });
     await session({ team }).handle('디자인 전반');
     const [plan, merge] = callsOf(team, 'chief');
-    expect([plan!.tier, merge!.tier]).toEqual(['fable', 'fable']);
+    expect([plan!.tier, merge!.tier]).toEqual(['opus', 'opus']);
   });
 
   it('부서장의 종합 입력에는 팀원들의 보고가 담긴다', async () => {
@@ -1261,7 +1261,7 @@ describe('ChatSession — 한도 연동', () => {
     });
     const steps: string[] = [];
     await session({ team, steps, budget: used(20) }).handle('디자인 전반');
-    expect(team.calls.filter((c) => c.role === 'chief').map((c) => c.tier)).toEqual(['fable', 'fable']);
+    expect(team.calls.filter((c) => c.role === 'chief').map((c) => c.tier)).toEqual(['opus', 'opus']);
     expect(steps.some((s) => s.includes('한도'))).toBe(false);
   });
 
@@ -1588,14 +1588,20 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
     expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ effort: 'medium', maxTurns: 25 });
   });
 
-  it('light 답은 더 깊게 알아볼 수 있다고 알리고, deep 답은 알리지 않는다', async () => {
+  it('sonnet 이 한 답은 더 깊게 알아볼 수 있다고 알리고, 더 깊게(opus) 다시 한 답은 알리지 않는다', async () => {
     const light = await session({ team: new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] }) }).handle('안녕');
-    const deep = await session({ team: new FakeTeam({ router: [route('question')], answerer: [answer] }) }).handle('이 함수 어디서 써?');
+    const deep = await session({ team: new FakeTeam({ router: [route('question')], answerer: [answer] }) }).handle('이 함수 어디서 써?', [], 'deep');
     expect(light).toMatchObject({ kind: 'answer', canGoDeeper: true });
     expect(deep).toMatchObject({ kind: 'answer', canGoDeeper: false });
   });
 
-  it('더 깊게 알아보면 라우터 없이 답변 팀원 기본 등급(opus)이 같은 말에 다시 답한다', async () => {
+  it('저장소를 읽는 보통 질문은 sonnet(high)이 먼저 답한다(opus 는 더 깊게 물을 때만)', async () => {
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'deep' })], answerer: [answer] });
+    await session({ team }).handle('이 함수 어디서 써?');
+    expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'sonnet', effort: 'high' });
+  });
+
+  it('더 깊게 알아보면 라우터 없이 한 단계 위(opus)가 같은 말에 다시 답한다', async () => {
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer, () => ({ answer: '자세히: 2입니다.', claims: [] })] });
     const chat = session({ team });
     await chat.handle('안녕');

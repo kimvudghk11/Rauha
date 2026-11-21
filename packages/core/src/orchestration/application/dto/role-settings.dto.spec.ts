@@ -4,9 +4,9 @@ import { RoleOverridesDto } from './role-overrides.dto.js';
 import { REQUIRED_ROLES, RoleSettingsDto } from './role-settings.dto.js';
 
 describe('RoleSettingsDto', () => {
-  it('기본값: 접수는 opus medium, 테스트·구현은 sonnet high(질 먼저, haiku 는 쓰지 않는다)', () => {
+  it('기본값: 접수는 sonnet medium, 테스트·구현은 sonnet high(haiku 는 쓰지 않는다)', () => {
     const roles = RoleSettingsDto.defaults();
-    expect(roles.get('intake')).toMatchObject({ tier: 'opus', effort: 'medium' });
+    expect(roles.get('intake')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
     expect(roles.get('tester')).toMatchObject({ tier: 'sonnet', effort: 'high' });
     expect(roles.get('implementer')).toMatchObject({ tier: 'sonnet', effort: 'high' });
     expect(roles.entries().every((e) => (e.tier as string) !== 'haiku')).toBe(true);
@@ -44,16 +44,17 @@ describe('RoleSettingsDto', () => {
     for (const tool of ['Edit', 'Write', 'Bash']) expect(reviewer.tools).not.toContain(tool);
   });
 
-  it('라우터는 도구 없는 sonnet, 답변 팀원은 파일을 쓰지 않는 opus(질 먼저)', () => {
+  it('라우터는 도구 없는 sonnet, 답변 팀원은 파일을 쓰지 않는 sonnet high, 더 깊게는 opus', () => {
     const roles = RoleSettingsDto.defaults();
     expect(roles.get('router')).toMatchObject({ tier: 'sonnet', effort: 'low', tools: [] });
-    expect(roles.get('answerer')).toMatchObject({ tier: 'opus', effort: 'high' });
+    expect(roles.get('answerer')).toMatchObject({ tier: 'sonnet', effort: 'high' });
+    expect(roles.deeperAnswerer()).toMatchObject({ tier: 'opus', effort: 'high' });
     expect(roles.get('answerer').tools).not.toContain('Write');
   });
 
-  it('저장소 조사 팀원은 웹 없이 읽기만 하는 opus(모두가 기대는 저장소 메모라 추측이 적어야 한다)', () => {
+  it('저장소 조사 팀원은 웹 없이 읽기만 하는 sonnet(haiku 는 얕아서 안 되고, opus 는 세션을 너무 쓴다)', () => {
     const surveyor = RoleSettingsDto.defaults().get('surveyor');
-    expect(surveyor).toMatchObject({ tier: 'opus', effort: 'medium', readsProject: true });
+    expect(surveyor).toMatchObject({ tier: 'sonnet', effort: 'medium', readsProject: true });
     expect([...surveyor.tools].sort()).toEqual(['Glob', 'Grep', 'Read']);
   });
 
@@ -86,9 +87,11 @@ describe('RoleSettingsDto', () => {
     expect(planner.tools).not.toContain('Edit');
   });
 
-  it('부서장은 가장 높은 모델을 쓰고, 회사 부서 팀원은 아무도 파일을 쓰지 못한다', () => {
+  it('부서장은 opus, 어려운 판단(리뷰·디버깅·보안·설계·계획)만 opus 이고 나머지는 sonnet, 회사 부서 팀원은 아무도 파일을 쓰지 못한다', () => {
     const roles = RoleSettingsDto.defaults();
-    expect(roles.get('chief').tier).toBe('fable');
+    expect(roles.get('chief').tier).toBe('opus');
+    const opus = roles.entries().filter((e) => e.tier !== 'sonnet').map((e) => e.role).sort();
+    expect(opus).toEqual(['chief', 'debugger', 'designer', 'planner', 'reviewer', 'securitychecker', 'splitter']);
     for (const role of ['chief', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', 'securitychecker', 'releaser', 'planner'] as const) {
       expect(roles.get(role).tools).not.toContain('Write');
       expect(roles.get(role).tools).not.toContain('Edit');

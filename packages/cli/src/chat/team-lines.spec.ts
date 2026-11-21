@@ -12,7 +12,7 @@ describe('teamLines', () => {
 
   it('팀원마다 이름·모델·노력 수준·쓰는 도구 종류를 한 줄씩 보여 준다', () => {
     const lines = teamLines(RoleSettingsDto.defaults());
-    expect(lines.some((l) => l.includes('팀장') && l.includes('opus'))).toBe(true);
+    expect(lines.some((l) => l.includes('팀장') && l.includes('sonnet'))).toBe(true);
     expect(lines.some((l) => l.includes('운영 팀원') && l.includes('명령 실행'))).toBe(true);
   });
 
@@ -47,7 +47,7 @@ describe('teamLines — 부서별', () => {
 
   it('부서장은 10년차 이상 리드급, 팀원은 모두 10년차 이상 전문가라고 밝힌다', () => {
     expect(lines.some((l) => l.includes('부서장은 10년차 이상 리드급') && l.includes('팀원은 모두 10년차 이상'))).toBe(true);
-    expect(lines.some((l) => l.includes('부서장') && l.includes('fable'))).toBe(true);
+    expect(lines.some((l) => l.includes('부서장') && l.includes('opus'))).toBe(true);
     expect(lines.some((l) => l.includes('7년차'))).toBe(false);
   });
 
