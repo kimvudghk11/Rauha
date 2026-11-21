@@ -1336,6 +1336,22 @@ describe('ChatSession — 회사 부서', () => {
     expect([plan!.tier, merge!.tier]).toEqual(['opus', 'opus']);
   });
 
+  it('부서장의 종합은 일 나누기 세션을 이어 팀원 보고만 받는다', async () => {
+    const team = new FakeTeam({
+      router: [route('company', false, null, { department: 'design', member: null })],
+      chief: [chief([{ member: 'uxdesigner', brief: 'a' }, { member: 'brand', brief: 'b' }])],
+      uxdesigner: [memberReport('흐름')],
+      brand: [memberReport('이름')],
+    });
+    team.sessions = 'on';
+    await session({ team }).handle('디자인 전반');
+    const [plan, merge] = callsOf(team, 'chief');
+    expect(plan!.continueFrom).toBeUndefined();
+    expect(merge!.continueFrom).toBeDefined();
+    expect(merge!.message).toContain('<reports>');
+    expect(merge!.message).not.toContain('<department>');
+  });
+
   it('부서장의 종합 입력에는 팀원들의 보고가 담긴다', async () => {
     const team = new FakeTeam({
       router: [route('company', false, null, { department: 'design', member: null })],
@@ -1380,6 +1396,30 @@ describe('ChatSession — 회사 부서', () => {
     expect(turn.kind === 'answer' && turn.answer).toContain('설계 시작');
     expect(loops.runs).toEqual([]);
     expect(steps.some((s) => s.includes('마케팅·그로스부'))).toBe(true);
+  });
+
+  it('런칭 계획의 뒤 부서는 앞 부서 세션을 이어 자기 부서 몫만 받는다(요청·회사 기록·앞 글을 다시 보내지 않는다)', async () => {
+    const team = new FakeTeam({ router: [route('launch')], chief: [() => ({ answer: '부서안', files: [] })] });
+    team.sessions = 'on';
+    await session({ team }).handle('동네 모임 앱 런칭 계획 짜줘');
+    const chiefs = callsOf(team, 'chief');
+    expect(chiefs[0]!.continueFrom).toBeUndefined();
+    for (const c of chiefs.slice(1)) {
+      expect(c.continueFrom).toBeDefined();
+      expect(c.message).toContain('<department>');
+      expect(c.message).not.toContain('<request>');
+      expect(c.message).not.toContain('<earlier>');
+    }
+  });
+
+  it('런칭 계획 이어 하기가 안 되면 그 부서만 처음처럼 모두 보낸다', async () => {
+    const team = new FakeTeam({ router: [route('launch')], chief: [() => ({ answer: '부서안', files: [] })] });
+    team.sessions = 'failResume';
+    const turn = await session({ team }).handle('런칭 계획 짜줘');
+    const chiefs = callsOf(team, 'chief');
+    expect(chiefs[2]!.continueFrom).toBeUndefined();
+    expect(chiefs[2]!.message).toContain('<earlier>');
+    expect(turn.kind).toBe('answer');
   });
 
   it('런칭 계획 중 한도에 걸리면 막힘으로 알린다', async () => {

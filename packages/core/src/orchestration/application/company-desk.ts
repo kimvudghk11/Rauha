@@ -95,7 +95,8 @@ export class CompanyDesk {
     const members = `<members>\n${department.members.map((m) => `- ${m.role}: ${m.does}`).join('\n')}\n</members>`;
     // 질 먼저: 일 나누기(계획)도 종합과 같은 부서장 모델로 한다(부서가 12개라 누구에게 맡길지가 결과를 가른다). 한도가 빠듯하면 둘 다 sonnet, 알림은 한 번.
     const pace = this.chiefPace();
-    const planned = await this.host.member('chief', ['<job>plan</job>', members, ...known], COMPANY_PLAN_SCHEMA, pace());
+    const planOptions = pace();
+    const planned = await this.host.member('chief', ['<job>plan</job>', members, ...known], COMPANY_PLAN_SCHEMA, planOptions);
     if (planned.blocked) return { kind: 'blocked', ...planned.blocked };
     const planStop = this.stopOf(planned);
     if (planStop !== null) return this.host.settle(`${department.label} 일 나누기를 끝내지 못함`, input, planStop.text, planStop.note, started, costBefore);
@@ -121,7 +122,13 @@ export class CompanyDesk {
     }
 
     const body = done.map((d) => `<report member="${d.role}">\n${d.answer}\n</report>`).join('\n');
-    const merged = await this.host.member('chief', ['<job>merge</job>', ...known, `<reports>\n${body}\n</reports>`], ANALYSIS_SCHEMA, pace());
+    // 종합은 일 나누기 세션을 잇는다: 부서·회사 기록·요청이 그 대화에 이미 있다
+    const merged = await this.continued(
+      planned.sessionId !== undefined ? { id: planned.sessionId, options: planOptions } : null,
+      ['<job>merge</job>', `<reports>\n${body}\n</reports>`, '방금 나눈 일의 팀원 보고입니다. 하나로 종합하세요. 이미 읽은 파일은 다시 열지 마세요.'],
+      ['<job>merge</job>', ...known, `<reports>\n${body}\n</reports>`],
+      pace(),
+    );
     if (merged.blocked) return { kind: 'blocked', ...merged.blocked };
     const mergeStop = this.stopOf(merged);
     if (mergeStop !== null) {
@@ -147,13 +154,17 @@ export class CompanyDesk {
     const book = await this.loadBook();
     const pace = this.chiefPace();
     const sections: { label: string; answer: string }[] = [];
+    let previous: { readonly id: string; readonly options: MemberOptions } | null = null;
     for (const id of LAUNCH_ORDER) {
       const department = Department.of(id);
       this.deps.progress.step(`런칭 계획: ${department.label}`);
       // 뒤 부서에는 앞 부서 글 전문이 아니라 요약만 넘긴다(전문은 호출마다 입력을 불린다).
       const earlier = sections.map((s) => `[${s.label}]\n${CompanyBook.summaryOf(s.answer, HANDOFF_CHARS)}`).join('\n\n');
-      const result = await this.host.member(
-        'chief',
+      const options = pace();
+      // 앞 부서 세션을 이으면 요청·회사 기록·앞 부서 글이 그 대화에 이미 있어 이 부서 몫만 보낸다
+      const result = await this.continued(
+        previous,
+        [`<department>\n${department.persona}\n</department>`, '<job>section</job>', '이번에는 위 부서의 몫만 쓰세요. 앞 부서 글과 요청은 이 대화에 있습니다. 이미 읽은 파일은 다시 열지 마세요.'],
         [
           `<department>\n${department.persona}\n</department>`,
           '<job>section</job>',
@@ -164,9 +175,9 @@ export class CompanyDesk {
           earlier !== '' ? `<earlier>\n${earlier}\n</earlier>` : '',
           `<request>\n${input}\n</request>`,
         ],
-        ANALYSIS_SCHEMA,
-        pace(),
+        options,
       );
+      previous = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, options } : null;
       if (result.blocked) return { kind: 'blocked', ...result.blocked };
       const stop = this.stopOf(result);
       if (stop !== null) {
@@ -224,6 +235,17 @@ export class CompanyDesk {
   }
 
   /** 부서장 호출 설정을 돌려주는 함수. 한도가 빠듯하면 상위 모델 대신 sonnet을 쓰고, 이 함수를 쓰는 동안 한 번만 알린다. */
+  /**
+   * 부서장의 다음 차례: 같은 등급이면 앞 세션을 이어 새 말(follow)만 보내고, 안 되면(등급이 바뀜·세션이 없어짐) 처음처럼 모두(full) 보낸다.
+   */
+  private async continued(previous: { readonly id: string; readonly options: MemberOptions } | null, follow: readonly string[], full: readonly string[], options: MemberOptions): Promise<MemberResult> {
+    if (previous !== null && previous.options.tier === options.tier) {
+      const result = await this.host.member('chief', follow, ANALYSIS_SCHEMA, { ...options, continueFrom: previous.id });
+      if (result.output !== null || result.blocked) return result;
+    }
+    return this.host.member('chief', full, ANALYSIS_SCHEMA, options);
+  }
+
   private chiefPace(): () => MemberOptions {
     let noted = false;
     return () => {
