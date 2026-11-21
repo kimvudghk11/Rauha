@@ -15,6 +15,12 @@ describe('usageLimitMessage', () => {
   });
 });
 
+describe('accountBlock — 세션 이어 하기 실패', () => {
+  it('이을 세션이 없다는 SDK 오류는 계정 문제가 아니다(처음부터 다시 보내는 쪽으로 간다)', () => {
+    expect(accountBlock('Claude Code returned an error result: No conversation found with session ID: 79dc430f-06c0-4a63-9f63-6da97a0d23f0')).toBeNull();
+  });
+});
+
 describe('accountBlock', () => {
   it('로그인이 안 된 오류는 로그인 필요로 본다', () => {
     expect(accountBlock('Claude Code returned an error result: Not logged in · Please run /login')).toMatchObject({ reason: 'login' });
