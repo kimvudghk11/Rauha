@@ -21,6 +21,8 @@ export interface DocumentDeps {
   readonly repoName?: string | undefined;
   /** 작업 공간 폴더와 그 안의 저장소들 */
   readonly folder: () => { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
+  /** 저장소 이름 → rauha 가 저장해 둔 그 저장소 지식(없으면 null). 나눠 읽을 때 구조를 다시 훑지 않게 준다. */
+  readonly knownOf?: (name: string) => Promise<string | null>;
 }
 
 export interface DocumentHost extends DeskHost {
@@ -125,11 +127,13 @@ export class DocumentDesk {
         next += 1;
         const repo = repos[at];
         if (repo === undefined) return;
+        const known = (await this.deps.knownOf?.(repo.name).catch(() => null)) ?? null;
         const result = await this.host.member(
           'writer',
           [
             `<today>${this.deps.today()}</today>`,
             `<gather repo="${repo.name}"${repo.root !== null ? ` root="${repo.root}"` : ''}/>`,
+            known !== null ? `${known}\n위는 rauha 가 전에 읽고 저장해 둔 이 저장소 지식입니다. 여기 있는 내용은 다시 열지 말고, 요청에 필요한데 빠진 것만 여세요.` : '',
             `<request>\n${input}\n</request>`,
           ],
           WRITER_SCHEMA,

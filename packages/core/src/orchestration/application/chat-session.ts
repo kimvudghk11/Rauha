@@ -90,6 +90,8 @@ export interface ChatSessionDeps {
   /** 팀원이 일하는 작업 폴더. 문서 팀원이 절대 경로로 보고한 파일을 작업 폴더 기준으로 풀 때 쓴다(없으면 상대 경로로 보고한 것만 받는다). */
   readonly workRoot?: string | undefined;
   readonly folder?: { readonly root: string; readonly repos: readonly { readonly name: string; readonly root: string }[] } | undefined;
+  /** 작업 공간의 다른 저장소들의 저장해 둔 지식. 한 번 읽은 저장소를 질문·일마다 다시 읽지 않게 깊은 일에 붙인다. 없으면 붙이지 않는다. */
+  readonly workspaceKnowledge?: (() => Promise<readonly WorkspaceKnown[]>) | undefined;
   /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 카드 하나(여럿이면 체크리스트)로 넣는다. 없으면 이 요청도 평소처럼 라우터로 간다. */
   readonly addTodos?: ((card: TodoCard) => Promise<void>) | undefined;
   /** 할 일 탭에 이미 있는 끝나지 않은 할 일(카드 제목·안 끝난 체크리스트 글). 같은 할 일을 다시 넣지 않으려고 쓴다. */
@@ -118,6 +120,15 @@ export interface ChatSessionDeps {
 const ALSO_KNOWLEDGE_MAX = 3;
 
 /** 여러 저장소에 걸친 질문에서 함께 읽을 다른 저장소 */
+/** 작업 공간 저장소 하나의 저장해 둔 지식(파일에서 읽기만, 모델 호출 없음). 아직 파악하지 않았으면 block 은 null */
+export interface WorkspaceKnown {
+  readonly name: string;
+  readonly block: string | null;
+}
+
+/** 작업 공간 지식 묶음의 전체 상한(저장소마다 상한은 지식을 읽어 오는 쪽이 정한다) */
+const WORKSPACE_KNOWLEDGE_CHARS = 18_000;
+
 export interface AlsoRepo {
   readonly name: string;
   readonly root: string;
@@ -207,6 +218,8 @@ export class ChatSession {
   private lastTitle: string | null = null;
   /** 답한 뒤 배경 조사를 이미 시작했는지 */
   private surveyed = false;
+  /** 이번 차례에 붙일 작업 공간 지식 묶음(깊은 일에서만 채운다) */
+  private workspaceKnown = '';
   private held: HeldRequest | null = null;
   /** 방금 한 질문과 그 답. 코드를 바꾸는 일이 있거나 /clear 하면 비운다. */
   private answered = new Map<string, { answer: string; at: number }>();
@@ -249,7 +262,7 @@ export class ChatSession {
             },
             { designer: deps.designer, repoName: deps.repoName, progress: deps.progress, now: deps.now },
           );
-    this.documents = new DocumentDesk({ ...host, titled: (title) => (this.lastTitle = title), wrote: (files) => this.carryWritten(files) }, { today: deps.today, progress: deps.progress, repoName: deps.repoName, folder: () => this.deps.folder });
+    this.documents = new DocumentDesk({ ...host, titled: (title) => (this.lastTitle = title), wrote: (files) => this.carryWritten(files) }, { today: deps.today, progress: deps.progress, repoName: deps.repoName, folder: () => this.deps.folder, knownOf: async (name) => (await this.deps.workspaceKnowledge?.())?.find((k) => k.name === name)?.block ?? null });
   }
 
   /** 팀원을 미리 띄우지 않는다: 쓰이지 않을 호출이 한도를 쓰지 않게, 라우터 판정이 끝난 뒤에만 부른다. */
@@ -298,6 +311,9 @@ export class ChatSession {
       if (routed.blocked) return { kind: 'blocked', ...routed.blocked };
       route = RouteDto.read(routed.output, input);
     }
+    // 질문 말고 다른 일(작업·회사 부서·문서·설계 등)은 깊은 일이라 작업 공간 지식을 붙인다. 질문은 깊이를 정한 뒤에.
+    this.workspaceKnown = '';
+    if (route.mode !== 'question') await this.loadWorkspaceKnown();
     if (route.mode === 'task') return this.documents.write(input, conversation, also, started, await this.digestOf(input));
     if (route.mode === 'ops') return this.ops(input, conversation, started);
     if (route.mode === 'publish') return this.publish(input, conversation, started);
@@ -323,6 +339,7 @@ export class ChatSession {
     const depth = force === 'deep' || workLog !== '' || (digest !== null && digest.repos > 1) ? 'deep' : answerDepthOf(route.depth, input);
     // 아키텍처 질문은 조언의 질이 크게 갈려서 "더 깊게"를 기다리지 않고 처음부터 한 단계 위가 답한다
     const deeper = force === 'deep' || asksArchitecture(input);
+    if (depth === 'deep') await this.loadWorkspaceKnown();
     const known = await this.knowledgeFor(depth);
     const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''), deeper);
     const first = await this.answer(input, asked, started, depth, also, digest?.seen ?? []);
@@ -667,7 +684,37 @@ export class ChatSession {
     if (folder === undefined || folder.repos.length < 2) return `<single_repo name="${this.deps.repoName ?? 'this repository'}">
 ${SINGLE_REPO_NOTE}
 </single_repo>`;
-    return `<workspace root="${folder.root}">\n이 폴더 아래의 저장소 ${folder.repos.length}개: ${folder.repos.map((r) => r.name).join(', ')}\n</workspace>`;
+    const listing = `<workspace root="${folder.root}">\n이 폴더 아래의 저장소 ${folder.repos.length}개: ${folder.repos.map((r) => r.name).join(', ')}\n</workspace>`;
+    return this.workspaceKnown === '' ? listing : `${listing}\n\n${this.workspaceKnown}`;
+  }
+
+  /** 깊은 일 직전에 작업 공간 저장소들의 저장해 둔 지식을 읽어 둔다(파일만, 모델 호출 없음). 가벼운 일에는 비워 둔다. */
+  private async loadWorkspaceKnown(): Promise<void> {
+    this.workspaceKnown = '';
+    const folder = this.deps.folder;
+    if (folder === undefined || folder.repos.length < 2 || this.deps.workspaceKnowledge === undefined) return;
+    let items: readonly WorkspaceKnown[];
+    try {
+      items = await this.deps.workspaceKnowledge();
+    } catch {
+      return;
+    }
+    const known: string[] = [];
+    let left = WORKSPACE_KNOWLEDGE_CHARS;
+    for (const item of items) {
+      if (item.block === null || item.block.length > left) continue;
+      known.push(item.block);
+      left -= item.block.length;
+    }
+    const missing = items.filter((i) => i.block === null || !known.includes(i.block)).map((i) => `- ${i.name}: ${i.block === null ? '아직 파악하지 않음' : '길어서 뺌'}`);
+    if (known.length === 0 && missing.length === 0) return;
+    this.workspaceKnown = [
+      '<workspace_knowledge>',
+      'rauha 가 전에 읽고 저장해 둔 작업 공간 저장소들의 지식(파일 지도·스택·영역 메모)입니다. 여기 있는 내용은 다시 열지 말고, 빠졌거나 확인이 꼭 필요한 파일만 여세요.',
+      ...known,
+      ...(missing.length > 0 ? ['저장된 지식이 없는 저장소(필요하면 직접 여세요):', ...missing] : []),
+      '</workspace_knowledge>',
+    ].join('\n');
   }
 
   // ── 질문 ──────────────────────────────────────────────────

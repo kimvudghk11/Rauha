@@ -638,6 +638,19 @@ describe('ChatSession — 여러 저장소', () => {
       expect(team.calls.find((c) => c.role === 'answerer')!.message).not.toContain('<workspace');
     });
 
+    it('저장소마다 나눠 읽을 때 그 저장소의 저장해 둔 지식을 함께 줘서 구조를 처음부터 다시 훑지 않게 한다', async () => {
+      const team = new FakeTeam({ router: [route('task')], writer: [(c) => (c.userMessage.includes('<gather') ? { summary: '요약', files: [] } : done())] });
+      await ChatSession.start({
+        ...sessionDeps({ team }),
+        repoName: 'shop-api',
+        folder: folder(6),
+        workspaceKnowledge: async () => [{ name: 'repo3', block: '<repo_knowledge repo="repo3">React·Vite</repo_knowledge>' }],
+      }).handle('모든 레포 이력서 정리', alsoOf(6));
+      const gathers = team.calls.filter((c) => c.role === 'writer' && c.message.includes('<gather'));
+      expect(gathers.find((c) => c.message.includes('<gather repo="repo3"'))!.message).toContain('React·Vite');
+      expect(gathers.find((c) => c.message.includes('<gather repo="repo4"'))!.message).not.toContain('<repo_knowledge');
+    });
+
     it('저장소가 4개 넘으면 저장소마다 문서 팀원(sonnet)이 나눠 읽고(문서는 쓰지 않음), 모은 요약으로 문서 한 번 쓴다', async () => {
       const team = new FakeTeam({ router: [route('task')], writer: [(c) => (c.userMessage.includes('<gather') ? { summary: `요약-${c.userMessage.match(/<gather repo="([^"]+)"/)![1]}`, files: [] } : done())] });
       const steps: string[] = [];
@@ -1572,6 +1585,37 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
     const turn = await session({ team }).handle('REST가 뭐야?');
     expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
     expect(turn).toMatchObject({ kind: 'answer', canGoDeeper: true });
+  });
+
+  it('작업 공간 저장소들의 저장해 둔 지식을 깊은 답에 붙여 다시 읽지 않게 하고, 아직 파악 안 된 저장소는 그렇다고 알린다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [answer] });
+    const chat = ChatSession.start({
+      ...sessionDeps({ team }),
+      folder: { root: 'E:/w', repos: [{ name: 'shop', root: 'E:/w/shop' }, { name: 'api', root: 'E:/w/api' }, { name: 'admin', root: 'E:/w/admin' }] },
+      workspaceKnowledge: async () => [
+        { name: 'api', block: '<repo_knowledge repo="api">Nest·Postgres</repo_knowledge>' },
+        { name: 'admin', block: null },
+      ],
+    });
+    await chat.handle('찢어진 레포들을 모노레포로 합치려면 어떻게 구성할까?');
+    const message = team.calls.find((c) => c.role === 'answerer')!.message;
+    expect(message).toContain('<workspace_knowledge>');
+    expect(message).toContain('Nest·Postgres');
+    expect(message).toContain('다시 열지');
+    expect(message).toMatch(/admin: 아직 파악하지 않음/);
+  });
+
+  it('가벼운 답에는 작업 공간 지식을 붙이지 않는다(읽지도 않는다)', async () => {
+    let read = 0;
+    const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
+    const chat = ChatSession.start({
+      ...sessionDeps({ team }),
+      folder: { root: 'E:/w', repos: [{ name: 'a', root: 'E:/w/a' }, { name: 'b', root: 'E:/w/b' }] },
+      workspaceKnowledge: async () => (read++, [{ name: 'b', block: '<repo_knowledge repo="b">x</repo_knowledge>' }]),
+    });
+    await chat.handle('REST가 뭐야?');
+    expect(team.calls.find((c) => c.role === 'answerer')!.message).not.toContain('<workspace_knowledge>');
+    expect(read).toBe(0);
   });
 
   it('아키텍처 질문(구성·합치기·나누기·전환)은 내 환경을 읽고 처음부터 한 단계 위(opus)가 답한다', async () => {

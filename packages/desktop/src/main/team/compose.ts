@@ -57,6 +57,7 @@ import { readSpreadsheet } from '../files/spreadsheet.js';
 import { ciLog, ciRuns } from '../github/ci-facts.js';
 import type { ActionsClient } from '../github/actions-client.js';
 import { workspaceFileReader } from './workspace-file.js';
+import { workspaceKnowledge } from './workspace-knowledge.js';
 import type { TeamIo, TeamSession } from './team-work.js';
 
 /** 작업 공간 변경 묶음을 다시 읽지 않고 쓰는 시간 */
@@ -254,6 +255,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     repoName: basename(keyRoot),
     workRoot: root,
     folder,
+    // 작업 공간의 다른 저장소들이 저장해 둔 지식(파일만 읽음): 한 번 읽은 저장소를 질문·일마다 다시 읽지 않게
+    ...(folder !== undefined && folder.repos.length > 1 ? { workspaceKnowledge: () => workspaceKnowledge(folder.repos, keyRoot, (repoRoot) => new FileKnowledgeStore(profile.knowledgeDir(home), repoRoot).load()) } : {}),
     designer: new DesignService({
       team,
       roles,
