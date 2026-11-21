@@ -49,8 +49,9 @@ describe('answerDepthOf', () => {
     expect(answerDepthOf('light', 'src/money.ts 뭐 해?')).toBe('deep');
   });
 
-  it('인사가 아니면 라우터가 light 라 해도 깊게 답한다(질 먼저)', () => {
-    expect(answerDepthOf('light', '1+1은 얼마야?')).toBe('deep');
+  it('저장소를 가리키지 않는 질문은 라우터 판단을 따른다(간단한 질문은 가볍게 빨리)', () => {
+    expect(answerDepthOf('light', '1+1은 얼마야?')).toBe('light');
+    expect(answerDepthOf('light', '모노레포할 때 어떻게 구성할까?')).toBe('light');
     expect(answerDepthOf('deep', '이 함수 어디서 써?')).toBe('deep');
     expect(answerDepthOf('deep', '안녕')).toBe('light');
   });
@@ -67,6 +68,11 @@ describe('pointsAtRepository', () => {
 
   it('일반 상식·산수·인사는 저장소를 가리키지 않는다', () => {
     for (const text of ['1+1은 얼마야?', '안녕', 'REST와 GraphQL 차이가 뭐야?', '지금 몇 시야?']) expect(pointsAtRepository(text)).toBe(false);
+  });
+
+  it('모노레포·멀티레포 같은 일반 개념은 이 저장소를 가리키지 않는다', () => {
+    for (const text of ['모노레포할 때 어떻게 구성할까?', '멀티레포랑 모노레포 차이', 'monorepo 장단점', '폴리레포가 뭐야']) expect(pointsAtRepository(text)).toBe(false);
+    expect(pointsAtRepository('이 모노레포 폴더 구조 알려줘')).toBe(true);
   });
 });
 

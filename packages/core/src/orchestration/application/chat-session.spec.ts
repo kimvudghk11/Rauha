@@ -1567,11 +1567,11 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
     expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'sonnet', effort: 'medium', maxTurns: 25 });
   });
 
-  it('라우터가 light 라고 해도 인사가 아닌 질문은 깊게(opus) 답한다(질 먼저)', async () => {
+  it('저장소를 가리키지 않는 가벼운 질문은 라우터가 light 면 가볍게(sonnet) 답하고 더 깊게 물을 수 있다', async () => {
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
-    const turn = await session({ team }).handle('1+1은 얼마야?');
-    expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'opus', effort: 'high' });
-    expect(turn).toMatchObject({ kind: 'answer', canGoDeeper: false });
+    const turn = await session({ team }).handle('모노레포할 때 어떻게 구성할까?');
+    expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'sonnet', effort: 'medium' });
+    expect(turn).toMatchObject({ kind: 'answer', canGoDeeper: true });
   });
 
   it('light 답은 이미 저장된 저장소 지식이 있으면 그것만 쓴다', async () => {

@@ -11,18 +11,21 @@ export function isSmallTalk(input: string): boolean {
 
 const REPO_WORDS = /폴더|디렉터리|디렉토리|구조|레포|저장소|파일|경로|\b(repo|repository|folder|directory|files?|path)\b|\w\.(ts|tsx|js|jsx|mjs|cjs|py|java|kt|go|rs|rb|php|cs|swift|sql|sh|css|scss|html|json|ya?ml|toml|md|mdx|txt)\b|\w\/\w|어디\s?(에|서|있|쯤)/i;
 
+/** 레포 방식을 가리키는 일반 개념(모노레포·멀티레포·폴리레포). 이 말 속의 "레포"는 이 저장소가 아니다. */
+const REPO_CONCEPTS = /(모노|멀티|폴리)\s?레포|\b(mono|multi|poly)-?repos?\b/gi;
+
 /** 요청이 이 저장소의 파일·폴더·구조를 가리키는지. 가리키면 지도 없이 가볍게 답하면 안 되고 직접 훑어야 한다. */
 export function pointsAtRepository(input: string): boolean {
-  return REPO_WORDS.test(input);
+  return REPO_WORDS.test(input.replace(REPO_CONCEPTS, ' '));
 }
 
 /**
- * 질문에 얼마나 깊이 답할지. 한도보다 답의 질을 먼저 본다(2026-11-18 사용자 결정): 인사·맞장구만 가볍게, 나머지는 모두 깊게.
- * 라우터가 light 라고 해도 질문이면 깊게 답한다(가볍게 답했다 "더 깊게"로 다시 묻는 왕복을 없앤다).
+ * 질문에 얼마나 깊이 답할지. 이 저장소를 가리키면 깊게, 인사는 가볍게, 나머지는 라우터 판단을 따른다.
+ * (2026-11-21 사용자: 간단한 질문까지 깊게 돌려 세션을 크게 쓰지 말고, 일마다 알맞게 나눠 툭툭 끝낼 것)
  */
-export function answerDepthOf(_routed: 'light' | 'deep', input: string): 'light' | 'deep' {
+export function answerDepthOf(routed: 'light' | 'deep', input: string): 'light' | 'deep' {
   if (pointsAtRepository(input)) return 'deep';
-  return isSmallTalk(input) ? 'light' : 'deep';
+  return isSmallTalk(input) ? 'light' : routed;
 }
 
 const PROCEED = /^\s*(그래도|그냥)\s*(진행|해\s?줘|해|할게|실행)/;
