@@ -11,13 +11,14 @@
 | 한 번에 한 일, 끝날 때까지 대기 | **동시에 여러 일** — 같은 레포도 git worktree로 안 부딪히게 |
 | 터미널 로그를 읽어야 진행을 안다 | **팀 방** — 누가 어느 단계에서 뭘 하는지 캐릭터와 단계 막대로 한눈에 |
 | 허락 창은 명령어 한 줄 | **허락 카드** — 코드는 diff와 main/qa 영향(앞섬·뒤처짐·충돌·자동 배포), 인프라는 위험도 표 |
-| 모든 질문에 같은 모델 | **질 먼저** — 생각하는 팀원은 Opus, 인사만 가볍게, 구현은 테스트가 실패하면 Opus·Fable로 승격 |
+| 모든 질문에 같은 모델 | **일마다 알맞은 크기** — 인사는 모델 없이, 간단한 질문은 Sonnet, 리뷰·설계·디버깅·보안·아키텍처 조언만 Opus, 구현은 실패하면 Opus·Fable로 승격 |
+| 단계마다 처음부터 다시 읽는다 | **한 번 읽은 건 기억** — 같은 팀원의 다음 차례는 앞 세션을 이어 새 말만 보내고, 작업 공간 저장소 지도는 모델 없이 만들어 둔다. 결과 카드에 그 일이 쓴 세션 % |
 | 한 레포만 본다 | **폴더 하나만 고르면** 그 아래 레포와 문서를 알아서 훑고 요청에 맞는 곳에서 일한다 |
 | 코드만 만든다 | 사업 하나를 굴릴 만큼: PRD·가격·광고·약관·채용·AWS 비용·회계까지 **부서별 팀원**이 맡는다 |
 | 모델이 레포를 하나씩 뒤지다 빠뜨린다 | **rauha 도구 14개**(mcp__rauha__*): 모든 레포 변경·코드 검색·CI·의존성·표 읽기를 rauha가 직접 읽어 준다 |
 | 모르는 것도 아는 척 | 모르는 칸은 지어내지 않고 **"모름"** 이라고 쓴다. 화면에 금액도 없다 |
 
-- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.2.37/rauha-Setup-0.2.37-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.2.37/rauha-0.2.37-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.2.37/rauha-0.2.37-mac-x64.dmg) — 설치 방법은 아래 "설치"
+- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.3.0/rauha-Setup-0.3.0-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.3.0/rauha-0.3.0-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.3.0/rauha-0.3.0-mac-x64.dmg) — 설치 방법은 아래 "설치"
 - 사용 안내(한 장): [docs/desktop-guide.md](docs/desktop-guide.md) · 되는 것과 아직 안 되는 것: [docs/release-checklist.md](docs/release-checklist.md)
 
 ## 무엇을 하나
@@ -27,7 +28,8 @@
 - **동시에 여러 일**: 일을 맡기면 바로 다음 일을 보낼 수 있다. 동시에 3개까지(설정에서 1~6) 돌고 넘치면 대기한다. 같은 레포에서 둘 이상 돌면 두 번째부터는 git worktree에서 일하고, 끝나면 `rauha/job-…` 브랜치로 남긴다.
 - **팀 방**: 일마다 방이 생겨 캐릭터, 진행 단계 막대, 마지막 한 줄, 걸린 시간이 보인다. 방을 누르면 정리된 내용과 원본 로그를 볼 수 있다.
 - **허락 카드**: 위험한 일만 묻는다. 코드는 바뀐 파일·diff와 main/qa 같은 보호 브랜치에 주는 영향(앞섬·뒤처짐·충돌·자동 배포 여부)을, 인프라는 환경·영향 범위·중단 여부·되돌리는 시간 같은 위험도 표를 보여 준다. 모르는 칸은 지어내지 않고 "모름"이다. 비밀 파일 읽기·쓰기는 허락과 상관없이 막혀 있다. commit·push·PR은 요청에서 시켰을 때만 묻지 않고 하고, 시키지 않았거나 강제 push면 허락 카드로 묻는다.
-- **질 먼저**: 인사·맞장구만 가볍게 답하고, 나머지 질문은 처음부터 깊게 답한다. 문서만 고치는 요청은 코드 작업(테스트 먼저)이 아니라 문서 경로로 간다.
+- **세션을 아끼면서 똑똑하게**: "ㅎㅇ"·"고마워"는 모델 없이 바로 답하고, 이 저장소를 몰라도 되는 질문은 Sonnet이 짧게 답한다("더 깊게"를 누르면 Opus). 이 저장소를 읽어야 하는 질문은 깊게, 구성·설계·합치기·전환 같은 아키텍처 질문은 내 작업 공간을 읽고 처음부터 Opus가 답한다. 설계 대화·빠진 항목 마저 하기·구현 재시도·이어지는 질문은 같은 팀원의 앞 세션을 이어서 이미 읽은 파일을 다시 읽지 않는다. 문서만 고치는 요청은 코드 작업(테스트 먼저)이 아니라 문서 경로로 간다.
+- **검증은 꼼꼼하게**: 테스트 팀원이 단위·통합·E2E·TDD·BDD·커버리지·뮤테이션·속성 기반·회귀·계약·성능·보안 12가지 중 바뀐 내용에 맞는 것을 빠짐없이 쓰고, 건너뛴 것은 이유를 남긴다. 리뷰어가 빠진 검증을 근거와 함께 짚는다.
 - **규칙 탭**: "항상 지킬 것 / 묻지 않고 할 것 / 꼭 허락받을 것"을 범위와 함께 적는다. 말로 적으면 정리해 준다.
 - **코드 탭(레포 목록·파일 조작 포함) · git 탭**: 코드 탭 탐색기에서 레포별 브랜치·원격과의 차이·바뀐 파일을 보고 파일을 만들고 이름 바꾸고 옮기고 휴지통으로 보내며,  git 탭에서는 GitHub Desktop처럼 변경 보기, hunk·줄 단위 스테이지, 커밋, 브랜치, fetch/pull/push, 히스토리, 충돌 풀기, PR 열기를 한다.
 - **설정**: Claude 계정 바꾸기(Claude Code 설정 폴더 하나 = 계정 하나), 세션·주간 사용 한도 %, 알림, 창 배치(너비 4단계 반응형), 보호 브랜치, 동시 실행 수. 화면에 금액은 나오지 않는다.
@@ -44,9 +46,9 @@
 
 | 내 컴퓨터 | 내려받기 | 크기 |
 | --- | --- | --- |
-| Windows | [rauha-Setup-0.2.37-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.2.37/rauha-Setup-0.2.37-x64.exe) | 218MB |
-| Mac (Apple 칩, M1 이상) | [rauha-0.2.37-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.2.37/rauha-0.2.37-mac-arm64.dmg) | 237MB |
-| Mac (인텔) | [rauha-0.2.37-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.2.37/rauha-0.2.37-mac-x64.dmg) | 248MB |
+| Windows | [rauha-Setup-0.3.0-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.3.0/rauha-Setup-0.3.0-x64.exe) | 218MB |
+| Mac (Apple 칩, M1 이상) | [rauha-0.3.0-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.3.0/rauha-0.3.0-mac-arm64.dmg) | 237MB |
+| Mac (인텔) | [rauha-0.3.0-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.3.0/rauha-0.3.0-mac-x64.dmg) | 248MB |
 
 내 맥의 칩은 Apple 메뉴 → 이 Mac에 관하여에서 볼 수 있다. 다른 버전은 [Releases 페이지](https://github.com/kimvudghk11/rauha/releases)에 있다.
 

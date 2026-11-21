@@ -6,6 +6,14 @@ const asset = (name: string) => ({ name, url: `${DOWNLOAD_PREFIX}v0.1.2/${name}`
 const rawAsset = (name: string) => ({ name, browser_download_url: `${DOWNLOAD_PREFIX}v0.1.2/${name}` });
 const release = (tag: string, extra: Record<string, unknown> = {}) => ({ tag_name: tag, html_url: `https://github.com/kimvudghk11/rauha/releases/tag/${tag}`, draft: false, prerelease: false, assets: [], ...extra });
 
+describe('AppVersion — 0.2.x 에서 0.3.0 으로', () => {
+  it('0.3.0 은 0.2.37 보다 새 버전이다(글자 비교가 아니라 숫자 비교)', () => {
+    expect(AppVersion.parse('0.3.0')!.isNewerThan(AppVersion.parse('0.2.37')!)).toBe(true);
+    expect(AppVersion.parse('v0.3.0')!.isNewerThan(AppVersion.parse('0.2.99')!)).toBe(true);
+    expect(AppVersion.parse('0.2.37')!.isNewerThan(AppVersion.parse('0.3.0')!)).toBe(false);
+  });
+});
+
 describe('AppVersion', () => {
   it('v 접두사가 있어도 없어도 같은 버전으로 읽는다', () => {
     expect(v('v0.1.2').compareTo(v('0.1.2'))).toBe(0);
