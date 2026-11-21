@@ -57,7 +57,7 @@ import { readSpreadsheet } from '../files/spreadsheet.js';
 import { ciLog, ciRuns } from '../github/ci-facts.js';
 import type { ActionsClient } from '../github/actions-client.js';
 import { workspaceFileReader } from './workspace-file.js';
-import { workspaceKnowledge } from './workspace-knowledge.js';
+import { MapRefresher, workspaceKnowledge } from './workspace-knowledge.js';
 import type { TeamIo, TeamSession } from './team-work.js';
 
 /** 작업 공간 변경 묶음을 다시 읽지 않고 쓰는 시간 */
@@ -115,6 +115,19 @@ export async function accountNames(home: string): Promise<string[]> {
 }
 
 /** 팀원 호출에 작업의 멈춤 신호를 이어 붙인다. 미리 띄워 두는 호출(prepare)은 한도를 쓰므로 넘기지 않는다. */
+/** 지도만 맞추는 일은 팀원을 부르지 않는다(부르면 잘못이라 바로 실패시킨다) */
+const NO_TEAM: TeamMemberPort = { run: async () => Promise.reject(new Error('지도 맞추기는 팀원을 부르지 않습니다')) };
+let refresher: MapRefresher | null = null;
+
+/** 앱 하나에 하나: 일마다 compose 가 불려도 같은 저장소를 10분 안에 다시 훑지 않게 */
+function mapRefresher(dir: string, roles: RoleSettingsDto): MapRefresher {
+  // 비밀 파일 규칙은 그 저장소 것을 쓴다
+  refresher ??= new MapRefresher((root) =>
+    new KnowledgeService({ reader: new GitRepoReader(root, loadSecretPolicy(root)), store: new FileKnowledgeStore(dir, root), team: NO_TEAM, roles, progress: { step: () => undefined }, repoName: basename(root) }).refreshMap(),
+  );
+  return refresher;
+}
+
 function stoppable(team: TeamMemberPort, signal: AbortSignal): TeamMemberPort {
   return {
     run: (call: MemberCall): Promise<MemberResult> => team.run({ ...call, signal: call.signal ?? signal }),
@@ -256,7 +269,16 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     workRoot: root,
     folder,
     // 작업 공간의 다른 저장소들이 저장해 둔 지식(파일만 읽음): 한 번 읽은 저장소를 질문·일마다 다시 읽지 않게
-    ...(folder !== undefined && folder.repos.length > 1 ? { workspaceKnowledge: () => workspaceKnowledge(folder.repos, keyRoot, (repoRoot) => new FileKnowledgeStore(profile.knowledgeDir(home), repoRoot).load()) } : {}),
+    ...(folder !== undefined && folder.repos.length > 1
+      ? {
+          workspaceKnowledge: async () => {
+            const items = await workspaceKnowledge(folder.repos, keyRoot, (repoRoot) => new FileKnowledgeStore(profile.knowledgeDir(home), repoRoot).load());
+            // 뒤에서 모델 없이 지도를 맞춘다: 아직 모르는 저장소도 다음 질문부터는 처음부터 다시 읽지 않는다
+            void mapRefresher(profile.knowledgeDir(home), roles).refresh(folder.repos.filter((r) => items.some((i) => i.name === r.name)).map((r) => r.root));
+            return items;
+          },
+        }
+      : {}),
     designer: new DesignService({
       team,
       roles,

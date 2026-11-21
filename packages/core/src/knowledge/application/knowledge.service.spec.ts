@@ -143,6 +143,37 @@ describe('KnowledgeService', () => {
   });
 });
 
+describe('KnowledgeService.refreshMap', () => {
+  it('저장된 지식이 없으면 모델 없이 파일 지도·심볼만 만들어 저장한다(다음 질문부터 다시 읽지 않게)', async () => {
+    const { svc, store, team } = service();
+    await svc.refreshMap();
+    expect(team.calls).toEqual([]);
+    expect(store.saves).toBe(1);
+    expect((await svc.stored())?.block).toContain('basis="main (a100000)"');
+  });
+
+  it('있으면 바뀐 파일만 모델 없이 반영하고, 바뀐 게 없으면 저장도 하지 않는다', async () => {
+    const { svc, store, reader, team } = service();
+    await svc.refreshMap();
+    await svc.refreshMap();
+    expect(store.saves).toBe(1);
+    reader.ref = ref('a2');
+    reader.fileList.push('src/domain/coupon.ts');
+    reader.changed = { paths: ['src/domain/coupon.ts'] };
+    await svc.refreshMap();
+    expect(store.saves).toBe(2);
+    expect(team.calls).toEqual([]);
+  });
+
+  it('git 저장소가 아니면 아무것도 하지 않는다', async () => {
+    const reader = new FakeReader();
+    reader.ref = null;
+    const { svc, store } = service(reader);
+    await svc.refreshMap();
+    expect(store.saves).toBe(0);
+  });
+});
+
 describe('KnowledgeService.stored', () => {
   it('저장된 지식이 없으면 저장소를 읽지도 조사 팀원을 부르지도 않고 null을 돌려준다', async () => {
     const { svc, team, store } = service();

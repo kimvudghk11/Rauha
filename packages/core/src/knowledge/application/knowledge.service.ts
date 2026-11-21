@@ -48,6 +48,22 @@ export class KnowledgeService implements KnowledgePort {
     return { block: knowledge.toBlock(this.deps.repoName), basis: knowledge.basis };
   }
 
+  /**
+   * 모델 없이 파일 지도·스택·심볼만 최신으로 맞춰 저장한다(영역 메모 조사는 하지 않는다).
+   * 작업 공간의 아직 모르는 저장소를 뒤에서 한 번 파악해 두어, 다음 질문부터 팀원이 처음부터 다시 읽지 않게 한다.
+   */
+  async refreshMap(): Promise<void> {
+    const { reader, store } = this.deps;
+    const ref = await reader.current();
+    if (ref === null) return;
+    const loaded = await store.load();
+    // followChanges 는 불러온 지식을 그 자리에서 고치므로 고치기 전 기준을 먼저 적어 둔다
+    const before = loaded === null ? null : { label: loaded.basis.label(), dirty: loaded.basis.dirty };
+    const refreshed = loaded === null ? null : await this.followChanges(loaded, ref);
+    if (refreshed !== null && before !== null && refreshed.basis.label() === before.label && refreshed.basis.dirty === before.dirty) return;
+    await store.save(refreshed ?? (await this.build(ref, false)));
+  }
+
   async stored(): Promise<{ block: string; basis: RepoRef } | null> {
     const knowledge = await this.deps.store.load();
     return knowledge === null ? null : { block: knowledge.toBlock(this.deps.repoName), basis: knowledge.basis };
@@ -86,8 +102,8 @@ export class KnowledgeService implements KnowledgePort {
     knowledge.applyChanges({ basis: ref, facts, changed, hashes });
   }
 
-  private async build(ref: RepoRef): Promise<RepoKnowledge> {
-    this.deps.progress.step('저장소를 처음 파악하는 중이에요');
+  private async build(ref: RepoRef, announce = true): Promise<RepoKnowledge> {
+    if (announce) this.deps.progress.step('저장소를 처음 파악하는 중이에요');
     const files = await this.deps.reader.files();
     const [symbols, facts, hashes] = await Promise.all([this.deps.reader.symbolsOf(files), this.deps.reader.facts(files), this.deps.reader.hashes(files)]);
     const exported = new Map([...symbols].filter((e): e is [string, readonly string[]] => e[1] !== null && e[1].length > 0));

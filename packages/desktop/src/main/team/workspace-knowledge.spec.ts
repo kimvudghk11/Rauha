@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { workspaceKnowledge, WORKSPACE_REPO_CHARS } from './workspace-knowledge.js';
+import { MapRefresher, workspaceKnowledge, WORKSPACE_REPO_CHARS } from './workspace-knowledge.js';
+
+describe('MapRefresher', () => {
+  it('저장소마다 뒤에서 지도를 맞추되, 10분 안에는 같은 저장소를 다시 훑지 않는다', async () => {
+    let now = 0;
+    const ran: string[] = [];
+    const r = new MapRefresher(async (root) => void ran.push(root), () => now);
+    await r.refresh(['E:/w/a', 'E:/w/b']);
+    await r.refresh(['E:/w/a', 'E:\\w\\B']);
+    expect(ran).toEqual(['E:/w/a', 'E:/w/b']);
+    now = 10 * 60 * 1000;
+    await r.refresh(['E:/w/a']);
+    expect(ran).toEqual(['E:/w/a', 'E:/w/b', 'E:/w/a']);
+  });
+
+  it('하나가 실패해도 나머지는 하고, 던지지 않는다', async () => {
+    const ran: string[] = [];
+    const r = new MapRefresher(async (root) => {
+      if (root === 'E:/w/a') throw new Error('git 없음');
+      ran.push(root);
+    }, () => 0);
+    await expect(r.refresh(['E:/w/a', 'E:/w/b'])).resolves.toBeUndefined();
+    expect(ran).toEqual(['E:/w/b']);
+  });
+});
 
 const knowledge = (text: string) => ({ toBlock: (name: string, max: number) => `<repo_knowledge repo="${name}" max="${max}">${text}</repo_knowledge>` });
 
