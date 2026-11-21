@@ -3,7 +3,9 @@
  * 모델은 처음 한 번 Hugging Face 에서 내려받아 cacheDir 에 둔다(whisper-small 약 250MB).
  * 한 번에 하나씩 받아쓴다(여러 개가 겹쳐 CPU 를 다 쓰지 않게).
  */
-type Asr = (audio: Float32Array, options: Record<string, unknown>) => Promise<{ text: string } | { text: string }[]>;
+import { audioForAsr } from '../../shared/voice/asr-audio.js';
+
+type Asr =(audio: Float32Array, options: Record<string, unknown>) => Promise<{ text: string } | { text: string }[]>;
 
 export type TranscriberState = 'idle' | 'loading' | 'ready' | 'failed';
 
@@ -39,12 +41,14 @@ export class LocalTranscriber {
     );
   }
 
-  /** 16kHz 소리를 한국어 글로 */
+  /** 16kHz 소리를 한국어 글로. 너무 짧은 조각은 받아쓰지 않고 빈 글 */
   transcribe(samples: Float32Array): Promise<string> {
+    const audio = audioForAsr(samples);
+    if (audio === null) return Promise.resolve('');
     this.pending += 1;
     const run = this.queue.then(async () => {
       const asr = await this.load();
-      const out = await asr(samples, { language: 'korean', task: 'transcribe' });
+      const out = await asr(audio, { language: 'korean', task: 'transcribe' });
       return (Array.isArray(out) ? out.map((o) => o.text).join(' ') : out.text).trim();
     });
     const settled = run.then(
