@@ -80,6 +80,14 @@ describe('ConversationMerge', () => {
       expect(ConversationMerge.startingFrom(base).finishedWith(stored, { ...snap(['앞', '인사']), answerSession: s1 }).answerSession).toEqual(s2);
     });
 
+    it('바로 앞 답(더 깊게용)도 같은 규칙으로 저장한다', () => {
+      const base = snap(['앞']);
+      const merged = ConversationMerge.startingFrom(base).finishedWith(base, { ...snap(['앞', 'Q']), lastAnswer: { id: 'l1', key: 'q' } });
+      expect(merged.lastAnswer).toEqual({ id: 'l1', key: 'q' });
+      const later = ConversationMerge.startingFrom(merged).finishedWith(merged, snap(['앞', 'Q', '작업']));
+      expect(later).not.toHaveProperty('lastAnswer');
+    });
+
     it('다른 레포 대화를 함께 볼 때는 이 레포의 세션만 쓴다(세션은 작업 폴더마다 다르다)', () => {
       const own = { ...snap(['내 것']), answerSession: s1 };
       const other = { ...snap(['남의 것'], [], null, '2026-11-09T09:00:00.000Z'), answerSession: s2 };

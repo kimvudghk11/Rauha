@@ -319,6 +319,38 @@ describe('ChatSession — 질문', () => {
       expect(continued).toHaveLength(1);
     });
 
+    it('"더 깊게"는 바로 앞 답 세션(가벼운 답 포함)을 이어 opus 가 빠진 것만 더 본다', async () => {
+      const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [reply] });
+      team.sessions = 'on';
+      const chat = session({ team });
+      await chat.handle('REST가 뭐야?');
+      await chat.handle('REST가 뭐야?', [], 'deep');
+      const [light, deeper] = team.calls.filter((c) => c.role === 'answerer');
+      expect(light!.tier).toBe('sonnet');
+      expect(deeper!.tier).toBe('opus');
+      expect(deeper!.continueFrom).toBe('answerer-2');
+      expect(deeper!.message).toContain('더 깊게');
+      expect(deeper!.message).not.toContain('<conversation>');
+    });
+
+    it('"더 깊게"도 저장해 둔 대화로 다시 열어 잇는다(앱은 더 깊게도 새 일로 돌린다)', async () => {
+      const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [reply] });
+      team.sessions = 'on';
+      const first = session({ team });
+      await first.handle('REST가 뭐야?');
+      await ChatSession.resume(sessionDeps({ team }), first.snapshot('2026-11-22T00:00:00.000Z')).handle('REST가 뭐야?', [], 'deep');
+      expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBe('answerer-2');
+    });
+
+    it('"더 깊게"가 다른 질문을 가리키면(앞 답과 다르면) 새 세션으로 답한다', async () => {
+      const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [reply] });
+      team.sessions = 'on';
+      const chat = session({ team });
+      await chat.handle('REST가 뭐야?');
+      await chat.handle('GraphQL은 뭐야?', [], 'deep');
+      expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBeUndefined();
+    });
+
     it('이어 하기가 안 되면 처음처럼 모두 보낸다', async () => {
       const team = new FakeTeam({ router: [route('question'), route('question')], answerer: [reply] });
       team.sessions = 'failResume';

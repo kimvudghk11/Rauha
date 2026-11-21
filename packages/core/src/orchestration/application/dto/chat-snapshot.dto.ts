@@ -9,6 +9,19 @@ export interface ChatSnapshot {
   readonly savedAt: string;
   /** 마지막 깊은 답의 팀원 세션(이어지는 질문이 잇는다). 없으면 새 세션으로 답한다. 옛 파일에는 없다 */
   readonly answerSession?: AnswerSession;
+  /** 바로 앞 답(가벼운 답 포함)의 세션과 그 질문 열쇠. "더 깊게"가 잇는다. 옛 파일에는 없다 */
+  readonly lastAnswer?: LastAnswer;
+}
+
+export interface LastAnswer {
+  readonly id: string;
+  readonly key: string;
+}
+
+function lastAnswerFrom(v: unknown): LastAnswer | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  return typeof o['id'] === 'string' && o['id'] !== '' && typeof o['key'] === 'string' ? { id: o['id'], key: o['key'] } : undefined;
 }
 
 export interface AnswerSession {
@@ -55,6 +68,7 @@ export class ChatSnapshotDto {
     const validCarried = carried.every((c) => Array.isArray(c) && c.length === 2 && isString(c[0]) && isString(c[1]));
     if (!validTurns || !validCarried) return null;
     const answerSession = answerSessionFrom(o['answerSession']);
+    const lastAnswer = lastAnswerFrom(o['lastAnswer']);
     return new ChatSnapshotDto({
       version: 1,
       turns: turns.map((t) => ({ input: (t as { input: string }).input, result: (t as { result: string }).result })),
@@ -62,6 +76,7 @@ export class ChatSnapshotDto {
       lastTitle: o['lastTitle'] as string | null,
       savedAt: o['savedAt'],
       ...(answerSession !== undefined ? { answerSession } : {}),
+      ...(lastAnswer !== undefined ? { lastAnswer } : {}),
     });
   }
 
