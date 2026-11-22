@@ -52,6 +52,11 @@ const CONVERSATION_TURNS = 6;
 const KEPT_RESULT_CHARS = 1200;
 /** 요청 항목 표에 팀이 더 하면 끝나는 것이 남았을 때 같은 팀원을 다시 부르는 최대 횟수. 앞 세션을 이어 하니 한 번이면 충분하다(2026-11-22 실측: 두 번이면 깊은 질문 하나에 답변 팀원 3번) */
 const FOLLOW_UPS = 1;
+/**
+ * 앞 답이 읽은 양(입력+캐시 읽기, 모든 턴 합)이 이보다 크면 마저 하기를 자동으로 부르지 않는다.
+ * 2026-11-22 실측: 깊은 질문(43만)·아키텍처(39만)에서 마저 하기가 큰 대화를 다시 읽고 답 전체를 다시 써서 본 답보다 비쌌다.
+ */
+const FOLLOW_UP_CONTEXT_MAX = 150_000;
 
 /** 답 결과에 얹을 "찾아본 것" 한 줄. 도구를 쓰지 않았으면 키 자체가 없다. */
 function toolsPart(tools: readonly ToolCount[] | undefined): { toolsLine?: string } {
@@ -966,6 +971,8 @@ ${SINGLE_REPO_NOTE}
     let coverage = CoverageDto.read(result.output, opened);
     let extraCostUsd = 0;
     for (let round = 0; round < FOLLOW_UPS; round += 1) {
+      // 큰 대화를 이어 다시 읽고 답 전체를 다시 쓰면 본 답보다 비싸다. 그때는 남은 항목을 보여 주고 "더 깊게"는 사용자가 고른다
+      if (result.usage.inputTokens + result.usage.cacheReadTokens > FOLLOW_UP_CONTEXT_MAX) break;
       const previous = this.tryRead(() => AnswerDto.from(result.output));
       const followUp = depth === 'deep' && previous !== null ? coverage.followUp() : null;
       if (followUp === null) break;

@@ -9,7 +9,7 @@ Use this depth to see further, never to guess: every claim still rests on what y
 
 <steps>
 1. `<repo_knowledge>` already gives the folder layout, scripts, instruction files and the exported names of each code file. Start from it.
-2. For each area under `<areas>` (a heading `## <area>` followed by its files), open only the 2–6 files that best show what the area is for: its entry point, its main types, one test. Open the files for several areas in one step.
+2. For each area under `<areas>` (a heading `## <area>` followed by its files), open only the 2–6 files that best show what the area is for: its entry point, its main types, one test. Open the files for several areas in one step. A note is under 300 characters, so read only the top of each file with Read `limit` (about 120 lines: imports, main types, the first functions); read further only when that part does not show what the file is for. Every line you read is re-read on each later step.
 3. Write one note per area, 2–3 short sentences and under 300 characters, in Korean: what the area is responsible for, where to start reading, and the conventions it follows (error handling, naming, how tests are written). Do not list every function: other members see the file layout and can open files themselves. These notes are sent with every message to every member, so each extra word costs on every turn.
 </steps>
 

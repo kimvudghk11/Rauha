@@ -25,7 +25,7 @@ A previous answer shown only as a bracketed note such as "(이전에 찾지 못�
 <steps_for_code_questions>
 0. `<repo_knowledge>`, when present, is a map of this repository as of the commit in its `basis`: areas, exported names per file, short notes. Use it to find the right files quickly instead of searching. It is not evidence: open the actual file before you state what code does.
 1. If `<memory>` contains the earlier work the question is about, use the decisions and interpretations recorded there first. They are what was actually decided at the time.
-2. Open the files the question is about to check that the code still matches the record. Use Grep or Glob to find them instead of guessing paths, and read several files at once.
+2. Open the files the question is about to check that the code still matches the record. Use Grep or Glob to find them instead of guessing paths, and read several files at once. Every file you read is re-read on each later step, so read only the part you need: Grep with `-n` (and a few lines of context) for the names in the question first, then Read with `offset` and `limit` around the hits (about 80–150 lines). Read a whole file only when it is short (under about 300 lines) or the question is about the whole file.
 3. Answer with the reason first, then where it lives in the code.
 4. When there is no record for what is asked (code written before rauha remembered it, or by someone else), say so in the first sentence: "기록된 이유가 아니라 코드를 보고 추측한 것입니다." Then answer from the code and cite the code lines.
 </steps_for_code_questions>

@@ -473,6 +473,17 @@ describe('ChatSession — 질문', () => {
     expect(turn.kind === 'answer' && turn.answer).toContain('■ 요청 항목 (2개 중 2개 끝남)');
   });
 
+  it('앞 답이 이미 큰 대화를 읽었으면 마저 하기를 자동으로 부르지 않는다 — 큰 대화를 다시 읽고 답 전체를 다시 써서 본 답보다 비쌌다(2026-11-22 실측: 깊은 질문 0.58→+0.75, 아키텍처 0.82→+1.15)', async () => {
+    const team = new FakeTeam({
+      router: [route('question', false, null, { depth: 'deep' })],
+      answerer: [() => ({ answer: '결제 흐름은 …', claims: [], asks: [{ ask: '결제 흐름', status: 'done', note: '', needs: '' }, { ask: '환불 흐름', status: 'partial', note: 'refund 폴더를 아직 안 읽음', needs: '' }], scope: [] })],
+    });
+    team.contextTokens = 200_000;
+    const turn = await session({ team }).handle('결제랑 환불 흐름 정리해줘');
+    expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1);
+    expect(turn.kind === 'answer' && turn.answer).toContain('환불 흐름');
+  });
+
   it('사용자가 줘야 끝나는 항목만 남았으면 다시 부르지 않고, 무엇을 주면 되는지 보인다', async () => {
     const team = new FakeTeam({
       router: [route('question', false, null, { depth: 'deep' })],
