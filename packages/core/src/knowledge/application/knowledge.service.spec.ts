@@ -143,6 +143,34 @@ describe('KnowledgeService', () => {
   });
 });
 
+describe('KnowledgeService.surveyFor', () => {
+  it('답하면서 연 파일이 속한 영역 중 메모가 없는 곳만 조사한다(저장소 전체를 훑지 않는다)', async () => {
+    const { svc, store, team } = service();
+    await svc.refreshMap();
+    await svc.surveyFor(['src/domain/money.ts']);
+    expect(team.calls).toHaveLength(1);
+    expect(areasIn(team.calls[0]!)).toEqual(['src/domain']);
+    expect((await svc.stored())?.block).toContain('src/domain 메모');
+    expect(store.saves).toBe(2);
+  });
+
+  it('이미 메모가 있는 영역이면 다시 부르지 않는다', async () => {
+    const { svc, team } = service();
+    await svc.refreshMap();
+    await svc.surveyFor(['src/domain/money.ts']);
+    await svc.surveyFor(['src/domain/cart.ts']);
+    expect(team.calls).toHaveLength(1);
+  });
+
+  it('연 파일이 없거나 저장된 지식이 없으면 아무것도 하지 않는다', async () => {
+    const { svc, team } = service();
+    await svc.surveyFor(['src/domain/money.ts']);
+    await svc.refreshMap();
+    await svc.surveyFor([]);
+    expect(team.calls).toEqual([]);
+  });
+});
+
 describe('KnowledgeService.refreshMap', () => {
   it('저장된 지식이 없으면 모델 없이 파일 지도·심볼만 만들어 저장한다(다음 질문부터 다시 읽지 않게)', async () => {
     const { svc, store, team } = service();

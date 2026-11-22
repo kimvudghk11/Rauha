@@ -53,6 +53,7 @@ import { reviewChanges } from './team/git-review.js';
 import { Approvals } from './team/approvals.js';
 import { answerFor, approvalView } from './team/approval-view.js';
 import { accountNames, composeSession, liveProfileResolver, profileResolver } from './team/compose.js';
+import { instantReply } from './team/instant-reply.js';
 import { fakeTeam, fakeUsage } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
 import { resolveMentions } from './team/mention-context.js';
@@ -359,6 +360,9 @@ async function startRunner(): Promise<JobRunner> {
         return {
           note: () => [...fallbacks, ...(apiNote === null ? [] : [apiNote]), ...(note === null ? [] : [note])].join('\n') || null,
           handle: async (_input, depth) => {
+            // "ㅎㅇ"·"고마워" 같은 인사는 작업 폴더 준비(git·체크포인트)도 없이 바로 답한다(몇 초씩 걸리던 것)
+            const instant = instantReply(target.text, { depth, followUp: followContext.has(job.id), images: jobImages.has(job.id) });
+            if (instant !== null) return instant;
             const problem = workFolderProblem(root, folderFacts(root));
             if (problem !== null) throw new Error(problem);
             // 빈 폴더에서 "만들어 줘"로 시작하면 git 저장소로 시작해 준다(사용자 파일이 있는 폴더는 건드리지 않는다)

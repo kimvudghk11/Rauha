@@ -4,6 +4,7 @@ export { DomainError } from './shared/domain-error.js';
 export { Difficulty, type DifficultyGrade, type DifficultySignals } from './orchestration/domain/difficulty.js';
 export { MODEL_ID, type Assignment, type ModelTier, type TeamRole } from './orchestration/domain/team.js';
 export { ModelNames } from './orchestration/domain/model-names.js';
+export { greetingReply } from './orchestration/domain/question-hint.js';
 export { ModelRoutingTeam } from './orchestration/application/model-routing-team.js';
 export { ModelSettingsDto } from './orchestration/application/dto/model-settings.dto.js';
 export { TestRun, type FailureKind } from './orchestration/domain/test-run.js';

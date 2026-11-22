@@ -10,6 +10,8 @@ import type { KnowledgePort, KnowledgeStorePort, RepoReaderPort } from './ports.
 /** 조사 팀원 한 번에 맡기는 영역 수와 영역마다 보여 주는 파일 수. 남은 영역은 다음 호출에서 한다. */
 const AREAS_PER_SURVEY = 15;
 const FILES_PER_AREA = 40;
+/** 답 뒤에 그 답이 연 파일의 영역만 조사할 때 한 번에 맡기는 영역 수 */
+const SURVEY_FOR_AREAS = 5;
 
 export interface KnowledgeServiceDeps {
   readonly reader: RepoReaderPort;
@@ -64,6 +66,20 @@ export class KnowledgeService implements KnowledgePort {
     await store.save(refreshed ?? (await this.build(ref, false)));
   }
 
+  /**
+   * 답하면서 연 파일이 속한 영역 중 메모가 없거나 낡은 곳만 조사 팀원에게 맡긴다(많아야 SURVEY_FOR_AREAS 곳).
+   * 저장소 전체를 훑지 않고 사용자가 실제로 묻는 곳부터 기억을 쌓는다. 저장된 지식이 없으면 하지 않는다(지도는 refreshMap 이 만든다).
+   */
+  async surveyFor(paths: readonly string[]): Promise<void> {
+    if (paths.length === 0) return;
+    const knowledge = await this.deps.store.load();
+    if (knowledge === null) return;
+    const wanted = new Set(paths.map((p) => areaOf(p.replace(/\\/g, '/'))));
+    const areas = knowledge.staleAreas().filter((a) => wanted.has(a)).slice(0, SURVEY_FOR_AREAS);
+    if (areas.length === 0) return;
+    if (await this.survey(knowledge, areas)) await this.deps.store.save(knowledge);
+  }
+
   async stored(): Promise<{ block: string; basis: RepoRef } | null> {
     const knowledge = await this.deps.store.load();
     return knowledge === null ? null : { block: knowledge.toBlock(this.deps.repoName), basis: knowledge.basis };
@@ -111,8 +127,8 @@ export class KnowledgeService implements KnowledgePort {
   }
 
   /** 낡은 영역 메모를 조사 팀원에게 맡긴다. 막히거나 실패하면 메모 없이 둔다(다음에 다시). 메모를 썼으면 true. */
-  private async survey(knowledge: RepoKnowledge): Promise<boolean> {
-    const areas = knowledge.staleAreas().slice(0, AREAS_PER_SURVEY);
+  private async survey(knowledge: RepoKnowledge, only?: readonly string[]): Promise<boolean> {
+    const areas = only ?? knowledge.staleAreas().slice(0, AREAS_PER_SURVEY);
     if (areas.length === 0) return false;
     const listing = areas.map((area) => [`## ${area}`, ...knowledge.files.filter((f) => areaOf(f) === area).slice(0, FILES_PER_AREA).map((f) => `- ${f}`)].join('\n'));
     this.deps.progress.step('저장소를 파악하는 중…', 'surveyor');

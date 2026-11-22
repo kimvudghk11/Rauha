@@ -52,6 +52,8 @@ class FakeTeam implements TeamMemberPort {
   readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; effort: string; maxTurns: number; request?: string | undefined; continueFrom?: string | undefined }[] = [];
   /** 켜면 호출마다 세션 id 를 돌려준다(이어 하기 확인용). failResume 이면 이어 하기 호출은 결과 없이 끝난다. */
   sessions: 'off' | 'on' | 'failResume' = 'off';
+  /** 호출마다 보고할 맥락 크기(입력 + 캐시 읽기 토큰) */
+  contextTokens = 10;
   readonly prepared: MemberRole[] = [];
   /** 라우터가 이 약속이 풀릴 때까지 답하지 않게 한다(동시에 도는지 보려고). */
   routerGate: Promise<void> = Promise.resolve();
@@ -81,7 +83,7 @@ class FakeTeam implements TeamMemberPort {
     return {
       output: script ? script(call) : null,
       error: null,
-      usage: { model: call.setting.tier, durationMs: 5, costUsd: 0.002, turns: 1, inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, denials: [], endReason: 'success', ...(this.tools[call.role] !== undefined ? { tools: this.tools[call.role] } : {}) },
+      usage: { model: call.setting.tier, durationMs: 5, costUsd: 0.002, turns: 1, inputTokens: this.contextTokens, outputTokens: 5, cacheReadTokens: 0, denials: [], endReason: 'success', ...(this.tools[call.role] !== undefined ? { tools: this.tools[call.role] } : {}) },
       fetched: [],
       ...sessionId,
     };
@@ -358,6 +360,26 @@ describe('ChatSession — 질문', () => {
       await first.handle('REST가 뭐야?');
       await ChatSession.resume(sessionDeps({ team }), first.snapshot('2026-11-22T00:00:00.000Z')).handle('REST가 뭐야?', [], 'deep');
       expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBe('answerer-2');
+    });
+
+    it('"더 깊게"는 앞 대화가 크면(6만 토큰 넘음) 잇지 않는다: opus 가 큰 대화를 통째로 이어받으면 오히려 비싸다(실측 8%)', async () => {
+      const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [reply] });
+      team.sessions = 'on';
+      team.contextTokens = 70_000;
+      const chat = session({ team });
+      await chat.handle('REST가 뭐야?');
+      await chat.handle('REST가 뭐야?', [], 'deep');
+      expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBeUndefined();
+    });
+
+    it('이어지는 질문도 앞 대화가 아주 크면(12만 토큰 넘음) 새 세션으로 시작한다', async () => {
+      const team = new FakeTeam({ router: [route('question'), route('question')], answerer: [reply] });
+      team.sessions = 'on';
+      team.contextTokens = 130_000;
+      const chat = session({ team });
+      await chat.handle('이 함수 어디서 써?');
+      await chat.handle('그럼 테스트는 어디 있어?');
+      expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBeUndefined();
     });
 
     it('"더 깊게"가 다른 질문을 가리키면(앞 답과 다르면) 새 세션으로 답한다', async () => {
@@ -1939,6 +1961,20 @@ describe('ChatSession — 저장소 조사는 답한 뒤 배경에서', () => {
     await chat.handle('저 함수는 어디서 써?');
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(log.filter((l) => l === 'current:start')).toHaveLength(1);
+  });
+
+  it('지식이 답이 연 파일만 조사할 수 있으면 저장소 전체(current) 대신 연 파일·인용한 파일의 영역만 맡긴다', async () => {
+    const log: string[] = [];
+    const knowledge = {
+      current: async () => (log.push('current'), null),
+      stored: async () => null,
+      noteChanged: async () => undefined,
+      refreshMap: async () => void log.push('map'),
+      surveyFor: async (paths: readonly string[]) => void log.push(`survey:${[...paths].sort().join(',')}`),
+    };
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네.', claims: [{ text: 'x', evidence: [{ ...blank, kind: 'code', path: 'src/money.ts', line: 3, quote: 'x' }] }] })] });
+    await ChatSession.start({ ...sessionDeps({ team, files: { 'src/money.ts': 'a\nb\nx' } }), knowledge }).handle('이 함수 어디서 써?');
+    await vi.waitFor(() => expect(log).toEqual(['map', 'survey:src/money.ts']));
   });
 
   it('인사(light)에는 조사를 돌리지 않는다', async () => {

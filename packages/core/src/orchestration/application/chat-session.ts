@@ -20,7 +20,7 @@ import { AnswerDto } from './dto/answer.dto.js';
 import { CoverageDto } from './dto/coverage.dto.js';
 import type { RequestCoverage } from '../domain/request-coverage.js';
 import type { MemberRole, RoleSetting, RoleSettingsDto } from './dto/role-settings.dto.js';
-import type { AnswerSession, ChatSnapshot } from './dto/chat-snapshot.dto.js';
+import type { AnswerSession, ChatSnapshot, LastAnswer } from './dto/chat-snapshot.dto.js';
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import { RouteDto, type Route } from './dto/route.dto.js';
@@ -50,8 +50,8 @@ export type { RunContextBlocks };
 const CONVERSATION_TURNS = 6;
 /** 결과 글을 얼마나 남기고 넘기는지. 바로 앞 턴은 길게("두 번째 거 더 자세히"가 가리키는 곳이 거기다), 그 전은 짧게. */
 const KEPT_RESULT_CHARS = 1200;
-/** 요청 항목 표에 팀이 더 하면 끝나는 것이 남았을 때 같은 팀원을 다시 부르는 최대 횟수(질은 높이고 끝없이 돌지는 않게) */
-const FOLLOW_UPS = 2;
+/** 요청 항목 표에 팀이 더 하면 끝나는 것이 남았을 때 같은 팀원을 다시 부르는 최대 횟수. 앞 세션을 이어 하니 한 번이면 충분하다(2026-11-22 실측: 두 번이면 깊은 질문 하나에 답변 팀원 3번) */
+const FOLLOW_UPS = 1;
 
 /** 답 결과에 얹을 "찾아본 것" 한 줄. 도구를 쓰지 않았으면 키 자체가 없다. */
 function toolsPart(tools: readonly ToolCount[] | undefined): { toolsLine?: string } {
@@ -131,6 +131,9 @@ const CHAIN_MAX = 4;
 const CHAIN_MS = 30 * 60 * 1000;
 /** 앞 답 때 모습으로 남겨 둘 커밋 안 한 파일 수 상한(넘으면 바뀐 파일을 알려 주지 않는다) */
 const CHAIN_FILES_MAX = 200;
+/** 이을 앞 대화 크기 상한(입력 + 캐시 읽기 토큰). "더 깊게"는 opus 라 더 작게 */
+const CHAIN_CONTEXT_MAX = 120_000;
+const DEEPER_CONTEXT_MAX = 60_000;
 const CHAIN_NOTE = '같은 대화의 다음 질문입니다. 앞에서 읽은 파일과 저장소 지식은 다시 열지 말고, 이 질문에 새로 필요한 것만 여세요.';
 const DEEPER_NOTE = '같은 질문을 더 깊게 다시 답합니다. 앞 답에서 빠졌거나 확인하지 않은 것을 확인해 더 정확하고 자세하게 답하세요. 이미 읽은 파일은 다시 열지 마세요.';
 /** 지금 누가 잇고 있는 답 세션. 앱은 같은 저장본으로 여러 일을 동시에 돌리므로, 같은 세션을 둘이 동시에 이으면 대화가 꼬인다 */
@@ -228,12 +231,14 @@ export class ChatSession {
   private lastTitle: string | null = null;
   /** 답한 뒤 배경 조사를 이미 시작했는지 */
   private surveyed = false;
+  /** 마지막 답이 연 파일·인용한 파일(작업 폴더 기준) */
+  private lastOpened: readonly string[] = [];
   /** 이번 차례에 붙일 작업 공간 지식 묶음(깊은 일에서만 채운다) */
   private workspaceKnown = '';
   /** 마지막 깊은 답의 세션(이어지는 질문이 잇는다). 다른 일을 하면 버린다 */
   private answerChain: AnswerSession | null = null;
   /** 바로 앞 답(가벼운 답 포함)의 세션과 그 질문. "더 깊게"로 같은 질문을 다시 물으면 잇는다 */
-  private lastAnswer: { readonly id: string; readonly key: string } | null = null;
+  private lastAnswer: LastAnswer | null = null;
   private held: HeldRequest | null = null;
   /** 방금 한 질문과 그 답. 코드를 바꾸는 일이 있거나 /clear 하면 비운다. */
   private answered = new Map<string, { answer: string; at: number }>();
@@ -815,8 +820,9 @@ ${SINGLE_REPO_NOTE}
     // 등급이 같고, 사이에 다른 일이 없었고(파일이 바뀌었을 수 있다), 30분 안이고, 네 번까지만(대화가 너무 길어지지 않게).
     const chain = this.answerChain;
     // "더 깊게"로 같은 질문을 다시 물으면 바로 앞 답 세션(가벼운 답이어도)을 이어 한 단계 위가 빠진 것만 더 본다
-    const redo = deeper && this.lastAnswer !== null && this.lastAnswer.key === sameQuestionKey(input) && !CHAINS_IN_USE.has(this.lastAnswer.id) ? this.lastAnswer : null;
-    const canChain = redo === null && depth === 'deep' && chain !== null && chain.tier === setting.tier && chain.count < CHAIN_MAX && this.deps.now() - chain.at < CHAIN_MS && others.length === 0 && extra === '' && past === null && !CHAINS_IN_USE.has(chain.id);
+    // 앞 대화가 너무 크면 잇지 않는다: 큰 대화를 통째로 이어받으면 오히려 비싸다(2026-11-22 실측: opus 가 큰 대화를 이은 "더 깊게" 한 번에 8%)
+    const redo = deeper && this.lastAnswer !== null && this.lastAnswer.key === sameQuestionKey(input) && (this.lastAnswer.context ?? 0) <= DEEPER_CONTEXT_MAX && !CHAINS_IN_USE.has(this.lastAnswer.id) ? this.lastAnswer : null;
+    const canChain = redo === null && depth === 'deep' && chain !== null && chain.tier === setting.tier && chain.count < CHAIN_MAX && (chain.context ?? 0) <= CHAIN_CONTEXT_MAX && this.deps.now() - chain.at < CHAIN_MS && others.length === 0 && extra === '' && past === null && !CHAINS_IN_USE.has(chain.id);
     const from = redo?.id ?? (canChain ? chain!.id : null);
     let chained: MemberResult | null = null;
     if (from !== null) {
@@ -832,11 +838,13 @@ ${SINGLE_REPO_NOTE}
     }
     const kept = chained !== null && (chained.output !== null || chained.blocked) ? chained : null;
     const result = kept ?? (await send([]));
+    // 이 답의 맥락 크기: 다음에 이을지 정할 때 쓴다(이은 호출은 앞 대화까지 다시 읽어 그만큼 커진다)
+    const context = result.usage.inputTokens + result.usage.cacheReadTokens;
     if (depth === 'deep') {
       const files = result.sessionId !== undefined && result.output !== null ? await this.dirtyFiles() : undefined;
-      this.answerChain = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, tier: setting.tier, at: this.deps.now(), count: kept !== null && redo === null ? chain!.count + 1 : 0, ...(files !== undefined ? { files } : {}) } : null;
+      this.answerChain = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, tier: setting.tier, at: this.deps.now(), count: kept !== null && redo === null ? chain!.count + 1 : 0, context, ...(files !== undefined ? { files } : {}) } : null;
     }
-    this.lastAnswer = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, key: sameQuestionKey(input) } : null;
+    this.lastAnswer = result.sessionId !== undefined && result.output !== null ? { id: result.sessionId, key: sameQuestionKey(input), context } : null;
     // 빠진 항목 마저 하기는 같은 세션을 이어서 새 말만 보낸다(읽은 파일을 다시 읽지 않게). 이어 하기가 안 되면 처음처럼 모두 보낸다.
     let last = result.sessionId;
     const call = async (more: readonly string[]): Promise<MemberResult> => {
@@ -876,11 +884,38 @@ ${SINGLE_REPO_NOTE}
     return Promise.all(also.map(async (r): Promise<AlsoKnown> => ({ name: r.name, root: r.root, known: depth === 'light' || also.length > ALSO_KNOWLEDGE_MAX ? null : await this.knowledgeFor('deep', r.knowledge) })));
   }
 
-  /** 답을 돌려준 뒤 저장소 조사를 배경에서 한다. 세션에서 한 번만, 저장된 지식을 쓰는 구현에서만(한도를 아끼려고 light 답 뒤에는 부르지 않는다). */
+  /**
+   * 답을 돌려준 뒤 저장소 조사를 배경에서 한다(light 답 뒤에는 부르지 않는다).
+   * 지식이 답이 연 파일만 조사할 수 있으면 지도는 모델 없이 맞추고, 그 답이 연 파일·인용한 파일의 영역 중 메모가 없는 곳만 맡긴다.
+   * 앱은 일마다 세션을 새로 만들어서 "세션에서 한 번"이 "일마다 한 번"이 되어 저장소 전체를 거듭 훑었다(2026-11-22 실측: 깊은 질문 8%).
+   */
   private surveyInBackground(): void {
-    if (this.surveyed || this.deps.knowledge?.stored === undefined) return;
+    const port = this.deps.knowledge;
+    if (port?.stored === undefined) return;
+    if (port.surveyFor !== undefined) {
+      const opened = this.lastOpened;
+      void (async () => {
+        await port.refreshMap?.();
+        if (opened.length > 0) await port.surveyFor!(opened);
+      })().catch(() => undefined);
+      return;
+    }
+    if (this.surveyed) return;
     this.surveyed = true;
     void this.knowledgeOf();
+  }
+
+  /** 작업 폴더 기준 상대 경로로(팀원 도구는 절대 경로로 남기기도 한다). 작업 폴더 밖이면 뺀다 */
+  private relativePaths(paths: readonly string[]): string[] {
+    const root = (this.deps.workRoot ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const out = new Set<string>();
+    for (const raw of paths) {
+      const p = raw.replace(/\\/g, '/');
+      if (/^([a-z]:)?\//i.test(p)) {
+        if (root !== '' && p.toLowerCase().startsWith(`${root}/`)) out.add(p.slice(root.length + 1));
+      } else out.add(p.replace(/^\.\//, ''));
+    }
+    return [...out];
   }
 
   /** 저장소 지식. 없거나(git 아님) 읽다 실패하면 null — 그때는 지식 없이 답한다. */
@@ -903,6 +938,8 @@ ${SINGLE_REPO_NOTE}
     const dto = this.tryRead(() => AnswerDto.from(result.output));
     const claims = dto?.claims() ?? [];
     const files = new Map(await Promise.all(citedPaths(claims).map(async (path) => [path, await this.readCited(path, also)] as const)));
+    // 이 답이 연 파일·인용한 파일: 답한 뒤 그 영역만 조사한다
+    this.lastOpened = this.relativePaths([...(result.opened ?? []), ...citedPaths(claims)]);
     const checked = FactCheck.of(claims, {
       files,
       passedTests: [],

@@ -27,4 +27,8 @@ export interface KnowledgePort {
   notesFor?(paths: readonly string[]): Promise<string>;
   /** 작업이 끝나 rauha가 바꾼 파일을 알린다. 모델을 부르지 않고 기준과 심볼만 고친다. */
   noteChanged(paths: readonly string[]): Promise<void>;
+  /** 모델 없이 파일 지도·스택·심볼만 최신으로 맞춰 저장한다. */
+  refreshMap?(): Promise<void>;
+  /** 답하면서 연 파일의 영역 중 메모가 없거나 낡은 곳만 조사한다(저장소 전체를 훑지 않는다). */
+  surveyFor?(paths: readonly string[]): Promise<void>;
 }

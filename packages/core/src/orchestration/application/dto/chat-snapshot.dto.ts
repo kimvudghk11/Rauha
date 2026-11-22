@@ -16,12 +16,16 @@ export interface ChatSnapshot {
 export interface LastAnswer {
   readonly id: string;
   readonly key: string;
+  /** 그 답의 맥락 크기(입력 + 캐시 읽기 토큰) */
+  readonly context?: number;
 }
+
+const contextOf = (v: unknown): { context?: number } => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? { context: v } : {});
 
 function lastAnswerFrom(v: unknown): LastAnswer | undefined {
   if (typeof v !== 'object' || v === null) return undefined;
   const o = v as Record<string, unknown>;
-  return typeof o['id'] === 'string' && o['id'] !== '' && typeof o['key'] === 'string' ? { id: o['id'], key: o['key'] } : undefined;
+  return typeof o['id'] === 'string' && o['id'] !== '' && typeof o['key'] === 'string' ? { id: o['id'], key: o['key'], ...contextOf(o['context']) } : undefined;
 }
 
 export interface AnswerSession {
@@ -33,6 +37,8 @@ export interface AnswerSession {
   readonly count: number;
   /** 그 답 때 커밋 안 한 파일 → 내용 해시(다음 질문 전에 바뀐 파일을 알려 주려고). 못 읽었으면 없다 */
   readonly files?: readonly (readonly [string, string])[];
+  /** 그 답의 맥락 크기(입력 + 캐시 읽기 토큰). 너무 크면 잇지 않는다. 옛 파일에는 없다 */
+  readonly context?: number;
 }
 
 const isString = (v: unknown): v is string => typeof v === 'string';
@@ -46,7 +52,7 @@ function answerSessionFrom(v: unknown): AnswerSession | undefined {
   if (typeof o['at'] !== 'number' || !Number.isFinite(o['at']) || typeof o['count'] !== 'number' || !Number.isInteger(o['count']) || o['count'] < 0) return undefined;
   const files = o['files'];
   const validFiles = Array.isArray(files) && files.every((f) => Array.isArray(f) && f.length === 2 && isString(f[0]) && isString(f[1]));
-  return { id: o['id'], tier, at: o['at'], count: o['count'], ...(validFiles ? { files: (files as [string, string][]).map(([p, h]) => [p, h] as const) } : {}) };
+  return { id: o['id'], tier, at: o['at'], count: o['count'], ...(validFiles ? { files: (files as [string, string][]).map(([p, h]) => [p, h] as const) } : {}), ...contextOf(o['context']) };
 }
 
 /**
