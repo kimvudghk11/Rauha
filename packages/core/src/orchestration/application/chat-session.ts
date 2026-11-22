@@ -955,8 +955,8 @@ ${SINGLE_REPO_NOTE}
       records: recalls.flatMap((r) => r.neighbors.filter((n) => n.kind === 'decision' || n.kind === 'assumption').map((n) => n.text)),
     }).all();
     const stop = dto === null ? stoppedMember(result) : null;
-    const table = dto !== null ? coverage.toText() : '';
-    const answer = dto !== null ? (table === '' ? dto.answer : `${dto.answer}\n\n${table}`) : (stop?.report(result.partial ?? null) ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.');
+    // 요청 항목(coverage)은 팀이 마저 하는 데만 쓴다. 답 아래에 표·"못 한 것"을 붙이지 않는다(2026-11-22 사용자: 아예 없어야 함).
+    const answer = dto !== null ? dto.answer :(stop?.report(result.partial ?? null) ?? '답을 만들지 못했어요. 질문을 조금 더 구체적으로 다시 해 주세요.');
     await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: citedPaths(claims), basis }));
     this.turns.push({ input, result: stop === null ? `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` : `답을 끝내지 못함: ${stop.turnNote(result.partial ?? null)}` });
     return { kind: 'answer', answer, checked, costUsd: result.usage.costUsd + extraCostUsd, durationMs: this.deps.now() - started, basis, canGoDeeper: depth === 'light', ...toolsPart(result.usage.tools) };

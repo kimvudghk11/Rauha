@@ -93,9 +93,8 @@ export class DocumentDesk {
     await this.host.wrote(files);
     const stop = stoppedMember(result);
     if (stop !== null) return this.host.settle('문서를 끝내지 못함', input, stop.report(result.partial ?? null), stop.turnNote(result.partial ?? null), started, costBefore);
-    const table = coverage.toText();
     const answer = WriterReportDto.read({ ...(result.output as object), files }).toAnswer();
-    return this.host.settle('문서', input, table === '' ? answer : `${answer}\n\n${table}`, files.join(', ') || '없음', started, costBefore, files, result.usage.tools);
+    return this.host.settle('문서', input, answer,files.join(', ') || '없음', started, costBefore, files, result.usage.tools);
   }
 
   /**

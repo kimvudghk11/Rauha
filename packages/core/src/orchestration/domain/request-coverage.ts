@@ -9,8 +9,6 @@ export interface Ask {
   readonly needs: string;
 }
 
-const MARK: Record<Ask['status'], string> = { done: '✓', partial: '△', not_done: '✗' };
-
 /** 비교용 경로: 역슬래시→슬래시, 소문자, 앞의 ./ 와 끝의 /·/** 를 뗀다 */
 function norm(path: string): string {
   return path
@@ -63,25 +61,6 @@ export class RequestCoverage {
       const key = `/${norm(p)}/`;
       return !this.opened.some((o) => `/${o}/`.includes(key));
     });
-  }
-
-  /** 사용자에게 보일 표. 항목이 하나뿐이고 끝났고 안 본 곳이 없으면 빈 글 */
-  toText(): string {
-    const missed = this.unopened();
-    if (this.unfinished().length === 0 && missed.length === 0 && this.asks.length <= 1) return '';
-    const parts: string[] = [];
-    if (this.asks.length > 0) {
-      const done = this.asks.length - this.unfinished().length;
-      const lines = this.asks.map((a) => {
-        const head = `- ${MARK[a.status]} ${a.ask.trim()}${a.status === 'partial' ? ' (일부)' : ''}`;
-        const note = a.note.trim() !== '' ? `: ${a.note.trim()}` : '';
-        const needs = a.status !== 'done' && a.needs.trim() !== '' ? ` (주시면 확인할 수 있어요: ${a.needs.trim()})` : '';
-        return `${head}${note}${needs}`;
-      });
-      parts.push(`■ 요청 항목 (${this.asks.length}개 중 ${done}개 끝남)\n${lines.join('\n')}`);
-    }
-    if (missed.length > 0) parts.push(`■ 안 본 곳\n읽겠다고 정했지만 이번에 열지 않은 곳이에요.\n${missed.map((p) => `- ${p}`).join('\n')}`);
-    return parts.join('\n\n');
   }
 
   /** 팀이 이어서 끝낼 것이 있으면 그 요청 글, 없으면 null */

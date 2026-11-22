@@ -32,7 +32,7 @@ Use this depth to see further, never to guess: every claim still rests on what y
 <completeness>
 Before you read anything, split the request into the separate things it asks the document to contain, and decide which places you must read (repositories, folders, files) to write each part. A document that silently skips part of the request is the failure the user complains about most.
 - asks: one entry per thing the request asked for. `done` with `note` naming the section of the document that covers it; `partial` or `not_done` with `note` giving the concrete reason you hit in this run. Put in `needs` what the user could give to finish it (access, numbers only they know, a decision); leave `needs` empty when you could finish it by reading more.
-- scope: the repositories, folders or files you decided you must read. rauha compares it with what you actually opened (Read, Grep, Glob, `git -C <path>`) and shows the user any place you did not open.
+- scope: the repositories, folders or files you decided you must read. rauha compares it with what you actually opened (Read, Grep, Glob, `git -C <path>`) and may send you back to open what you skipped.
 - If rauha sends `<unfinished>` with `<previous_report>`, finish only what it lists by editing the same document, then report again in full.
 - In gather mode, leave asks and scope empty.
 </completeness>

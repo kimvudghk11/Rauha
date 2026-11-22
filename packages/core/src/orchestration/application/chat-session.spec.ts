@@ -457,7 +457,7 @@ describe('ChatSession — 질문', () => {
     });
   });
 
-  it('팀이 더 하면 끝나는 항목이 남으면 같은 답변 팀원을 한 번 더 불러 마저 하게 하고, 끝난 표를 답 아래에 붙인다', async () => {
+  it('팀이 더 하면 끝나는 항목이 남으면 같은 답변 팀원을 한 번 더 불러 마저 하게 하고, 다 끝나면 답 아래에 표를 붙이지 않는다', async () => {
     const team = new FakeTeam({
       router: [route('question', false, null, { depth: 'deep' })],
       answerer: [
@@ -470,7 +470,7 @@ describe('ChatSession — 질문', () => {
     expect(asked).toHaveLength(2);
     expect(asked[1]!.message).toContain('<previous_answer>\n결제 흐름은 …\n</previous_answer>');
     expect(asked[1]!.message).toContain('- 환불 흐름 (일부: refund 폴더를 아직 안 읽음)');
-    expect(turn.kind === 'answer' && turn.answer).toContain('■ 요청 항목 (2개 중 2개 끝남)');
+    expect(turn.kind === 'answer' && turn.answer).toBe('결제 흐름은 … 환불 흐름은 …');
   });
 
   it('앞 답이 이미 큰 대화를 읽었으면 마저 하기를 자동으로 부르지 않는다 — 큰 대화를 다시 읽고 답 전체를 다시 써서 본 답보다 비쌌다(2026-11-22 실측: 깊은 질문 0.58→+0.75, 아키텍처 0.82→+1.15)', async () => {
@@ -481,17 +481,17 @@ describe('ChatSession — 질문', () => {
     team.contextTokens = 200_000;
     const turn = await session({ team }).handle('결제랑 환불 흐름 정리해줘');
     expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1);
-    expect(turn.kind === 'answer' && turn.answer).toContain('환불 흐름');
+    expect(turn.kind === 'answer' && turn.answer).toBe('결제 흐름은 …');
   });
 
-  it('사용자가 줘야 끝나는 항목만 남았으면 다시 부르지 않고, 무엇을 주면 되는지 보인다', async () => {
+  it('사용자가 줘야 끝나는 항목만 남았으면 다시 부르지 않고, 답 아래에 "못 한 것" 꼬리를 붙이지 않는다(답 본문이 한 문장으로 말한다)', async () => {
     const team = new FakeTeam({
       router: [route('question', false, null, { depth: 'deep' })],
       answerer: [() => ({ answer: '코드 기준으로는 …', claims: [], asks: [{ ask: '코드 흐름', status: 'done', note: '', needs: '' }, { ask: '운영 수치', status: 'not_done', note: '운영 DB 접속 정보가 없음', needs: '읽기 전용 접속 정보' }], scope: [] })],
     });
     const turn = await session({ team }).handle('흐름이랑 운영 수치 알려줘');
     expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1);
-    expect(turn.kind === 'answer' && turn.answer).toContain('- ✗ 운영 수치: 운영 DB 접속 정보가 없음 (주시면 확인할 수 있어요: 읽기 전용 접속 정보)');
+    expect(turn.kind === 'answer' && turn.answer).toBe('코드 기준으로는 …');
   });
 
   it('인사(가벼운 답)는 덜 된 항목이 있어도 다시 부르지 않는다', async () => {
