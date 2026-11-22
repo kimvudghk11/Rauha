@@ -485,7 +485,7 @@ describe('ChatSession — 질문', () => {
 
   it('인사(가벼운 답)는 덜 된 항목이 있어도 다시 부르지 않는다', async () => {
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [() => ({ answer: '…', claims: [], asks: [{ ask: 'a', status: 'partial', note: '', needs: '' }], scope: [] })] });
-    await session({ team }).handle('좋은 아침');
+    await session({ team }).handle('오늘 날씨 좋다');
     expect(team.calls.filter((c) => c.role === 'answerer')).toHaveLength(1);
   });
 
@@ -611,7 +611,7 @@ describe('ChatSession — 질문', () => {
 
   it('근거가 필요 없는 짧은 질문은 근거 없이 답해도 된다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '안녕하세요.', claims: [] })] });
-    const turn = await session({ team }).handle('좋은 아침');
+    const turn = await session({ team }).handle('오늘 날씨 좋다');
     expect(turn).toMatchObject({ kind: 'answer', answer: '안녕하세요.', checked: [] });
   });
 });
@@ -970,7 +970,7 @@ describe('ChatSession — 저장소 지식은 필요할 때만', () => {
   it('인사에는 저장소 지식을 읽지 않고 답한다', async () => {
     const { reads, knowledge } = counting();
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '안녕하세요.', claims: [] })] });
-    const turn = await ChatSession.start({ ...sessionDeps({ team }), knowledge }).handle('좋은 아침');
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), knowledge }).handle('오늘 날씨 좋다');
     expect(turn).toMatchObject({ kind: 'answer', answer: '안녕하세요.' });
     expect(reads.n).toBe(0);
   });
@@ -1787,7 +1787,7 @@ describe('ChatSession — 세션', () => {
 
   it('첫 질문의 답변 팀원에게는 앞 대화 블록을 넘기지 않는다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네.', claims: [] })] });
-    await session({ team }).handle('좋은 아침');
+    await session({ team }).handle('오늘 날씨 좋다');
     expect(team.calls.find((c) => c.role === 'answerer')!.message).not.toContain('<conversation>');
   });
 
@@ -1838,7 +1838,7 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
   it('인사·맞장구는 저장소 파악 팀원을 부르지 않고 저장소 지식도 새로 읽지 않는다', async () => {
     const log: string[] = [];
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
-    const turn = await ChatSession.start({ ...sessionDeps({ team }), knowledge: fullKnowledge(log) }).handle('좋은 아침');
+    const turn = await ChatSession.start({ ...sessionDeps({ team }), knowledge: fullKnowledge(log) }).handle('오늘 날씨 좋다');
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(turn).toMatchObject({ kind: 'answer', answer: '2입니다.' });
     expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer']);
@@ -1847,7 +1847,7 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
 
   it('light 답(인사)은 sonnet 팀원이 적은 턴으로 답한다', async () => {
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] });
-    await session({ team }).handle('좋은 아침');
+    await session({ team }).handle('오늘 날씨 좋다');
     expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ tier: 'sonnet', effort: 'medium', maxTurns: 25 });
   });
 
@@ -1906,12 +1906,12 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
 
   it('인사는 라우터가 deep이라 해도 light로 답한다', async () => {
     const team = new FakeTeam({ router: [route('question')], answerer: [answer] });
-    await session({ team }).handle('좋은 아침');
+    await session({ team }).handle('오늘 날씨 좋다');
     expect(team.calls.find((c) => c.role === 'answerer')).toMatchObject({ effort: 'medium', maxTurns: 25 });
   });
 
   it('sonnet 이 한 답은 더 깊게 알아볼 수 있다고 알리고, 더 깊게(opus) 다시 한 답은 알리지 않는다', async () => {
-    const light = await session({ team: new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] }) }).handle('좋은 아침');
+    const light = await session({ team: new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer] }) }).handle('오늘 날씨 좋다');
     const deep = await session({ team: new FakeTeam({ router: [route('question')], answerer: [answer] }) }).handle('이 함수 어디서 써?', [], 'deep');
     expect(light).toMatchObject({ kind: 'answer', canGoDeeper: true });
     expect(deep).toMatchObject({ kind: 'answer', canGoDeeper: false });
@@ -1926,8 +1926,8 @@ describe('ChatSession — 가벼운 질문 (light)', () => {
   it('더 깊게 알아보면 라우터 없이 한 단계 위(opus)가 같은 말에 다시 답한다', async () => {
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [answer, () => ({ answer: '자세히: 2입니다.', claims: [] })] });
     const chat = session({ team });
-    await chat.handle('좋은 아침');
-    const deeper = await chat.handle('좋은 아침', [], 'deep');
+    await chat.handle('오늘 날씨 좋다');
+    const deeper = await chat.handle('오늘 날씨 좋다', [], 'deep');
     expect(deeper).toMatchObject({ kind: 'answer', answer: '자세히: 2입니다.', canGoDeeper: false });
     expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer', 'answerer']);
     expect(team.calls.at(-1)!.tier).toBe('opus');
@@ -1990,7 +1990,7 @@ describe('ChatSession — 저장소 조사는 답한 뒤 배경에서', () => {
     const { log, release, knowledge } = gated();
     release();
     const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [() => ({ answer: '2', claims: [] })] });
-    await ChatSession.start({ ...sessionDeps({ team }), knowledge }).handle('좋은 아침');
+    await ChatSession.start({ ...sessionDeps({ team }), knowledge }).handle('오늘 날씨 좋다');
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(log).toEqual([]);
   });

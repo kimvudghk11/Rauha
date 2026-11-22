@@ -68,6 +68,63 @@ describe('greetingReply', () => {
     for (const text of ['잘자', '바이', 'ㅂㅇ', 'bye', '수고했어']) expect(greetingReply(text), text).toMatch(/수고|안녕히|또/);
   });
 
+  describe('변형 조합 — 기본 인사 × 꾸밈(부호·웃음·이모지·늘임·되풀이·말끝·부르는 말)', () => {
+    const BASE: Record<string, RegExp> = {
+      ㅎㅇ: /안녕/, ㅎ2: /안녕/, 하이: /안녕/, 하2: /안녕/, 안녕: /안녕/, 안녕하세요: /안녕/, 반가워: /안녕/, 굿모닝: /안녕/, '좋은 아침': /안녕/, hi: /안녕/, hello: /안녕/, hey: /안녕/,
+      고마워: /천만에요/, 감사합니다: /천만에요/, ㄳ: /천만에요/, 땡큐: /천만에요/, thanks: /천만에요/, 'thank you': /천만에요/,
+      잘자: /수고/, 바이: /수고/, ㅂㅇ: /수고/, ㅂ2: /수고/, 수고했어: /수고/, 수고하세요: /수고/, '안녕히 계세요': /수고/, bye: /수고/, 'good night': /수고/,
+    };
+    const DECORATE: Record<string, (word: string) => string> = {
+      그대로: (w) => w,
+      느낌표: (w) => `${w}!!`,
+      물결: (w) => `${w}~~`,
+      마침표: (w) => `${w}.`,
+      웃음: (w) => `${w} ㅋㅋㅋ`,
+      붙은웃음: (w) => `${w}ㅎㅎ`,
+      이모지: (w) => `${w} 😊`,
+      이모티콘: (w) => `${w} ^^`,
+      울음: (w) => `${w}ㅠㅠ`,
+      대문자: (w) => w.toUpperCase(),
+      앞뒤공백: (w) => `  ${w}  `,
+      되풀이: (w) => `${w}${w}`,
+      끝글자늘임: (w) => `${w}${w.slice(-1).repeat(3)}`,
+      부르는말앞: (w) => `델피야 ${w}`,
+      부르는말뒤: (w) => `${w} 델피`,
+      여러분: (w) => `${w} 여러분`,
+    };
+
+    for (const [word, reply] of Object.entries(BASE)) {
+      for (const [how, decorate] of Object.entries(DECORATE)) {
+        it(`${how}: "${decorate(word)}"`, () => expect(greetingReply(decorate(word))).toMatch(reply));
+      }
+    }
+
+    it('말끝 변형(여·염·욤·용·당·웡, 요 붙이기)도 같은 인사다', () => {
+      for (const text of ['안녕하세여', '안녕하세염', '안녕하세욤', '안녕하세용', 'ㅎㅇ요', 'ㅎㅇ염', '하이요', '반가워요', '반가웡']) expect(greetingReply(text), text).toMatch(/안녕/);
+      for (const text of ['고마워여', '고마워용', '고마웡', '감사해욤', '감사합니당', '고맙당', '감사요', '땡큐요']) expect(greetingReply(text), text).toMatch(/천만에요/);
+      for (const text of ['수고하세염', '수고하세여', '수고요', '잘자용', '바이요', '고생하셨습니당']) expect(greetingReply(text), text).toMatch(/수고/);
+    });
+
+    it('인사끼리 이어진 말도 받는다(작별 > 감사 > 인사 순으로 답한다)', () => {
+      expect(greetingReply('ㅎㅇ 반가워')).toMatch(/안녕/);
+      expect(greetingReply('안녕 델피야 반가워')).toMatch(/안녕/);
+      expect(greetingReply('고마워 수고했어')).toMatch(/수고/);
+      expect(greetingReply('감사합니다 수고하세요!')).toMatch(/수고/);
+      expect(greetingReply('ㅎㅇ ㄳ')).toMatch(/천만에요/);
+      expect(greetingReply('thanks a lot, bye')).toMatch(/수고/);
+    });
+  });
+
+  it('인사가 아닌 말이 하나라도 섞이면 모델에게 맡긴다(물음·시킴·대답·웃음만)', () => {
+    const NOT = [
+      '응', 'ㅇㅇ', 'ㅇㅋ', 'ㄱㄱ', '네', '넵', '그래', '좋아', '진행', 'ok', 'yes', 'ㅋㅋ', 'ㅎㅎ', 'ㅋㅋㅋㅋ', '델피야', '?', '',
+      '안녕 이 함수 뭐야', '하이퍼파라미터', '바이너리 파일', 'hi, fix the bug', 'hello world 출력해줘', '고마워 근데 테스트도 돌려줘',
+      '수고했어 근데 왜 실패했어?', '안녕?? 어디야', '굿모닝 오늘 일정 알려줘', 'thanks but it still fails', '감사 인사 메일 써줘', '잘자 알람 기능 만들어줘',
+      'ㅎㅇ 로그인 고쳐줘', '퇴근 시간 계산해줘', 'bye 버튼 추가', '안녕하세요 저는 김개발입니다',
+    ];
+    for (const text of NOT) expect(greetingReply(text), text).toBeNull();
+  });
+
   it('자주 쓰는 변형(존댓말 꼬리·줄임말·되풀이)도 바로 답한다', () => {
     for (const text of ['ㅎㅇ요', 'ㅎㅇㅎㅇㅎㅇ', '하잉', '하이요', '안녕하세용', '안녕하십니까', '반가워', '반갑습니다', '안녕 ~', 'hi there', 'hey there', 'good morning', 'ㅎ2', 'ㅎ2ㅎ2', '하2', '하이루', '방가', '방가방가'])expect(greetingReply(text), text).toMatch(/안녕/);
     for (const text of ['고마워용', '감사감사', '땡스', 'ㄳㄳ', 'thank u', 'thanks!!']) expect(greetingReply(text), text).toMatch(/천만에요/);

@@ -9,30 +9,94 @@ export function isSmallTalk(input: string): boolean {
   return text.length <= SMALL_TALK_CHARS && !ACTION.test(text) && !QUESTION.test(text);
 }
 
-const HELLO = new Set(['ㅎㅇ', 'ㅎ2', '하2', '하이루', '방가','안녕', '안녕하세요', '안녕하십니까', '안뇽', '하이', '하잉', '헬로', '반가워', '반가워요', '반갑습니다', 'hi', 'hello', 'hey', 'helo', 'good morning']);
-const THANKS = new Set(['고마워', '고마워요', '고맙습니다', '감사', '감사해', '감사해요', '감사합니다', 'ㄳ', 'ㄱㅅ', '땡큐', '땡스', 'thanks', 'thank you', 'thx', 'ty']);
-const BYE = new Set(['잘자', '잘자요', '잘가', '잘가요', '바이', 'ㅂㅇ', 'ㅂㅂ', 'ㅃㅇ', 'ㅃㅃ', 'ㅂ2', '바2', '빠2','굿밤', '굿나잇', 'bye', 'good night', '수고', '수고해', '수고하세요', '수고했어', '수고했어요', '수고하셨습니다']);
+type Greeting = 'hello' | 'thanks' | 'bye';
 
-/** 인사로 읽을 모양들: 그대로, 웃음 꼬리 뗀 것, "~용→~요", 존댓말 꼬리 "요" 뗀 것, 되풀이("ㅎㅇㅎㅇ"·"감사감사") 하나로, 영어 꼬리("there"·"u") 정리 */
-function greetingForms(input: string): string[] {
-  const plain = input.trim().toLowerCase().replace(/[!~.^?,]+/gu, '').replace(/\s+/g, ' ').trim();
-  // "안녕ㅎㅎ", "고마워ㅋㅋ" 처럼 끝에 붙은 웃음은 뗀다("ㅎㅇ"는 ㅇ 으로 끝나 그대로다)
-  const word = (plain.replace(/[ㅋㅎ]+$/u, '') || plain).replace(/ there$/, '').replace(/ u$/, ' you');
-  const single = word.replace(/^(.+?)\1+$/u, '$1');
-  return [...new Set([plain, word, single, word.replace(/용$/u, '요'), word.replace(/[요용]$/u, '')])];
+/** 인사 말 목록. 변형(늘인 말·말끝·숫자 줄임·되풀이·띄어쓰기)은 canonGreeting 이 같은 모양으로 맞춰 주므로 기본형만 둔다. */
+const GREETING_WORDS: Record<Greeting, readonly string[]> = {
+  hello: [
+    'ㅎㅇ', 'ㅎㅇ염', '안녕', '안녕하세요', '안녕하십니까', '안뇽', '안냥', '하이', '하잉', '하이루', '헬로', '헬로우', '방가', '반가워', '반갑다', '반갑습니다', '반가워요',
+    '좋은 아침', '좋은아침이에요', '굿모닝', '굿모닝요', '좋은 저녁', '좋은 오후', '오랜만', '오랜만이야', '오랜만이에요', '오랜만입니다', '왔어', '나 왔어', '다녀왔어', '다녀왔습니다', '출근했어', '출근', '일어났어',
+    'hi', 'hello', 'hey', 'helo', 'hiya', 'howdy', 'yo', 'sup', 'hey there', 'hi there', 'hello there', 'good morning', 'morning', 'good afternoon', 'good evening', 'gm',
+  ],
+  thanks: [
+    '고마워', '고마워요', '고맙다', '고맙습니다', '고마웡', '감사', '감사해', '감사해요', '감사합니다', '감사링', '감사드립니다', '감사드려요', '정말 고마워', '진짜 고마워', '너무 고마워', '정말 감사합니다', '진짜 감사', '덕분에', '덕분이야', '덕분이에요',
+    'ㄳ', 'ㄱㅅ', 'ㄱㅅㅇ', 'ㄳㅇ', '땡큐', '땡스', '쌩큐', '쌩유', '떙큐',
+    'thanks', 'thank you', 'thank u', 'thx', 'ty', 'tysm', 'thanks a lot', 'thank you so much', 'thanks so much', 'many thanks', 'cheers', 'appreciate it',
+  ],
+  bye: [
+    '안녕히 가세요', '안녕히 계세요', '안녕히 주무세요', '잘자', '잘 자','잘자요', '잘 자요', '잘가', '잘 가', '잘가요', '잘 있어', '잘있어', '바이', '바이바이', '빠이', 'ㅂㅇ', 'ㅂㅂ', 'ㅃㅇ', 'ㅃㅃ', '굿밤', '굿나잇', '굿나잇요',
+    '수고', '수고해', '수고하세요', '수고했어', '수고했어요', '수고하셨습니다', '수고하셨어요', '수고 많았어', '수고 많았어요', '수고 많으셨습니다', '고생했어', '고생했어요', '고생하셨습니다', '고생 많았어',
+    '다음에 봐', '또 봐', '내일 봐', '나중에 봐', '이따 봐', '퇴근', '퇴근할게', '퇴근합니다', '들어갈게', '먼저 갈게', '잘게', '자러 갈게', '이만', '이만 갈게',
+    'bye', 'bye bye', 'goodbye', 'good night', 'gn', 'see you', 'see ya', 'cya', 'later', 'see you later', 'good bye',
+  ],
+};
+
+/** 인사 앞뒤에 붙는 부르는 말("델피야 안녕", "안녕 여러분") — 떼고 본다 */
+const ADDRESS = /^(델피|라우하|rauha|delfi|팀장|클로드|claude|여러분|다들|모두|님|형|누나|언니|오빠|선배|친구)(야|아|님|씨|들)?$/u;
+
+/**
+ * 인사 말 하나를 비교용 기본형으로: 소문자·띄어쓰기 없앰 → 숫자 줄임(ㅎ2→ㅎㅇ, 하2→하이) →
+ * 말끝(여·염·욤·용→요, 당→다, 웡→워) → 같은 글자 늘임(하이이이·ㅎㅇㅇ·hiii) 하나로 → 되풀이(ㅎㅇㅎㅇ·감사감사) 하나로.
+ */
+function canonGreeting(word: string): string {
+  const flat = word.toLowerCase().replace(/\s+/g, '').replace(/(.)\1+/gu, '$1');
+  const digits = flat.replace(/([ㄱ-ㅎ])2/gu, '$1ㅇ').replace(/([가-힣])2/gu, '$1이');
+  const endings = digits.replace(/(여|염|욤|용)$/u, '요').replace(/당$/u, '다').replace(/웡$/u, '워');
+  const stretched = endings.replace(/(.)\1+/gu, '$1');
+  return stretched.replace(/^(.+?)\1+$/u, '$1');
+}
+
+const GREETING_KIND = new Map<string, Greeting>();
+for (const kind of ['bye', 'thanks', 'hello'] as const) {
+  for (const word of GREETING_WORDS[kind]) {
+    GREETING_KIND.set(canonGreeting(word), kind);
+    // "~요" 존댓말 꼬리는 있어도 없어도 같은 인사다
+    if (!/요$/u.test(word) && /[가-힣ㄱ-ㅎ]$/u.test(word))GREETING_KIND.set(canonGreeting(`${word}요`), kind);
+  }
+}
+
+/** 인사 문장을 말 조각으로: 이모지·이모티콘(^^ :) ㅠㅠ)·문장 부호를 걷어 내고, 웃음(ㅋㅋ·ㅎㅎ)만 있는 조각과 부르는 말을 뺀다 */
+function greetingTokens(input: string): string[] {
+  const bare = input
+    .toLowerCase()
+    .replace(/[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}️‍]/gu, ' ')
+    .replace(/[:;]-?[)(dp]|\^[_.-]?\^|[ㅠㅜ]+|<3/gu, ' ')
+    .replace(/[!~.?,;:'"`()[\]{}…·*+=_\-^|/\\]+/gu, ' ');
+  return bare
+    .split(/\s+/)
+    .filter((token) => token.length > 0 && !/^[ㅋㅎ]{2,}$/u.test(token))
+    // "안녕ㅎㅎ", "고마워ㅋㅋ" 처럼 끝에 붙은 웃음은 뗀다("ㅎㅇ"·"ㅎ2"는 ㅇ·2 로 끝나 그대로다)
+    .map((token) => token.replace(/(?<=.)[ㅋㅎ]{2,}$|(?<=[가-힣a-z])[ㅋㅎ]+$/u, ''))
+    .filter((token) => !/^[ㅋㅎ]{2,}$/u.test(token) && !ADDRESS.test(token))
+    .map((token) => token.replace(/^(델피|라우하)(야|아|님)?(?=.)/u, ''));
+}
+
+/** 말 조각들을 앞에서부터 인사 말(한 조각 또는 이어진 여러 조각)로 남김없이 나눌 수 있으면 그 인사들, 아니면 null */
+function splitGreetings(tokens: readonly string[]): Greeting[] | null {
+  if (tokens.length === 0) return [];
+  for (let take = Math.min(tokens.length, 4); take >= 1; take -= 1) {
+    const kind = GREETING_KIND.get(canonGreeting(tokens.slice(0, take).join('')));
+    if (!kind) continue;
+    const rest = splitGreetings(tokens.slice(take));
+    if (rest) return [kind, ...rest];
+  }
+  return null;
 }
 
 /**
- * 정해 둔 인사·감사·작별 인사면 모델 없이 바로 할 답(2026-11-21 사용자: "ㅎㅇ만 보내도 세션을 1% 먹는다").
- * "응·ㅇㅇ·진행"처럼 앞 대화에 대한 대답일 수 있는 말이나, 인사에 다른 말이 붙은 것은 null(라우터가 판단한다).
+ * 인사·감사·작별 인사로만 된 말이면 모델 없이 바로 할 답(2026-11-21 사용자: "ㅎㅇ만 보내도 세션을 1% 먹는다",
+ * 11-22 "ㅎ2는 못 읽는구만 — 이런 걸 제대로 다 체크해야지"). 변형은 규칙(canonGreeting)으로 맞추고,
+ * "ㅎㅇ 반가워"·"고마워 수고했어"처럼 인사끼리 이어진 것도 받는다.
+ * "응·ㅇㅇ·진행"처럼 앞 대화에 대한 대답일 수 있는 말이나, 인사에 다른 말(물음·시킴)이 붙은 것은 null(라우터가 판단한다).
  */
 export function greetingReply(input: string): string | null {
-  const forms = greetingForms(input);
-  const is = (set: ReadonlySet<string>) => forms.some((form) => set.has(form));
-  if (is(HELLO)) return '안녕하세요! 무엇을 도와드릴까요?';
-  if (is(THANKS)) return '천만에요. 더 필요한 게 있으면 말씀해 주세요.';
-  if (is(BYE)) return '수고하셨어요. 또 불러 주세요.';
-  return null;
+  const tokens = greetingTokens(input);
+  if (tokens.length === 0 || tokens.length > 8) return null;
+  const kinds = splitGreetings(tokens);
+  if (!kinds || kinds.length === 0) return null;
+  if (kinds.includes('bye')) return '수고하셨어요. 또 불러 주세요.';
+  if (kinds.includes('thanks')) return '천만에요. 더 필요한 게 있으면 말씀해 주세요.';
+  return '안녕하세요! 무엇을 도와드릴까요?';
 }
 
 const REPO_WORDS = /폴더|디렉터리|디렉토리|구조|레포|저장소|파일|경로|\b(repo|repository|folder|directory|files?|path)\b|\w\.(ts|tsx|js|jsx|mjs|cjs|py|java|kt|go|rs|rb|php|cs|swift|sql|sh|css|scss|html|json|ya?ml|toml|md|mdx|txt)\b|\w\/\w|어디\s?(에|서|있|쯤)/i;
