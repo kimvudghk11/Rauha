@@ -5,7 +5,7 @@
  * 쓰는 법: node packages/desktop/scripts/session-bench.mjs <레포 폴더> [차례 id …]
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { PromptLibrary, readPlanUsage, type TurnOutcome } from '@rauha/core';
@@ -47,6 +47,9 @@ async function main(): Promise<void> {
   const rows: string[] = [];
   const out = join(tmpdir(), 'rauha-bench', new Date().toISOString().replace(/[:.]/g, '-'));
   mkdirSync(out, { recursive: true });
+  // 팀원 호출 하나마다 역할·모델·토큰을 남긴다(어느 호출이 세션을 먹는지 보려고)
+  const callLog = join(out, 'calls.jsonl');
+  process.env['RAUHA_CALL_LOG'] = callLog;
   const steps: string[] = [];
   // 앱처럼 차례(일)마다 팀 세션을 새로 만든다: 끝나면 기억 DB 를 닫고, 앞 대화는 저장된 대화 파일로 이어진다
   const fresh = () =>
@@ -64,6 +67,7 @@ async function main(): Promise<void> {
   let before = await percent();
   for (const t of picked) {
     steps.length = 0;
+    appendFileSync(callLog, `${JSON.stringify({ turn: t.id, text: t.text })}\n`, 'utf8');
     const session = fresh();
     const started = Date.now();
     let outcome: TurnOutcome | null = null;

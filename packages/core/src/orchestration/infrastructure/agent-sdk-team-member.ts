@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import { query, startup, type HookCallback, type Options, type SDKMessage, type SDKResultMessage, type WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { SecretPolicy } from '../domain/secret-policy.js';
 import { MODEL_ID } from '../domain/team.js';
@@ -213,6 +214,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     if (controller.signal.aborted) return { output: null, error: CANCELLED.message, usage: emptyUsage(model, Date.now() - started), fetched, blocked: CANCELLED };
     if (result === null) return { output: null, error: '결과 메시지를 받지 못했습니다.', usage: addUsage(spent, emptyUsage(model, Date.now() - started)), fetched, partial, opened: [...openedPaths] };
     const usage = { ...addUsage(spent, toUsage(model, result)), tools: tally.entries() };
+    logCall(call.role, call.continueFrom !== undefined, usage, result);
     if (result.subtype !== 'success') {
       const error = `${result.subtype}: ${result.errors.join(' / ')}`;
       return { output: null, error, usage, fetched, blocked: accountBlock(error), partial, opened: [...openedPaths] };
@@ -402,6 +404,24 @@ export function addUsage(before: MemberUsage | null, last: MemberUsage): MemberU
     cacheReadTokens: before.cacheReadTokens + last.cacheReadTokens,
     denials: [...before.denials, ...last.denials],
   };
+}
+
+/**
+ * RAUHA_CALL_LOG 에 파일 경로가 있으면 호출 하나마다 역할·모델·토큰(모델별 캐시 생성·읽기 포함)·턴·도구를 한 줄(JSON)로 남긴다.
+ * 세션 사용을 호출 단위로 재는 측정 도구(session-bench)용. 내용·경로·프롬프트는 남기지 않는다.
+ */
+function logCall(role: string, resumed: boolean, usage: MemberUsage, result: SDKResultMessage): void {
+  const path = process.env['RAUHA_CALL_LOG'];
+  if (path === undefined || path === '') return;
+  const models = Object.fromEntries(
+    Object.entries(result.modelUsage ?? {}).map(([name, m]) => [name, { in: m.inputTokens, cacheWrite: m.cacheCreationInputTokens, cacheRead: m.cacheReadInputTokens, out: m.outputTokens, cost: m.costUSD }]),
+  );
+  const line = { at: new Date().toISOString(), role, resumed, model: usage.model, turns: usage.turns, ms: usage.durationMs, cost: usage.costUsd, models, tools: usage.tools ?? [], end: usage.endReason };
+  try {
+    appendFileSync(path, `${JSON.stringify(line)}\n`, 'utf8');
+  } catch {
+    // 측정용 기록이라 실패해도 일은 그대로 간다
+  }
 }
 
 function toUsage(model: string, result: SDKResultMessage): MemberUsage {
