@@ -32,6 +32,8 @@ export type PermissionAsker = (request: PermissionRequest) => Promise<Permission
 export interface ToolGuardOptions {
   readonly root: string;
   readonly role: MemberRole;
+  /** 범위 없이 파일 전체를 읽는 Read 를 처음 이 줄 수만 읽게 바꾼다(읽은 줄은 다음 턴마다 다시 읽힌다). 없으면 그대로. */
+  readonly readCap?: number;
   /** 작업 폴더 기준 상대 경로를 이 역할이 쓸 수 있는지(WritePolicy). */
   readonly canWrite: (relPath: string) => boolean;
   readonly ask: PermissionAsker;
@@ -167,6 +169,26 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
       const note = answer.note === null ? '' : ` 사용자가 남긴 말: "${answer.note}"`;
       return decide('deny', `사용자가 허락하지 않았습니다: ${reason}.${note} 더 안전한 방법을 쓰세요.`);
     }
-    return {};
+    return capRead(options.readCap, input.tool_name, toolInput);
   };
+}
+
+/** 줄 수를 정하지 않은 내용 검색(Grep content)에 붙이는 줄 한도. 기본 250줄이 다음 턴마다 다시 읽혔다 */
+const GREP_CAP = 80;
+
+/**
+ * 거절·물음 검사를 모두 지난 읽기가 범위 없이 크게 읽으면 줄 수를 정해 주고, 그 사실을 팀원에게 알린다.
+ * Read: 처음 cap 줄만. Grep(내용 보기): 처음 GREP_CAP 줄만.
+ */
+function capRead(cap: number | undefined, tool: string, toolInput: Record<string, unknown>) {
+  if (cap === undefined) return {};
+  if (tool === 'Read' && toolInput['limit'] === undefined && toolInput['offset'] === undefined)
+    return capped({ ...toolInput, limit: cap }, `읽기 줄 한도 ${cap}줄`, `rauha: 이 Read 는 처음 ${cap}줄만 읽었습니다. 파일이 더 길 수 있으니, 더 필요하면 Grep 으로 줄 번호를 찾은 뒤 Read 의 offset·limit 으로 그 부분만 이어 읽으세요.`);
+  if (tool === 'Grep' && toolInput['output_mode'] === 'content' && toolInput['head_limit'] === undefined)
+    return capped({ ...toolInput, head_limit: GREP_CAP }, `검색 줄 한도 ${GREP_CAP}줄`, `rauha: 이 Grep 은 처음 ${GREP_CAP}줄만 보여 줍니다. 더 있으면 path·glob 으로 좁혀 다시 찾으세요.`);
+  return {};
+}
+
+function capped(updatedInput: Record<string, unknown>, reason: string, note: string) {
+  return { hookSpecificOutput: { hookEventName: 'PreToolUse' as const, permissionDecision: 'allow' as const, permissionDecisionReason: reason, updatedInput, additionalContext: note } };
 }

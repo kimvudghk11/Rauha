@@ -1,3 +1,4 @@
+import { LEAN_SESSION } from './lean-session.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { DomainError } from '../../shared/domain-error.js';
 import { COMPANY_SCHEMA, CompanyVerdictDto, companyOf, STAGES, type Company, type CompanyVerdict } from '../application/dto/interview.dto.js';
@@ -57,7 +58,7 @@ async function once(run: Run, prompt: string, system: string, env: Record<string
   try {
     const messages = run({
       prompt,
-      options: { model, env, abortController: controller, systemPrompt: system, tools, allowedTools: tools, settingSources: [], permissionMode: 'dontAsk', effort, maxTurns: web ? 40 : 1, ...(schema !== undefined ? { outputFormat: { type: 'json_schema', schema } } : {}), ...(exe !== undefined ? { pathToClaudeCodeExecutable: exe } : {}) },
+      options: { ...LEAN_SESSION, model, env, abortController: controller, systemPrompt: system, tools, allowedTools: tools, settingSources: [], permissionMode: 'dontAsk', effort, maxTurns: web ? 40 : 1, ...(schema !== undefined ? { outputFormat: { type: 'json_schema', schema } } : {}), ...(exe !== undefined ? { pathToClaudeCodeExecutable: exe } : {}) },
     });
     for await (const m of messages) {
       if (m.type !== 'result') continue;

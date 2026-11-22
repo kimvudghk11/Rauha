@@ -1,3 +1,4 @@
+import { LEAN_SESSION } from './lean-session.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { DomainError } from '../../shared/domain-error.js';
 import { MODEL_ID } from '../domain/team.js';
@@ -18,7 +19,7 @@ export async function draftResume(note: string, env: Record<string, string>, cla
   try {
     const messages = query({
       prompt: `Commit summary:\n${note.slice(0, RESUME_NOTE_LIMIT)}`,
-      options: { model, env, abortController: controller, systemPrompt: SYSTEM, tools: [], allowedTools: [], settingSources: [], permissionMode: 'dontAsk', effort: 'low', maxTurns: 1, ...(claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: claudeExecutable } : {}) },
+      options: { ...LEAN_SESSION, model, env, abortController: controller, systemPrompt: SYSTEM, tools: [], allowedTools: [], settingSources: [], permissionMode: 'dontAsk', effort: 'low', maxTurns: 1, ...(claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: claudeExecutable } : {}) },
     });
     for await (const message of messages) {
       if (message.type !== 'result') continue;

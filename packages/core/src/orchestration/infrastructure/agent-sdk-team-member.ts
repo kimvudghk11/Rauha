@@ -11,6 +11,7 @@ import { createToolGuard, type PermissionAsker } from './tool-guard.js';
 import { ToolTally } from '../domain/tool-tally.js';
 import { accountBlock } from './usage-limit.js';
 import { MemberContinue } from '../domain/member-continue.js';
+import { LEAN_SESSION } from './lean-session.js';
 import { GitPublishIntent } from '../domain/git-publish-intent.js';
 import { ConnectorWriteIntent } from '../domain/connector.js';
 import { PluginReach } from '../domain/plugin.js';
@@ -271,6 +272,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const system = kits.guide === '' ? base : `${base}\n\n${kits.guide}`;
     const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? [], call.setting.plugins !== false);
     return {
+      ...LEAN_SESSION,
       ...pluginLoad,
       model: modelOf(call),
       abortController: session.controller,
@@ -289,7 +291,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       maxTurns: call.setting.maxTurns,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
-        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
+        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, ...readCapOf(call.role), canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
         PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally), openedHook(session.opened)] }],
       },
       stderr: (data) => {
@@ -405,6 +407,13 @@ export function addUsage(before: MemberUsage | null, last: MemberUsage): MemberU
     denials: [...before.denials, ...last.denials],
   };
 }
+
+/**
+ * 읽기만 하는 역할이 범위 없이 파일 전체를 읽을 때의 줄 한도. 읽은 줄은 그 뒤 턴마다 다시 읽혀 세션을 쓴다
+ * (2026-11-22 실측: 깊은 답 한 번에 캐시 쓰기 12만, 조사 팀원 메모 몇 줄에 8만). 코드를 고치는 역할은 파일 전체가 필요해 두지 않는다.
+ */
+const READ_CAPS: Partial<Record<string, number>> = { answerer: 400, surveyor: 200 };
+const readCapOf = (role: string): { readCap?: number } => (READ_CAPS[role] === undefined ? {} : { readCap: READ_CAPS[role] });
 
 /**
  * RAUHA_CALL_LOG 에 파일 경로가 있으면 호출 하나마다 역할·모델·토큰(모델별 캐시 생성·읽기 포함)·턴·도구를 한 줄(JSON)로 남긴다.

@@ -1,3 +1,4 @@
+import { LEAN_SESSION } from './lean-session.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { DomainError } from '../../shared/domain-error.js';
 import { MODEL_ID } from '../domain/team.js';
@@ -35,6 +36,7 @@ export async function draftBlog(note: string, tone: BlogTone, env: Record<string
     const messages = run({
       prompt: `어투: ${TONE[tone]}\n\n정리 노트:\n${note.slice(0, BLOG_NOTE_LIMIT)}`,
       options: {
+        ...LEAN_SESSION,
         model,
         env,
         abortController: controller,

@@ -1,3 +1,4 @@
+import { LEAN_SESSION } from './lean-session.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { DomainError } from '../../shared/domain-error.js';
 import { CommitDraftDto, commitDraftPrompt, COMMIT_DRAFT_SCHEMA, type CommitDraft } from '../application/dto/commit-draft.dto.js';
@@ -18,6 +19,7 @@ export async function draftCommit(stagedDiff: string, style: string, env: Record
     const messages = query({
       prompt: commitDraftPrompt(stagedDiff, style),
       options: {
+        ...LEAN_SESSION,
         model,
         env,
         abortController: controller,

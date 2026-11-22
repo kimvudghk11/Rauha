@@ -1,3 +1,4 @@
+import { LEAN_SESSION } from './lean-session.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { DomainError } from '../../shared/domain-error.js';
 import { RULE_DRAFT_SCHEMA, RuleDraftDto, type RuleDraft } from '../application/dto/rule-draft.dto.js';
@@ -20,6 +21,7 @@ export async function draftRule(sentence: string, env: Record<string, string>, c
     const messages = query({
       prompt: sentence,
       options: {
+        ...LEAN_SESSION,
         model,
         env,
         abortController: controller,

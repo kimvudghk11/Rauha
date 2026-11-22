@@ -12,7 +12,8 @@ export const WORKSPACE_SERVER = 'rauha';
 export const WORKSPACE_TOOLS = WORKSPACE_TOOL_NAMES;
 export type { WorkspaceToolName };
 
-const SEARCH_LIMIT = 150;
+/** 검색 한 번에 돌려주는 줄 수. 돌려준 줄은 팀원의 다음 턴마다 다시 읽힌다(2026-11-22 실측: 깊은 답 한 번에 검색 7번) — 넘으면 좁혀 다시 찾게 한다 */
+const SEARCH_LIMIT = 60;
 
 /** 도구마다 언제 쓰는지 한 줄(붙은 도구만 사용법에 싣는다) */
 const WHEN: Readonly<Record<WorkspaceToolName, string>> = {

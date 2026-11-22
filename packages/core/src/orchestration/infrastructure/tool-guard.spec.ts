@@ -42,6 +42,37 @@ function guardWith(answers: PermissionAnswer[], overrides: Partial<ToolGuardOpti
 }
 
 describe('createToolGuard', () => {
+  describe('읽기 줄 한도(readCap) — 읽은 줄은 다음 턴마다 다시 읽혀 세션을 쓴다', () => {
+    const spec = (out: unknown) => (out as { hookSpecificOutput?: { updatedInput?: Record<string, unknown>; additionalContext?: string } }).hookSpecificOutput;
+
+    it('범위 없이 파일 전체를 읽으면 처음 readCap 줄만 읽게 바꾸고, 그 사실과 이어 읽는 법을 팀원에게 알린다', async () => {
+      const { guard } = guardWith([], { role: 'answerer', readCap: 400 });
+      const out = spec(await guard(input('Read', { file_path: `${ROOT}/src/big.ts` }), 'id', opts));
+      expect(out?.updatedInput).toEqual({ file_path: `${ROOT}/src/big.ts`, limit: 400 });
+      expect(out?.additionalContext).toMatch(/400.*offset/);
+    });
+
+    it('팀원이 범위를 정했거나 한도가 없는 역할이면 그대로 둔다', async () => {
+      const capped = guardWith([], { role: 'answerer', readCap: 400 }).guard;
+      expect(spec(await capped(input('Read', { file_path: `${ROOT}/src/big.ts`, offset: 900, limit: 120 }), 'id', opts))?.updatedInput).toBeUndefined();
+      const free = guardWith([], { role: 'implementer' }).guard;
+      expect(spec(await free(input('Read', { file_path: `${ROOT}/src/big.ts` }), 'id', opts))?.updatedInput).toBeUndefined();
+    });
+
+    it('줄 수를 정하지 않은 내용 검색(Grep)도 같은 이유로 줄 수를 정해 준다', async () => {
+      const { guard } = guardWith([], { role: 'answerer', readCap: 400 });
+      const out = spec(await guard(input('Grep', { pattern: 'ChatSession', output_mode: 'content' }), 'id', opts));
+      expect(out?.updatedInput).toEqual({ pattern: 'ChatSession', output_mode: 'content', head_limit: 80 });
+      expect(out?.additionalContext).toMatch(/80/);
+      expect(spec(await guard(input('Grep', { pattern: 'x', output_mode: 'content', head_limit: 20 }), 'id', opts))?.updatedInput).toBeUndefined();
+    });
+
+    it('비밀 파일은 한도와 상관없이 거절한다', async () => {
+      const { guard } = guardWith([], { role: 'answerer', readCap: 400 });
+      expect(decision(await guard(input('Read', { file_path: `${ROOT}/.env` }), 'id', opts))).toBe('deny');
+    });
+  });
+
   it('비밀 파일은 읽기·쓰기·셸 모두 묻지 않고 거절한다', async () => {
     const { guard, asked } = guardWith([{ kind: 'allow' }]);
     for (const [tool, toolInput] of [
