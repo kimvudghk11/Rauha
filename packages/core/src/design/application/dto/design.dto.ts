@@ -131,7 +131,7 @@ export class DesignDocDto {
         ...t.acceptance.map((a) => `  - ${a}`),
         '',
       ]),
-      '## 위험과 확인하지 못한 것',
+      '## 위험',
       ...bullets(design.risks),
       '',
     ].join('\n');

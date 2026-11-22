@@ -152,7 +152,7 @@ export class BlueprintDto {
     design.push('### 엣지 케이스', bulletsOrNone(bp.edgeCases));
     design.push('### 버린 안', bulletsOrNone(bp.rejected.map((r) => `${r.option}: ${r.whyNot}`)));
     design.push('### 테스트 전략', bp.testStrategy === '' ? '- 없음' : bp.testStrategy);
-    if (bp.risks.length > 0) design.push('### 위험·확인하지 못한 것', bullets(bp.risks));
+    if (bp.risks.length > 0) design.push('### 위험', bullets(bp.risks));
     const plan = bp.steps.map((s) => [`### ${s.number}. ${s.title}`, `- 먼저 쓸 테스트: ${s.testFirst}`, `- 바꿀 파일: ${s.files.map((f) => `\`${f}\``).join(', ')}`, `- 확인: \`${s.verify}\``].join('\n'));
     return { design: design.join('\n\n'), plan: plan.join('\n\n') };
   }

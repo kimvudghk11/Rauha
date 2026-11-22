@@ -1,6 +1,6 @@
 /**
  * 실제 모델 시나리오: 앱과 같은 세션 구성(composeSession)으로 사용자가 실제로 했던 요청을 돌리고,
- * 결과 종류·쓴 도구·"안 본 곳"이 보였는지·걸린 시간을 표로 남긴다. 파일을 쓰는 요청은 넣지 않는다.
+ * 결과 종류·쓴 도구·로봇 같은 꼬리(못 한 것·면책 등)가 붙었는지·걸린 시간을 표로 남긴다. 파일을 쓰는 요청은 넣지 않는다.
  * 쓰는 법: node packages/desktop/scripts/scenario.mjs [작업 공간 폴더] [시나리오 id …]
  */
 import { execFileSync } from 'node:child_process';
@@ -70,13 +70,14 @@ async function main(): Promise<void> {
     const seconds = Math.round((now() - started) / 1000);
     const answer = outcome === null ? error : outcome.kind === 'answer' ? outcome.answer : outcome.kind === 'notice' ? outcome.message : JSON.stringify(outcome).slice(0, 4000);
     const tools = outcome !== null && 'tools' in outcome && Array.isArray((outcome as { tools?: unknown }).tools) ? ((outcome as { tools: { name: string; count: number }[] }).tools.map((t) => `${t.name}×${t.count}`).join(' ')) : '';
-    const unseen = /■ 안 본 곳/.test(answer);
-    const ok = outcome?.kind === s.expect && !unseen;
-    rows.push(`| ${ok ? 'OK' : 'XX'} | ${s.id} | ${outcome?.kind ?? 'error'} | ${seconds}s | ${unseen ? '있음' : '없음'} | ${tools.replace(/\|/g, '/')} |`);
+    // 사용자가 없애라고 한 로봇 같은 꼬리(2026-11-22): 못 한 것·안 본 곳 목록, ■ 고정 틀, 끝맺음 면책·제안
+    const tail = /■|^#{1,6} .*(못 한 것|안 본 곳|확인하지 못한|확인 못 한|살펴본 파일|확인 범위|출처|참고한)|직접 적어 주세요|일반(적인)? 지식에 기반|더 (필요하면|궁금하면|자세한).{0,20}말씀/m.exec(answer);
+    const ok = outcome?.kind === s.expect && tail === null;
+    rows.push(`| ${ok ? 'OK' : 'XX'} | ${s.id} | ${outcome?.kind ?? 'error'} | ${seconds}s | ${tail !== null ? tail[0] : '없음'} | ${tools.replace(/\|/g, '/')} |`);
     writeFileSync(join(out, `${s.id}.md`), `# ${s.text}\n\n결과: ${outcome?.kind ?? 'error'} · ${seconds}s · 도구: ${tools}\n\n## 진행\n${steps.map((l) => `- ${l}`).join('\n')}\n\n## 답\n${answer}\n`);
     console.log(rows.at(-1));
   }
-  const table = ['| 결과 | 시나리오 | 종류 | 시간 | 안 본 곳 | 도구 |', '| --- | --- | --- | --- | --- | --- |', ...rows].join('\n');
+  const table = ['| 결과 | 시나리오 | 종류 | 시간 | 로봇 꼬리 | 도구 |', '| --- | --- | --- | --- | --- | --- |', ...rows].join('\n');
   writeFileSync(join(out, 'README.md'), `# 실제 모델 시나리오 (${basename(workspace)}, 레포 ${repos.length}개)\n\n${table}\n`);
   console.log(`\n${table}\n\n기록: ${out}`);
 }

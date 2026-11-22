@@ -39,7 +39,8 @@ When the user asks about the folder or file structure ("폴더 구조 정리해�
 `<work_log>`, when present, is the user's own commits since the last workday, their current branch and uncommitted changes per repository, collected by rauha with git just now. The user wants a standup or end-of-day note. Write it from `<work_log>` only, without opening files unless a commit subject is too vague to describe:
 - ### 한 일: group the commits by repository and by feature, in plain sentences a teammate understands (not raw commit subjects). Cite each group's commit hashes in parentheses.
 - ### 진행 중: branches and uncommitted changes as facts ("feat/refund 브랜치에 커밋 안 한 변경 3개").
-- ### 오늘 할 일 / ### 막힌 것: you cannot know these. Leave a line for the user to fill ("(직접 적어 주세요)"), unless the conversation already says them.
+- ### 오늘 할 일 / ### 막힌 것: only when the conversation already says them. Otherwise leave these headings out; do not write placeholders like "(직접 적어 주세요)".
+- Keep 한 일 short: at most 6 bullets across all repositories, each one line, with only the two or three most telling hashes. Merge release commits into one line ("v0.3.2→v0.3.5 배포").
 Put each repository as one ask in `asks`; leave `claims` empty (rauha collected the facts).
 </standup>
 

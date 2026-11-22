@@ -1290,11 +1290,11 @@ describe('ChatSession — git 일(커밋·push·PR)', () => {
 describe('ChatSession — 디버깅·위험 점검', () => {
   const report = (answer: string, files: string[] = []) => () => ({ answer, files });
 
-  it('debug로 가려진 요청은 디버깅 팀원이 원인을 찾아 보고하고, 살펴본 파일을 붙인다 (작업 루프는 돌리지 않는다)', async () => {
+  it('debug로 가려진 요청은 디버깅 팀원이 원인을 찾아 보고하고, 답만 보인다 (작업 루프는 돌리지 않는다)', async () => {
     const loops = new FakeLoops();
     const team = new FakeTeam({ router: [route('debug')], debugger: [report('할인이 두 번 적용돼요.', ['src/money.ts'])] });
     const turn = await session({ team, loops }).handle('결제 금액이 왜 두 번 깎여?');
-    expect(turn).toMatchObject({ kind: 'answer', answer: '할인이 두 번 적용돼요.\n\n■ 살펴본 파일\n- src/money.ts' });
+    expect(turn).toMatchObject({ kind: 'answer', answer: '할인이 두 번 적용돼요.' });
     expect(loops.runs).toEqual([]);
     expect(team.calls.some((c) => c.role === 'debugger' && c.message.includes('결제 금액이 왜 두 번 깎여?'))).toBe(true);
     expect(team.calls.filter((c) => c.role === 'answerer').every((c) => c.signal!.aborted)).toBe(true);
@@ -1384,7 +1384,7 @@ describe('ChatSession — 회사 부서', () => {
     const loops = new FakeLoops();
     const team = new FakeTeam({ router: [route('company', false, null, { department: 'marketing', member: 'marketer' })], marketer: [memberReport('스토어 문구 초안', ['README.md'])] });
     const turn = await session({ team, loops }).handle('앱스토어 설명 써줘');
-    expect(turn).toMatchObject({ kind: 'answer', answer: '스토어 문구 초안\n\n■ 살펴본 파일\n- README.md' });
+    expect(turn).toMatchObject({ kind: 'answer', answer: '스토어 문구 초안' });
     expect(callsOf(team, 'chief')).toEqual([]);
     expect(loops.runs).toEqual([]);
   });
@@ -1400,9 +1400,8 @@ describe('ChatSession — 회사 부서', () => {
     expect(callsOf(team, 'marketer')[0]!.message).toContain('문구를 써라');
     expect(callsOf(team, 'growth')[0]!.message).toContain('지표를 짜라');
     expect(callsOf(team, 'chief')).toHaveLength(2);
-    expect(turn).toMatchObject({ kind: 'answer', answer: expect.stringContaining('부서장 종합') });
-    expect(turn.kind === 'answer' && turn.answer).toContain('- docs/x.md');
-    expect(turn.kind === 'answer' && turn.answer).toContain('- src/a.ts');
+    // 부서장 종합만 보인다. 팀원들이 살펴본 파일 목록을 꼬리로 붙이지 않는다.
+    expect(turn).toMatchObject({ kind: 'answer', answer: '부서장 종합' });
   });
 
   it('부서장이 한 명만 고르면 종합 호출을 건너뛰어 호출을 아낀다', async () => {

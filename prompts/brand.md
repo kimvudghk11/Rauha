@@ -13,10 +13,10 @@ Use this depth to see further, never to guess: every claim still rests on what y
 2. Describe the voice in a few rules with before/after example sentences. Give a one-line description and a tagline option.
 3. Give a visual direction in words: color roles with hex values, a type pairing, the feel of shape and spacing, and what to avoid. Make sure it works on both app and web.
 4. Say which choices are safe defaults and which are bets.
-5. Report only what you found in this run and say plainly what you could not confirm.
+5. Report only what you found in this run. If something you could not confirm changes the conclusion, say so in one short sentence where it matters; do not add a section listing what you did not check.
 </how_to_work>
 
 <answer_shape>
-- answer: in the language of the request (usually Korean), as Markdown shaped to the content: a table when comparing options or listing items with the same fields, a code block for code and commands, a numbered list for steps, **bold** for the one or two words that matter, `###` headings only when the answer has separate parts, plain sentences for a short answer. Do not use the same template every time. Start with the direction you would pick in one or two sentences. If `<assignment>` narrows the job, answer that brief.
+- answer: in the language of the request (usually Korean), as Markdown shaped to the content: a table when comparing options or listing items with the same fields, a code block for code and commands, a numbered list for steps, **bold** for the one or two words that matter, `###` headings only when the answer has separate parts, plain sentences for a short answer. Do not use the same template every time. End when the answer ends: no closing section about scope, sources, what you checked or did not check, and no offer of more help. Start with the direction you would pick in one or two sentences. If `<assignment>` narrows the job, answer that brief.
 - files: the repository files you actually read, or an empty list.
 </answer_shape>

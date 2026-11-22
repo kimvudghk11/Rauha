@@ -2,14 +2,11 @@ import type { TurnOutcome } from '@rauha/core';
 import { formatElapsed } from '../live-line.js';
 import type { MascotView } from '../mascot.js';
 import type { Printable } from './chat-store.js';
+import { terminalMarkdown } from './terminal-markdown.js';
 
-/**
- * 답변 팀원이 쓴 "■ 제목" 줄을 강조한다. ■는 한글 글꼴 cmd에서 두 칸으로 그려져 줄이 어긋나서,
- * 어디서나 한 칸인 ▍로 바꾼다.
- */
-function titled(line: string, view: MascotView | null): string {
-  if (!line.startsWith('■ ') || view === null) return line;
-  return view.highlight(`▍ ${line.slice(2)}`);
+/** 마크다운 답 → 두 칸 들여 쓴 터미널 줄(제목 강조·표 칸 맞춤·표시 문자 지움). */
+function bodyLines(md: string, view: MascotView | null): string[] {
+  return terminalMarkdown(md, view !== null ? (t) => view.highlight(t) : null).map((line) => (line === '' ? '' : `  ${line}`));
 }
 
 /** https://docs.aws.amazon.com/a/b.html → "docs.aws.amazon.com › a/b.html". 모양이 틀리면 그대로. */
@@ -51,7 +48,7 @@ export function describeTurn(turn: TurnOutcome, view: MascotView | null): Printa
         '',
         // 답이 어디서 시작하는지 보이게 머리줄을 단다(질문과 답의 경계).
         ...(view !== null ? [view.step('rauha', 'answerer'), ''] : []),
-        ...turn.answer.split('\n').map((line) => (line === '' ? '' : `  ${titled(line, view)}`)),
+        ...bodyLines(turn.answer, view),
         '',
         ...(sources.length > 0 ? ['  출처', ...sources.map((s) => `  - ${s}`), ''] : []),
         ...(turn.basis !== null ? [`  읽은 기준: ${turn.basis}`] : []),
@@ -63,7 +60,7 @@ export function describeTurn(turn: TurnOutcome, view: MascotView | null): Printa
     case 'analysis': {
       // 터미널에는 방향을 고르는 카드가 없어서 방향 비교까지만 하고 문서 위치를 알린다. 데스크톱 앱에서는 카드로 고른다.
       const worked = turn.implemented === null ? [] : describeTurn({ kind: 'work', outcome: turn.implemented }, view);
-      return ['', ...turn.summary.split('\n').map((line) => (line === '' ? '' : `  ${titled(line, view)}`)), `  ${formatElapsed(turn.durationMs)}`, '', ...worked];
+      return ['', ...bodyLines(turn.summary, view),`  ${formatElapsed(turn.durationMs)}`, '', ...worked];
     }
     case 'review': {
       if (turn.files.length === 0) return ['', '  검토할 변경이 없어요.', ''];

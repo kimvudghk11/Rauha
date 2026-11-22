@@ -53,9 +53,9 @@ describe('describeTurn', () => {
     expect(text).not.toContain('예전엔 round였다');
   });
 
-  it('답 글은 두 칸 들여 쓰고, ■ 제목 줄은 강조한다', () => {
+  it('답 글은 두 칸 들여 쓰고, 마크다운 제목은 강조하고 굵게 표시는 지운다', () => {
     const view = { highlight: (t: string) => `<${t}>`, step: (m: string) => `◆ ${m}` } as unknown as Parameters<typeof describeTurn>[1];
-    const lines = describeTurn({ kind: 'answer', basis: null, answer: '요약입니다.\n\n■ 관리 주체\n- EC2는 직접 관리합니다.', checked: [], costUsd: 0, durationMs: 0 }, view);
+    const lines = describeTurn({ kind: 'answer', basis: null, answer: '요약입니다.\n\n### 관리 주체\n- **EC2**는 직접 관리합니다.', checked: [], costUsd: 0, durationMs: 0 }, view);
     expect(lines).toContain('◆ rauha');
     expect(lines).toContain('  요약입니다.');
     expect(lines).toContain('  <▍ 관리 주체>');

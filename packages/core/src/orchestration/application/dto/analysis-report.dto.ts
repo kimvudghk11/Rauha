@@ -13,8 +13,8 @@ export class AnalysisReportDto {
     return new AnalysisReportDto(answer, files);
   }
 
-  /** 답과, 살펴본 파일 목록(근거를 눈으로 확인할 수 있게). */
+  /** 답만. 살펴본 파일 목록을 꼬리로 붙이지 않는다(2026-11-22 사용자: 답 밑 꼬리 없이). 근거 파일은 답 본문에 `path:line`으로 들어간다. */
   toAnswer(): string {
-    return this.files.length === 0 ? this.answer : `${this.answer}\n\n■ 살펴본 파일\n${this.files.map((f) => `- ${f}`).join('\n')}`;
+    return this.answer;
   }
 }
