@@ -198,6 +198,31 @@ describe('NodeProject 관련 테스트 명령', () => {
   });
 });
 
+describe('NodeProject 커버리지 명령', () => {
+  it('vitest 에 coverage 플러그인이 있으면 바뀐 파일과 관련된 테스트만, 바뀐 파일만 재서 json 으로 낸다', () => {
+    const p = NodeProject.detect(['yarn.lock'], { devDependencies: { vitest: '^3', '@vitest/coverage-v8': '^3' }, scripts: { test: 'vitest run' } });
+    expect(p.coverageCommand(['src/a.ts', 'src/my b.ts'], 'C:/t/cov')).toBe(
+      'yarn exec vitest related src/a.ts "src/my b.ts" --run --passWithNoTests --coverage.enabled --coverage.reporter=json --coverage.reportsDirectory=C:/t/cov --coverage.include=src/a.ts "--coverage.include=src/my b.ts"',
+    );
+  });
+
+  it('istanbul 플러그인도 쓴다', () => {
+    const p = NodeProject.detect(['package-lock.json'], { devDependencies: { vitest: '^3', '@vitest/coverage-istanbul': '^3' } });
+    expect(p.coverageCommand(['src/a.ts'], 'C:/t/cov')).toContain('npx --no-install vitest related src/a.ts');
+  });
+
+  it('jest 면 관련 테스트를 커버리지와 함께 돌린다(jest 는 커버리지가 들어 있다)', () => {
+    const p = NodeProject.detect(['yarn.lock'], { devDependencies: { jest: '^29' }, scripts: { test: 'jest' } });
+    expect(p.coverageCommand(['src/a.ts'], 'C:/t/cov')).toBe('yarn exec jest --findRelatedTests src/a.ts --passWithNoTests --coverage --coverageReporters=json --coverageDirectory=C:/t/cov --collectCoverageFrom=src/a.ts');
+  });
+
+  it('vitest 에 coverage 플러그인이 없거나 테스트 도구가 없으면 명령이 없다(새로 설치하지 않는다)', () => {
+    expect(NodeProject.detect(['yarn.lock'], { devDependencies: { vitest: '^3' } }).coverageCommand(['src/a.ts'], 'C:/t/cov')).toBeNull();
+    expect(NodeProject.detect(['yarn.lock'], { scripts: { test: 'node test.js' } }).coverageCommand(['src/a.ts'], 'C:/t/cov')).toBeNull();
+    expect(NodeProject.detect(['yarn.lock'], { devDependencies: { jest: '^29' } }).coverageCommand([], 'C:/t/cov')).toBeNull();
+  });
+});
+
 describe('NodeChecks 검사 묶음 병렬 실행', () => {
   // 각 검사는 시작·끝 시각을 파일에 남긴다. 시간 제한 대신 "모든 검사가 시작한 뒤에야 첫 검사가 끝난다"로 겹침을 가린다(부하와 상관없다).
   const script = (tag: string) =>
@@ -284,6 +309,63 @@ describe('NodeChecks.hasTestRunner', () => {
       expect(await new NodeChecks(dep).hasTestRunner()).toBe(false);
     } finally {
       for (const d of [root, sub, dep]) rmSync(d, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('NodeChecks.coverage', () => {
+  const fakeShell = (write: (dir: string) => void) => {
+    const commands: string[] = [];
+    const run = async (command: string) => {
+      commands.push(command);
+      const dir = /--coverageDirectory=(\S+)|--coverage\.reportsDirectory=(\S+)/.exec(command);
+      const out = (dir?.[1] ?? dir?.[2] ?? '').replace(/"/g, '');
+      if (out !== '') write(out);
+      return { code: 0, output: '' };
+    };
+    return { commands, run };
+  };
+
+  it('바뀐 소스 파일만 관련 테스트로 재서 보고서를 돌려준다', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'rauha-cov-'));
+    try {
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'jest' }, devDependencies: { jest: '^29' } }));
+      const shell = fakeShell((dir) => {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, 'coverage-final.json'), JSON.stringify({ [join(root, 'src/money.ts')]: { path: join(root, 'src/money.ts'), statementMap: { '0': { start: { line: 3 } }, '1': { start: { line: 7 } } }, s: { '0': 1, '1': 0 } } }));
+      });
+      const report = await new NodeChecks(root, 60_000, shell.run).coverage(['src/money.ts', 'src/money.spec.ts', 'README.md']);
+      expect(shell.commands).toHaveLength(1);
+      expect(shell.commands[0]).toContain('jest --findRelatedTests src/money.ts');
+      expect(shell.commands[0]).not.toContain('money.spec.ts');
+      expect(report?.files).toEqual([{ path: 'src/money.ts', covered: 1, total: 2, uncoveredLines: [7] }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    }
+  });
+
+  it('커버리지 도구가 없거나 잴 소스가 없으면 재지 않는다(null)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'rauha-cov-'));
+    try {
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' }, devDependencies: { vitest: '^3' } }));
+      const shell = fakeShell(() => undefined);
+      expect(await new NodeChecks(root, 60_000, shell.run).coverage(['src/a.ts'])).toBeNull();
+      expect(await new NodeChecks(root, 60_000, shell.run).coverage(['README.md'])).toBeNull();
+      expect(shell.commands).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    }
+  });
+
+  it('도구가 보고서를 남기지 못하면(실패·중단) 지어내지 않고 null', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'rauha-cov-'));
+    try {
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ devDependencies: { jest: '^29' } }));
+      const shell = fakeShell(() => undefined);
+      expect(await new NodeChecks(root, 60_000, shell.run).coverage(['src/a.ts'])).toBeNull();
+      expect(shell.commands).toHaveLength(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     }
   });
 });

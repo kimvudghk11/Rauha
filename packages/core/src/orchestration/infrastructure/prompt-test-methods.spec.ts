@@ -29,4 +29,8 @@ describe('테스트 방식 12가지', () => {
   it('리뷰어는 바뀐 내용에 맞는데 빠진 검증 방식을 근거와 함께 짚는다', () => {
     expect(prompt('reviewer')).toMatch(/Verification:[\s\S]*<test_methods>/);
   });
+
+  it('리뷰어는 rauha 가 잰 <coverage> 의 닿지 않는 줄을 근거로 쓰되, 새 동작이 아닌 줄은 짚지 않는다', () => {
+    expect(prompt('reviewer')).toMatch(/<coverage>[\s\S]*measured[\s\S]*file:line/);
+  });
 });

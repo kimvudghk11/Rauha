@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { KnowledgePort } from '../../knowledge/application/ports.js';
 import { RepoRef } from '../../knowledge/domain/repo-ref.js';
 import { DomainError } from '../../shared/domain-error.js';
+import { CoverageReport } from '../domain/coverage.js';
 import { TestRun } from '../domain/test-run.js';
 import type { CheckedClaim } from '../domain/fact-check.js';
 import type { CheckResult } from '../domain/verification.js';
@@ -522,6 +523,26 @@ describe('MinimalLoopService', () => {
     expect(implementers[2]!.continueFrom).toBeUndefined();
     expect(implementers[2]!.message).toContain('<locked_tests>');
     expect(outcome.status).toBe('complete');
+  });
+
+  it('리뷰 직전에 바뀐 파일의 커버리지를 rauha 가 직접 재서 리뷰어에게 근거로 넘기고 진행 줄에 알린다', async () => {
+    const ws = new FakeWorkspace();
+    const team = new FakeTeam(ws, { intake: [() => intake()], tester: [writeTest], implementer: [implement], reviewer: [() => ({ verdict: 'pass', summary: '문제 없음', issues: [] })] });
+    const checks = new FakeChecks(ws);
+    const measured: string[][] = [];
+    Object.assign(checks, {
+      coverage: async (files: readonly string[]) => {
+        measured.push([...files]);
+        return CoverageReport.fromIstanbul({ 'src/money.ts': { statementMap: { '0': { start: { line: 3 } }, '1': { start: { line: 9 } } }, s: { '0': 1, '1': 0 } } }, '', ['src/money.ts']);
+      },
+    });
+    const steps: string[] = [];
+    await service(ws, team, checks, new FakeLog(), new FakeUser(false), { step: (m: string) => steps.push(m) }, true).run('Money에 할인 추가');
+    expect(measured[0]).toContain('src/money.ts');
+    const reviewer = team.log.find((c) => c.role === 'reviewer');
+    expect(reviewer?.message).toContain('<coverage>');
+    expect(reviewer?.message).toContain('테스트가 닿지 않는 줄: 9');
+    expect(steps.some((s) => s.includes('커버리지 50%'))).toBe(true);
   });
 
   it('시니어도 실패하면 needs-support로 멈춘다', async () => {

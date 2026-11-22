@@ -2,6 +2,7 @@ import type { AnalysisUserPort } from '../../analysis/application/ports.js';
 import type { DesignApproval, DesignPlan, DesignQuestion } from '../../design/application/ports.js';
 import type { LearningBook } from '../domain/learning-book.js';
 import type { CompanyBook } from '../domain/company-book.js';
+import type { CoverageReport } from '../domain/coverage.js';
 import type { CheckedClaim } from '../domain/fact-check.js';
 import type { ToolCount } from '../domain/tool-tally.js';
 import type { TestRun } from '../domain/test-run.js';
@@ -148,6 +149,8 @@ export interface ChecksPort {
   runQuick(changedFiles: readonly string[]): Promise<QuickChecksResult>;
   /** 전체 테스트·타입 검사·린트. 없는 검사는 status 'skip'. */
   runSuite(): Promise<CheckResult[]>;
+  /** 바뀐 소스 파일의 커버리지(관련 테스트만 돌려 잰다). 도구가 없거나 재지 못하면 null. 구현하지 않으면 재지 않는다. */
+  coverage?(changedFiles: readonly string[]): Promise<CoverageReport | null>;
 }
 
 export interface RunLogPort {

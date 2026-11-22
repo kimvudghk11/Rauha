@@ -459,10 +459,13 @@ export class MinimalLoopService {
     state.rounds += 1;
     const changes = workspace.changesBetween(p.start, await workspace.snapshot());
     const report = { decisions: p.explanation?.decisions ?? [], facts: p.explanation?.facts ?? [] };
+    // rauha 가 직접 잰 바뀐 파일의 커버리지: 리뷰어가 "테스트가 닿지 않는 바뀐 줄"을 근거로 짚는다(도구가 없으면 재지 않는다)
+    const coverage = await this.measureCoverage(changes.filter((c) => c.kind !== 'deleted').map((c) => c.path));
     const message = [
       p.brief,
       `<locked_tests>\n${p.lockedTests.join('\n')}\n</locked_tests>`,
       `<changed_files>\n${changes.map((c) => `${c.kind} ${c.path}`).join('\n')}\n</changed_files>`,
+      coverage,
       await this.filesBlock([...changes.filter((c) => c.kind !== 'deleted').map((c) => c.path), ...p.lockedTests]),
       `<implementer_report>\n${JSON.stringify(report, null, 2)}\n</implementer_report>`,
       '<task>위 변경을 처음 보는 눈으로 검토하세요. 근거가 확인되는 문제만 수정 요청이 됩니다.</task>',
@@ -643,6 +646,19 @@ export class MinimalLoopService {
   private async filesBlock(paths: readonly string[]): Promise<string> {
     const files = await Promise.all(paths.map(async (path) => ({ path, content: await this.deps.workspace.readFile(path) })));
     return FilesBlockDto.of(files).toBlock();
+  }
+
+  /** 바뀐 파일의 커버리지를 재서 리뷰어 묶음과 진행 줄 한 줄로. 재지 못하면 빈 글(실패로 세지 않는다) */
+  private async measureCoverage(paths: readonly string[]): Promise<string> {
+    const checks = this.deps.checks;
+    if (checks.coverage === undefined || this.testless || paths.length === 0) return '';
+    this.deps.progress.step('바뀐 파일의 커버리지를 재는 중이에요');
+    const report = await checks.coverage(paths).catch(() => null);
+    if (report === null) return '';
+    const pct = report.percent();
+    const holes = report.files.filter((f) => f.uncoveredLines.length > 0).length + report.missing.length;
+    if (pct !== null || report.missing.length > 0) this.deps.progress.step(`바뀐 파일 커버리지 ${pct === null ? '모름' : `${pct}%`}${holes > 0 ? `, 테스트가 닿지 않는 곳이 있는 파일 ${holes}개` : ''}`);
+    return report.toBlock();
   }
 
   /** tier: 상태 머신이 배정한 모델. 접수(팀장)는 배정이 없으므로 역할 기본값을 쓴다. */

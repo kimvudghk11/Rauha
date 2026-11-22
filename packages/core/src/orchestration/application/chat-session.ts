@@ -382,7 +382,8 @@ export class ChatSession {
     if (depth === 'deep') await this.loadWorkspaceKnown();
     const known = await this.knowledgeFor(depth);
     const asked = this.askAnswerer(input, past, known, conversation, depth, await this.othersKnown(also, depth), workLog !== '' ? workLog : (digest?.block ?? ''), deeper);
-    const first = await this.answer(input, asked, started, depth, also, digest?.seen ?? []);
+    // "더 깊게"는 그 자체가 마저 하기라 빠진 항목 마저 하기를 또 부르지 않는다(실측: opus 두 번에 8%)
+    const first = await this.answer(input, asked, started, depth, also, digest?.seen ?? [], force !== 'deep');
     // sonnet 이 깊게 답했어도 "더 깊게"로 한 단계 위(opus)에게 다시 물을 수 있다
     const answered = first.kind === 'answer' && !deeper && this.deps.roles.deeperAnswerer().tier !== this.deps.roles.get('answerer').tier ? { ...first, canGoDeeper: true } : first;
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
@@ -929,11 +930,11 @@ ${SINGLE_REPO_NOTE}
   }
 
   /** seen: rauha 가 팀원 대신 이미 본 곳(저장소 변경 묶음). 요청 항목 표에서 연 곳으로 친다. */
-  private async answer(input: string, asked: Promise<Asked>, started: number, depth: 'light' | 'deep', also: readonly AlsoRepo[] = [], seen: readonly string[] = []): Promise<TurnOutcome> {
+  private async answer(input: string, asked: Promise<Asked>, started: number, depth: 'light' | 'deep', also: readonly AlsoRepo[] = [], seen: readonly string[] = [], followUps = true): Promise<TurnOutcome> {
     const first = await asked;
     const { recalls, basis } = first;
     if (first.result.blocked) return { kind: 'blocked', ...first.result.blocked };
-    const { result, coverage, extraCostUsd } = await this.finishAsks(first, depth, seen);
+    const { result, coverage, extraCostUsd } = await this.finishAsks(first, followUps ? depth : 'light', seen);
     if (result.blocked) return { kind: 'blocked', ...result.blocked };
     const dto = this.tryRead(() => AnswerDto.from(result.output));
     const claims = dto?.claims() ?? [];

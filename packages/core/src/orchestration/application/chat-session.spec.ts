@@ -382,6 +382,15 @@ describe('ChatSession — 질문', () => {
       expect(team.calls.filter((c) => c.role === 'answerer').at(-1)!.continueFrom).toBeUndefined();
     });
 
+    it('"더 깊게"는 그 자체가 마저 하기라 빠진 항목 마저 하기를 또 부르지 않는다(실측: opus 두 번에 8%)', async () => {
+      const partial = () => ({ answer: '결제는 …', claims: [], asks: [{ ask: '결제', status: 'done', note: '', needs: '' }, { ask: '환불', status: 'partial', note: '아직 안 읽음', needs: '' }], scope: [] });
+      const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [partial] });
+      const chat = session({ team });
+      await chat.handle('결제랑 환불 흐름');
+      await chat.handle('결제랑 환불 흐름', [], 'deep');
+      expect(team.calls.filter((c) => c.role === 'answerer' && c.tier === 'opus')).toHaveLength(1);
+    });
+
     it('"더 깊게"가 다른 질문을 가리키면(앞 답과 다르면) 새 세션으로 답한다', async () => {
       const team = new FakeTeam({ router: [route('question', false, null, { depth: 'light' })], answerer: [reply] });
       team.sessions = 'on';

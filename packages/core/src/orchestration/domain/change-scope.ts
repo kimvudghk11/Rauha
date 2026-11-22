@@ -5,6 +5,8 @@ export type TestSelection =
   | { readonly kind: 'none' };
 
 const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
+/** 테스트 파일(커버리지를 재는 대상이 아니다) */
+const TEST_FILE = /(?:\.(?:spec|test)\.[cm]?[jt]sx?$)|(?:^|\/)(?:__tests__|tests?)\//;
 /** 바뀌면 어떤 테스트가 영향받는지 알 수 없는 파일: 의존성·컴파일 설정·테스트 도구 설정. */
 const GLOBAL_FILE = /^(?:package\.json|(?:yarn|pnpm|package)-?lock\.[a-z]+|yarn\.lock|pnpm-lock\.yaml|tsconfig[\w.-]*\.json|(?:vitest|vite|jest)\.config\.[cm]?[jt]s|\.eslintrc[\w.]*|eslint\.config\.[cm]?[jt]s)$/;
 
@@ -14,6 +16,11 @@ export class ChangeScope {
 
   static of(changedFiles: readonly string[]): ChangeScope {
     return new ChangeScope([...new Set(changedFiles.map((f) => f.replace(/\\/g, '/')))]);
+  }
+
+  /** 커버리지를 잴 파일: 바뀐 코드 중 테스트 파일이 아닌 것 */
+  coverageTargets(): string[] {
+    return this.files.filter((f) => CODE_FILE.test(f) && !TEST_FILE.test(f));
   }
 
   testSelection(): TestSelection {

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { asRecord } from '../../shared/validation.js';
 import type { ChecksPort, QuickChecksResult, TestsResult } from '../application/ports.js';
 import { ChangeScope } from '../domain/change-scope.js';
+import { CoverageReport } from '../domain/coverage.js';
 import { VitestReportDto } from '../application/dto/vitest-report.dto.js';
 import { TestRun } from '../domain/test-run.js';
 import type { CheckName, CheckResult } from '../domain/verification.js';
@@ -83,6 +84,25 @@ export class NodeProject {
     return `${this.exec()} vitest related ${quoted} --run --passWithNoTests --reporter=json ${shellQuote(`--outputFile=${outFile}`)}`;
   }
 
+  /**
+   * 바뀐 파일과 관련된 테스트만 돌려 바뀐 파일의 커버리지를 istanbul json(coverage-final.json)으로 dir 에 내는 명령.
+   * vitest 는 coverage 플러그인이 이미 있을 때만, jest 는 기본으로 된다. 없으면 null(새로 설치하지 않는다).
+   */
+  coverageCommand(files: readonly string[], dir: string): string | null {
+    if (files.length === 0) return null;
+    const deps = { ...this.pkg.dependencies, ...this.pkg.devDependencies };
+    const quoted = files.map(shellQuote).join(' ');
+    if (this.usesVitest() && ('@vitest/coverage-v8' in deps || '@vitest/coverage-istanbul' in deps)) {
+      const include = files.map((f) => shellQuote(`--coverage.include=${f}`)).join(' ');
+      return `${this.exec()} vitest related ${quoted} --run --passWithNoTests --coverage.enabled --coverage.reporter=json ${shellQuote(`--coverage.reportsDirectory=${dir}`)} ${include}`;
+    }
+    if ('jest' in deps || /\bjest\b/.test(this.pkg.scripts?.['test'] ?? '')) {
+      const collect = files.map((f) => shellQuote(`--collectCoverageFrom=${f}`)).join(' ');
+      return `${this.exec()} jest --findRelatedTests ${quoted} --passWithNoTests --coverage --coverageReporters=json ${shellQuote(`--coverageDirectory=${dir}`)} ${collect}`;
+    }
+    return null;
+  }
+
   testFilesCommand(files: readonly string[], outFile: string): string {
     const quoted = files.map(shellQuote).join(' ');
     if (this.usesVitest()) return `${this.exec()} vitest run ${quoted} --reporter=json ${shellQuote(`--outputFile=${outFile}`)}`;
@@ -128,7 +148,42 @@ export class NodeChecks implements ChecksPort {
   constructor(
     private readonly root: string,
     private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    /** 셸 명령 실행(시험에서는 가짜로 바꾼다) */
+    private readonly run: (command: string, cwd: string, timeoutMs: number) => Promise<CommandResult> = runShell,
   ) {}
+
+  /**
+   * 바뀐 소스 파일(테스트 파일 제외)의 커버리지를 관련 테스트만 돌려 잰다. 패키지(가장 가까운 test 스크립트)마다 나눠 돌리고 합친다.
+   * 프로젝트에 커버리지 도구가 없거나 잴 소스가 없거나 보고서가 남지 않으면 null(지어내지 않는다).
+   */
+  async coverage(changedFiles: readonly string[]): Promise<CoverageReport | null> {
+    const targets = ChangeScope.of(changedFiles).coverageTargets();
+    if (targets.length === 0) return null;
+    const rootFiles = await readdir(this.root);
+    const groups = new Map<string, string[]>();
+    for (const file of targets) {
+      const owner = this.ownerOf(file);
+      groups.set(owner, [...(groups.get(owner) ?? []), file]);
+    }
+    const reports: CoverageReport[] = [];
+    for (const [owner, files] of groups) {
+      const dir = owner === '' ? this.root : join(this.root, owner);
+      const project = NodeProject.detect(rootFiles, await this.packageJson(dir));
+      const out = join(tmpdir(), `rauha-cov-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).replace(/\\/g, '/');
+      const command = project.coverageCommand(files.map((f) => (owner === '' ? f : f.slice(owner.length + 1))), out);
+      if (command === null) continue;
+      await this.exec(command, dir);
+      try {
+        const json = JSON.parse(await readFile(join(out, 'coverage-final.json'), 'utf8')) as unknown;
+        reports.push(CoverageReport.fromIstanbul(json, this.root, files));
+      } catch {
+        // 보고서가 없으면(도구 실패·중단) 그 패키지는 재지 못한 것으로 둔다
+      } finally {
+        await rm(out, { recursive: true, force: true });
+      }
+    }
+    return reports.length === 0 ? null : CoverageReport.combine(reports);
+  }
 
   /**
    * 테스트 파일마다 그 파일이 속한 패키지(가장 가까운 package.json)에서 돌린다. 모노레포의 루트 test는
@@ -322,7 +377,7 @@ export class NodeChecks implements ChecksPort {
   }
 
   private exec(command: string, cwd: string = this.root): Promise<CommandResult> {
-    return runShell(command, cwd, this.timeoutMs);
+    return this.run(command, cwd, this.timeoutMs);
   }
 }
 

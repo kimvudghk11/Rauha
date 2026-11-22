@@ -30,3 +30,14 @@ describe('ChangeScope', () => {
     expect(ChangeScope.of(['src/a.ts', 'src/a.ts']).testSelection()).toEqual({ kind: 'related', files: ['src/a.ts'] });
   });
 });
+
+describe('ChangeScope.coverageTargets', () => {
+  it('바뀐 코드 중 테스트 파일이 아닌 것만 커버리지를 잰다', () => {
+    const scope = ChangeScope.of(['src/money.ts', 'src/money.spec.ts', 'src/a.test.tsx', 'src/__tests__/b.ts', 'README.md', 'src\\cart.js', 'test/c.ts']);
+    expect(scope.coverageTargets()).toEqual(['src/money.ts', 'src/cart.js']);
+  });
+
+  it('바뀐 코드가 없으면 빈 목록', () => {
+    expect(ChangeScope.of(['README.md', 'package.json']).coverageTargets()).toEqual([]);
+  });
+});
