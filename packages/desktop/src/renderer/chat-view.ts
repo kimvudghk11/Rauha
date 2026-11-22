@@ -29,6 +29,18 @@ import { mountStage, paintOnce } from './stage.js';
 import { changesPanel } from './changes-view.js';
 import { isLimitStop } from '../shared/limit-retry.js';
 import { ChatSplit } from '../shared/chat-split.js';
+import { answerMarkdown } from '../shared/answer-markdown.js';
+import { parseMarkdown } from '../shared/markdown.js';
+import { renderMarkdown } from './markdown-view.js';
+
+/** 팀 답 카드: Claude 확장처럼 마크다운(표·코드·소제목·굵게)으로 그린다. 글은 textNode 로만 들어가고 그림은 읽지 않는다. */
+function answerCard(text: string): HTMLElement {
+  const card = el('div', 'tx tx-md');
+  const md = renderMarkdown(parseMarkdown(answerMarkdown(text)), { path: '', loadImage: () => Promise.reject(new Error('No images in answers')) });
+  md.classList.add('md-chat');
+  card.appendChild(md);
+  return card;
+}
 
 const STATUS_LABEL: Readonly<Record<JobView['status'], string>> = {
   queued: 'Queued',
@@ -728,7 +740,7 @@ export function buildChat(actions: ChatActions) {
     av.appendChild(face);
     const body = el('div');
     const text = job.result ?? (job.status === 'done' ? '끝났어요.' : `멈췄어요: ${stopReasonText(job.stopReason)}`);
-    const card = el('div', 'tx', text);
+    const card = answerCard(text);
     // 로그인이 필요해서 멈춘 일: 터미널로 보내지 않고 이 카드에서 바로 로그인한다
     if (job.status === 'stopped' && needsLogin(`${text} ${job.stopReason ?? ''}`)) card.appendChild(loginCard());
     // 지식 없이 먼저 답한 깊은 답: 그 답 카드 안에 작게 알린다(알림·로그가 아니다)
@@ -1151,7 +1163,7 @@ export function buildChat(actions: ChatActions) {
     paintOnce(face, 'intake', 2, t.status === 'done' ? 'done' : 'stuck');
     av.appendChild(face);
     const say = el('div');
-    const tx = el('div', 'tx', t.result ?? (t.status === 'done' ? 'Done.' : `Stopped: ${stopReasonText(t.stopReason)}`));
+    const tx = answerCard(t.result ?? (t.status === 'done' ? 'Done.' : `Stopped: ${stopReasonText(t.stopReason)}`));
     if (t.status === 'stopped' && needsLogin(`${t.result ?? ''} ${t.stopReason ?? ''}`)) tx.appendChild(loginCard());
     tx.appendChild(changesPanel(t.id, 'detail'));
     say.append(el('div', 'who lead-name', leadName()), tx);

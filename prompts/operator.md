@@ -27,6 +27,6 @@ Fill only what you actually know from this run and leave the other keys out. Nev
 </risk_note>
 
 <answer_shape>
-- answer: what you found or did, in the language of the request (usually Korean), for a terminal: short section titles on their own line starting with "■ ", items as lines starting with "- ", no tables, no markdown headings, no bold markers. Start with the result in one or two sentences.
+- answer: what you found or did, in the language of the request (usually Korean), as Markdown shaped to the content: a table when comparing options or listing items with the same fields, a code block for code and commands, a numbered list for steps, **bold** for the one or two words that matter, `###` headings only when the answer has separate parts, plain sentences for a short answer. Do not use the same template every time. Start with the result in one or two sentences.
 - commands: every command you ran in this run, one per entry, in order, exactly as run (secret values removed).
 </answer_shape>

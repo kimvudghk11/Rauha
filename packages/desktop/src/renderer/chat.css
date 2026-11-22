@@ -158,6 +158,18 @@
 
 @media (max-width: 720px) { .toasts { left: 60px; right: 8px; bottom: auto; top: calc(var(--titlebar-h, 0px) + 44px); } .toast { max-width: none; } }
 
+/* 팀 답 카드의 마크다운: 문서 미리보기(.md)보다 촘촘하게, 카드 폭에 맞춰 */
+.m .tx.tx-md { white-space: normal; }
+.m .tx .md-chat { max-width: none; margin: 0; font-size: inherit; line-height: 1.6; }
+.m .tx .md-chat > :last-child { margin-bottom: 0; }
+.m .tx .md-chat h1, .m .tx .md-chat h2 { font-size: 1.15em; margin: 1em 0 .4em; padding-bottom: .2em; }
+.m .tx .md-chat h3, .m .tx .md-chat h4 { font-size: 1.05em; margin: .9em 0 .35em; }
+.m .tx .md-chat > h1:first-child, .m .tx .md-chat > h2:first-child, .m .tx .md-chat > h3:first-child { margin-top: 0; }
+.m .tx .md-chat p, .m .tx .md-chat ul, .m .tx .md-chat ol, .m .tx .md-chat .md-table, .m .tx .md-chat .md-pre { margin-bottom: var(--s2); }
+.m .tx .md-chat th, .m .tx .md-chat td { padding: 3px var(--s2); }
+.m .tx .md-chat li > p { margin: 0; }
+.m .tx .md-chat li + li { margin-top: 3px; }
+.m .tx .md-chat strong { color: var(--bright); }
 .m .tx .kn { margin-top: 6px; font-size: var(--fs-xs); color: var(--muted); }
 .m .tx .deeper, .m .tx .retry { margin-top: 6px; display: flex; width: fit-content; }
 .m .tx .retry-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }

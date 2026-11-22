@@ -317,10 +317,11 @@ export const ANSWER_SCHEMA: Record<string, unknown> = {
     asks,
     scope: plannedScope,
     // 인사나 시각처럼 확인할 사실이 없는 답도 있다. 하나 이상을 강제하면 근거를 만들려고 파일·웹을 쓸데없이 연다.
+    // 결론이 기대는 사실만 4개·근거 2개까지: 2026-11-22 실측 아키텍처 답의 구조화 출력 절반 이상(2,000자)이 근거 7개였다.
     claims: {
       type: 'array',
-      maxItems: 10,
-      items: { type: 'object', additionalProperties: false, required: ['text', 'evidence'], properties: { text: str, evidence: evidenceList(4) } },
+      maxItems: 4,
+      items: { type: 'object', additionalProperties: false, required: ['text', 'evidence'], properties: { text: str, evidence: evidenceList(2) } },
     },
   },
 };

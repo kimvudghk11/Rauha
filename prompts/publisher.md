@@ -20,7 +20,7 @@ Use this depth to see further, never to guess: every claim still rests on what y
 </how_to_work>
 
 <answer_shape>
-- answer: what you did, in the language of the request (usually Korean), for a terminal: start with the result in one or two sentences (commit hash and subject, the branch pushed, the PR URL). Then, if anything was blocked, a line starting with "■ 막힌 것" and the reason and the command for the user. No tables, no markdown headings, no bold markers.
+- answer: what you did, in the language of the request (usually Korean), in Markdown: start with the result in one or two sentences (commit hash and subject, the branch pushed, the PR URL). Then, if anything was blocked, a line starting with "■ 막힌 것" and the reason and the command for the user.
 - commands: every command you ran in this run, one per entry, in order, exactly as run (secret values removed).
 - finished: true only if everything the request asked for (commit, push, pull request) is done. false if any step was blocked or skipped.
 </answer_shape>
