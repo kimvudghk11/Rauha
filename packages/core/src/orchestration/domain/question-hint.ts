@@ -9,9 +9,9 @@ export function isSmallTalk(input: string): boolean {
   return text.length <= SMALL_TALK_CHARS && !ACTION.test(text) && !QUESTION.test(text);
 }
 
-const HELLO = new Set(['ㅎㅇ', '안녕', '안녕하세요', '안녕하십니까', '안뇽', '하이', '하잉', '헬로', '반가워', '반가워요', '반갑습니다', 'hi', 'hello', 'hey', 'helo', 'good morning']);
+const HELLO = new Set(['ㅎㅇ', 'ㅎ2', '하2', '하이루', '방가','안녕', '안녕하세요', '안녕하십니까', '안뇽', '하이', '하잉', '헬로', '반가워', '반가워요', '반갑습니다', 'hi', 'hello', 'hey', 'helo', 'good morning']);
 const THANKS = new Set(['고마워', '고마워요', '고맙습니다', '감사', '감사해', '감사해요', '감사합니다', 'ㄳ', 'ㄱㅅ', '땡큐', '땡스', 'thanks', 'thank you', 'thx', 'ty']);
-const BYE = new Set(['잘자', '잘자요', '잘가', '잘가요', '바이', 'ㅂㅇ', 'ㅂㅂ', 'ㅃㅇ', 'ㅃㅃ', '굿밤', '굿나잇', 'bye', 'good night', '수고', '수고해', '수고하세요', '수고했어', '수고했어요', '수고하셨습니다']);
+const BYE = new Set(['잘자', '잘자요', '잘가', '잘가요', '바이', 'ㅂㅇ', 'ㅂㅂ', 'ㅃㅇ', 'ㅃㅃ', 'ㅂ2', '바2', '빠2','굿밤', '굿나잇', 'bye', 'good night', '수고', '수고해', '수고하세요', '수고했어', '수고했어요', '수고하셨습니다']);
 
 /** 인사로 읽을 모양들: 그대로, 웃음 꼬리 뗀 것, "~용→~요", 존댓말 꼬리 "요" 뗀 것, 되풀이("ㅎㅇㅎㅇ"·"감사감사") 하나로, 영어 꼬리("there"·"u") 정리 */
 function greetingForms(input: string): string[] {

@@ -69,9 +69,9 @@ describe('greetingReply', () => {
   });
 
   it('자주 쓰는 변형(존댓말 꼬리·줄임말·되풀이)도 바로 답한다', () => {
-    for (const text of ['ㅎㅇ요', 'ㅎㅇㅎㅇㅎㅇ', '하잉', '하이요', '안녕하세용', '안녕하십니까', '반가워', '반갑습니다', '안녕 ~', 'hi there', 'hey there', 'good morning']) expect(greetingReply(text), text).toMatch(/안녕/);
+    for (const text of ['ㅎㅇ요', 'ㅎㅇㅎㅇㅎㅇ', '하잉', '하이요', '안녕하세용', '안녕하십니까', '반가워', '반갑습니다', '안녕 ~', 'hi there', 'hey there', 'good morning', 'ㅎ2', 'ㅎ2ㅎ2', '하2', '하이루', '방가', '방가방가'])expect(greetingReply(text), text).toMatch(/안녕/);
     for (const text of ['고마워용', '감사감사', '땡스', 'ㄳㄳ', 'thank u', 'thanks!!']) expect(greetingReply(text), text).toMatch(/천만에요/);
-    for (const text of ['잘가', 'ㅃㅃ', 'ㅃㅇ', '굿밤', '굿나잇', 'good night', '수고요', '수고하세요']) expect(greetingReply(text), text).toMatch(/수고/);
+    for (const text of ['잘가', 'ㅃㅃ', 'ㅃㅇ', '굿밤', '굿나잇', 'good night', '수고요', '수고하세요', 'ㅂ2', '바2', '빠2'])expect(greetingReply(text), text).toMatch(/수고/);
   });
 
   it('앞 대화에 대한 대답일 수 있는 말과 무언가를 묻거나 시키는 말은 모델에게 맡긴다', () => {
