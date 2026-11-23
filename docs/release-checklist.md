@@ -20,6 +20,19 @@
 - DB 나무 남은 일: 연결 여러 개를 동시에 펼치기(지금은 지금 연결 하나만), 스키마 단계(PostgreSQL search_path 밖), 테이블 더블클릭 = 새 SQL 탭(DBeaver 식 편집기 탭)은 없음.
 - Postman 대비 남은 것: 폴더 단위 인증·변수, fetch/axios/Python 코드 스니펫, 응답 검색·JSON 접기, 요청별 시간 제한·리다이렉트 끄기, WebSocket.
 
+## v0.3.8 (2026-11-24) — 내 말은 그대로 Claude 에, 고른 폴더에서, 내 룰로
+
+사용자 지적("라우터가 지 맘대로 컨트롤한다", "project 폴더를 골랐는데 이름순 첫 레포로 간다", "확인해 달라는데 투두를 또 넣거나 md 만 고친다", "라우하에 저장해 달라니 project 에 파일을 만든다", "회사 룰(~/.claude/CLAUDE.md @import)이 안 먹는다")을 원칙으로 고쳤다.
+
+- **원문 그대로**: 메인 채팅 기본 = 새 역할 direct. 사용자 말을 고치지 않고 Claude Code 프리셋 시스템 프롬프트의 Claude 세션 하나에 보낸다(rauha 글은 결과 모양·사용자 규칙만 덧붙임). 라우터·답변 틀·"투두" 가로채기·같은 질문 앞 답 재사용을 뺐다(인사·VPN 처럼 틀릴 수 없는 지름길만 남김). Claude Code 처럼 앞 세션을 이어 새 말만 보낸다. 아무 일도 하기 전에 오류로 끝나면 일을 멈추지 않고 한 번 더 부른다.
+- **팀 흐름은 /work 로만**(테스트 먼저 → 구현 → 리뷰). 레포가 여럿이면 @레포 를 묻는다.
+- **고른 폴더가 작업 자리**: @이름으로 직접 고른 하위 폴더만 그리로 옮긴다. 저장소 맨 위가 아닌 폴더(여러 레포를 담은 상위 폴더, 홈 전체가 저장소인 PC)는 worktree·변경 기록을 만들지 않는다.
+- **rauha 기억·항상 룰**: remember·keep_rule·add_todo 도구(메인 채팅 Claude 만). 기억은 데이터 폴더 notebook.json, 룰 파일은 원본을 읽기만 하고 호출마다 지금 내용을 붙인다. 비밀 파일은 거절. 규칙 탭 "Saved in rauha".
+- **내 Claude Code 설정**: ~/.claude/CLAUDE.md 와 @import 를 모든 팀원에게(설정에서 끌 수 있음), ~/.claude/commands 의 명령을 /이름 으로.
+- 채팅으로 만든 할 일이 할 일 탭에 바로 보인다. 확인하는 git 명령(stash list·tag 목록)은 허락을 묻지 않는다. 일이 오류로 멈추면 스택을 데이터 폴더 errors.log 에 남긴다.
+- 실측(실제 앱, project/a-worker·backend·frontend·docs): 룰 파일 항상 적용, memory.md 는 rauha 기억으로, "todo 확인해줘"는 할 일을 읽고 README 를 실제로 열어 확인, 문서는 project/docs 에, /work 는 레포를 물음, 허락 질문 0.
+- **확인 못 한 것**: 회사 맥북의 실제 ~/.claude/CLAUDE.md·commands 링크(이 PC 에는 없음, 단위 테스트로만), "invalid buffer size" 의 정확한 위치(다음에 나면 errors.log 에 스택이 남는다).
+
 ## v0.3.7 (2026-11-23) — AWS 탭(.ovpn VPN), 태스크 토큰 절반, 에이전트 창
 
 - **AWS 탭(Ctrl+6)**: `.ovpn` 파일을 끌어 넣으면 OpenVPN 으로 연결한다(Windows 는 OpenVPN 서비스, 맥은 관리자 암호 한 번). 파일은 OS 키체인 암호화로만 저장하고 모델·로그에 내용이 가지 않는다. 한 번에 VPN 하나, 앱을 끄면 VPN 도 끈다. AWS 프로필·Who am I·SSO 로그인. DB 연결이 서버에 닿지 않으면 VPN 안내. 실측: Windows 4/4 연결. **맥 VPN 은 실제 연결 미확인.**
