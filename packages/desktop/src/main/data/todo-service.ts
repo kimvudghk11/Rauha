@@ -45,8 +45,17 @@ export class TodoService {
     return this.run(async () => TodoListDto.fromEntity(await this.current()).toJSON());
   }
 
-  /** 화면의 요청 하나를 처리한다. 규칙을 어기면 이유를 돌려주고 아무것도 바꾸지 않는다. */
-  apply(raw: unknown): Promise<TodoResult> {
+  /**
+   * 요청 하나를 처리한다. 규칙을 어기면 이유를 돌려주고 아무것도 바꾸지 않는다.
+   * 바뀌면 화면에도 알린다: 채팅·CI 처럼 할 일 탭 밖에서 더한 카드도 탭을 다시 열지 않고 바로 보이게.
+   */
+  async apply(raw: unknown): Promise<TodoResult> {
+    const res = await this.applyQuietly(raw);
+    if (res.ok) this.deps.onChange(res.list);
+    return res;
+  }
+
+  private applyQuietly(raw: unknown): Promise<TodoResult> {
     return this.run(async (): Promise<TodoResult> => {
       try {
         const op = TodoOpDto.from(raw);

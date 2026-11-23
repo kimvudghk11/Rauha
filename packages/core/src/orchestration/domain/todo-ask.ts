@@ -27,6 +27,10 @@ const DUE_TAIL = /\s*\(\d{4}-\d{2}-\d{2}\)\s*$/;
 const ASKS = /투두|todo|to-do|할\s*일\s*(목록|리스트|정리|만들|추가|에\s*(넣|추가|적))|(내일|오늘|이번\s*주|다음\s*주)\s*(업무|할\s*일|일정)\s*(정리|목록|만들|짜)|업무\s*(목록|리스트)/i;
 /** 코드 안의 TODO 주석 이야기는 할 일 탭이 아니다 */
 const CODE_TODO = /주석|코드\s*(의|안|속|에\s*있는)?\s*todo|todo\s*(주석|comment)|fixme|\/\/\s*todo/i;
+/** 할 일 탭을 재료로 쓰는 말("todo에 있는 내용으로 확인해줘", "투두 보고 처리해줘"): 넣기가 아니라 할 일을 읽고 일하라는 요청 */
+const USES_TODOS = /(투두|todo|to-do|할\s*일)\s*(탭|목록|리스트)?\s*(에\s*있는|에서|의\s*(내용|항목)|내용|항목|중에?|(을|를)?\s*(보고|읽고|확인|처리|해결|진행|체크|검토|점검|살펴|훑어))/i;
+/** 할 일 탭에 넣으라는 말 */
+const INTO_TODOS = /(에|으로|로)\s*(넣|추가|적|등록|옮겨|옮기)/;
 /** 파일·폴더를 가리키는 말: 그 파일을 읽어 안의 할 일을 넣는다 */
 const FILES = /파일|문서|폴더|디렉터리|[\w.-]+\/[\w.\-/]*|\.(md|txt|markdown|org)\b|@\S+/i;
 const MAX_ITEMS = 50;
@@ -44,7 +48,8 @@ export class TodoAsk {
   private constructor() {}
 
   static asks(text: string): boolean {
-    return TodoAsk.isTodoRequest(text) && !CODE_TODO.test(text);
+    if (!TodoAsk.isTodoRequest(text) || CODE_TODO.test(text)) return false;
+    return !USES_TODOS.test(text) || INTO_TODOS.test(text);
   }
 
   /** 파일·폴더를 가리키는 요청인지(그러면 팀원이 파일을 찾아 읽는다) */

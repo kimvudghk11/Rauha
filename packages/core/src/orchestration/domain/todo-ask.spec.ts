@@ -8,6 +8,23 @@ describe('할 일 정리 요청', () => {
     for (const t of ['투두 정리해줘', 'todo list 만들어줘', '할 일 정리해줘', '할일 목록 만들어', '내일 업무 정리해줘', '이번 주 할 일 정리', '이거 할 일에 넣어줘', 'TODO 리스트']) expect(TodoAsk.asks(t)).toBe(true);
   });
 
+  it('할 일 탭을 읽고 일하라는 말은 할 일 넣기가 아니다(할 일을 재료로 확인·처리하라는 요청)', () => {
+    for (const t of [
+      'todo에 있는 내용으로 지금 확인 가능한 내용은 확인해줘',
+      '투두에 있는 거 확인해줘',
+      '투두 확인해줘',
+      '할 일 목록 보고 지금 할 수 있는 거 처리해줘',
+      'todo 항목 중에 끝난 거 체크해줘',
+      '투두 내용 검토해줘',
+      '할 일에서 급한 것부터 해줘',
+    ])
+      expect(TodoAsk.asks(t), t).toBe(false);
+  });
+
+  it('할 일을 읽더라도 할 일 탭에 넣으라고 하면 넣기다', () => {
+    for (const t of ['TODO.md 읽어서 할 일에 넣어줘', 'project/docs에 있는 todo 파일들 찾아서 라우하 todo에 넣어줘', '투두 내용 정리해서 할 일에 추가해줘']) expect(TodoAsk.asks(t), t).toBe(true);
+  });
+
   it('코드의 TODO 주석 이야기나 다른 요청은 아니다', () => {
     for (const t of ['코드의 TODO 주석 정리해줘', 'FIXME 찾아줘', 'Money에 할인 넣어줘', '어제 한 일 정리']) expect(TodoAsk.asks(t)).toBe(false);
   });

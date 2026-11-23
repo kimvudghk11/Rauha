@@ -35,6 +35,19 @@ describe('할 일 서비스', () => {
     expect(t.saved().items).toHaveLength(1);
   });
 
+  it('채팅 등 할 일 탭 밖에서 더한 카드도 화면에 바로 알린다(탭을 다시 열지 않아도 보이게)', async () => {
+    const t = setup();
+    const res = await t.service.apply({ kind: 'add', title: '채팅에서 만든 할 일' });
+    expect(res.ok).toBe(true);
+    expect(t.pushed).toEqual([1]);
+  });
+
+  it('규칙을 어긴 요청은 화면에 알리지 않는다', async () => {
+    const t = setup();
+    await t.service.apply({ kind: 'add', title: '  ' });
+    expect(t.pushed).toEqual([]);
+  });
+
   it('규칙을 어기면 이유를 돌려주고 저장하지 않는다', async () => {
     const t = setup();
     const res = await t.service.apply({ kind: 'add', title: '  ' });
@@ -89,10 +102,11 @@ describe('할 일 서비스', () => {
     await t.service.apply({ kind: 'add', title: 'a' });
     const id = (await t.service.get()).items[0]!.id;
     await t.service.apply({ kind: 'delegate', id });
+    const before = t.pushed.length;
     await t.service.jobFinished('job-1', 'done');
     await t.service.jobFinished('job-1', 'done');
     expect(t.saved().items[0]!.columnId).toBe('done');
-    expect(t.pushed).toHaveLength(1);
+    expect(t.pushed.length - before).toBe(1);
   });
 
   it('동시에 들어온 요청도 서로 덮어쓰지 않고 모두 남는다', async () => {
