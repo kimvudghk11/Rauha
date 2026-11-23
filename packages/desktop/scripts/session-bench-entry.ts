@@ -25,7 +25,10 @@ const TURNS: readonly Turn[] = [
   { id: 'follow', text: '그럼 그 클래스 테스트 파일은 어디 있고 몇 개 정도야?' },
   { id: 'deeper', text: '그럼 그 클래스 테스트 파일은 어디 있고 몇 개 정도야?', depth: 'deep' },
   { id: 'arch', text: '이 레포 패키지들(core·cli·desktop)을 모노레포로 계속 갈지, 레포를 나눌지 어떻게 구성하는 게 좋을까?' },
+  // 태스크(구현 일): bench-fixture.mjs 로 만든 예제 레포에서. 명시해서 골라야만 돈다(파일을 쓴다 — 임시 복제본에만)
+  { id: 'task', text: 'docs/SPEC.md 3.2절 쿠폰 규칙대로 src/cart.js 에 applyCoupon(cart, coupon) 을 추가해줘' },
 ];
+const OPT_IN = new Set(['task']);
 
 const usageEnv = (): Record<string, string> => Object.fromEntries(Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined && e[0] !== 'ELECTRON_RUN_AS_NODE' && !e[0].startsWith('CLAUDECODE')));
 
@@ -43,7 +46,7 @@ async function main(): Promise<void> {
   execFileSync('git', ['clone', '-q', '--depth', '50', repoArg, keyRoot]);
   const prompts = await PromptLibrary.load(join(__dirname, '..', '..', '..', 'prompts'));
   const profileFor = await profileResolver(home, null);
-  const picked = only.length > 0 ? TURNS.filter((t) => only.includes(t.id)) : TURNS;
+  const picked = only.length > 0 ? TURNS.filter((t) => only.includes(t.id)) : TURNS.filter((t) => !OPT_IN.has(t.id));
   const rows: string[] = [];
   const out = join(tmpdir(), 'rauha-bench', new Date().toISOString().replace(/[:.]/g, '-'));
   mkdirSync(out, { recursive: true });

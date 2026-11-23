@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
@@ -180,10 +181,37 @@ const GREP_CAP = 80;
  * 거절·물음 검사를 모두 지난 읽기가 범위 없이 크게 읽으면 줄 수를 정해 주고, 그 사실을 팀원에게 알린다.
  * Read: 처음 cap 줄만. Grep(내용 보기): 처음 GREP_CAP 줄만.
  */
+/** 줄이 긴 문서(SPEC 처럼 한 줄이 문단)는 줄 수 한도로는 안 막혀서 글자 수로도 자른다 */
+export const READ_CHAR_CAP = 6000;
+
+/** 처음부터 몇 줄까지 읽으면 글자 한도에 닿는지(못 읽으면 null) */
+export function linesWithin(content: string, chars: number): number | null {
+  if (content.length <= chars) return null;
+  let used = 0;
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    used += lines[i]!.length + 1;
+    if (used > chars) return Math.max(20, i);
+  }
+  return null;
+}
+
 function capRead(cap: number | undefined, tool: string, toolInput: Record<string, unknown>) {
   if (cap === undefined) return {};
-  if (tool === 'Read' && toolInput['limit'] === undefined && toolInput['offset'] === undefined)
+  if (tool === 'Read' && toolInput['limit'] === undefined && toolInput['offset'] === undefined) {
+    const path = typeof toolInput['file_path'] === 'string' ? toolInput['file_path'] : '';
+    let byChars: number | null = null;
+    if (/\.(md|mdx|markdown|txt|rst|adoc)$/i.test(path)) {
+      try {
+        byChars = linesWithin(readFileSync(path, 'utf8'), READ_CHAR_CAP);
+      } catch {
+        byChars = null;
+      }
+    }
+    if (byChars !== null && byChars < cap)
+      return capped({ ...toolInput, limit: byChars }, `문서 읽기 한도 ${byChars}줄`, `rauha: 긴 문서라 처음 ${byChars}줄만 읽었습니다. 다른 절이 필요하면 Grep 으로 "^#" 제목이나 낱말의 줄 번호를 찾은 뒤 Read 의 offset·limit 으로 그 절만 읽으세요.`);
     return capped({ ...toolInput, limit: cap }, `읽기 줄 한도 ${cap}줄`, `rauha: 이 Read 는 처음 ${cap}줄만 읽었습니다. 파일이 더 길 수 있으니, 더 필요하면 Grep 으로 줄 번호를 찾은 뒤 Read 의 offset·limit 으로 그 부분만 이어 읽으세요.`);
+  }
   if (tool === 'Grep' && toolInput['output_mode'] === 'content' && toolInput['head_limit'] === undefined)
     return capped({ ...toolInput, head_limit: GREP_CAP }, `검색 줄 한도 ${GREP_CAP}줄`, `rauha: 이 Grep 은 처음 ${GREP_CAP}줄만 보여 줍니다. 더 있으면 path·glob 으로 좁혀 다시 찾으세요.`);
   return {};

@@ -1,4 +1,24 @@
 import { describe, expect, it } from 'vitest';
+import { FilesBlockDto as Block } from './files-block.dto.js';
+
+describe('파일 묶음의 긴 문서', () => {
+  const spec = ['# SPEC', '## 1. 개요', '짧은 개요', ...Array.from({ length: 6 }, (_, k) => [`## ${k + 2}. 기타 ${k}`, ...Array.from({ length: 30 }, (_, i) => `- 기타 규칙 ${k}-${i}: 길게 적은 운영 규칙입니다. 화면 문구와 로그 형식도 함께 적습니다.`)]).flat(), '## 9. 쿠폰', '- applyCoupon 은 할인 금액을 돌려준다.'].join('\n');
+
+  it('focus 가 있으면 긴 .md 는 목차와 맞는 절만 넣는다', () => {
+    const text = Block.of([{ path: 'docs/SPEC.md', content: spec }], '9 쿠폰 applyCoupon').toBlock();
+    expect(text).toContain('applyCoupon 은 할인 금액을 돌려준다');
+    expect(text).not.toContain('기타 규칙 3-7');
+  });
+
+  it('focus 가 없으면 지금처럼 통째로 넣는다', () => {
+    expect(Block.of([{ path: 'docs/SPEC.md', content: spec }]).toBlock()).toContain('기타 규칙 3-7');
+  });
+
+  it('코드 파일은 focus 가 있어도 통째로 넣는다', () => {
+    const code = Array.from({ length: 300 }, (_, i) => `const v${i} = ${i};`).join('\n');
+    expect(Block.of([{ path: 'src/a.ts', content: code }], 'v1').toBlock()).toContain('const v299 = 299;');
+  });
+});
 import { FilesBlockDto } from './files-block.dto.js';
 
 describe('FilesBlockDto', () => {

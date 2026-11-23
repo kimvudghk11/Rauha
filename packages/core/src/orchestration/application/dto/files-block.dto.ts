@@ -1,3 +1,5 @@
+import { DocExcerpt } from '../../domain/doc-excerpt.js';
+
 /** 파일 하나에서 넣는 최대 글자 수와 묶음 전체 상한. 넘치면 팀원이 직접 연다. */
 const MAX_FILE_CHARS = 12_000;
 const MAX_TOTAL_CHARS = 40_000;
@@ -18,7 +20,11 @@ export class FilesBlockDto {
     private readonly skipped: readonly string[],
   ) {}
 
-  static of(files: readonly FileContent[]): FilesBlockDto {
+  /**
+   * focus(이번 요청·업무 제목·수용 기준)가 있으면 긴 문서(SPEC·DESIGN 같은 .md)는 목차 + 맞는 절만 넣는다.
+   * 실측: 작은 태스크에서 12.5K자 SPEC 이 테스트·구현 팀원에게 통째로 갔고 쓰인 곳은 600자 한 절이었다.
+   */
+  static of(files: readonly FileContent[], focus = ''): FilesBlockDto {
     const seen = new Set<string>();
     const included: { path: string; body: string }[] = [];
     const skipped: string[] = [];
@@ -26,7 +32,8 @@ export class FilesBlockDto {
     for (const file of files) {
       if (file.content === null || seen.has(file.path)) continue;
       seen.add(file.path);
-      const body = numbered(file.content);
+      const excerpt = focus === '' ? null : DocExcerpt.of(file.path, file.content, focus);
+      const body = excerpt !== null && !excerpt.isWhole() ? excerpt.text() : numbered(file.content);
       if (total + body.length > MAX_TOTAL_CHARS) {
         skipped.push(file.path);
         continue;

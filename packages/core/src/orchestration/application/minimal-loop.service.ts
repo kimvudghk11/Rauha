@@ -280,6 +280,8 @@ export class MinimalLoopService {
     ]
       .filter((s) => s !== '')
       .join('\n\n');
+    // 긴 문서(SPEC·DESIGN)를 붙일 때 이번 일에 맞는 절만 고르는 기준
+    const focus = [request, order.title, ...dto.acceptance.map((a) => a.text)].join('\n');
     progress.step(TeamTalk.briefed({ title: order.title, grade: order.difficulty.grade, acceptance: dto.acceptance.length, scope: dto.scope }), 'intake');
 
     const scope = this.deps.threePass ? RunScope.threePass() : RunScope.ladder();
@@ -325,7 +327,7 @@ export class MinimalLoopService {
         }
         const message = [
           brief,
-          await this.filesBlock(dto.readFirst),
+          await this.filesBlock(dto.readFirst, focus),
           '<task>위 수용 기준을 검사하는, 지금은 실패하는 테스트를 작성하세요.</task>',
           redFeedback ? `<previous_attempt>\n${redFeedback}\n</previous_attempt>` : '',
         ]
@@ -358,7 +360,7 @@ export class MinimalLoopService {
       const message = [
         brief,
         `<locked_tests>\n${lockedTests.join('\n')}\n</locked_tests>`,
-        await this.filesBlock([...lockedTests, ...dto.readFirst]),
+        await this.filesBlock([...lockedTests, ...dto.readFirst], focus),
         order.testsWaived
           ? '<task>수용 기준을 만족하는 구현을 하세요. 이 요청은 실패하는 테스트로 먼저 확인하기 어려워 테스트 없이 진행합니다. 요청이 테스트를 고치거나 더하는 일이면 테스트 파일도 고칠 수 있습니다. 타입 검사와 직접 실행해 본 결과로 확인하세요.</task>'
           : this.testless
@@ -643,9 +645,9 @@ export class MinimalLoopService {
   // ── 팀원 호출 ─────────────────────────────────────────────
 
   /** 팀원이 먼저 볼 파일을 부르기 직전 내용으로 붙인다(팀원이 도구로 여는 턴을 줄인다). */
-  private async filesBlock(paths: readonly string[]): Promise<string> {
+  private async filesBlock(paths: readonly string[], focus = ''): Promise<string> {
     const files = await Promise.all(paths.map(async (path) => ({ path, content: await this.deps.workspace.readFile(path) })));
-    return FilesBlockDto.of(files).toBlock();
+    return FilesBlockDto.of(files, focus).toBlock();
   }
 
   /** 바뀐 파일의 커버리지를 재서 리뷰어 묶음과 진행 줄 한 줄로. 재지 못하면 빈 글(실패로 세지 않는다) */

@@ -412,7 +412,8 @@ export function addUsage(before: MemberUsage | null, last: MemberUsage): MemberU
  * 읽기만 하는 역할이 범위 없이 파일 전체를 읽을 때의 줄 한도. 읽은 줄은 그 뒤 턴마다 다시 읽혀 세션을 쓴다
  * (2026-11-22 실측: 깊은 답 한 번에 캐시 쓰기 12만, 조사 팀원 메모 몇 줄에 8만). 코드를 고치는 역할은 파일 전체가 필요해 두지 않는다.
  */
-const READ_CAPS: Partial<Record<string, number>> = { answerer: 400, surveyor: 200 };
+// intake: 실측에서 SPEC(14K자)을 통째로 읽었다. 접수는 범위·수용 기준만 정하면 되므로 목차·맞는 절만 보면 된다
+const READ_CAPS: Partial<Record<string, number>> = { answerer: 400, surveyor: 200, intake: 150 };
 const readCapOf = (role: string): { readCap?: number } => (READ_CAPS[role] === undefined ? {} : { readCap: READ_CAPS[role] });
 
 /**
