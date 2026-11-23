@@ -143,6 +143,11 @@ type BuiltinDef = Omit<CommandProps, 'id' | 'builtin'>;
 /** 터미널판에서 옮겨 온 기본 명령. 순서는 입력창 자동완성과 Slash 탭의 순서다. */
 const BUILTIN_DEFS: readonly BuiltinDef[] = [
   {
+    // 보통 말은 Claude 에 그대로 간다. 테스트 먼저 → 구현 → 리뷰 팀 흐름은 이 명령으로 시킬 때만(main 이 /work 로 알아본다)
+    name: 'work', group: 'Work', action: prompt('/work {{요청}}'),
+    description: '팀 흐름(테스트 먼저 → 구현 → 리뷰)으로 맡겨요', detail: '보통 말은 Claude 가 그대로 받아 바로 해요. 이 명령을 쓰면 팀장이 일을 나누고 테스트 팀원이 테스트를 먼저 쓴 뒤 구현·리뷰 팀원이 이어 가요. 레포가 여럿이면 @레포이름 을 함께 적어요.', argHelp: { 요청: '맡길 일. 예: @api-server 결제 타임아웃 고쳐줘' },
+  },
+  {
     name: 'review', group: 'Work', action: prompt('내 변경을 리뷰어 관점으로 검토해줘. 검토 범위: {{브랜치|커밋하지 않은 변경 전체}} (브랜치 이름이면 그 브랜치와 갈라진 뒤의 변경). 파일은 고치지 말고, 문제와 제안만 알려줘.'),
     description: '내 변경을 리뷰어가 검토해요', detail: '커밋하지 않은 변경(또는 /review <브랜치>로 그 브랜치와 갈라진 뒤의 변경)을 리뷰어 팀원이 검토해요. 파일은 고치지 않고 문제와 제안만 알려줘요.', argHelp: { 브랜치: '비교할 브랜치·커밋. 없으면 커밋하지 않은 변경 전체' },
   },

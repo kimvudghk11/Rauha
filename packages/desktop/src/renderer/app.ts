@@ -292,6 +292,7 @@ const runner = createRunner({
   jobs: () => chat.jobList(),
   board: () => lastBoard,
   api: window.rauha,
+  claudeCommand: (name, args) => window.rauha.claudeCommand(name, args),
 });
 /** 채팅의 VPN 말: 할 일을 하고 결과를 채팅에 남긴다. 연결은 끝날 때(연결됨·실패)까지 최대 30초 지켜본다 */
 async function handleVpnChat(intent: VpnChatIntent): Promise<void> {

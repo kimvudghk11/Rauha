@@ -17,6 +17,8 @@ export interface RunnerDeps {
   readonly jobs: () => readonly JobView[];
   readonly board: () => BoardView | null;
   readonly api: Pick<RauhaApi, 'getUsage' | 'update' | 'platform' | 'copyDiagnostics'>;
+  /** rauha 명령이 아닌 /이름: 사용자가 Claude Code 에 등록한 명령(~/.claude/commands)이면 펼친 글, 아니면 null */
+  readonly claudeCommand?: (name: string, args: string) => Promise<string | null>;
 }
 
 const TONE_TEXT = { green: 'plenty left', yellow: 'getting high', red: 'almost full' } as const;
@@ -98,9 +100,13 @@ export function createRunner(deps: RunnerDeps) {
         case 'list':
           deps.say(helpBox(deps.book()));
           return null;
-        case 'unknown':
+        case 'unknown': {
+          // Claude Code 에 등록한 명령이면 Claude Code 처럼 펼쳐 보낸다
+          const expanded = (await deps.claudeCommand?.(r.name, text.trim().slice(1 + r.name.length).trim()).catch(() => null)) ?? null;
+          if (expanded !== null && expanded !== '') return expanded;
           deps.say(`/${r.name} is not a command. Type / to see the list. To send it as plain text, add another / in front.`);
           return null;
+        }
         case 'off':
           deps.say(`/${r.command.name} is turned off. Turn it on in the Slash tab.`);
           return null;

@@ -12,6 +12,7 @@ import { DATA_IPC } from '../shared/data-api.js';
 import { VPN_IPC, type VpnListView } from '../shared/vpn-api.js';
 import { AWS_IPC } from '../shared/aws-api.js';
 import { NOTEBOOK_IPC } from '../shared/notebook-api.js';
+import { CLAUDE_COMMAND_IPC } from '../shared/claude-commands.js';
 import { CLAUDE_HISTORY_IPC } from '../shared/claude-history-ipc.js';
 import { EXTERNAL_AI_IPC } from '../shared/external-ai-ipc.js';
 import { MY_WORK_IPC } from '../shared/my-work-ipc.js';
@@ -323,6 +324,7 @@ const api: RauhaApi = {
     ipcRenderer.on(IPC.fullScreen, (_e, on: boolean) => listener(on));
   },
   findTerminalRauha: () => ipcRenderer.invoke(IPC.terminalFind),
+  claudeCommand: (name, args) => ipcRenderer.invoke(CLAUDE_COMMAND_IPC, name, args),
   removeTerminalRauha: (paths) => ipcRenderer.invoke(IPC.terminalRemove, paths),
   onOpenJob: (listener) => {
     ipcRenderer.on(IPC.openJob, (_e, jobId: string) => listener(jobId));

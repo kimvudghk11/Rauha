@@ -111,6 +111,11 @@ describe('resolve', () => {
     expect(some.kind === 'send' && some.text).toContain('develop');
   });
 
+  it('/work 는 팀 흐름 표시(/work)를 그대로 단 요청을 보낸다(보통 말은 Claude 에 그대로 간다)', () => {
+    expect(book.resolve('/work @api 결제 타임아웃 고쳐줘')).toMatchObject({ kind: 'send', text: '/work @api 결제 타임아웃 고쳐줘' });
+    expect(book.resolve('/work')).toMatchObject({ kind: 'usage', missing: ['요청'] });
+  });
+
   it('꼭 필요한 인자가 없으면 빠진 인자와 사용법을 알린다', () => {
     expect(book.resolve('/design')).toMatchObject({ kind: 'usage', missing: ['요청'] });
   });

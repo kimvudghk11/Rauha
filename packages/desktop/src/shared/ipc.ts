@@ -274,6 +274,8 @@ export interface RauhaApi {
   /** 실행 중인 OS(darwin·win32·linux). 단축키 표기와 창 모양에 쓴다. */
   readonly platform: string;
   findTerminalRauha(): Promise<readonly TerminalRauhaView[]>;
+  /** Claude Code 에 등록한 명령(~/.claude/commands, 작업 폴더 .claude/commands)을 펼친 글. 없으면 null */
+  claudeCommand(name: string, args: string): Promise<string | null>;
   removeTerminalRauha(paths: readonly string[]): Promise<readonly string[]>;
   readonly update: UpdateApi;
   readonly todo: TodoApi;

@@ -113,6 +113,7 @@ import { TodoService } from './data/todo-service.js';
 import { NotebookService } from './data/notebook-service.js';
 import { NOTEBOOK_IPC } from '../shared/notebook-api.js';
 import { expandClaudeMd } from '../shared/claude-md.js';
+import { CLAUDE_COMMAND_IPC, claudeCommandPath, expandClaudeCommand } from '../shared/claude-commands.js';
 import { RecordStore } from './data/record-store.js';
 import { ChatHistoryStore } from './data/chat-history-store.js';
 import { ChatHistoryKeeper } from './team/chat-history-keeper.js';
@@ -1233,6 +1234,17 @@ void app.whenReady().then(async () => {
     return dispatchCheckpoint(checkpoints, fn, arg);
   });
   ipcMain.handle(IPC.commandsGet, () => commandStore.load());
+  // Claude Code 에 등록한 명령: 작업 폴더 .claude/commands → ~/.claude/commands(링크도 따라간다) 순으로 찾는다
+  ipcMain.handle(CLAUDE_COMMAND_IPC, (_e, name: unknown, args: unknown) => {
+    if (typeof name !== 'string' || typeof args !== 'string') return null;
+    const rel = claudeCommandPath(name);
+    if (rel === null) return null;
+    for (const dir of [join(currentWorkDir(), '.claude', 'commands'), join(home, '.claude', 'commands')]) {
+      const body = readSmallText(join(dir, rel));
+      if (body !== null) return expandClaudeCommand(body, args.slice(0, 20_000));
+    }
+    return null;
+  });
   ipcMain.handle(NOTEBOOK_IPC.get, () => notebookService.get());
   ipcMain.handle(NOTEBOOK_IPC.forget, async (_e, id: unknown) => {
     if (typeof id === 'string') await notebookService.forget(id).catch(() => undefined);
