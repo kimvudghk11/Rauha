@@ -38,7 +38,7 @@ await Promise.all([
   build({ ...common, entryPoints: [join(src, 'preload', 'pet-preload.ts')], outfile: join(dist, 'pet-preload.cjs'), platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: [join(src, 'renderer', 'pet.ts')], outfile: join(dist, 'renderer', 'pet.js'), platform: 'browser', format: 'iife' }),
 ]);
-for (const file of ['index.html', 'pet.html', 'pet.css', 'styles.css', 'ui.css', 'chat.css', 'git.css', 'commands.css', 'data-tabs.css', 'todo.css', 'blog.css', 'code.css', 'api.css', 'docker.css', 'db.css', 'changes.css', 'terminal.css']) cpSync(join(src, 'renderer', file), join(dist, 'renderer', file));
+for (const file of ['index.html', 'pet.html', 'pet.css', 'styles.css', 'ui.css', 'chat.css', 'git.css', 'commands.css', 'data-tabs.css', 'todo.css', 'blog.css', 'code.css', 'api.css', 'docker.css', 'aws.css', 'db.css', 'changes.css', 'terminal.css']) cpSync(join(src, 'renderer', file), join(dist, 'renderer', file));
 // xterm.js 의 기본 CSS(터미널 칸 배치). 번들하지 않고 앱 안 파일로 복사한다(CSP: style-src 'self').
 cpSync(join(dirname(createRequire(import.meta.url).resolve('@xterm/xterm/package.json')), 'css', 'xterm.css'), join(dist, 'renderer', 'xterm.css'));
 // 타입 검사에 쓰는 typescript 의 lib.*.d.ts (dist/ts-lib/)

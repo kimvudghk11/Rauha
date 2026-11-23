@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { resolveTab, resolveTarget, TABS } from './tabs.js';
 
 describe('TABS', () => {
-  it('탭 순서는 Chat·Repo·Todo·Docker·DB·Records·Git·Slash·Rules이고 (레포 탭은 Repo 탭에 합쳐졌고, API 탭은 자동 API 점검으로 바뀌어 없다) Settings는 맨 아래다', () => {
-    expect(TABS.filter((t) => !t.bottom).map((t) => t.label)).toEqual(['Chat', 'Repo', 'Todo', 'Docker', 'DB', 'Records', 'Git', 'Slash', 'Rules', 'Extensions', 'Interview']);
+  it('탭 순서는 Chat·Repo·Todo·Docker·DB·AWS·Records·Git·Slash·Rules이고 (레포 탭은 Repo 탭에 합쳐졌고, API 탭은 자동 API 점검으로 바뀌어 없다) Settings는 맨 아래다', () => {
+    expect(TABS.filter((t) => !t.bottom).map((t) => t.label)).toEqual(['Chat', 'Repo', 'Todo', 'Docker', 'DB', 'AWS', 'Records', 'Git', 'Slash', 'Rules', 'Extensions', 'Interview']);
     expect(TABS.filter((t) => t.bottom).map((t) => t.label)).toEqual(['Settings']);
   });
 
   it('모든 탭이 열린다(곧 표시 없음)', () => {
-    expect(TABS.filter((t) => t.ready).map((t) => t.id)).toEqual(['chat', 'code', 'todo', 'docker', 'db', 'records', 'git', 'commands', 'rules', 'extensions', 'interview', 'settings']);
+    expect(TABS.filter((t) => t.ready).map((t) => t.id)).toEqual(['chat', 'code', 'todo', 'docker', 'db', 'aws', 'records', 'git', 'commands', 'rules', 'extensions', 'interview', 'settings']);
   });
 
   it('저장돼 있던 레포 탭은 코드 탭으로 넘기고 모르는 이름은 null이다', () => {

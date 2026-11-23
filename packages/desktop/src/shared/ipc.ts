@@ -23,6 +23,8 @@ import type { DbApi } from './db-api.js';
 import type { ConnectorApi } from './connector-api.js';
 import type { PluginApi } from './plugin-api.js';
 import type { DockerApi } from './docker-api.js';
+import type { VpnApi } from './vpn-api.js';
+import type { AwsApi } from './aws-api.js';
 import type { LoginView } from './claude-login.js';
 import type { AccountCheck } from './account-state.js';
 import type { DefaultRuleView, DefaultVariant, InfraRisk } from '@rauha/core/jobs';
@@ -295,6 +297,9 @@ export interface RauhaApi {
   readonly docker: DockerApi;
   /** DB 탭: SQLite 파일을 열어 테이블·행·쿼리를 본다(main이 자식 프로세스에서 돌린다) */
   readonly db: DbApi;
+  /** AWS 탭: .ovpn 으로 VPN 연결(OpenVPN), AWS 프로필 확인·SSO 로그인 */
+  readonly vpn: VpnApi;
+  readonly aws: AwsApi;
   readonly auth: AuthApi;
   /** 설정 → 커넥터: 노션·컨플루언스 같은 원격 MCP 를 연결한다(로그인은 시스템 브라우저, 토큰은 Claude Code 가 둔다) */
   readonly connectors: ConnectorApi;

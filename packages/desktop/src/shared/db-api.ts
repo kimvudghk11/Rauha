@@ -118,6 +118,27 @@ export function serverFailure(message: string): DbFailure {
   return failure('sql-error', 'SQL error', m);
 }
 
+/** 지금 VPN 상태(AWS 탭) */
+export interface VpnHintState {
+  /** 연결된 VPN 이름(없으면 null) */
+  readonly connected: string | null;
+  /** 넣어 둔 VPN 수 */
+  readonly profiles: number;
+}
+
+/**
+ * "서버에 닿지 못함" 실패에 VPN 안내를 붙인다: VPN 을 넣어 뒀는데 꺼져 있으면 AWS 탭에서 켜라고, 켜져 있으면 그 이름을 알려 준다.
+ * 다른 실패·VPN 을 안 쓰는 사람에게는 그대로 둔다.
+ */
+export function withVpnHint<T>(result: DbResult<T>, vpn: VpnHintState | null): DbResult<T> {
+  if (result.ok || vpn === null || vpn.profiles === 0 || result.failure.title !== 'Cannot reach the server') return result;
+  const help =
+    vpn.connected === null
+      ? 'Your VPN is off. Connect it in the AWS tab, then try again.'
+      : `The VPN "${vpn.connected}" is connected, so check the host and port, and that this server allows connections from the VPN.`;
+  return { ok: false, failure: { ...result.failure, help } };
+}
+
 export const NO_ENGINE: DbFailure = failure(
   'no-engine',
   'SQLite engine is not available',

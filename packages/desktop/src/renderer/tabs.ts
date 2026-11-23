@@ -1,4 +1,4 @@
-export type TabId = 'chat' | 'code' | 'todo' | 'api' | 'docker' | 'db' | 'records' | 'git' | 'commands' | 'rules' | 'extensions' | 'interview' | 'settings';
+export type TabId = 'chat' | 'code' | 'todo' | 'api' | 'docker' | 'db' | 'aws' | 'records' | 'git' | 'commands' | 'rules' | 'extensions' | 'interview' | 'settings';
 
 export interface Tab {
   readonly id: TabId;
@@ -20,6 +20,8 @@ export const TABS: readonly Tab[] = [
   // API 탭은 뺐다(2026-11-17): API 시험은 팀이 API 를 만들면 rauha 가 알아서 한다(main/api/auto-api-check.ts). 코드는 내부 기능으로 남긴다
   tab('docker', 'Docker', 'M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10', true),
   tab('db', 'DB', 'M5 6c0-1.7 3.1-3 7-3s7 1.3 7 3-3.1 3-7 3-7-1.3-7-3z M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6 M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3', true),
+  // AWS: .ovpn 으로 회사 VPN 연결 + AWS 프로필(누구인지·SSO 로그인)
+  tab('aws', 'AWS', 'M4 15a4 4 0 0 1 1.5-7.7A6 6 0 0 1 17 8a4 4 0 0 1 3 7 M9 14v-1a3 3 0 0 1 6 0v1 M8 14h8v6H8z', true),
   tab('records', 'Records', 'M5 4h11l3 3v13H5z M9 10h6 M9 14h6', true),
   tab('git', 'Git', 'M6 4a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M18 8a2 2 0 1 0 0 4a2 2 0 1 0 0-4 M6 8v8 M18 12c0 3-5 3-12 4', true),
   tab('commands', 'Slash', 'M5 7l5 5-5 5 M12 17h7', true),

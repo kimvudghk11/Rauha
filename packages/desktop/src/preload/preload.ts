@@ -9,6 +9,8 @@ import { CONNECTOR_IPC, type ConnectorListView } from '../shared/connector-api.j
 import { PLUGIN_IPC } from '../shared/plugin-api.js';
 import { DOCKER_IPC, type DockerLogEvent } from '../shared/docker-api.js';
 import { DATA_IPC } from '../shared/data-api.js';
+import { VPN_IPC, type VpnListView } from '../shared/vpn-api.js';
+import { AWS_IPC } from '../shared/aws-api.js';
 import { CLAUDE_HISTORY_IPC } from '../shared/claude-history-ipc.js';
 import { EXTERNAL_AI_IPC } from '../shared/external-ai-ipc.js';
 import { MY_WORK_IPC } from '../shared/my-work-ipc.js';
@@ -230,6 +232,25 @@ const api: RauhaApi = {
     imagePull: (req) => ipcRenderer.invoke(DOCKER_IPC.imagePull, req),
     volumeRemove: (req) => ipcRenderer.invoke(DOCKER_IPC.volumeRemove, req),
     networkRemove: (req) => ipcRenderer.invoke(DOCKER_IPC.networkRemove, req),
+  },
+  vpn: {
+    list: () => ipcRenderer.invoke(VPN_IPC.list),
+    pick: () => ipcRenderer.invoke(VPN_IPC.pick),
+    addText: (req) => ipcRenderer.invoke(VPN_IPC.addText, req),
+    remove: (id) => ipcRenderer.invoke(VPN_IPC.remove, id),
+    rename: (req) => ipcRenderer.invoke(VPN_IPC.rename, req),
+    connect: (id) => ipcRenderer.invoke(VPN_IPC.connect, id),
+    disconnect: (id) => ipcRenderer.invoke(VPN_IPC.disconnect, id),
+    install: () => ipcRenderer.invoke(VPN_IPC.install),
+    onChanged: (listener) => {
+      ipcRenderer.on(VPN_IPC.changed, (_e, list: VpnListView) => listener(list));
+    },
+  },
+  aws: {
+    profiles: () => ipcRenderer.invoke(AWS_IPC.profiles),
+    who: (profile) => ipcRenderer.invoke(AWS_IPC.who, profile),
+    ssoLogin: (profile) => ipcRenderer.invoke(AWS_IPC.ssoLogin, profile),
+    configureSso: () => ipcRenderer.invoke(AWS_IPC.configureSso),
   },
   api: {
     send: (req) => ipcRenderer.invoke(API_IPC.send, req),

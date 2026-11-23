@@ -20,8 +20,9 @@ describe('단축키 안내', () => {
   it('숫자 키는 열 개까지라 Settings 는 Ctrl+, 로 적고, API 탭이 빠져 DB 는 다섯째(Ctrl+5)다', () => {
     const rows = shortcutSheet('win32').find((g) => g.title === 'Switch tab')!.rows;
     expect(rows.find((r) => r.label === 'DB')?.keys).toBe('Ctrl+5');
-    expect(rows.find((r) => r.label === 'Rules')?.keys).toBe('Ctrl+9');
-    expect(rows.find((r) => r.label === 'Extensions')?.keys).toBe('Ctrl+0');
+    expect(rows.find((r) => r.label === 'AWS')?.keys).toBe('Ctrl+6');
+    expect(rows.find((r) => r.label === 'Rules')?.keys).toBe('Ctrl+0');
+    expect(rows.find((r) => r.label === 'Extensions')?.keys).toBe('—');
     expect(rows.find((r) => r.label === 'Settings')?.keys).toBe('Ctrl+,');
     expect(rows.find((r) => r.label === 'Interview')?.keys).toBe('—');
     expect(rows.some((r) => r.label === 'API')).toBe(false);

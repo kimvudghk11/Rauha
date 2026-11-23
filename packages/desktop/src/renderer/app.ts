@@ -15,6 +15,7 @@ import { TodoDto } from '../shared/todo-dto.js';
 import { buildApi } from './api-view.js';
 import { buildDb } from './db-view.js';
 import { buildDocker } from './docker-view.js';
+import { buildAws } from './aws-view.js';
 import { buildCommands, commandsApi } from './commands-view.js';
 import { useCharacterSet, useLooks } from './characters.js';
 import { repaintAll } from './stage.js';
@@ -57,6 +58,7 @@ let current: TabId = 'chat';
 let settingsView: ReturnType<typeof buildSettings> | null = null;
 let gitView: ReturnType<typeof buildGit> | null = null;
 let dockerView: ReturnType<typeof buildDocker> | null = null;
+let awsView: ReturnType<typeof buildAws> | null = null;
 let recordsView: ReturnType<typeof buildRecordsSwitch> | null = null;
 let todoView: ReturnType<typeof buildTodo> | null = null;
 const code = buildCode({ api: window.rauha.code, autoSaveMode: async () => (await window.rauha.getSettings()).autoSave, workFolder: async () => (await window.rauha.getSettings()).workFolder, platform, terminal: window.rauha.terminal, openGit: (repoRoot) => openGit(repoRoot), openCommit: (repoRoot, hash) => (requestGitHistory(hash), openGit(repoRoot)), repos: () => window.rauha.listRepos(), toChat: (text) => (show('chat'), chat.fill(text)) });
@@ -236,6 +238,13 @@ function show(id: TabId): void {
     if (!fresh) void dockerView.refresh();
   }
   else if (id === 'db') screen.replaceChildren(buildDb({ api: window.rauha.db, copy: copyText }).root);
+  else if (id === 'aws') {
+    // 연결 상태를 이어 보여 주려고 한 번 만들어 두고 다시 열면 새로 읽는다
+    const fresh = awsView === null;
+    awsView ??= buildAws({ vpn: window.rauha.vpn, aws: window.rauha.aws });
+    screen.replaceChildren(awsView.root);
+    if (!fresh) void awsView.refresh();
+  }
   else if (id === 'interview') screen.replaceChildren(buildInterview({ api: window.rauha.interview, openMyWork: () => show('git'), toMain: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'extensions') screen.replaceChildren(buildExtensions({ connectors: window.rauha.connectors, plugins: window.rauha.plugins, toChat: (text) => (show('chat'), chat.fill(text)) }).root);
   else if (id === 'records') {

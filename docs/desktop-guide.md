@@ -194,6 +194,18 @@ VS Code를 열지 않고 파일을 보고 고치는 곳이에요. 왼쪽 탐색�
 - **경로**: 화면은 연결 id 로만 파일을 고릅니다. 경로를 더할 때 main 이 절대 경로·`..` 없음·UNC/장치 경로 거절·실제 파일 여부·SQLite 머리 16바이트를 직접 확인합니다. 저장되는 것은 파일 경로 목록(`db-connections.json`)뿐이고 비밀은 없습니다.
 - PostgreSQL/MySQL 은 아직 없습니다(설계 메모: `docs/design/db-tab.md`).
 
+## 7-5. AWS 탭 (VPN · 계정)
+
+왼쪽 막대의 AWS 탭(DB 다음, Ctrl/Cmd+6)은 회사 VPN 연결과 AWS 계정 확인을 한곳에서 합니다.
+
+- **VPN**: `.ovpn` 파일을 넣고(Add .ovpn 또는 끌어 놓기) Connect 를 누르면 공식 OpenVPN(커뮤니티판)으로 연결합니다. 상태(연결 중 단계·연결됨·실패 이유), VPN 에서 받은 주소, VPN 으로 가는 대역(split tunnel 이면 `Only 172.31.0.0/16`)을 보여 줍니다. 한 번에 하나만 연결하고, 다른 것을 연결하면 켜져 있던 것을 먼저 끊습니다. rauha 를 끄면 VPN 도 끊깁니다(OpenVPN 이 실제로 끝날 때까지 최대 3초 기다림).
+- **받는 파일**: 인증서 방식(파일 안에 `<cert>`·`<key>`)만 됩니다. SSO 방식(`auth-federate`)은 공식 AWS VPN Client 가 필요하다고 알려 주고 받지 않습니다. 프로그램을 실행시키는 지시(`up`·`script-security 2` 등), 바깥 파일을 가리키는 `cert`·`key`, 비밀번호 걸린 키도 받지 않습니다. 손으로 고치다 `</key>route-nopull` 처럼 줄바꿈이 빠진 파일은 고쳐서 씁니다.
+- **엔진**: Windows 는 OpenVPN Interactive Service 를 거쳐 띄우므로 연결할 때마다 관리자 확인 창이 뜨지 않습니다(처음 설치할 때 한 번만). 설치는 탭의 Install OpenVPN(winget). 맥은 `brew install openvpn` 으로 설치하고, 연결할 때 macOS 비밀번호를 묻습니다. 상태·끊기는 127.0.0.1 의 OpenVPN management 포트로 합니다.
+- **보안**: `.ovpn` 원문(키 포함)은 운영체제 암호화(Windows DPAPI · macOS 키체인)로 잠가 `vpn-profiles.json` 에 둡니다. 연결하는 동안만 `vpn-run/` 에 풀어 두고 연결되면 바로 지웁니다. 화면·로그·모델·진단 리포트로는 요약(이름·서버·대역)만 나갑니다.
+- **DB 탭과 함께**: VPN 을 넣어 둔 상태에서 DB 서버에 닿지 못하면, VPN 이 꺼져 있을 땐 "AWS 탭에서 켜세요", 켜져 있을 땐 그 이름과 함께 주소·허용 여부를 보라고 안내합니다.
+- **계정(Accounts)**: `~/.aws/config`·`credentials` 의 프로필 이름·리전·SSO 여부만 읽습니다(키 값은 읽지 않음). Who am I 는 `aws sts get-caller-identity`(읽기 전용)로 계정 번호와 역할/사용자를 보여 주고, SSO 프로필은 Sign in 으로 새 터미널에서 `aws sso login` 을, Set up SSO profile 로 `aws configure sso` 를 엽니다.
+- 확인: Windows 에서 실제 AWS Client VPN(split tunnel)으로 연결·경로 추가·끊기·앱 종료 시 끊김을 확인했습니다. 맥 연결은 아직 실제로 확인하지 못했습니다.
+
 ## 7-2. git 탭
 
 맨 위 **동기화 툴바**가 GitHub Desktop처럼 늘 보여요. 모델을 부르지 않고 순수 git만 써요.

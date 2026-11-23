@@ -1,0 +1,25 @@
+/* AWS 탭 (버튼·칩·카드 모양은 ui.css) */
+.awsv { flex: 1; display: flex; flex-direction: column; gap: var(--s3); padding: var(--page-pad); min-width: 0; min-height: 0; overflow-y: auto; }
+.aw-section { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.aw-sh { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; min-width: 0; }
+.aw-sh > b { color: var(--bright); font-size: var(--fs-md); font-weight: 600; }
+.aw-sh .grow, .aw-engine .grow { flex: 1 1 200px; min-width: 0; }
+.aw-list { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.aw-row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; min-width: 0; }
+.aw-name { color: var(--bright); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.aw-chips { display: inline-flex; gap: var(--s1); flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+.aw-chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.aw-actions { display: inline-flex; gap: var(--s1); flex-wrap: wrap; margin-left: auto; }
+.aw-sub { margin-top: var(--s1); overflow-wrap: anywhere; }
+.aw-err { color: var(--red); }
+.aw-engine { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; border-color: var(--warn-border); }
+.aw-vpn.aw-connected { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
+.aw-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.aw-dot.aw-connected { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.aw-dot.aw-connecting { background: var(--yellow); animation: aw-pulse 1s ease-in-out infinite; }
+.aw-dot.aw-failed { background: var(--red); }
+@keyframes aw-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .aw-dot.aw-connecting { animation: none; } }
+.aw-drop { border: 1px dashed var(--border2); border-radius: var(--r-md); padding: var(--s3); text-align: center; color: var(--muted); font-size: var(--fs-sm); cursor: pointer; }
+.aw-drop:hover, .aw-drop.on { border-color: var(--accent); color: var(--bright); background: var(--sel); }
+.aw-foot { font-size: var(--fs-xs); }

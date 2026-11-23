@@ -97,6 +97,7 @@ import { planTestCases, suggestFixes } from './api/api-test-model.js';
 import { autoApiCheck } from './api/auto-api-check.js';
 import { autoApiDeps } from './api/auto-api-wire.js';
 import { registerDockerIpc } from './docker/docker-ipc.js';
+import { registerAwsIpc } from './vpn/aws-ipc.js';
 import { registerDbIpc } from './db/db-ipc.js';
 import type { DbService } from './db/db-service.js';
 import { linkRepoDatabase } from './db/team-db.js';
@@ -1192,9 +1193,25 @@ void app.whenReady().then(async () => {
   });
   codeFiles = registerWorkbench(ipcMain, { workFolder: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup), trash: (abs) => shell.trashItem(abs), reveal: (abs) => shell.showItemInFolder(abs) });
   registerDockerIpc(ipcMain, { workDir: () => process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? null, send: (channel, event) => window?.webContents.send(channel, event), onQuit: (cleanup) => app.on('before-quit', cleanup) });
+  // AWS 탭: .ovpn 으로 VPN(OpenVPN), AWS 프로필. DB 탭이 "서버에 못 닿음" 안내에 VPN 상태를 쓰므로 먼저 만든다
+  const awsParts = registerAwsIpc(ipcMain, {
+    dataDir,
+    home,
+    platform: process.platform,
+    env: process.env,
+    safeStorage,
+    send: (channel, payload) => window?.webContents.send(channel, payload),
+    beforeQuit: (handler) => app.on('before-quit', handler),
+    quit: () => app.quit(),
+    pickOvpn: async () => {
+      const result = await dialog.showOpenDialog(window ?? undefined!, { title: 'Add a VPN profile (.ovpn)', defaultPath: app.getPath('downloads'), properties: ['openFile'], filters: [{ name: 'OpenVPN profile', extensions: ['ovpn', 'conf'] }, { name: 'All files', extensions: ['*'] }] });
+      return result.canceled || result.filePaths[0] === undefined ? null : result.filePaths[0];
+    },
+  });
   dbService = registerDbIpc(ipcMain, {
     dataDir,
     safeStorage,
+    vpnState: () => ({ connected: awsParts.vpn.activeName(), profiles: awsParts.vpn.profileCount() }),
     onQuit: (cleanup) => app.on('before-quit', cleanup),
     pickFile: async () => {
       const startIn = process.env['RAUHA_WORK_DIR'] ?? settings.workFolder ?? app.getPath('documents');
