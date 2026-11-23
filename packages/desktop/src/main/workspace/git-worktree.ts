@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdir, readdir, rm } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { RepoConventions } from '../../shared/repo-conventions.js';
@@ -117,4 +118,27 @@ export async function initRepo(dir: string): Promise<void> {
 /** 폴더가 git 저장소 안인가(상위 폴더가 저장소여도 그렇다) */
 export async function insideRepo(dir: string): Promise<boolean> {
   return git(dir, ['rev-parse', '--is-inside-work-tree']).then((r) => r.stdout.trim() === 'true', () => false);
+}
+
+/**
+ * 폴더가 바로 git 저장소의 맨 위인가. 홈 폴더 전체가 저장소인 PC 도 있어서(실측) "저장소 안"만 보면
+ * 여러 레포를 담은 상위 폴더도 저장소로 보고 홈 전체의 worktree 를 만들 뻔했다.
+ */
+export async function isRepoTop(dir: string): Promise<boolean> {
+  const top = await git(dir, ['rev-parse', '--show-toplevel']).then((r) => r.stdout.trim(), () => '');
+  return top !== '' && sameDir(top, dir);
+}
+
+/** 경로 표기(슬래시·대소문자·끝 슬래시·짧은 이름 없이)가 달라도 같은 폴더인지 */
+export function sameDir(a: string, b: string): boolean {
+  const norm = (p: string): string => {
+    let real = p;
+    try {
+      real = realpathSync.native(p);
+    } catch {
+      real = p;
+    }
+    return real.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  };
+  return norm(a) === norm(b);
 }

@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { addWorktree, cleanupLeftovers, finishWorktree, jobBranch } from './git-worktree.js';
+import { addWorktree, cleanupLeftovers, finishWorktree, isRepoTop, jobBranch } from './git-worktree.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -25,6 +25,15 @@ function repo() {
 }
 
 describe('git worktree', () => {
+  it('저장소 맨 위 폴더만 "저장소"로 본다(저장소 안의 하위 폴더나 여러 레포를 담은 상위 폴더는 아니다)', async () => {
+    const { base, root } = repo();
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(join(root, 'sub'));
+    expect(await isRepoTop(root)).toBe(true);
+    expect(await isRepoTop(join(root, 'sub'))).toBe(false);
+    expect(await isRepoTop(base)).toBe(false);
+  });
+
   it('작업 브랜치 이름은 작업 id 앞 8자로 만든다', () => {
     expect(jobBranch('1234abcd-ef56-7890')).toBe('rauha/job-1234abcd');
   });

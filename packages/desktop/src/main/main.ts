@@ -37,7 +37,7 @@ import { applyTeamOp, TeamSettingsStore, teamView } from './team-settings-store.
 import { TeamSettings } from '../shared/team-settings.js';
 import { DefaultRulesStore, applyDefaultRuleOp } from './default-rules-store.js';
 import { scanWorkFolder } from './workspace/scan.js';
-import { addWorktree, cleanupLeftovers, finishWorktree, initRepo, insideRepo } from './workspace/git-worktree.js';
+import { addWorktree, cleanupLeftovers, finishWorktree, initRepo, insideRepo, isRepoTop } from './workspace/git-worktree.js';
 import { carryFiles } from './workspace/carry-files.js';
 import { ConversationResetDto, type ConversationResetResult } from '../shared/conversation-reset.js';
 import { RepoConversations } from './team/repo-conversations.js';
@@ -379,12 +379,12 @@ async function startRunner(): Promise<JobRunner> {
             if (instant !== null) return instant;
             const problem = workFolderProblem(root, folderFacts(root));
             if (problem !== null) throw new Error(problem);
-            if (teamNeedsRepo && !followRoot.has(job.id) && !(await insideRepo(root))) return { kind: 'notice', message: `팀 흐름(/work)은 레포 하나에서 해요. 어느 레포인지 @이름으로 알려 주세요: ${all.map((f) => `@${f.name}`).join(', ')}` };
+            if (teamNeedsRepo && !followRoot.has(job.id) && !(await isRepoTop(root))) return { kind: 'notice', message: `팀 흐름(/work)은 레포 하나에서 해요. 어느 레포인지 @이름으로 알려 주세요: ${all.map((f) => `@${f.name}`).join(', ')}` };
             // 빈 폴더에서 "만들어 줘"로 시작하면 git 저장소로 시작해 준다(사용자 파일이 있는 폴더는 건드리지 않는다)
             const repoHere = await insideRepo(root);
             if (startsAsNewProject({ ...folderFacts(root), insideRepo: repoHere, entries: readdirSync(root) })) await initRepo(root).catch(() => undefined);
             // 같은 레포에 두 번째로 오는 작업은 자기 worktree에서 일한다(첫 작업은 원래 폴더). git 이 아닌 상위 폴더는 함께 원래 폴더에서
-            const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`), repoHere || (await insideRepo(root)));
+            const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`), await isRepoTop(root));
             ledger = claim.ledger;
             const cwd = claim.place.kind === 'worktree' ? claim.place.path : root;
             jobRoots.set(job.id, cwd);
