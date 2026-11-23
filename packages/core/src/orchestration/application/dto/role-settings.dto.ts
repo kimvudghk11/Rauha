@@ -24,7 +24,7 @@ export interface RoleSetting {
 export const ROLE_TOOLS: readonly string[] = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Edit', 'Write', 'Bash'];
 
 /** 끌 수 없는 팀원: 접수·라우터·답변·테스트·구현·리뷰·저장소 파악·부서장은 작업 흐름이 늘 부른다. */
-export const REQUIRED_ROLES: readonly MemberRole[] = ['intake', 'router', 'answerer', 'tester', 'implementer', 'reviewer', 'surveyor', 'chief'];
+export const REQUIRED_ROLES: readonly MemberRole[] = ['direct', 'intake', 'router', 'answerer', 'tester', 'implementer', 'reviewer', 'surveyor', 'chief'];
 
 /** 사용자가 팀원 하나에 바꾼 것(안 바꾼 칸은 없다 = 기본값 그대로) */
 export interface RoleOverride {
@@ -66,6 +66,8 @@ export class RoleSettingsDto {
   static defaults(): RoleSettingsDto {
     return new RoleSettingsDto({
       intake: { tier: 'sonnet', effort: 'medium', maxTurns: 40, maxBudgetUsd: 1.5, tools: READ_TOOLS, readsProject: true },
+      // 메인 채팅 기본: 사용자 말을 그대로 받아 Claude Code 처럼 읽고·확인하고·명령을 돌리고·시키면 고친다(쓰기는 가드·허락을 거친다).
+      direct: { tier: 'sonnet', effort: 'high', maxTurns: 200, maxBudgetUsd: 10, tools: WRITE_TOOLS, readsProject: true },
       tester: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 1, tools: WRITE_TOOLS, readsProject: true },
       implementer: { tier: 'sonnet', effort: 'high', maxTurns: 120, maxBudgetUsd: 2, tools: WRITE_TOOLS, readsProject: true },
       // 리뷰어는 읽기만 한다. 같은 모델은 같은 실수를 놓치기 쉬워서 구현보다 한 단계 위(opus).

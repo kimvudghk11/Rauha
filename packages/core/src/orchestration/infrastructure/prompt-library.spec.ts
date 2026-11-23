@@ -17,7 +17,7 @@ function folder(files: Record<string, string>): string {
 }
 
 const ALL = { '_common.md': 'C', '_kit-browser.md': 'KB', '_kit-aws.md': 'KA', '_kit-connectors.md': 'KC', 'intake.md': 'I', 'tester.md': 'T', 'implementer.md': 'M', 'reviewer.md': 'R', 'router.md': 'O', 'answerer.md': 'A', 'surveyor.md': 'S', 'writer.md': 'W', 'designer.md': 'D', 'operator.md': 'P', 'debugger.md': 'B', 'riskchecker.md': 'K', 'planner.md': 'N', 'chief.md': 'CHIEF', 'bm.md': 'BM', 'marketer.md': 'MARKETER', 'growth.md': 'GROWTH', 'uxdesigner.md': 'UXDESIGNER', 'brand.md': 'BRAND', 'securitychecker.md': 'SECURITYCHECKER', 'releaser.md': 'RELEASER', 'splitter.md': 'SPLITTER', 'publisher.md': 'PUBLISHER',
-  ...Object.fromEntries(['pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa', 'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr', 'copywriter', 'video', 'productdesigner', 'graphic', 'md', 'ecommerce', 'logistics'].map((r) => [`${r}.md`, r.toUpperCase()])),
+  ...Object.fromEntries(['pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa', 'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr', 'copywriter', 'video', 'productdesigner', 'graphic', 'md', 'ecommerce', 'logistics', 'direct'].map((r) => [`${r}.md`, r.toUpperCase()])),
 };
 
 describe('PromptLibrary', () => {

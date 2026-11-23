@@ -13,8 +13,8 @@ export interface TeamIo {
 }
 
 export interface TeamSession {
-  /** depth 'deep': 라우터 없이 같은 질문을 깊게 다시 답한다 */
-  handle(input: string, depth?: 'deep'): Promise<TurnOutcome>;
+  /** depth 'deep': 같은 말을 한 단계 위 모델로 다시. 'team': 라우터를 거쳐 팀 흐름(테스트 먼저·구현·리뷰)으로(/work) */
+  handle(input: string, depth?: 'deep' | 'team'): Promise<TurnOutcome>;
   /** 일이 끝난 뒤 결과 글 끝에 붙일 한 줄(예: 결과가 남은 브랜치). 없으면 null */
   note?(): string | null;
 }

@@ -21,12 +21,15 @@ export class WorktreeLedger {
     return new WorktreeLedger(new Map());
   }
 
-  /** 작업이 레포에서 일할 자리를 정한다. newPath는 worktree가 필요할 때 쓸 폴더 경로를 만든다. 같은 작업이 두 번 청구하면 처음 자리를 그대로 준다. */
-  claim(jobId: string, repo: string, newPath: () => string): { ledger: WorktreeLedger; place: Place } {
+  /**
+   * 작업이 레포에서 일할 자리를 정한다. newPath는 worktree가 필요할 때 쓸 폴더 경로를 만든다. 같은 작업이 두 번 청구하면 처음 자리를 그대로 준다.
+   * branchable: git 저장소인지. 아니면(여러 레포를 담은 상위 폴더) worktree 를 만들 수 없으니 함께 원래 폴더를 쓴다.
+   */
+  claim(jobId: string, repo: string, newPath: () => string, branchable = true): { ledger: WorktreeLedger; place: Place } {
     const mine = this.holders.get(jobId);
     if (mine !== undefined) return { ledger: this, place: mine.worktree === null ? { kind: 'original' } : { kind: 'worktree', path: mine.worktree } };
     const originalTaken = [...this.holders.values()].some((h) => key(h.repo) === key(repo) && h.worktree === null);
-    const worktree = originalTaken ? newPath() : null;
+    const worktree = originalTaken && branchable ? newPath() : null;
     const next = new Map(this.holders).set(jobId, { repo, worktree });
     return { ledger: new WorktreeLedger(next), place: worktree === null ? { kind: 'original' } : { kind: 'worktree', path: worktree } };
   }

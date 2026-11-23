@@ -70,23 +70,27 @@ export function characterSprite(id: string): Sprite {
   return toSprite(c);
 }
 
+/** 그림이 따로 없는 역할은 메인 칸 얼굴을 쓴다: 메인 채팅 Claude(direct)는 사용자에게 메인과 같은 대화다 */
+const artOf = (role: CharacterRole): CharacterRole => ((role as string) === 'direct' ? 'intake' : role);
+
 /** 바꾸기 전 원래 캐릭터(역할 id 그대로) */
 export function defaultSprite(role: CharacterRole): Sprite {
-  return toSprite(PIXEL_CHARACTERS[role]!);
+  return toSprite(PIXEL_CHARACTERS[artOf(role)]!);
 }
 
 /** 개별로 고르지 않았을 때 그리는 캐릭터: 현재 세트 > 기본 세트 */
 /** 세트 미리보기용: 이 세트의 그 역할(없으면 기본 세트) */
 export function setSprite(set: CharacterSet, role: CharacterRole): Sprite {
-  return toSprite(resolveCharacter(role, undefined, set.characters, PIXEL_CHARACTERS)!);
+  return toSprite(resolveCharacter(artOf(role), undefined, set.characters, PIXEL_CHARACTERS)!);
 }
 
 export function baseSprite(role: CharacterRole): Sprite {
-  return toSprite(resolveCharacter(role, undefined, currentSet.characters, PIXEL_CHARACTERS)!);
+  return toSprite(resolveCharacter(artOf(role), undefined, currentSet.characters, PIXEL_CHARACTERS)!);
 }
 
 /** 우선순위: 역할별로 고른 캐릭터 > 현재 세트 > 기본 세트 */
-export function spriteFor(role: CharacterRole): Sprite {
+export function spriteFor(asked: CharacterRole): Sprite {
+  const role = artOf(asked);
   const picked = looks.characters[role];
   const art = picked !== undefined && isCharacterId(picked) ? characterSprite(picked) : baseSprite(role);
   const name = looks.names[role];

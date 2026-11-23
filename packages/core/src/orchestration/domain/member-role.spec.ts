@@ -8,12 +8,12 @@ describe('ROLE_INFO', () => {
   });
 
   it('질문을 나누고 답하는 역할은 진행 단계 이름이 없다 (사용자에게 한 가지 일로 보인다)', () => {
-    expect(MEMBER_ROLES.filter((r) => ROLE_INFO[r].stage === null)).toEqual(['router', 'answerer']);
+    expect(MEMBER_ROLES.filter((r) => ROLE_INFO[r].stage === null)).toEqual(['router', 'answerer', 'direct']);
   });
 
-  it('파일을 쓰는 권한은 테스트·구현·리뷰·문서 역할에만 따로 있고 나머지는 팀장과 같다', () => {
+  it('파일을 쓰는 권한은 테스트·구현·리뷰·문서 역할과 메인 채팅 Claude 에만 따로 있고 나머지는 팀장과 같다', () => {
     const special = MEMBER_ROLES.filter((r) => ROLE_INFO[r].writeRole !== 'lead');
-    expect(special).toEqual(['tester', 'implementer', 'reviewer', 'writer']);
+    expect(special).toEqual(['tester', 'implementer', 'reviewer', 'writer', 'direct']);
   });
 
   it('git 팀원은 진행 줄에 "커밋·PR" 단계로 보이고 파일은 쓰지 않는다', () => {

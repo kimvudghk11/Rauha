@@ -13,6 +13,8 @@ export interface ParsedRequest {
   readonly text: string;
   /** @이름을 적었는데 맞는 폴더가 없으면 그 이름(고른 폴더가 하나도 없을 때만) */
   readonly unknown: string | null;
+  /** 주 폴더를 @이름으로 직접 골랐는지. 글에 이름이 단어로만 나온 것은 아니다 */
+  readonly explicit: boolean;
 }
 
 /** 이름 앞뒤에 이 글자가 붙어 있으면 다른 단어의 일부로 본다(bridge-backend-v2 안의 bridge-backend). 한글 조사는 단어 경계다. */
@@ -41,6 +43,7 @@ export class RequestTargetDto {
     readonly also: readonly TargetFolder[],
     readonly text: string,
     readonly unknown: string | null,
+    readonly explicit: boolean = false,
   ) {}
 
   static from(request: string, folders: readonly TargetFolder[]): RequestTargetDto {
@@ -49,16 +52,17 @@ export class RequestTargetDto {
     const ordered: TargetFolder[] = [];
     for (const h of hits) if (!ordered.includes(h.folder)) ordered.push(h.folder);
     const [folder = null, ...also] = ordered;
-    if (folder === null) return new RequestTargetDto(null, [], trimmed, RequestTargetDto.firstUnknown(trimmed));
+    if (folder === null) return new RequestTargetDto(null, [], trimmed, RequestTargetDto.firstUnknown(trimmed), false);
     // 맨 앞 @이름만 요청 글에서 뺀다. 문장 속 이름은 문장의 일부라 그대로 둔다.
     const first = hits[0]!;
     const leading = first.start === 0 && trimmed.startsWith('@') && !/^[\\/]/.test(trimmed.slice(first.end));
     const rest = leading ? trimmed.slice(first.end).trim() : trimmed;
-    return new RequestTargetDto(folder, also, rest === '' ? trimmed : rest, null);
+    const explicit = hits.some((h) => h.folder === folder && trimmed[h.start] === '@');
+    return new RequestTargetDto(folder, also, rest === '' ? trimmed : rest, null, explicit);
   }
 
   toParsed(): ParsedRequest {
-    return { folder: this.folder, also: this.also, text: this.text, unknown: this.unknown };
+    return { folder: this.folder, also: this.also, text: this.text, unknown: this.unknown, explicit: this.explicit };
   }
 
   /** 이름이 (대소문자 무시로) 하나뿐인 폴더만 */

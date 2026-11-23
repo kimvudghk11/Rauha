@@ -6,7 +6,7 @@ import { teamWork, type TeamIo } from './team-work.js';
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const answer = (text: string): TurnOutcome => ({ kind: 'answer', answer: text, checked: [], costUsd: 0, durationMs: 1, basis: null });
 
-function setup(handle: (io: TeamIo, input: string, depth?: 'deep') => Promise<TurnOutcome>, askUser: (id: string) => Promise<PermissionAnswer> = async () => ({ kind: 'allow' })) {
+function setup(handle: (io: TeamIo, input: string, depth?: 'deep' | 'team') => Promise<TurnOutcome>, askUser: (id: string) => Promise<PermissionAnswer> = async () => ({ kind: 'allow' })) {
   const ios: TeamIo[] = [];
   const runner = JobRunner.start({
     work: teamWork({

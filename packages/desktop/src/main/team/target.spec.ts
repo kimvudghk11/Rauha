@@ -24,7 +24,14 @@ describe('parseTarget', () => {
   });
 
   it('@가 없고 레포 이름도 안 나오면 작업 폴더 그대로다', () => {
-    expect(parseTarget('결제 원인 찾아줘', folders)).toEqual({ folder: null, also: [], text: '결제 원인 찾아줘', unknown: null });
+    expect(parseTarget('결제 원인 찾아줘', folders)).toEqual({ folder: null, also: [], text: '결제 원인 찾아줘', unknown: null, explicit: false });
+  });
+
+  it('@이름으로 고른 폴더만 "직접 고른 것"이다(메인 채팅은 이때만 고른 폴더 밖 하위 폴더로 옮겨 간다)', () => {
+    expect(parseTarget('@api-server 결제 원인 찾아줘', folders).explicit).toBe(true);
+    expect(parseTarget('결제는 @docs를 보고 정리해줘', folders).explicit).toBe(true);
+    // backend 규칙·frontend 화면처럼 흔한 말이 하위 폴더 이름과 같아도 그 폴더로 옮겨 가지 않는다
+    expect(parseTarget('bridge-backend 규칙 기준으로 확인해줘', repos).explicit).toBe(false);
   });
 
   it('없는 이름이면 요청을 그대로 두고 어떤 이름이 틀렸는지 알린다', () => {

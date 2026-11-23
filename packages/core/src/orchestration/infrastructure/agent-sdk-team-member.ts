@@ -90,6 +90,14 @@ interface Spare extends Session {
  * 팀원 한 명 = Agent SDK query() 한 번. 역할 프롬프트는 짧은 자체 문자열로 넣어
  * (claude_code preset 대신) 앞부분을 고정하고 캐시가 잘 먹게 한다.
  */
+/**
+ * 메인 채팅 Claude(direct)는 Claude Code 와 같은 시스템 프롬프트를 쓰고 rauha 글(결과 모양·사용자 규칙)은 뒤에 붙인다:
+ * "Claude 에 UI 만 다시 입힌 것"이 되게(2026-11-24 사용자 결정). 다른 역할은 짧은 자체 프롬프트 그대로(캐시가 잘 먹게).
+ */
+export function systemPromptFor(role: MemberRole, text: string): string | { type: 'preset'; preset: 'claude_code'; append: string } {
+  return role === 'direct' ? { type: 'preset', preset: 'claude_code', append: text } : text;
+}
+
 /** 팀 설정에서 사용자가 이 팀원에게 더한 지시를 시스템 프롬프트 끝에 붙인다(없으면 그대로). */
 export function withTeamInstruction(system: string, extra: string | undefined): string {
   return extra === undefined || extra.trim() === '' ? system : `${system}\n\n<user-team-instruction>\n사용자가 이 팀원에게 더한 지시입니다.\n${extra.trim()}\n</user-team-instruction>`;
@@ -287,7 +295,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       ...(readDirs(call.additionalDirectories, this.options.readRoots).length > 0 ? { additionalDirectories: readDirs(call.additionalDirectories, this.options.readRoots) } : {}),
       env: this.options.env,
       ...(this.options.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: this.options.claudeExecutable } : {}),
-      systemPrompt: withTeamInstruction(this.withAlwaysRules(db === null ? system : withDbGuide(system, this.options.prompts.dbGuide(call.role))), call.setting.extraInstruction),
+      systemPrompt: systemPromptFor(call.role, withTeamInstruction(this.withAlwaysRules(db === null ? system : withDbGuide(system, this.options.prompts.dbGuide(call.role))), call.setting.extraInstruction)),
       tools: [...call.setting.tools, ...pluginTools],
       allowedTools: [...call.setting.tools, ...pluginTools, ...kits.tools],
       // 도구 묶음은 요청이 그쪽을 가리킬 때만 붙인다(도구 설명이 길어서).

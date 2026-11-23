@@ -29,6 +29,18 @@ function runner(onChange?: (b: JobBoard) => void, limit?: number) {
 }
 
 describe('JobRunner', () => {
+  it('예상하지 못한 오류로 멈춘 일은 오류 전체(스택)를 남기는 쪽에 넘긴다(어디서 났는지 나중에 찾게)', async () => {
+    const { work, calls } = controlledWork();
+    const failed: { id: string; stack: string }[] = [];
+    const r = JobRunner.start({ work, newId: () => 'j1', now: () => '2026-11-24T00:00:00.000Z', onFailure: (job, error) => failed.push({ id: job.id, stack: error instanceof Error ? (error.stack ?? '') : String(error) }) });
+    r.submit('로컬 파일 읽어 줘');
+    calls.get('j1')!.reject(new Error('invalid buffer size'));
+    await flush();
+    expect(r.board.find('j1')?.status).toBe('stopped');
+    expect(failed).toHaveLength(1);
+    expect(failed[0]!.stack).toContain('invalid buffer size');
+  });
+
   it('일을 넣으면 끝나기를 기다리지 않고 바로 돌아온다', () => {
     const { r } = runner();
     const job = r.submit('결제 타임아웃 원인 찾아줘');

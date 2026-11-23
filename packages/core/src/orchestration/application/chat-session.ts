@@ -24,7 +24,9 @@ import type { AnswerSession, ChatSnapshot, LastAnswer } from './dto/chat-snapsho
 import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import { RouteDto, type Route } from './dto/route.dto.js';
-import { ANSWER_SCHEMA, TODO_SCHEMA, OPS_SCHEMA, PUBLISH_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
+import { DirectChain } from '../domain/direct-chain.js';
+import { DirectAnswerDto } from './dto/direct-answer.dto.js';
+import { ANSWER_SCHEMA, DIRECT_SCHEMA, TODO_SCHEMA, OPS_SCHEMA, PUBLISH_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
 import { OpsReportDto } from './dto/ops-report.dto.js';
 import { PublishReportDto } from './dto/publish-report.dto.js';
@@ -120,6 +122,11 @@ export interface ChatSessionDeps {
   readonly company?: CompanyBookPort;
   /** 학습 노트. 있으면 작업이 끝날 때 쓰인 패턴과 이유를 모아 둔다(새 호출 없이). */
   readonly learning?: LearningPort;
+  /**
+   * true 면 메인 채팅 기본이 "원문 그대로": 사용자 말을 고치지 않고 Claude 세션 하나(direct)에 보낸다.
+   * 라우터·답변 틀·키워드 가로채기를 거치지 않는다. 팀 흐름은 handle(..., 'team') 으로 시킬 때만.
+   */
+  readonly direct?: boolean;
 }
 
 /** 함께 묻는 다른 저장소가 이 수를 넘으면 그 저장소들의 지식은 미리 만들지 않는다(저장소마다 조사 팀원이 돌아 오래 걸린다). 답변 팀원이 직접 읽는다. */
@@ -323,13 +330,15 @@ export class ChatSession {
    * 라우터가 입력 종류와 질문 깊이를 판정한 뒤에만 팀원을 부른다(버려지는 호출 없음).
    * force 'deep': 라우터 없이 같은 질문을 deep으로 다시 답한다("더 깊게 알아볼까요?").
    */
-  async handle(input: string, also: readonly AlsoRepo[] = [], force?: 'design' | 'deep'): Promise<TurnOutcome> {
+  async handle(input: string, also: readonly AlsoRepo[] = [], force?: 'design' | 'deep' | 'team'): Promise<TurnOutcome> {
     const started = this.deps.now();
     const conversation = this.conversation();
     const heldRequest = this.held;
     this.held = null;
     if (heldRequest !== null && wantsToProceed(input)) return this.rerun(heldRequest, conversation, started);
-    const again = force === 'deep' ? null : this.repeated(input);
+    // 원문 그대로: 같은 말을 다시 해도 앞 답을 꺼내 주지 않는다("확인해줘"를 다시 하면 다시 확인해야 한다)
+    const direct = this.deps.direct === true && force !== 'team' && force !== 'design';
+    const again = force === 'deep' || direct ? null : this.repeated(input);
     if (again !== null) return { kind: 'answer', answer: again, checked: [], costUsd: 0, durationMs: 0, basis: null };
     // "ㅎㅇ"·"고마워" 같은 정해 둔 인사는 라우터도 답변 팀원도 부르지 않고 바로 답한다(세션을 쓰지 않는다)
     const hello = force === undefined ? greetingReply(input) : null;
@@ -342,6 +351,8 @@ export class ChatSession {
       if (also.length > 0) return { kind: 'notice', message: MANY_REPO_WORK };
       return this.canDesign() ? this.designs!.run(input, conversation, started) : { kind: 'notice', message: '설계 대화는 터미널 대화 모드에서만 할 수 있어요.' };
     }
+    // 원문 그대로: 사용자 말을 Claude 세션 하나에 그대로 보낸다. 무엇을 할지는 Claude 가 원문을 보고 정한다
+    if (direct) return this.direct(input, conversation, also, started, force === 'deep');
     // "투두 정리해줘", "내일 업무 정리": 라우터를 거치지 않고 사용자 말에서 할 일을 뽑아 할 일 탭에 넣는다
     if (force !== 'deep' && this.deps.addTodos !== undefined && TodoAsk.asks(input)) return this.todos(input, conversation, started);
     let route: Route;
@@ -395,6 +406,55 @@ export class ChatSession {
     if (answered.kind === 'answer' && !route.refersToPast) this.answered.set(sameQuestionKey(input), { answer: answered.answer, at: this.deps.now() });
     if (answered.kind === 'answer' && depth === 'deep') this.surveyInBackground();
     return answered;
+  }
+
+  // ── 원문 그대로(메인 채팅 기본) ─────────────────────────────
+
+  /**
+   * 사용자 말을 고치지 않고 Claude 세션 하나에 보낸다(Claude Code 와 같은 시스템 프롬프트 + rauha 가 얹는 결과 모양·사용자 규칙만).
+   * 앞 세션을 이을 수 있으면 새 말만 보내고, 못 이으면 앞 대화 요약과 함께 새로 연다.
+   * 아무 일도 하기 전에 오류로 끝났으면(한도·로그인·멈춤이 아니면) 일을 멈추지 않고 새로 한 번 더 부른다.
+   */
+  private async direct(input: string, conversation: string | null, also: readonly AlsoRepo[], started: number, deeper: boolean): Promise<TurnOutcome> {
+    const costBefore = this.costUsd;
+    const base = this.deps.roles.get('direct');
+    const setting: RoleSetting = deeper ? { ...base, tier: base.tier === 'sonnet' ? 'opus' : 'fable' } : base;
+    const chain = this.answerChain;
+    const canChain = chain !== null && DirectChain.continues(chain, { now: this.deps.now(), tier: setting.tier }) && !CHAINS_IN_USE.has(chain.id);
+    const dirs = also.map((a) => a.root);
+    const kits = ToolKits.for('direct', input);
+    const now = `<now>${this.deps.nowText()}</now>`;
+    const call = (from: string | null): Promise<MemberResult> =>
+      this.member('direct', from !== null ? [now, input] : [conversationBlock(conversation), now, input], DIRECT_SCHEMA, {
+        setting,
+        kits,
+        request: input,
+        canWrite: () => true,
+        ...(dirs.length > 0 ? { dirs } : {}),
+        ...(from !== null ? { continueFrom: from } : {}),
+      });
+    const usable = (r: MemberResult): boolean => (r.output !== null && r.output !== undefined) || r.blocked != null;
+    let result: MemberResult | null = null;
+    let continued = false;
+    if (canChain) {
+      CHAINS_IN_USE.add(chain.id);
+      try {
+        result = await call(chain.id);
+      } finally {
+        CHAINS_IN_USE.delete(chain.id);
+      }
+      continued = usable(result);
+    }
+    if (result === null || !continued) result = await call(null);
+    // 아무것도 하기 전에 오류로 끝났으면 한 번 더(실측: "invalid buffer size" 한 번에 일 전체가 멈췄다). 일하다 멈춘 것은 다시 하지 않는다(고친 것을 또 고치지 않게)
+    if (!usable(result) && result.usage.turns === 0) result = await call(null);
+    if (result.blocked != null) return { kind: 'blocked', ...result.blocked };
+    const answer = DirectAnswerDto.read(result.output) ?? stoppedMember(result)?.report(result.partial ?? null) ?? `끝까지 하지 못했어요${result.error !== null ? `: ${result.error.split('\n')[0]!.slice(0, 200)}` : ''}`;
+    if (result.sessionId !== undefined) this.answerChain = DirectChain.after(continued ? chain : null, { id: result.sessionId, tier: setting.tier, at: this.deps.now(), context: result.usage.inputTokens + result.usage.cacheReadTokens, continued });
+    this.lastAnswer = null;
+    await this.deps.memory.save(WorkMemory.fromAnswer({ id: this.deps.newId(), at: this.at(), question: input, answer, citedFiles: [], basis: null }));
+    this.turns.push({ input, result: `답: ${answer.slice(0, KEPT_RESULT_CHARS)}` });
+    return { kind: 'answer', answer, checked: [], costUsd: this.costUsd - costBefore, durationMs: this.deps.now() - started, basis: null, canGoDeeper: !deeper && setting.tier !== 'fable', ...toolsPart(result.usage.tools) };
   }
 
   clear(): void {

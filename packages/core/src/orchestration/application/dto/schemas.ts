@@ -308,6 +308,14 @@ export const ANALYSIS_SCHEMA: Record<string, unknown> = {
   },
 };
 
+/** 메인 채팅 Claude(원문 그대로): 결과 글 하나. rauha 가 얹는 건 이 모양뿐이다 */
+export const DIRECT_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['answer'],
+  properties: { answer: { type: 'string', description: 'Reply to the user in Markdown, in their language.' } },
+};
+
 export const ANSWER_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,

@@ -15,6 +15,11 @@ describe('WorktreeLedger', () => {
     expect(second.ledger.worktreeJobs('C:/w/app')).toBe(1);
   });
 
+  it('git 저장소가 아닌 폴더(여러 레포를 담은 상위 폴더)는 worktree 를 만들 수 없어 두 번째 작업도 원래 폴더를 쓴다', () => {
+    const first = WorktreeLedger.empty().claim('a', 'C:/w', path('x'), false);
+    expect(first.ledger.claim('b', 'C:/w', path('wt-b'), false).place).toEqual({ kind: 'original' });
+  });
+
   it('다른 레포의 작업은 서로 상관없이 원래 폴더를 쓴다', () => {
     const first = WorktreeLedger.empty().claim('a', 'C:/w/app', path('x'));
     expect(first.ledger.claim('b', 'C:/w/web', path('y')).place).toEqual({ kind: 'original' });

@@ -18,7 +18,7 @@ import { HiringHistory } from '../shared/hiring-history.js';
 import { scanMyWork, scanRepoStacks } from './git/my-work-service.js';
 import { GithubWorkService, type RemoteWork } from './github/github-work-service.js';
 import { accessSync, constants as fsConstants, existsSync, readdirSync, statSync } from 'node:fs';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { trayView } from './platform/tray-menu.js';
@@ -56,6 +56,7 @@ import { accountNames, composeSession, liveProfileResolver, profileResolver } fr
 import { instantReply } from './team/instant-reply.js';
 import { fakeTeam, fakeUsage } from './team/fake-team.js';
 import { parseTarget, type TargetFolder } from './team/target.js';
+import { WorkMode } from '../shared/work-mode.js';
 import { resolveMentions } from './team/mention-context.js';
 import { AttachmentStore, type StagedImages } from './team/attachment-store.js';
 import { StyleStore } from './style/style-store.js';
@@ -302,7 +303,7 @@ async function smokeCompose(): Promise<void> {
   const prompts = await PromptLibrary.load(promptsDir());
   const profileFor = await profileResolver(home, settings.account);
   const controller = new AbortController();
-  const root = folders()[0]?.root ?? currentWorkDir();
+  const root = currentWorkDir();
   const session = composeSession(
     { home, prompts, profileFor, plan: () => null, claudeExecutable: claudeExecutable() },
     root,
@@ -325,7 +326,7 @@ let codeFiles: CodeFiles | null = null;
 
 /** 확인용 가짜 팀 세션: 진짜와 같은 체크포인트 기록을 남긴다(RAUHA_FAKE_EDIT=1 이면 가짜 팀이 작업 폴더 파일을 바꾼다) */
 function fakeSession(io: TeamIo, jobId: string, request: string): TeamSession {
-  const root = folders()[0]?.root ?? currentWorkDir();
+  const root = currentWorkDir();
   jobRoots.set(jobId, root);
   trail.repo(jobId, basename(root));
   const inner = fakeTeam(io, request, root);
@@ -353,9 +354,15 @@ async function startRunner(): Promise<JobRunner> {
     work = teamWork({
       newSession: (io, job) => {
         const all = folders();
-        const target = parseTarget(job.request, all);
-        // 이어서 묻기는 앞 작업과 같은 레포에서
-        const root = followRoot.get(job.id) ?? target.folder?.root ?? all[0]?.root ?? currentWorkDir();
+        // 기본은 원문 그대로 Claude(고른 폴더에서), /work 로 시작할 때만 팀 흐름(레포 하나에서 테스트 먼저·구현·리뷰)
+        const mode = WorkMode.of(job.request);
+        const target = parseTarget(mode.text, all);
+        // 고른 폴더가 작업 자리다. @이름으로 하위 폴더를 직접 골랐을 때만 그리로 옮긴다(이름순 첫 레포로 가지 않는다).
+        // 팀 흐름은 레포 하나가 있어야 해서, 글에 나온 레포 → 레포가 하나뿐이면 그 레포 → 고른 폴더 순으로 정한다.
+        const picked = mode.team || target.explicit ? target.folder : null;
+        const teamNeedsRepo = mode.team && picked === null && all.length > 1;
+        // 이어서 묻기는 앞 작업과 같은 자리에서
+        const root = followRoot.get(job.id) ?? picked?.root ?? (mode.team && all.length === 1 ? all[0]!.root : currentWorkDir());
         jobRepoRoots.set(job.id, root);
         let note: string | null = null;
         let apiNote: string | null = null;
@@ -368,10 +375,12 @@ async function startRunner(): Promise<JobRunner> {
             if (instant !== null) return instant;
             const problem = workFolderProblem(root, folderFacts(root));
             if (problem !== null) throw new Error(problem);
+            if (teamNeedsRepo && !followRoot.has(job.id) && !(await insideRepo(root))) return { kind: 'notice', message: `팀 흐름(/work)은 레포 하나에서 해요. 어느 레포인지 @이름으로 알려 주세요: ${all.map((f) => `@${f.name}`).join(', ')}` };
             // 빈 폴더에서 "만들어 줘"로 시작하면 git 저장소로 시작해 준다(사용자 파일이 있는 폴더는 건드리지 않는다)
-            if (startsAsNewProject({ ...folderFacts(root), insideRepo: await insideRepo(root), entries: readdirSync(root) })) await initRepo(root).catch(() => undefined);
-            // 같은 레포에 두 번째로 오는 작업은 자기 worktree에서 일한다(첫 작업은 원래 폴더)
-            const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`));
+            const repoHere = await insideRepo(root);
+            if (startsAsNewProject({ ...folderFacts(root), insideRepo: repoHere, entries: readdirSync(root) })) await initRepo(root).catch(() => undefined);
+            // 같은 레포에 두 번째로 오는 작업은 자기 worktree에서 일한다(첫 작업은 원래 폴더). git 이 아닌 상위 폴더는 함께 원래 폴더에서
+            const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`), repoHere || (await insideRepo(root)));
             ledger = claim.ledger;
             const cwd = claim.place.kind === 'worktree' ? claim.place.path : root;
             jobRoots.set(job.id, cwd);
@@ -388,13 +397,13 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), awsNow: () => awsNowText(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ direct: true, home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), awsNow: () => awsNowText(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: picked !== null ? target.also : [] });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
               // 팀이 push 하면 그 커밋의 CI 를 뒤에서 지켜본다(작업 전 원격 추적 커밋과 비교)
               const upstreamBefore = FAKE ? null : await upstreamOf(cwd);
-              const outcome = await session.handle(withAttachments(mentioned, staged?.paths ?? [], ask), depth);
+              const outcome = await session.handle(withAttachments(mentioned, staged?.paths ?? [], ask), mode.team ? 'team' : depth);
               const pushed = FAKE ? null : await pushedCommit(cwd, upstreamBefore).catch(() => null);
               if (pushed !== null) void watchPushedCi(pushed);
               // 팀이 API 를 만들거나 고쳤으면 rauha 가 알아서 불러 보고, 실패하면 같은 팀이 한 번 고친다(작업 폴더가 정리되기 전에)
@@ -434,6 +443,19 @@ async function startRunner(): Promise<JobRunner> {
       return id;
     },
     now: () => new Date().toISOString(),
+    // 화면에는 "예상하지 못한 오류 (메시지)" 한 줄만 보이므로, 어디서 났는지 찾을 수 있게 스택을 데이터 폴더에 남긴다(1MB 넘으면 새로)
+    onFailure: (job, error) => {
+      const file = join(dataDir, 'errors.log');
+      const stack = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      const entry = `--- ${new Date().toISOString()} job=${job.id}\nrequest: ${job.request.slice(0, 200).replace(/\s+/g, ' ')}\n${stack}\n`;
+      try {
+        const big = existsSync(file) && statSync(file).size > 1024 * 1024;
+        if (big) writeFileSync(file, entry);
+        else appendFileSync(file, entry);
+      } catch {
+        // 기록하지 못해도 일은 멈춘 것으로 보인다
+      }
+    },
     onChange: (board) => {
       lastBoard = board;
       meterJobs(board);

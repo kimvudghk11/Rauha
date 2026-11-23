@@ -2278,3 +2278,84 @@ describe('ChatSession — 한도에 닿아 멈춘 팀원', () => {
     expect(message).toContain('마지막으로 한 일: src/a.ts까지 읽었어요');
   });
 });
+
+describe('ChatSession — 원문 그대로(라우터는 길잡이)', () => {
+  const direct = (team: FakeTeam, more: Record<string, unknown> = {}) => ChatSession.start({ ...sessionDeps({ team }), direct: true, ...more });
+
+  it('사용자 말을 고치거나 감싸지 않고 그대로 Claude 세션 하나에 보낸다(라우터·답변 틀을 거치지 않는다)', async () => {
+    const team = new FakeTeam({ direct: [() => ({ answer: '확인했어요.' })] });
+    const said = 'todo에 있는 내용으로 지금 확인 가능한 내용은 확인해줘';
+    const turn = await direct(team).handle(said);
+    expect(team.calls.map((c) => c.role)).toEqual(['direct']);
+    expect(team.calls[0]!.message.endsWith(said)).toBe(true);
+    expect(team.calls[0]!.message).not.toContain('<question>');
+    expect(turn.kind === 'answer' && turn.answer).toBe('확인했어요.');
+  });
+
+  it('"투두"·"할 일" 같은 단어가 있어도 가로채지 않고 Claude 가 원문을 보고 정한다', async () => {
+    const added: TodoCard[] = [];
+    const team = new FakeTeam({ direct: [() => ({ answer: '네' })] });
+    await direct(team, { addTodos: async (c: TodoCard) => void added.push(c) }).handle('투두 확인해줘');
+    expect(team.calls.map((c) => c.role)).toEqual(['direct']);
+    expect(added).toEqual([]);
+  });
+
+  it('같은 말을 다시 해도 앞 답을 꺼내 주지 않고 다시 확인한다(기억만으로 답하지 않게)', async () => {
+    const team = new FakeTeam({ direct: [() => ({ answer: 'A' }), () => ({ answer: 'B' })] });
+    const chat = direct(team);
+    await chat.handle('서버 상태 확인해줘');
+    const again = await chat.handle('서버 상태 확인해줘');
+    expect(team.calls).toHaveLength(2);
+    expect(again.kind === 'answer' && again.answer).toBe('B');
+  });
+
+  it('고른 폴더 안 파일을 고칠 수 있고, 원문을 함께 넘겨 시킨 git 일만 묻지 않게 한다', async () => {
+    const team = new FakeTeam({ direct: [() => ({ answer: '네' })] });
+    await direct(team).handle('README 고쳐서 커밋해줘');
+    expect(team.calls[0]!.canWrite('src/a.ts')).toBe(true);
+    expect(team.calls[0]!.request).toBe('README 고쳐서 커밋해줘');
+  });
+
+  it('이어지는 말은 앞 Claude 세션을 이어서 새 말만 보낸다(Claude Code 처럼 한 대화)', async () => {
+    const team = new FakeTeam({ direct: [() => ({ answer: '1' }), () => ({ answer: '2' })] });
+    team.sessions = 'on';
+    const chat = direct(team);
+    await chat.handle('memory.md 읽어줘');
+    await chat.handle('그 안에서 할 일만 골라줘');
+    expect(team.calls[1]!.continueFrom).toBe('direct-1');
+    expect(team.calls[1]!.message.endsWith('그 안에서 할 일만 골라줘')).toBe(true);
+    expect(team.calls[1]!.message).not.toContain('<conversation>');
+  });
+
+  it('"더 깊게"는 한 단계 위 모델이 같은 말을 다시 본다', async () => {
+    const team = new FakeTeam({ direct: [() => ({ answer: '네' })] });
+    await direct(team).handle('구조 봐줘', [], 'deep');
+    expect(team.calls[0]!.tier).toBe('opus');
+  });
+
+  it('팀 흐름(테스트 먼저·구현·리뷰)은 사용자가 /team 으로 시킬 때만 라우터를 거친다', async () => {
+    const team = new FakeTeam({ router: [route('question')], answerer: [() => ({ answer: '네', claims: [] })] });
+    await direct(team).handle('구조 설명해줘', [], 'team');
+    expect(team.calls.map((c) => c.role)).toEqual(['router', 'answerer']);
+  });
+
+  it('호출이 결과 없이 실패하면(한도·로그인이 아닌 오류) 일을 멈추지 않고 새로 한 번 더 부른다', async () => {
+    let n = 0;
+    const flaky: TeamMemberPort = {
+      run: async (call) => {
+        n += 1;
+        if (n === 1) return { output: null, error: 'invalid buffer size', fetched: [], usage: { model: call.setting.tier, durationMs: 1, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' } };
+        return { output: { answer: '다시 해서 됐어요' }, error: null, fetched: [], usage: { model: call.setting.tier, durationMs: 1, costUsd: 0, turns: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, denials: [], endReason: 'success' } };
+      },
+    };
+    const turn = await ChatSession.start({ ...sessionDeps({ team: new FakeTeam({}) }), team: flaky, direct: true }).handle('memory.md 읽어줘');
+    expect(n).toBe(2);
+    expect(turn.kind === 'answer' && turn.answer).toBe('다시 해서 됐어요');
+  });
+
+  it('인사는 여전히 모델 없이 바로 답한다(틀릴 수 없는 지름길만 남긴다)', async () => {
+    const team = new FakeTeam({ direct: [() => ({ answer: '네' })] });
+    await direct(team).handle('ㅎㅇ');
+    expect(team.calls).toEqual([]);
+  });
+});

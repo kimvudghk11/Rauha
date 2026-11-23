@@ -136,6 +136,8 @@ function stoppable(team: TeamMemberPort, signal: AbortSignal): TeamMemberPort {
 
 export interface ComposeOptions {
   readonly home: string;
+  /** 메인 채팅 기본을 "원문 그대로 Claude"로(라우터·답변 틀·키워드 가로채기 없이). 팀 흐름은 handle(..., 'team') 으로만 */
+  readonly direct?: boolean;
   /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 카드 하나(여럿이면 체크리스트)로 넣는다. 없으면 투두 요청도 평소처럼 라우터로 간다 */
   readonly addTodos?: (card: TodoCard) => Promise<void>;
   /** 할 일 탭의 끝나지 않은 할 일(카드 제목·안 끝난 체크리스트 글) */
@@ -267,6 +269,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
   const memory = SqliteMemory.open(projectMemoryFile(profile.memoryDir(home), projectRoot(keyRoot)));
   const { folder, also } = scopeDeps(scope);
   const deps: ChatSessionDeps = {
+    ...(options.direct === true ? { direct: true } : {}),
     knowledge,
     repoName: basename(keyRoot),
     workRoot: root,

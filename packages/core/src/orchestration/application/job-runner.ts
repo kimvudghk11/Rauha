@@ -23,6 +23,8 @@ export interface JobRunnerDeps {
   readonly limit?: number;
   /** 판이 바뀔 때마다(넣기·시작·끝·멈춤) 부른다. 화면이 다시 그린다. */
   readonly onChange?: (board: JobBoard) => void;
+  /** 일이 오류로 멈췄을 때 오류 전체(스택 포함)를 넘긴다. 화면에는 메시지 한 줄만 보여서, 어디서 났는지 기록해 둘 때 쓴다. */
+  readonly onFailure?: (job: Job, error: unknown) => void;
 }
 
 const STOPPED_BY_USER = '사용자가 멈춤';
@@ -85,7 +87,16 @@ export class JobRunner {
       this.controllers.set(job.id, controller);
       const done = this.call(running, controller.signal).then(
         () => this.settle(job.id, (j) => j.finish(this.deps.now())),
-        (error: unknown) => this.settle(job.id, (j) => j.stop(reasonOf(error), this.deps.now())),
+        (error: unknown) => {
+          if (!controller.signal.aborted) {
+            try {
+              this.deps.onFailure?.(job, error);
+            } catch {
+              // 기록에 실패해도 일은 그대로 멈춘 것으로 보인다
+            }
+          }
+          this.settle(job.id, (j) => j.stop(reasonOf(error), this.deps.now()));
+        },
       );
       this.inFlight.add(done);
       void done.finally(() => this.inFlight.delete(done));

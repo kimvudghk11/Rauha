@@ -10,6 +10,8 @@ export const MEMBER_ROLES = [
   'frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr',
   // 사업 하나를 할 수 있는 회사(2026-11-19): 콘텐츠부(카피·영상), 상품·그래픽 디자인, 상품기획 MD, 커머스부(입점·물류)
   'copywriter', 'video', 'productdesigner', 'graphic', 'md', 'ecommerce', 'logistics',
+  // 메인 채팅 기본(2026-11-24): 사용자 말을 그대로 받는 Claude 세션 하나. rauha 는 결과 모양·UI 만 얹는다
+  'direct',
 ] as const;
 
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -78,4 +80,6 @@ export const ROLE_INFO: Readonly<Record<MemberRole, RoleInfo>> = {
   md: info('상품기획 MD', 'MD'),
   ecommerce: info('이커머스 운영 팀원', '커머스'),
   logistics: info('물류 팀원', '물류'),
+  // 사용자에게는 그냥 Claude 와 하는 대화로 보인다(단계 이름 없음). 파일은 고른 폴더 안에서 가드·허락을 거쳐 쓴다
+  direct: info('Claude', null, 'implementer'),
 };

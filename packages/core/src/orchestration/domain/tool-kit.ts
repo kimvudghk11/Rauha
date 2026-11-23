@@ -9,13 +9,13 @@ export type ToolKit = 'browser' | 'aws' | 'connectors';
 /** 사용자가 설정에서 연결한 업무 도구(노션·컨플루언스·지라 …)를 읽고 쓰는 역할. 답변·문서·구현·운영·회사 부서 팀원. 테스트·리뷰·접수처럼 판정만 하는 팀원은 뺀다. */
 /** 큰 회사 부서 팀원(커넥터로 노션·지라·슬랙 등에 정리할 수 있다) */
 const NEW_DEPARTMENT_ROLES: readonly MemberRole[] = ['frontend', 'backend', 'ios', 'android', 'crossplatform', 'content', 'performance', 'pr', 'pm', 'accountant', 'finops', 'analyst', 'dataengineer', 'legal', 'support', 'voc', 'sales', 'recruiter', 'qa', 'copywriter', 'video', 'productdesigner', 'graphic', 'md', 'ecommerce', 'logistics'];
-const CONNECTOR_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'writer', 'implementer', 'designer', 'debugger', 'operator', 'planner', 'releaser', 'riskchecker', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', ...NEW_DEPARTMENT_ROLES]);
+const CONNECTOR_ROLES: ReadonlySet<MemberRole> = new Set(['direct', 'answerer', 'writer', 'implementer', 'designer', 'debugger', 'operator', 'planner', 'releaser', 'riskchecker', 'bm', 'marketer', 'growth', 'uxdesigner', 'brand', ...NEW_DEPARTMENT_ROLES]);
 const CONNECTOR_WORDS = /노션|notion|컨플루언스|confluence|컨플|위키|wiki|지라|jira|아틀라시안|atlassian|리니어|linear|슬랙|slack|피그마|figma|센트리|sentry|구글\s?(독스|문서|시트|드라이브)|google\s?(docs?|sheets?|drive)|스프레드\s?시트|spreadsheet|시트에|커넥터|connector/i;
 
 /** 브라우저로 페이지를 열어 볼 수 있는 역할. 답을 찾거나(답변·디버깅) 화면을 다루는(UX) 팀원만. */
-const BROWSER_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'debugger', 'uxdesigner', 'frontend', 'qa', 'productdesigner', 'graphic', 'ecommerce']);
+const BROWSER_ROLES: ReadonlySet<MemberRole> = new Set(['direct', 'answerer', 'debugger', 'uxdesigner', 'frontend', 'qa', 'productdesigner', 'graphic', 'ecommerce']);
 /** AWS 지식을 쓰는 역할. 설계·구현·운영과 그 판단을 돕는 팀원. 테스트 팀원은 이미 정한 동작만 검증하므로 뺀다. */
-const AWS_ROLES: ReadonlySet<MemberRole> = new Set(['answerer', 'operator', 'designer', 'intake', 'implementer', 'debugger', 'riskchecker', 'securitychecker', 'planner', 'splitter', 'finops', 'dataengineer', 'backend', 'frontend', 'ios', 'android', 'crossplatform']);
+const AWS_ROLES: ReadonlySet<MemberRole> = new Set(['direct', 'answerer', 'operator', 'designer', 'intake', 'implementer', 'debugger', 'riskchecker', 'securitychecker', 'planner', 'splitter', 'finops', 'dataengineer', 'backend', 'frontend', 'ios', 'android', 'crossplatform']);
 
 const ADDRESS = /https?:\/\/\S+|\b(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\b/i;
 const WEB_WORDS = /웹\s?페이지|웹\s?사이트|브라우저|browser|web\s?page|(dev|개발)\s?서버/i;
