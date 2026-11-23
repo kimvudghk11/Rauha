@@ -244,7 +244,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     },
     ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}),
     ...(options.addTodo !== undefined ? { addTodo: options.addTodo } : {}),
-    ...(options.notebook !== undefined ? { remember: options.notebook.remember, keepRule: options.notebook.keepRule } : {}),
+    ...(options.notebook !== undefined ? { remember: (note) => options.notebook!.remember(note), keepRule: (path) => options.notebook!.keepRule(path) } : {}),
     ...(actions !== undefined ? { ciRuns: (repos) => ciRuns(actions(), repos), ciLog: (repo, runId) => ciLog(actions(), repo, runId) } : {}),
   };
   const inner = new AgentSdkTeamMember({
@@ -265,7 +265,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     // 항상 지킬 것: 규칙 탭 글 + rauha 노트의 룰 파일(지금 내용). 어느 폴더에서 일하든 모든 팀원에게
     alwaysRules: () => [options.rules?.().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') ?? '', options.notebook?.rulesBlock() ?? ''].filter((s) => s !== '').join('\n\n'),
     ...(options.claudeMd !== undefined ? { claudeMd: options.claudeMd } : {}),
-    ...(options.notebook !== undefined ? { memoryNotes: options.notebook.memoryBlock } : {}),
+    ...(options.notebook !== undefined ? { memoryNotes: () => options.notebook!.memoryBlock() } : {}),
     ...(options.styleNotes !== undefined ? { styleNotes: options.styleNotes } : {}),
     ...(options.awsNow !== undefined ? { awsNow: options.awsNow } : {}),
   });
