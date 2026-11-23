@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, resolve, win32 } from 'node:path';
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { relativeToRoot } from '../../shared/path-pattern.js';
 import { InfraRiskDto, type InfraRisk } from '../application/dto/infra-risk.dto.js';
@@ -155,9 +155,11 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
     if ((input.tool_name === 'Bash' || input.tool_name === 'PowerShell') && typeof toolInput['command'] === 'string') {
       const command = toolInput['command'];
       const cd = /(?:^|[;&|]\s*)(?:cd|Set-Location)\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/.exec(command);
-      const base = cd === null ? options.root : resolve(options.root, cd[1] ?? cd[2] ?? cd[3] ?? '.');
+      // 루트 모양(E:/… 이면 Windows 규칙)으로 경로를 푼다 — 맥에서 Windows 루트를 상대 경로로 보지 않게
+      const p = /^[A-Za-z]:[\\/]/.test(options.root) ? win32 : { resolve, isAbsolute };
+      const base = cd === null ? options.root : p.resolve(options.root, cd[1] ?? cd[2] ?? cd[3] ?? '.');
       for (const target of shellWriteTargets(command)) {
-        const rel = relativeToRoot(options.root, isAbsolute(target) ? target : resolve(base, target));
+        const rel = relativeToRoot(options.root, p.isAbsolute(target) ? target : p.resolve(base, target));
         if (rel !== null && rel !== '' && !options.canWrite(rel)) {
           return decide('deny', `이 역할은 ${rel}을(를) 쓸 수 없습니다(잠긴 테스트이거나 업무 범위 밖, 또는 이 역할이 쓸 파일이 아님). 셸 리디렉션으로도 쓸 수 없습니다. 맡은 파일만 Write/Edit 로 고치세요.`);
         }
