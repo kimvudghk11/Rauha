@@ -27,5 +27,12 @@ describe('modeOf', () => {
   it('아주 좁으면 어느 배치를 골라도 메인만 보이고 방은 띠로 줄어든다', () => {
     expect(modeOf('xs', 'A')).toBe('xs');
     expect(modeOf('xs', 'B')).toBe('xs');
+    expect(modeOf('xs', 'C')).toBe('xs');
+  });
+
+  it('에이전트 창(C)은 넓음·보통·좁음 모두 왼쪽 목록 + 가운데로 그린다', () => {
+    expect(modeOf('xl', 'C')).toBe('agents');
+    expect(modeOf('m', 'C')).toBe('agents');
+    expect(modeOf('s', 'C')).toBe('agents');
   });
 });

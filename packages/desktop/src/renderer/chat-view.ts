@@ -244,8 +244,11 @@ export function buildChat(actions: ChatActions) {
   const rooms = el('div', 'rooms');
   // ── 팀 상세 ──
   const detail = el('div', 'detail');
+  // ── 에이전트 목록(에이전트 창 배치에서만 보인다): Main + 태스크마다 한 줄, 고르면 가운데에 그 대화 ──
+  const agents = el('nav', 'agents');
+  agents.setAttribute('aria-label', 'Agents');
 
-  root.append(mainPane, strip, rooms, detail);
+  root.append(agents, mainPane, strip, rooms, detail);
 
   // ── Main · 팀 목록 비율: 가운데 손잡이를 끌거나(두 번 누르면 7:3) ←/→ 로 바꾸고, 다음에도 그대로 ──
   const SPLIT_KEY = 'rauha.chat.split';
@@ -909,8 +912,75 @@ export function buildChat(actions: ChatActions) {
     });
     while (rooms.children.length > order.length) rooms.lastElementChild?.remove();
     rooms.classList.remove('none');
+    renderAgents();
     // 아주 좁을 때 띠에는 도는 일과 방금 끝난 일만
     renderStrip(slots.flatMap((s) => (s.kind === 'task' ? [threadJobs(s.id).at(-1) ?? jobs.get(s.id)!] : [])).filter((j) => roomVisible(j, rootIdOf(j.id))));
+  }
+
+  /**
+   * 에이전트 창의 왼쪽 목록: 맨 위 "+ New agent"와 Main, 그 아래 태스크(처음 요청 기준)를 최근 것부터.
+   * 줄마다 상태 점·제목·지금 단계(또는 내 확인이 필요함)·걸린 시간. 다시 그릴 때 같은 줄 요소를 고쳐 쓴다(깜빡임 없게).
+   */
+  const agentRows = new Map<string, { row: HTMLButtonElement; dot: HTMLElement; title: HTMLElement; sub: HTMLElement; badge: HTMLElement }>();
+  const agentHead = el('div', 'ag-head');
+  const newAgent = el('button', 'btn sm ag-new', '+ New agent');
+  newAgent.title = 'Start a new task in Main';
+  newAgent.addEventListener('click', () => {
+    if (openId !== null) close();
+    renderAgents();
+    input.focus();
+  });
+  agentHead.append(el('b', undefined, 'Agents'), newAgent);
+  const mainRow = el('button', 'ag-row ag-main');
+  const mainFace = el('canvas', 'sp');
+  paintOnce(mainFace, 'intake', 1);
+  mainRow.append(mainFace, el('span', 'ag-title', 'Main'), el('span', 'ag-sub', 'Talk to the lead'));
+  mainRow.addEventListener('click', () => {
+    if (openId !== null) close();
+    renderAgents();
+    input.focus();
+  });
+  const agentList = el('div', 'ag-list');
+  agents.append(agentHead, mainRow, agentList);
+
+  function renderAgents(): void {
+    mainRow.classList.toggle('on', openId === null);
+    const roots = [...jobs.values()].filter((j) => j.thread === null && !cleared.has(j.id)).sort((a, b) => (latestInTask(b.id)?.queuedAt ?? b.queuedAt).localeCompare(latestInTask(a.id)?.queuedAt ?? a.queuedAt));
+    const keep = new Set(roots.map((j) => j.id));
+    for (const [id, r] of [...agentRows]) {
+      if (!keep.has(id)) {
+        r.row.remove();
+        agentRows.delete(id);
+      }
+    }
+    roots.forEach((first, i) => {
+      const last = latestInTask(first.id) ?? first;
+      let r = agentRows.get(first.id);
+      if (r === undefined) {
+        const row = el('button', 'ag-row');
+        const dot = el('span', 'dot');
+        const title = el('span', 'ag-title');
+        const sub = el('span', 'ag-sub');
+        const badge = el('span', 'ag-badge');
+        row.append(dot, title, badge, sub);
+        row.addEventListener('click', () => open(first.id));
+        r = { row, dot, title, sub, badge };
+        agentRows.set(first.id, r);
+      }
+      const mine = approvals.filter((a) => threadJobs(first.id).some((t) => t.id === a.jobId));
+      r.dot.className = `dot ${last.status}`;
+      r.title.textContent = short(first.request, 48);
+      r.row.title = first.request;
+      r.badge.textContent = mine.length > 0 ? '!' : '';
+      r.badge.hidden = mine.length === 0;
+      const step = last.steps.find((s) => s.state !== 'done')?.label ?? last.steps.at(-1)?.label ?? STATUS_LABEL[last.status];
+      const when = last.status === 'queued' ? 'Queued' : elapsedText(last.queuedAt, last.endedAt, Date.now());
+      r.sub.textContent = mine.length > 0 ? needLabel(mine) : last.status === 'queued' ? 'Queued' : last.status === 'running' ? `${step} · ${when}` : `${STATUS_LABEL[last.status]} · ${when}`;
+      r.row.classList.toggle('on', openId === first.id);
+      r.row.classList.toggle('need', mine.length > 0);
+      if (agentList.children[i] !== r.row) agentList.insertBefore(r.row, agentList.children[i] ?? null);
+    });
+    while (agentList.children.length > roots.length) agentList.lastElementChild?.remove();
   }
 
   function renderStrip(visible: readonly JobView[]): void {
@@ -1248,9 +1318,9 @@ export function buildChat(actions: ChatActions) {
   }
 
   // ── 레이아웃 토글(A 나란히 · B 위아래) ──
-  function layoutButtons(current: 'A' | 'B', pick: (l: 'A' | 'B') => void): void {
+  function layoutButtons(current: 'A' | 'B' | 'C', pick: (l: 'A' | 'B' | 'C') => void): void {
     layoutToggle.replaceChildren();
-    for (const [id, label] of [['A', 'Side by side'], ['B', 'Stacked']] as const) {
+    for (const [id, label] of [['C', 'Agents'], ['A', 'Side by side'], ['B', 'Stacked']] as const) {
       const b = el('button', current === id ? 'on' : '', label);
       b.addEventListener('click', () => pick(id));
       layoutToggle.appendChild(b);

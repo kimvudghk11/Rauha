@@ -73,7 +73,7 @@ export function limitBar(label: string, w: UsageWindowView | null): HTMLElement 
 }
 
 /** Settings 탭: 계정·한도 / 작업 폴더 / 알림 / 화면 / 권한 / 정보 저장·캐릭터(곧) */
-export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') => void) {
+export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B' | 'C') => void) {
   const root = el('section', 'settings');
   const section = (title: string, ...children: HTMLElement[]) => {
     const pane = el('div', 'pane sec');
@@ -218,10 +218,10 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B') =>
 
     // 화면
     const layout = el('select');
-    layout.append(new Option('Side by side (A)', 'A'), new Option('Stacked (B)', 'B'));
+    layout.append(new Option('Agents (list + conversation)', 'C'), new Option('Side by side (A)', 'A'), new Option('Stacked (B)', 'B'));
     layout.value = s.layout;
     layout.addEventListener('change', () => {
-      const next = layout.value === 'B' ? 'B' : 'A';
+      const next = layout.value === 'B' ? 'B' : layout.value === 'A' ? 'A' : 'C';
       void api.update({ layout: next });
       onLayout(next);
     });

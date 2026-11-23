@@ -69,9 +69,10 @@ const usageFeed = createUsageFeed();
 // ── 배치 선택(A/B)은 이 PC에 기억한다. 저장소가 막혀 있어도 화면은 그대로 돈다. ──
 const readLayout = (): Layout => {
   try {
-    return localStorage.getItem('rauha.layout') === 'B' ? 'B' : 'A';
+    const saved = localStorage.getItem('rauha.layout');
+    return saved === 'B' ? 'B' : saved === 'A' ? 'A' : 'C';
   } catch {
-    return 'A';
+    return 'C';
   }
 };
 let layout: Layout = readLayout();

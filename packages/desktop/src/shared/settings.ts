@@ -23,7 +23,8 @@ export interface Settings {
   readonly folderApproved: boolean;
   /** 쓸 계정(프로필 이름). null이면 폴더 규칙에 맡긴다 */
   readonly account: string | null;
-  readonly layout: 'A' | 'B';
+  /** 채팅 배치: A 나란히, B 위아래, C 에이전트 창(왼쪽 목록 + 가운데) */
+  readonly layout: 'A' | 'B' | 'C';
   /** 동시에 돌 작업 수(1~6). 바꾸면 다음 실행부터 적용된다. */
   readonly concurrency: number;
   readonly protectedBranches: readonly string[];
@@ -63,7 +64,8 @@ export const DEFAULT_SETTINGS: Settings = {
   workFolder: null,
   folderApproved: false,
   account: null,
-  layout: 'A',
+  // 새로 설치하면 에이전트 창(2026-11-23 사용자 요청: "agents window 느낌"). 전에 고른 A·B 는 그대로
+  layout: 'C',
   concurrency: DEFAULT_CONCURRENCY,
   protectedBranches: DEFAULT_PROTECTED_BRANCHES,
   notify: { choice: true, done: true, limit: true, step: false },
@@ -107,7 +109,7 @@ export function parseSettings(input: unknown): Settings {
     workFolder: text(input['workFolder']),
     folderApproved: bool(input['folderApproved'], false),
     account: text(input['account']),
-    layout: input['layout'] === 'B' ? 'B' : 'A',
+    layout: input['layout'] === 'B' ? 'B' : input['layout'] === 'A' ? 'A' : 'C',
     concurrency: Math.min(CONCURRENCY_MAX, Math.max(CONCURRENCY_MIN, rawConcurrency)),
     protectedBranches: branches.length > 0 ? branches : DEFAULT_PROTECTED_BRANCHES,
     notify: {

@@ -23,6 +23,32 @@
 .app[data-detail="1"] .detail { display: grid; }
 .app[data-detail="1"][data-mode=side] .rooms, .app[data-detail="1"][data-mode=rows] .rooms { display: none; }
 .app[data-tier=s], .app[data-tier=xs] { grid-template-columns: 44px minmax(0, 1fr); }
+
+/* ── 에이전트 창(C): 왼쪽 목록 + 가운데(Main 또는 고른 태스크의 대화). 팀 방·띠는 숨긴다 ── */
+.agents { display: none; }
+.app[data-mode=agents] .chat { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "agents main"; }
+.app[data-mode=agents][data-detail="1"] .chat { grid-template-areas: "agents detail"; }
+.app[data-mode=agents] :is(.rooms, .strip, .split-grip) { display: none !important; }
+.app[data-mode=agents][data-detail="1"] .mainp { display: none; }
+.app[data-mode=agents][data-detail="1"] .detail { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(220px, 1fr); grid-template-rows: minmax(0, 1fr); }
+.app[data-mode=agents][data-tier=s] .chat { grid-template-columns: 180px minmax(0, 1fr); }
+.app[data-mode=agents][data-tier=s][data-detail="1"] .detail { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+.app[data-mode=agents] .agents { grid-area: agents; display: flex; flex-direction: column; gap: 2px; min-height: 0; min-width: 0; overflow-y: auto; padding: var(--s2); background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md); }
+.ag-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding: 2px 2px var(--s2); }
+.ag-head > b { color: var(--bright); font-size: var(--fs-md); font-weight: 600; }
+.ag-list { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; grid-template-areas: "dot title badge" ". sub sub"; align-items: center; column-gap: var(--s2); row-gap: 1px; width: 100%; padding: 6px var(--s2); border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.ag-row:hover { background: var(--row-hover); }
+.ag-row.on { background: var(--sel); border-color: var(--accent); }
+.ag-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.ag-row > .dot, .ag-row > canvas { grid-area: dot; justify-self: center; }
+.ag-main { margin-bottom: var(--s1); }
+.ag-main > canvas { width: 14px; height: 14px; image-rendering: pixelated; }
+.ag-title { grid-area: title; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--bright); font-size: var(--fs-sm); }
+.ag-sub { grid-area: sub; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-xs); }
+.ag-badge { grid-area: badge; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--yellow); font-size: var(--fs-xs); font-weight: 700; line-height: 14px; text-align: center; }
+.ag-badge[hidden] { display: none; }
+.ag-row.need .ag-sub { color: var(--yellow); }
 .app[data-tier=s] .act button, .app[data-tier=xs] .act button { width: 44px; height: 42px; font-size: 0; border-left-width: 0; }
 .app[data-tier=s] .ltoggle, .app[data-tier=xs] .ltoggle, .app[data-tier=s] .ph .hint, .app[data-tier=xs] .ph .hint, .app[data-tier=xs] .composer .hint .more { display: none; }
 @media (max-height: 420px) { .composer .hint { display: none; } .stage { height: 44px; } }

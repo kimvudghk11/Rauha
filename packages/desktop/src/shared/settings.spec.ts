@@ -43,9 +43,12 @@ describe('parseSettings', () => {
     expect(parseSettings({ notify: { choice: '예', step: true } }).notify).toEqual({ choice: true, done: true, limit: true, step: true });
   });
 
-  it('배치는 A·B만 받는다', () => {
+  it('배치는 A·B·C(에이전트 창)를 받고, 모르는 값·없는 값은 에이전트 창이다', () => {
     expect(parseSettings({ layout: 'B' }).layout).toBe('B');
-    expect(parseSettings({ layout: 'C' }).layout).toBe('A');
+    expect(parseSettings({ layout: 'A' }).layout).toBe('A');
+    expect(parseSettings({ layout: 'C' }).layout).toBe('C');
+    expect(parseSettings({ layout: 'Z' }).layout).toBe('C');
+    expect(parseSettings({}).layout).toBe('C');
   });
 
   it('작업 폴더는 공백을 지우고 빈 글이면 null이다', () => {
