@@ -8,6 +8,7 @@ import type { MemberRole } from '../application/dto/role-settings.dto.js';
 import type { SecretPolicy } from '../domain/secret-policy.js';
 import { GitPublishIntent } from '../domain/git-publish-intent.js';
 import { ToolRisk } from '../domain/tool-risk.js';
+import { shellWriteTargets } from '../domain/shell-writes.js';
 import { ConnectorTool, ConnectorWriteIntent } from '../domain/connector.js';
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit', 'MultiEdit']);
@@ -146,6 +147,19 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
         const inExtra = (options.extraRoots ?? []).map((root) => relativeToRoot(root, path)).find((r): r is string => r !== null);
         if (inExtra !== undefined) {
           return options.canWrite(inExtra) ? {} : decide('deny', `이 역할은 ${inExtra}을(를) 쓸 수 없습니다(문서 팀원은 .md 문서만 씁니다).`);
+        }
+      }
+    }
+
+    // 셸로 파일을 쓰는 것도 같은 권한으로 막는다(실측: 테스트 팀원이 `cat >> src/cart.js` 로 구현 파일을 썼다)
+    if ((input.tool_name === 'Bash' || input.tool_name === 'PowerShell') && typeof toolInput['command'] === 'string') {
+      const command = toolInput['command'];
+      const cd = /(?:^|[;&|]\s*)(?:cd|Set-Location)\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/.exec(command);
+      const base = cd === null ? options.root : resolve(options.root, cd[1] ?? cd[2] ?? cd[3] ?? '.');
+      for (const target of shellWriteTargets(command)) {
+        const rel = relativeToRoot(options.root, isAbsolute(target) ? target : resolve(base, target));
+        if (rel !== null && rel !== '' && !options.canWrite(rel)) {
+          return decide('deny', `이 역할은 ${rel}을(를) 쓸 수 없습니다(잠긴 테스트이거나 업무 범위 밖, 또는 이 역할이 쓸 파일이 아님). 셸 리디렉션으로도 쓸 수 없습니다. 맡은 파일만 Write/Edit 로 고치세요.`);
         }
       }
     }

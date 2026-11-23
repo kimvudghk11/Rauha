@@ -123,6 +123,27 @@ describe('createToolGuard', () => {
     expect(asked).toEqual([]);
   });
 
+  it('셸 리디렉션·tee·sed -i 로 쓸 수 없는 파일을 쓰면 묻지 않고 거절한다(테스트 팀원이 cat >> 로 구현 파일을 썼다)', async () => {
+    const tester = guardWith([], { role: 'tester', canWrite: (p) => p.startsWith('test/') });
+    for (const command of [
+      "cat >> src/cart.js <<'EOF'\nexport const x = 1;\nEOF",
+      `cd "${ROOT}" && echo x > src/cart.js`,
+      'printf x | tee src/cart.js',
+      "sed -i 's/a/b/' src/cart.js",
+    ]) {
+      expect(decision(await tester.guard(input('Bash', { command }), 't1', opts))).toBe('deny');
+    }
+    expect(tester.asked).toEqual([]);
+  });
+
+  it('쓸 수 있는 파일·작업 폴더 밖 임시 파일·/dev/null 로 보내는 셸은 그대로 둔다', async () => {
+    const { guard } = guardWith([], { role: 'tester', canWrite: (p) => p.startsWith('test/') });
+    expect(decision(await guard(input('Bash', { command: "cat > test/cart.test.js <<'EOF'\nconst f = (a) => a > 1;\nEOF" }), 't1', opts))).not.toBe('deny');
+    expect(decision(await guard(input('Bash', { command: 'npm test > /dev/null 2>&1' }), 't1', opts))).not.toBe('deny');
+    expect(decision(await guard(input('Bash', { command: 'npm test 2>&1 | tail -15' }), 't1', opts))).not.toBe('deny');
+    expect(decision(await guard(input('Bash', { command: 'echo x > E:/tmp/out.txt' }), 't1', opts))).not.toBe('deny');
+  });
+
   it('위험 명령은 누가·어떤 도구로·무엇을·왜 하는지 묻고 답에 따른다', async () => {
     const { guard, asked } = guardWith([{ kind: 'allow' }, { kind: 'deny', note: null }]);
     expect(decision(await guard(input('Bash', { command: 'rm -rf dist' }), 't', opts))).toBe('allow');
