@@ -31,6 +31,9 @@ const WHEN: Readonly<Record<WorkspaceToolName, string>> = {
   company_notes: '회사 부서가 이미 정한 것(기획·디자인·마케팅·품질·운영)',
   dependencies: '레포별 의존성과 버전(name 으로 어느 레포가 쓰나)',
   read_spreadsheet: 'CSV·TSV·엑셀(xlsx) 표 읽기, 숫자 열 합계는 rauha 가 계산(repo, path)',
+  add_todo: '사용자가 할 일 탭에 넣어 달라고 할 때만(title, note, checklist)',
+  remember: '사용자가 "라우하에 저장·기억"해 달라고 할 때 — 작업 폴더에 파일을 만들지 말고 이것(title, text, source)',
+  keep_rule: '사용자가 이 룰 파일을 항상 기준으로 삼으라고 할 때(path: 절대 경로, 원본은 읽기만)',
 };
 
 /** 이 도구들을 붙인 팀원에게 더하는 짧은 사용법. 붙은 도구가 없으면 빈 글 */
@@ -58,6 +61,15 @@ async function guarded(task: () => Promise<string>): Promise<ToolResult> {
     return text(await task());
   } catch (error) {
     return text(error instanceof DomainError ? error.message : 'rauha could not read the workspace.', true);
+  }
+}
+
+/** rauha 앱에 쓰는 도구: 막힌 이유(규칙)를 그대로 돌려줘 Claude 가 고쳐 다시 부르게 한다 */
+async function acted(task: () => Promise<string>): Promise<ToolResult> {
+  try {
+    return text(await task());
+  } catch (error) {
+    return text(error instanceof Error && error.message !== '' ? error.message.slice(0, 300) : 'rauha could not save it.', true);
   }
 }
 
@@ -104,7 +116,18 @@ export function workspaceToolHandlers(facts: WorkspaceFacts, seen: (paths: reado
         return Standup.block(since, await facts.myCommits(since));
       }),
   };
-  const { openTodos, repoStatus, search, fileHistory, showCommit, ciRuns, ciLog, pastWork, companyNotes, dependencies, readSpreadsheet } = facts;
+  const { openTodos, repoStatus, search, fileHistory, showCommit, ciRuns, ciLog, pastWork, companyNotes, dependencies, readSpreadsheet, addTodo, remember, keepRule } = facts;
+  if (addTodo !== undefined)
+    handlers.add_todo = (a) => acted(async () => addTodo({ title: WorkspaceToolInput.title(a['title']), note: WorkspaceToolInput.body(a['note'], 2000), checklist: WorkspaceToolInput.checklist(a['checklist']) }));
+  if (remember !== undefined)
+    handlers.remember = (a) =>
+      acted(async () => {
+        const body = WorkspaceToolInput.body(a['text']);
+        if (body.trim() === '') throw new DomainError('INVALID_INPUT', 'text is empty.');
+        const source = a['source'] === undefined || a['source'] === null || a['source'] === '' ? null : WorkspaceToolInput.body(a['source'], 500);
+        return remember({ title: WorkspaceToolInput.title(a['title']), text: body, source });
+      });
+  if (keepRule !== undefined) handlers.keep_rule = (a) => acted(async () => keepRule(WorkspaceToolInput.absolutePath(a['path'])));
   if (openTodos !== undefined)
     handlers.todo_list = () =>
       guarded(async () => {
@@ -213,6 +236,18 @@ const SPECS: Readonly<Record<WorkspaceToolName, { readonly description: string; 
   past_work: { description: 'What rauha remembers from earlier work and answers in this repository, with the decisions made then.', shape: { query: z.string().describe('What to look for') } },
   company_notes: { description: 'What the company departments (planning, design, marketing, quality, operations) already decided: their latest results.', shape: {} },
   read_spreadsheet: { description: 'Read a CSV, TSV or Excel (.xlsx) file in a repository as tab-separated rows (first 200 rows per sheet). Totals of numeric columns are computed by rauha over all rows: use them instead of adding numbers yourself.', shape: { ...REPO, path: z.string().describe('Path of the file relative to the repository root') } },
+  add_todo: {
+    description: "Add one card to the user's rauha todo tab (not a file). Use only when the user asks to put something in the todo tab. Several to-dos go into one card as a checklist.",
+    shape: { title: z.string().describe('Card title'), note: z.string().optional().describe('Details'), checklist: z.array(z.string()).optional().describe('Checklist items, when there are several to-dos') },
+  },
+  remember: {
+    description: "Save text into rauha's own memory (rauha's data folder, not the project). Use when the user asks to save or remember something in rauha. Every later rauha session sees it. Saving again with the same title replaces it.",
+    shape: { title: z.string().describe('Short title'), text: z.string().describe('What to remember: the content itself or a faithful summary'), source: z.string().optional().describe('File it came from, if any') },
+  },
+  keep_rule: {
+    description: 'Make a rule file apply to every future rauha session as a top-priority rule (like an @import in CLAUDE.md). rauha reads the file each time and never edits it. Use when the user says to always follow that file.',
+    shape: { path: z.string().describe('Absolute path of the rule file') },
+  },
   dependencies: { description: 'Dependencies declared in each repository (package.json, go.mod, requirements.txt, build.gradle, pom.xml) with versions as written. Use name to find which repositories use a library.', shape: { ...REPOS, name: z.string().optional().describe('Only dependencies whose name contains this') } },
 };
 

@@ -4,6 +4,8 @@ import { variantsFromText, variantsToText } from '../shared/default-rules-form.j
 import type { DefaultRuleOp, DefaultRulesResult } from '../shared/ipc.js';
 import { ruleFromForm, ruleToForm, type RuleView } from '../shared/rules-form.js';
 import { el, isEnterKey } from './dom.js';
+import type { NotebookApi } from '../shared/notebook-api.js';
+import type { NotebookJson } from '../shared/rauha-notebook.js';
 
 const COLUMNS: readonly { bucket: RuleBucket; title: string; hint: string }[] = [
   { bucket: 'always', title: 'Always follow', hint: 'Added to every teammate prompt.' },
@@ -17,7 +19,7 @@ const SCOPE_LABEL = (r: RuleView): string => (r.scope.kind === 'global' ? 'All' 
  * 규칙 탭: 칸 셋(항상 지킬 것 / 묻지 않고 할 것 / 꼭 허락받을 것)과 범위(전체·작업 폴더·폴더).
  * 묻지 않음·허락 규칙은 명령이나 경로에서 찾을 글로 판정한다. 비밀 파일·역할 권한 거절은 규칙보다 앞서 늘 지켜진다. commit·push·PR은 사용자가 요청에서 시켰을 때만 묻지 않는다.
  */
-export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]>; update?: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; defaults?: { list: () => Promise<readonly DefaultRuleView[]>; apply: (op: DefaultRuleOp) => Promise<DefaultRulesResult> } }) {
+export function buildRules(api: { draft: (sentence: string) => ReturnType<Window['rauha']['draftRule']>; list: () => Promise<readonly RuleView[]>; add: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; remove: (id: string) => Promise<readonly RuleView[]>; update?: (r: RuleView) => ReturnType<Window['rauha']['addRule']>; defaults?: { list: () => Promise<readonly DefaultRuleView[]>; apply: (op: DefaultRuleOp) => Promise<DefaultRulesResult> }; notebook?: NotebookApi }) {
   const root = el('section', 'rules');
   const head = el('div', 'rhead');
   head.append(el('b', undefined, 'Rules'), el('span', 'hint', 'Teammates follow the rules you write. Secret files are always blocked, whatever the rules say. Commit, push and PR happen only when you ask for them.'));
@@ -314,5 +316,35 @@ export function buildRules(api: { draft: (sentence: string) => ReturnType<Window
     mine = rules;
     return refresh();
   });
+  if (api.notebook !== undefined) root.appendChild(notebookPane(api.notebook));
   return { root };
+}
+
+/**
+ * rauha 기억·항상 룰 파일: 채팅에서 "라우하에 저장해줘", "이 룰 항상 기준으로"라고 하면 Claude 가 여기에 더한다.
+ * 작업 폴더가 아니라 rauha 데이터 폴더에 있고, 모든 팀원 호출에 붙는다. 여기서는 보고 지운다.
+ */
+function notebookPane(api: NotebookApi): HTMLElement {
+  const pane = el('div', 'pane notebook');
+  const list = el('div', 'nblist');
+  pane.append(el('div', 'ph', 'Saved in rauha'), el('div', 'hint', 'Notes and always-on rule files you asked rauha to keep in chat ("save this in rauha", "always follow this rules file"). Every teammate sees them. Rule files are read fresh each time and never edited.'), list);
+  const render = (book: NotebookJson): void => {
+    const rows: HTMLElement[] = [];
+    for (const r of book.rules) rows.push(row('Rule file', r.path, r.id));
+    for (const n of book.notes) rows.push(row('Note', n.source === null ? n.title : `${n.title} · ${n.source}`, n.id, n.text));
+    list.replaceChildren(...(rows.length > 0 ? rows : [el('div', 'hint', 'Nothing saved yet.')]));
+  };
+  const row = (kind: string, label: string, id: string, body?: string): HTMLElement => {
+    const item = el('div', 'item nbitem');
+    const head = el('div', 'row');
+    const forget = el('button', 'btn sm', 'Remove');
+    forget.addEventListener('click', () => void api.forget(id).then(render));
+    head.append(el('span', 'chip', kind), el('span', 'nblabel', label), forget);
+    item.appendChild(head);
+    if (body !== undefined) item.appendChild(el('div', 'hint nbbody', body.length > 300 ? `${body.slice(0, 300)}…` : body));
+    return item;
+  };
+  api.onChange(render);
+  void api.get().then(render);
+  return pane;
 }

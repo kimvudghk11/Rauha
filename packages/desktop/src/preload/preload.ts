@@ -11,6 +11,7 @@ import { DOCKER_IPC, type DockerLogEvent } from '../shared/docker-api.js';
 import { DATA_IPC } from '../shared/data-api.js';
 import { VPN_IPC, type VpnListView } from '../shared/vpn-api.js';
 import { AWS_IPC } from '../shared/aws-api.js';
+import { NOTEBOOK_IPC } from '../shared/notebook-api.js';
 import { CLAUDE_HISTORY_IPC } from '../shared/claude-history-ipc.js';
 import { EXTERNAL_AI_IPC } from '../shared/external-ai-ipc.js';
 import { MY_WORK_IPC } from '../shared/my-work-ipc.js';
@@ -83,6 +84,13 @@ const api: RauhaApi = {
   reviewApproval: (id) => ipcRenderer.invoke(IPC.approvalReview, id),
   answerApproval: (id, choice) => ipcRenderer.send(IPC.approvalAnswer, id, choice),
   platform: process.platform,
+  notebook: {
+    get: () => ipcRenderer.invoke(NOTEBOOK_IPC.get),
+    forget: (id) => ipcRenderer.invoke(NOTEBOOK_IPC.forget, id),
+    onChange: (listener) => {
+      ipcRenderer.on(NOTEBOOK_IPC.changed, (_e, book) => listener(book));
+    },
+  },
   todo: {
     get: () => ipcRenderer.invoke(DATA_IPC.todoGet),
     apply: (op) => ipcRenderer.invoke(DATA_IPC.todoApply, op),

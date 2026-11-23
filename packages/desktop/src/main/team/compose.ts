@@ -138,6 +138,17 @@ export interface ComposeOptions {
   readonly home: string;
   /** 메인 채팅 기본을 "원문 그대로 Claude"로(라우터·답변 틀·키워드 가로채기 없이). 팀 흐름은 handle(..., 'team') 으로만 */
   readonly direct?: boolean;
+  /** rauha 노트(기억·항상 룰). 메인 채팅 Claude 가 remember·keep_rule 로 쓰고, 모든 팀원에게 붙는다 */
+  readonly notebook?: {
+    readonly remember: (note: { readonly title: string; readonly text: string; readonly source: string | null }) => Promise<string>;
+    readonly keepRule: (path: string) => Promise<string>;
+    readonly memoryBlock: () => string;
+    readonly rulesBlock: () => string;
+  };
+  /** 사용자의 Claude Code 지시(~/.claude/CLAUDE.md + @import). 팀원도 Claude Code 처럼 따른다 */
+  readonly claudeMd?: () => string;
+  /** 메인 채팅 Claude 의 add_todo: 할 일 탭에 카드 하나. 결과 한 줄 */
+  readonly addTodo?: (card: { readonly title: string; readonly note: string; readonly checklist: readonly string[] }) => Promise<string>;
   /** "투두 정리해줘"로 뽑은 할 일을 할 일 탭에 카드 하나(여럿이면 체크리스트)로 넣는다. 없으면 투두 요청도 평소처럼 라우터로 간다 */
   readonly addTodos?: (card: TodoCard) => Promise<void>;
   /** 할 일 탭의 끝나지 않은 할 일(카드 제목·안 끝난 체크리스트 글) */
@@ -232,6 +243,8 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
       return readSpreadsheet(join(repo.root, path));
     },
     ...(options.openTodos !== undefined ? { openTodos: options.openTodos } : {}),
+    ...(options.addTodo !== undefined ? { addTodo: options.addTodo } : {}),
+    ...(options.notebook !== undefined ? { remember: options.notebook.remember, keepRule: options.notebook.keepRule } : {}),
     ...(actions !== undefined ? { ciRuns: (repos) => ciRuns(actions(), repos), ciLog: (repo, runId) => ciLog(actions(), repo, runId) } : {}),
   };
   const inner = new AgentSdkTeamMember({
@@ -248,7 +261,11 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     ...(options.plugins !== undefined ? { plugins: options.plugins } : {}),
     // .env 같은 레포 설정은 원래 레포(keyRoot)에 있다(worktree 에는 커밋 안 한 설정 파일이 없다)
     ...(options.database !== undefined ? { database: () => options.database!(keyRoot) } : {}),
-    ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
+    ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot) } : {}),
+    // 항상 지킬 것: 규칙 탭 글 + rauha 노트의 룰 파일(지금 내용). 어느 폴더에서 일하든 모든 팀원에게
+    alwaysRules: () => [options.rules?.().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') ?? '', options.notebook?.rulesBlock() ?? ''].filter((s) => s !== '').join('\n\n'),
+    ...(options.claudeMd !== undefined ? { claudeMd: options.claudeMd } : {}),
+    ...(options.notebook !== undefined ? { memoryNotes: options.notebook.memoryBlock } : {}),
     ...(options.styleNotes !== undefined ? { styleNotes: options.styleNotes } : {}),
     ...(options.awsNow !== undefined ? { awsNow: options.awsNow } : {}),
   });

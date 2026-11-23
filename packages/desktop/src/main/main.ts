@@ -110,6 +110,9 @@ import type { PluginService } from './plugins/plugin-service.js';
 import { summarizeRequest } from '../shared/approval-summary.js';
 import { TodoStore } from './data/todo-store.js';
 import { TodoService } from './data/todo-service.js';
+import { NotebookService } from './data/notebook-service.js';
+import { NOTEBOOK_IPC } from '../shared/notebook-api.js';
+import { expandClaudeMd } from '../shared/claude-md.js';
 import { RecordStore } from './data/record-store.js';
 import { ChatHistoryStore } from './data/chat-history-store.js';
 import { ChatHistoryKeeper } from './team/chat-history-keeper.js';
@@ -397,7 +400,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ direct: true, home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), awsNow: () => awsNowText(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: picked !== null ? target.also : [] });
+              const session = composeSession({ direct: true, notebook: notebookService, claudeMd: claudeMdText, addTodo: addOneTodo, home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), awsNow: () => awsNowText(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: picked !== null ? target.also : [] });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
@@ -539,6 +542,39 @@ const todoService = new TodoService({
   submit: (text) => submitJob(text),
   onChange: (list) => window?.webContents.send(DATA_IPC.todoChanged, list),
 });
+/** 룰·CLAUDE.md 같은 글 파일 읽기(작은 글만, 못 읽으면 null) */
+function readSmallText(path: string): string | null {
+  try {
+    if (statSync(path).size > 400_000) return null;
+    return readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+/** rauha 노트(기억·항상 룰): 작업 폴더가 아니라 데이터 폴더에 남아 모든 팀원 호출에 붙는다 */
+const notebookService = NotebookService.open({
+  file: join(dataDir, 'notebook.json'),
+  home,
+  newId: () => randomUUID(),
+  now: () => new Date().toISOString(),
+  readText: readSmallText,
+  onChange: (book) => window?.webContents.send(NOTEBOOK_IPC.changed, book),
+});
+/** 사용자의 Claude Code 지시(~/.claude/CLAUDE.md + @import). 팀원 호출마다 부르므로 20초 담아 둔다 */
+let claudeMdCache: { at: number; text: string } | null = null;
+function claudeMdText(): string {
+  if (claudeMdCache !== null && Date.now() - claudeMdCache.at < 20_000) return claudeMdCache.text;
+  const text = settings.useClaudeMd === false ? '' : expandClaudeMd(join(home, '.claude', 'CLAUDE.md'), readSmallText, home).text;
+  claudeMdCache = { at: Date.now(), text };
+  return text;
+}
+/** 메인 채팅 Claude 의 add_todo: 할 일 탭에 카드 하나(여럿이면 체크리스트) */
+async function addOneTodo(card: { readonly title: string; readonly note: string; readonly checklist: readonly string[] }): Promise<string> {
+  const r = await todoService.apply({ kind: 'add', title: card.title, note: card.note, checklist: card.checklist.map((text) => ({ id: randomUUID(), text, done: false })) });
+  if (!r.ok) throw new Error(r.error);
+  return `할 일 탭에 카드 "${card.title}"를 넣었어요${card.checklist.length > 0 ? `(체크리스트 ${card.checklist.length}개)` : ''}.`;
+}
+
 /** 채팅 말풍선 기록: 앱을 다시 켜도 끝난 일의 요청·결과가 말풍선으로 돌아온다. 대화 초기화·/clear 때 비운다. */
 const chatHistory = new ChatHistoryKeeper(new ChatHistoryStore(join(dataDir, 'chat-history.json')));
 const chatHistoryReady = chatHistory.load().catch(() => undefined);
@@ -1197,6 +1233,11 @@ void app.whenReady().then(async () => {
     return dispatchCheckpoint(checkpoints, fn, arg);
   });
   ipcMain.handle(IPC.commandsGet, () => commandStore.load());
+  ipcMain.handle(NOTEBOOK_IPC.get, () => notebookService.get());
+  ipcMain.handle(NOTEBOOK_IPC.forget, async (_e, id: unknown) => {
+    if (typeof id === 'string') await notebookService.forget(id).catch(() => undefined);
+    return notebookService.get();
+  });
   ipcMain.handle(DATA_IPC.todoGet, () => todoService.get());
   ipcMain.handle(DATA_IPC.todoApply, (_e, op: unknown) => todoService.apply(op));
   ipcMain.handle(DATA_IPC.recordsGet, () => recordService.get());

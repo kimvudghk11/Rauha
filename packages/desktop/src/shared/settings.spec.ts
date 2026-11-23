@@ -7,6 +7,9 @@ describe('parseSettings', () => {
     expect(DEFAULT_SETTINGS.analysisFlow).toBe(true);
     expect(parseSettings({ analysisFlow: false }).analysisFlow).toBe(false);
     expect(parseSettings({ analysisFlow: 'no' }).analysisFlow).toBe(true);
+    // 내 Claude Code 지시(~/.claude/CLAUDE.md)는 기본으로 rauha 팀원에게도 건다
+    expect(parseSettings({}).useClaudeMd).toBe(true);
+    expect(parseSettings({ useClaudeMd: false }).useClaudeMd).toBe(false);
     expect(parseSettings({}).analysisFlow).toBe(true);
     expect(parseSettings({ autoUpdateCheck: false }).autoUpdateCheck).toBe(false);
     expect(parseSettings({ autoUpdateCheck: 'no' }).autoUpdateCheck).toBe(true);

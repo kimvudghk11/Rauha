@@ -37,6 +37,8 @@ export interface Settings {
   readonly blogNames: readonly string[];
   /** 분석 요청에서 조사 → 방향 비교 → 설계·계획 단계를 쓸지(기본 켬). 끄면 분석은 팀원 한 번 호출이다. */
   readonly analysisFlow: boolean;
+  /** 내 Claude Code 지시(~/.claude/CLAUDE.md 와 그 @import)를 rauha 팀원에게도 걸지(기본 켬). 회사 룰을 Claude Code 처럼 따르게 */
+  readonly useClaudeMd: boolean;
   /** 답답한 점을 올릴 내 개인 AWS: 프로필 이름(사용자가 직접 적은 것만, 기본 프로필을 대신 쓰지 않는다)·버킷·리전·개인 계정 번호. 키는 저장하지 않는다. */
   readonly awsProfile: string | null;
   readonly awsBucket: string | null;
@@ -73,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoUpdateCheck: true,
   blogNames: [],
   analysisFlow: true,
+  useClaudeMd: true,
   awsProfile: null,
   awsBucket: null,
   awsRegion: null,
@@ -122,6 +125,7 @@ export function parseSettings(input: unknown): Settings {
     autoUpdateCheck: bool(input['autoUpdateCheck'], true),
     blogNames: names(input['blogNames']),
     analysisFlow: bool(input['analysisFlow'], true),
+    useClaudeMd: bool(input['useClaudeMd'], true),
     awsProfile: text(input['awsProfile']),
     awsBucket: text(input['awsBucket']),
     awsRegion: text(input['awsRegion']),

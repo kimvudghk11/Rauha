@@ -5,11 +5,15 @@ import type { MemberRole } from './member-role.js';
 export const WORKSPACE_TOOL_NAMES = [
   'workspace_repos', 'repo_changes', 'my_commits', 'todo_list', 'repo_status', 'search_repos', 'file_history', 'show_commit',
   'ci_runs', 'ci_log', 'past_work', 'company_notes', 'dependencies', 'read_spreadsheet',
+  // rauha 앱 자체에 쓰기(할 일 탭·rauha 기억·항상 룰). 메인 채팅 Claude 만
+  'add_todo', 'remember', 'keep_rule',
 ] as const;
 export type WorkspaceToolName = (typeof WORKSPACE_TOOL_NAMES)[number];
 
 /** 도구를 받지 않는 역할: 라우터는 입력 종류만 가르고 도구 없이 짧게 끝난다. */
 const NO_TOOLS: ReadonlySet<MemberRole> = new Set(['router']);
+/** rauha 앱에 쓰는 도구. 사용자 말을 그대로 받은 메인 채팅 Claude 만 쓴다(다른 팀원은 맡은 일 밖이라 쓰지 않는다) */
+const RAUHA_WRITES: ReadonlySet<WorkspaceToolName> = new Set(['add_todo', 'remember', 'keep_rule']);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const NAMES_MAX = 50;
 const PATH_MAX = 500;
@@ -37,7 +41,8 @@ export class WorkspaceToolAccess {
    * 라우터를 뺀 모든 팀원(개발·품질·운영·기획·마케팅·디자인)이 모든 도구를 받아, 필요한 사실을 스스로 가져온다.
    */
   static toolsFor(role: MemberRole): readonly WorkspaceToolName[] {
-    return NO_TOOLS.has(role) ? [] : WORKSPACE_TOOL_NAMES;
+    if (NO_TOOLS.has(role)) return [];
+    return role === 'direct' ? WORKSPACE_TOOL_NAMES : WORKSPACE_TOOL_NAMES.filter((t) => !RAUHA_WRITES.has(t));
   }
 
   static wants(role: MemberRole): boolean {
@@ -93,6 +98,34 @@ export class WorkspaceToolInput {
   static runId(input: unknown): number {
     if (typeof input !== 'number' || !Number.isSafeInteger(input) || input <= 0) throw new DomainError('INVALID_INPUT', 'run_id must be a run number from ci_runs.');
     return input;
+  }
+
+  /** 짧은 글(제목 등). 빈 글·너무 긴 글은 안 된다 */
+  static title(input: unknown, max = 120): string {
+    if (typeof input !== 'string' || input.trim() === '' || input.trim().length > max) throw new DomainError('INVALID_INPUT', `title must be 1 to ${max} characters.`);
+    return input.trim();
+  }
+
+  /** 긴 글(메모·본문). 없으면 빈 글 */
+  static body(input: unknown, max = 40_000): string {
+    if (input === undefined || input === null) return '';
+    if (typeof input !== 'string' || input.length > max) throw new DomainError('INVALID_INPUT', `text must be up to ${max} characters.`);
+    return input;
+  }
+
+  /** 체크리스트 글들(없으면 빈 배열, 50개까지) */
+  static checklist(input: unknown): string[] {
+    if (input === undefined || input === null) return [];
+    if (!Array.isArray(input) || input.some((c) => typeof c !== 'string')) throw new DomainError('INVALID_INPUT', 'checklist must be a list of strings.');
+    const items = (input as string[]).map((c) => c.trim()).filter((c) => c !== '');
+    if (items.length > 50) throw new DomainError('INVALID_INPUT', 'Up to 50 checklist items.');
+    return items;
+  }
+
+  /** 파일 절대 경로(~ 포함) */
+  static absolutePath(input: unknown): string {
+    if (typeof input !== 'string' || input.includes('\0') || !/^(\/|~[\\/]|[A-Za-z]:[\\/]|\\\\)/.test(input.trim())) throw new DomainError('INVALID_INPUT', 'path must be an absolute file path, like /Users/me/repos/rules/RULES.md.');
+    return input.trim();
   }
 
   /** 저장소 이름 목록. 없으면 빈 배열(모든 저장소) */

@@ -3,9 +3,11 @@ import { MEMBER_ROLES } from './member-role.js';
 import { WORKSPACE_TOOL_NAMES, WorkspaceToolAccess, WorkspaceToolInput } from './workspace-tools.js';
 
 describe('작업 공간 도구', () => {
-  it('라우터를 뺀 모든 팀원(개발·품질·운영·기획·마케팅·디자인)이 모든 작업 공간 도구를 받는다', () => {
+  it('라우터를 뺀 모든 팀원(개발·품질·운영·기획·마케팅·디자인)이 모든 읽기 도구를 받고, rauha 에 쓰는 도구는 메인 채팅 Claude 만 받는다', () => {
+    const writes = ['add_todo', 'remember', 'keep_rule'];
     expect(MEMBER_ROLES.filter((r) => !WorkspaceToolAccess.wants(r))).toEqual(['router']);
-    for (const r of MEMBER_ROLES.filter((x) => x !== 'router')) expect(WorkspaceToolAccess.toolsFor(r)).toEqual(WORKSPACE_TOOL_NAMES);
+    for (const r of MEMBER_ROLES.filter((x) => x !== 'router' && x !== 'direct')) expect(WorkspaceToolAccess.toolsFor(r)).toEqual(WORKSPACE_TOOL_NAMES.filter((t) => !writes.includes(t)));
+    expect(WorkspaceToolAccess.toolsFor('direct')).toEqual(WORKSPACE_TOOL_NAMES);
   });
 
   it('since 는 YYYY-MM-DD 이거나 비어 있어야 한다', () => {

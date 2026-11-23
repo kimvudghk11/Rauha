@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DigestRepo } from '../domain/repo-digest.js';
 import type { WorkspaceFacts } from '../application/workspace-facts.js';
+import { WorkspaceToolAccess } from '../domain/workspace-tools.js';
 import { WORKSPACE_SERVER, withWorkspace, workspaceToolHandlers, type WorkspaceToolName } from './workspace-mcp.js';
 
 const repos: DigestRepo[] = [
@@ -42,6 +43,37 @@ describe('rauha 작업 공간 도구', () => {
     const asked: string[] = [];
     await workspaceToolHandlers(facts({ myCommits: async (s) => (asked.push(s), []) }), () => undefined).my_commits!({});
     expect(asked).toEqual(['2026-11-17']);
+  });
+
+  it('add_todo 는 할 일 탭에 카드 하나(여럿이면 체크리스트)를 넣고 결과 한 줄을 돌려준다', async () => {
+    const added: unknown[] = [];
+    const out = await run(facts({ addTodo: async (c) => (added.push(c), '할 일 탭에 넣었어요') }), 'add_todo', { title: ' 배포 전 확인 ', checklist: ['VPN', ' ', 'DB'] });
+    expect(out).toBe('할 일 탭에 넣었어요');
+    expect(added).toEqual([{ title: '배포 전 확인', note: '', checklist: ['VPN', 'DB'] }]);
+  });
+
+  it('remember 는 rauha 기억에 글을 남기고, 빈 글이면 고칠 수 있는 오류', async () => {
+    const saved: unknown[] = [];
+    const f = facts({ remember: async (n) => (saved.push(n), 'rauha 기억에 남겼어요') });
+    expect(await run(f, 'remember', { title: 'memory.md', text: '회사 VPN 은 …', source: '/Users/me/memory.md' })).toBe('rauha 기억에 남겼어요');
+    expect(saved).toEqual([{ title: 'memory.md', text: '회사 VPN 은 …', source: '/Users/me/memory.md' }]);
+    const bad = await workspaceToolHandlers(f, () => undefined).remember!({ title: 'x', text: '  ' });
+    expect(bad.isError).toBe(true);
+  });
+
+  it('keep_rule 은 절대 경로만 받고, 막힌 이유(비밀 파일 등)를 그대로 돌려준다', async () => {
+    const f = facts({ keepRule: async (p) => (p.endsWith('.env') ? Promise.reject(new Error('That file may hold secrets')) : `항상 따를 룰로 남겼어요: ${p}`) });
+    expect(await run(f, 'keep_rule', { path: '/Users/me/repos/rules/RULES.md' })).toContain('RULES.md');
+    expect((await workspaceToolHandlers(f, () => undefined).keep_rule!({ path: 'RULES.md' })).isError).toBe(true);
+    const secret = await workspaceToolHandlers(f, () => undefined).keep_rule!({ path: '/a/.env' });
+    expect(secret).toMatchObject({ isError: true, content: [{ text: 'That file may hold secrets' }] });
+  });
+
+  it('rauha 에 쓰는 도구는 메인 채팅 Claude 에게만 붙는다', () => {
+    const kits = (role: Parameters<typeof WorkspaceToolAccess.toolsFor>[0]) => withWorkspace({ servers: {}, tools: [] }, facts({ addTodo: async () => '', remember: async () => '', keepRule: async () => '' }), () => undefined, WorkspaceToolAccess.toolsFor(role)).tools;
+    expect(kits('direct')).toEqual(expect.arrayContaining(['mcp__rauha__add_todo', 'mcp__rauha__remember', 'mcp__rauha__keep_rule']));
+    expect(kits('answerer').some((t) => /add_todo|remember|keep_rule/.test(t))).toBe(false);
+    expect(kits('implementer').some((t) => /add_todo|remember|keep_rule/.test(t))).toBe(false);
   });
 
   it('todo_list 는 할 일 탭의 끝나지 않은 할 일을 보이고, 할 일 탭이 없으면 도구 자체가 붙지 않는다', async () => {

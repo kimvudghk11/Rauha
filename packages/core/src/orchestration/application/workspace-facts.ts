@@ -40,4 +40,12 @@ export interface WorkspaceFacts {
   readonly dependencies?: ((repos: readonly WorkspaceRepo[]) => Promise<readonly Manifest[]>) | undefined;
   /** 저장소 안 CSV·TSV·XLSX 파일의 시트들(비밀 파일은 던진다) */
   readonly readSpreadsheet?: ((repo: WorkspaceRepo, path: string) => Promise<readonly SheetData[]>) | undefined;
+
+  // ── rauha 앱 자체에 쓰기(작업 폴더 파일이 아니다). 메인 채팅 Claude 에게만 붙는다 ──
+  /** 할 일 탭에 카드 하나(checklist 가 있으면 체크리스트). 결과 한 줄을 돌려준다. 규칙을 어기면 이유를 담아 던진다 */
+  readonly addTodo?: ((card: { readonly title: string; readonly note: string; readonly checklist: readonly string[] }) => Promise<string>) | undefined;
+  /** rauha 기억에 글을 남긴다(같은 제목이면 바꾼다). 다음 대화부터 모든 팀원에게 붙는다 */
+  readonly remember?: ((note: { readonly title: string; readonly text: string; readonly source: string | null }) => Promise<string>) | undefined;
+  /** 룰 파일(절대 경로)을 항상 따를 규칙으로 남긴다. 원본은 읽기만 하고 호출 때마다 지금 내용을 붙인다 */
+  readonly keepRule?: ((path: string) => Promise<string>) | undefined;
 }

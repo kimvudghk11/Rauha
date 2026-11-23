@@ -246,6 +246,13 @@ export function buildSettings(api: SettingsApi, onLayout: (layout: 'A' | 'B' | '
     flow.addEventListener('change', () => void api.update({ analysisFlow: flow.checked }));
     page.appendChild(section('Analysis', row('Use analysis steps (research → compare → design/plan)', flow), el('div', 'hint pad', 'Used only for requests that ask for causes, risks or approaches. When off, analysis is a single teammate call with no question cards. Applies from the next request.')));
 
+    // 내 Claude Code 지시(~/.claude/CLAUDE.md 와 그 @import)를 rauha 팀원에게도 건다
+    const claudeMd = el('input');
+    claudeMd.type = 'checkbox';
+    claudeMd.checked = s.useClaudeMd;
+    claudeMd.addEventListener('change', () => void api.update({ useClaudeMd: claudeMd.checked }));
+    page.appendChild(section('Claude Code setup', row('Follow my ~/.claude/CLAUDE.md (and its @imports)', claudeMd), el('div', 'hint pad', 'Rules you load into Claude Code, such as a team rules repo imported with @path, apply to rauha too. rauha only reads these files.')));
+
     // 모델 이름: 등급마다 부를 모델 ID(계정마다 쓸 수 있는 모델이 다르다)
     page.appendChild(section('Models', ...buildModels(s.models, (models) => api.update({ models }).then(render))));
     if (styleParts !== null) page.appendChild(section('Your style', ...styleParts.parts));

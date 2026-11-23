@@ -261,7 +261,7 @@ function show(id: TabId): void {
     if (!fresh) recordsView.reopen();
   }
   else if (id === 'commands') screen.replaceChildren(buildCommands(commandsApi(window.rauha, (b) => (commandBook = b))).root);
-  else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid), update: (r) => window.rauha.updateRule(r), defaults: { list: () => window.rauha.listDefaultRules(), apply: (op) => window.rauha.applyDefaultRule(op) } }).root);
+  else if (id === 'rules') screen.replaceChildren(buildRules({ draft: (s) => window.rauha.draftRule(s), list: () => window.rauha.listRules(), add: (r) => window.rauha.addRule(r), remove: (rid) => window.rauha.removeRule(rid), update: (r) => window.rauha.updateRule(r), defaults: { list: () => window.rauha.listDefaultRules(), apply: (op) => window.rauha.applyDefaultRule(op) }, notebook: window.rauha.notebook }).root);
   else {
     const soon = el('div', 'soon');
     soon.append(el('b', undefined, tab.label), el('span', undefined, 'Coming soon'));

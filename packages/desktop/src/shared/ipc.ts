@@ -24,6 +24,7 @@ import type { ConnectorApi } from './connector-api.js';
 import type { PluginApi } from './plugin-api.js';
 import type { DockerApi } from './docker-api.js';
 import type { VpnApi } from './vpn-api.js';
+import type { NotebookApi } from './notebook-api.js';
 import type { AwsApi } from './aws-api.js';
 import type { LoginView } from './claude-login.js';
 import type { AccountCheck } from './account-state.js';
@@ -276,6 +277,8 @@ export interface RauhaApi {
   removeTerminalRauha(paths: readonly string[]): Promise<readonly string[]>;
   readonly update: UpdateApi;
   readonly todo: TodoApi;
+  /** rauha 노트(기억·항상 룰): 규칙 탭에서 보고 지운다 */
+  readonly notebook: NotebookApi;
   readonly records: RecordsApi;
   /** 이 컴퓨터의 Claude Code 대화 내역(rauha 밖에서 한 대화 포함, 읽기만) */
   readonly claudeHistory: ClaudeHistoryApi;

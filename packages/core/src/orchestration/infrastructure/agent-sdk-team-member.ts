@@ -42,6 +42,10 @@ export interface AgentSdkTeamMemberOptions {
   readonly alwaysRules?: () => string;
   /** 사용자 말에서 배운 답변·작업 취향(스타일 그래프). 팀원 시스템 프롬프트 끝에 붙는다. 없으면 빈 글. */
   readonly styleNotes?: () => string;
+  /** 사용자의 Claude Code 지시(~/.claude/CLAUDE.md 와 @import 를 이은 글). 팀원도 Claude Code 처럼 따른다. 없으면 빈 글. */
+  readonly claudeMd?: () => string;
+  /** 사용자가 rauha 에 저장해 둔 기억(rauha 노트). 없으면 빈 글. */
+  readonly memoryNotes?: () => string;
   /** 작업 폴더 밖에서 읽기만 허락할 폴더들(예: 사용자가 채팅에 붙인 이미지가 있는 임시 폴더). 쓰기는 늘어나지 않는다. */
   readonly readRoots?: readonly string[];
   /** 사용자가 연결한 커넥터(노션·컨플루언스 …). 'connectors' 도구 묶음을 고른 호출에만 붙인다. 부를 때마다 최신 목록. */
@@ -274,7 +278,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
 
   /** 사용자가 정한 "항상 지킬 것"을 시스템 프롬프트 끝에 붙인다(rauha 개발 규칙이 아니라 사용자 규칙이다). */
   private withAlwaysRules(system: string): string {
-    return withUserNotes(system, this.options.alwaysRules?.() ?? '', this.options.styleNotes?.() ?? '');
+    return withUserNotes(system, this.options.alwaysRules?.() ?? '', this.options.styleNotes?.() ?? '', { claudeMd: this.options.claudeMd?.() ?? '', memory: this.options.memoryNotes?.() ?? '' });
   }
 
   private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session, db: LinkedDatabase | null = null): Options {
@@ -322,10 +326,14 @@ export class AgentSdkTeamMember implements TeamMemberPort {
  * 플러그인 폴더만 SDK plugins 로 넘긴다. 플러그인의 MCP 서버는 붙이지 않는다(업무 도구는 커넥터 화면에서 연결하고 쓰기를 가드가 묻는다).
  */
 /** 시스템 프롬프트 끝에 사용자 규칙("항상 지킬 것")과 사용자 말에서 배운 취향을 붙인다. 둘 다 없으면 그대로 */
-export function withUserNotes(system: string, rules: string, style: string): string {
+export function withUserNotes(system: string, rules: string, style: string, more: { readonly claudeMd?: string; readonly memory?: string } = {}): string {
   const parts = [system];
+  const claudeMd = more.claudeMd?.trim() ?? '';
+  if (claudeMd !== '') parts.push(`<claude-md>\n사용자가 Claude Code 에 걸어 둔 지시(~/.claude/CLAUDE.md 와 그 @import)입니다. Claude Code 에서처럼 그대로 따르세요.\n${claudeMd}\n</claude-md>`);
   if (rules !== '') parts.push(`<user-rules>\n사용자가 항상 지키라고 정한 규칙입니다.\n${rules}\n</user-rules>`);
   if (style !== '') parts.push(`<user-style>\n사용자가 답변과 작업 방식에 대해 직접 말한 취향입니다. 결과와 보고를 이 취향에 맞추세요. 규칙·권한·사실 확인보다 앞서지는 않습니다.\n${style}\n</user-style>`);
+  const memory = more.memory?.trim() ?? '';
+  if (memory !== '') parts.push(`<rauha-memory>\n사용자가 rauha 에 저장해 둔 기억입니다(rauha 데이터 폴더). 다시 읽지 않아도 됩니다. 지금 상태와 다를 수 있으니 바뀌었을 만한 사실은 확인하세요.\n${memory}\n</rauha-memory>`);
   return parts.join('\n\n');
 }
 

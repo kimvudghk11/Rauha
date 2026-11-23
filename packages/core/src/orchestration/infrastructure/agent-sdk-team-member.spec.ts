@@ -144,4 +144,12 @@ describe('withUserNotes', () => {
     expect(text).toContain('- 추측 말고 확인한 것만');
     expect(text).toContain('사실 확인보다 앞서지는 않습니다');
   });
+  it('사용자의 Claude Code 설정(CLAUDE.md·import)은 claude-md 로 규칙 앞에, rauha 기억은 rauha-memory 로 끝에 붙는다', () => {
+    const text = withUserNotes('SYS', '- 규칙', '', { claudeMd: '회사 룰: DDD', memory: '## memory.md\nVPN 은 …' });
+    expect(text.indexOf('<claude-md>')).toBeLessThan(text.indexOf('<user-rules>'));
+    expect(text).toContain('회사 룰: DDD');
+    expect(text.indexOf('<rauha-memory>')).toBeGreaterThan(text.indexOf('<user-rules>'));
+    expect(text).toContain('VPN 은 …');
+    expect(withUserNotes('SYS', '', '', { claudeMd: '', memory: '' })).toBe('SYS');
+  });
 });
