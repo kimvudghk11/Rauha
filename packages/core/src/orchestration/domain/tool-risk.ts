@@ -151,6 +151,13 @@ function assessAws(args: readonly string[]): ToolVerdict {
   return ask(`AWS 변경 (aws ${service} ${operation})`);
 }
 
+/** 쓰기 명령 이름이지만 목록만 보는 꼴: `git stash list|show`, `git tag`(인자 없이)·`git tag -l|--list|-n|--contains|--sort…` */
+function gitListsOnly(sub: string, after: readonly string[]): boolean {
+  if (sub === 'stash') return after[0] === 'list' || after[0] === 'show';
+  if (sub === 'tag') return after.every((a) => /^(-l|--list|-n\d*|--contains|--merged|--no-merged|--points-at|--sort=.*|--format=.*|--column|-i|--ignore-case)$/.test(a) || !a.startsWith('-')) && (after.length === 0 || after.some((a) => /^(-l|--list|-n\d*|--contains|--merged|--no-merged|--points-at)$/.test(a)));
+  return false;
+}
+
 /** `git switch -c <이름> [시작점]`, `git checkout -b <이름> [시작점]`: 새 브랜치를 만들어 옮길 뿐 작업 트리의 변경을 버리지 않는다. */
 function createsBranchOnly(sub: string, after: readonly string[]): boolean {
   const flags = sub === 'switch' ? ['-c', '--create'] : sub === 'checkout' ? ['-b'] : [];
@@ -223,6 +230,7 @@ function assessSegment(words: readonly string[], intent: GitPublishIntent): Tool
       return worst([own, ...nested]);
     }
     if (createsBranchOnly(sub, args.slice(args.indexOf(sub) + 1))) return ALLOW;
+    if (gitListsOnly(sub, args.slice(args.indexOf(sub) + 1))) return ALLOW;
     if (GIT_WRITES.has(sub)) return ask(`git 쓰기 (git ${sub})`);
     if (sub === 'branch' && args.some((a) => /^-(d|D|-delete)$/.test(a))) return ask('git 쓰기 (브랜치 삭제)');
     return ALLOW;

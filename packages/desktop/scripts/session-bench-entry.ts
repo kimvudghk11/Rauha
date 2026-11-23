@@ -57,7 +57,8 @@ async function main(): Promise<void> {
   // 앱처럼 차례(일)마다 팀 세션을 새로 만든다: 끝나면 기억 DB 를 닫고, 앞 대화는 저장된 대화 파일로 이어진다
   const fresh = () =>
     composeSession(
-      { home, prompts, profileFor, plan: () => null },
+      // RAUHA_BENCH_DIRECT=1: 앱처럼 메인 채팅 기본(원문 그대로 Claude)으로 잰다
+      { home, prompts, profileFor, plan: () => null, ...(process.env['RAUHA_BENCH_DIRECT'] === '1' ? { direct: true } : {}) },
       keyRoot,
       {
         progress: { step: (line: string) => void steps.push(line) } as never,

@@ -39,6 +39,11 @@ describe('ToolRisk', () => {
     }
   });
 
+  it('쓰기 명령 이름이어도 목록만 보는 꼴(stash list·show, tag 목록)은 묻지 않는다(확인하다 허락 카드가 뜨지 않게)', () => {
+    for (const cmd of ['git stash list', 'git stash show -p stash@{0}', 'git tag', 'git tag -l "v0.*"', 'git tag --list --sort=-v:refname', 'git tag -n5', 'git branch -a && git stash list && git tag --contains HEAD']) expect(bash(cmd), cmd).toBe('allow');
+    for (const cmd of ['git stash pop', 'git stash drop', 'git stash push -m x', 'git tag v1.0.0', 'git tag -d v1', 'git tag -a v1 -m x', 'git tag -f v1']) expect(bash(cmd), cmd).toBe('ask');
+  });
+
   it('파일 이름을 바꾸는 git mv는 그냥 mv처럼 묻지 않는다(되돌릴 수 있는 이름 바꾸기)', () => {
     expect(bash('git mv src/cart.ts src/cart/total.ts')).toBe('allow');
     expect(bash('mv src/cart.ts src/cart/total.ts')).toBe('allow');
