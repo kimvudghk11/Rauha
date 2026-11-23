@@ -191,6 +191,8 @@ const effectiveRules = (): RuleBook => RuleBook.of([...ruleBook.rules, ...defaul
 const FAKE = process.env['RAUHA_FAKE_TEAM'] === '1';
 
 const home = homedir();
+/** AWS 작업 팀원에게 붙일 지금 AWS 상태 한 줄. AWS 탭(registerAwsIpc)이 준비되면 채운다 */
+let awsNowText: () => string = () => '';
 /** 사용자 설정(작업 폴더·계정·알림·동시 실행 수 …). 시작할 때 파일에서 읽는다. */
 const commandStore = new CommandStore(join(homedir(), '.rauha', 'desktop', 'commands.json'));
 const settingsStore = new SettingsStore(join(homedir(), '.rauha', 'desktop', 'settings.json'));
@@ -386,7 +388,7 @@ async function startRunner(): Promise<JobRunner> {
               await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
-              const session = composeSession({ home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
+              const session = composeSession({ home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), awsNow: () => awsNowText(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: target.also });
               const mentioned = codeFiles === null ? [] : await resolveMentions(target.text, codeFiles);
               // 이어서 묻기면 앞 작업 맥락을 붙인 글을 넘긴다
               const ask = followContext.get(job.id) ?? target.text;
@@ -1208,6 +1210,8 @@ void app.whenReady().then(async () => {
       return result.canceled || result.filePaths[0] === undefined ? null : result.filePaths[0];
     },
   });
+  // AWS 작업 팀원에게 붙일 지금 상태(프로필·리전·VPN). 설정 파일만 읽는다
+  awsNowText = () => awsParts.aws.nowLine(awsParts.vpn.active());
   dbService = registerDbIpc(ipcMain, {
     dataDir,
     safeStorage,

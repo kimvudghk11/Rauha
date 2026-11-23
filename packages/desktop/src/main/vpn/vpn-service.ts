@@ -329,6 +329,12 @@ export class VpnService {
     await rm(this.deps.runDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }).catch(() => {});
   }
 
+  /** 연결된 VPN 의 이름과 대역(팀원에게 알려 줄 때) */
+  active(): { readonly name: string; readonly routes: readonly string[] } | null {
+    const e = this.entries.find((x) => x.status.view().phase === 'connected');
+    return e === undefined ? null : { name: e.profile.summary().name, routes: e.profile.summary().allTraffic ? [] : e.profile.summary().routes };
+  }
+
   profileCount(): number {
     return this.entries.length;
   }

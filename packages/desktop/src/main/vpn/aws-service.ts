@@ -1,10 +1,10 @@
 import { execFile, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import type { AwsProfilesView, AwsResult, AwsWho } from '../../shared/aws-api.js';
-import { AwsProfiles, callerOf } from '../../shared/aws-profiles.js';
+import { AwsProfiles, awsNowLine, callerOf } from '../../shared/aws-profiles.js';
 import { terminalLine } from '../../shared/external-ai.js';
 
 export interface AwsServiceDeps {
@@ -51,6 +51,20 @@ export class AwsService {
     const credPath = this.deps.env['AWS_SHARED_CREDENTIALS_FILE'] ?? join(dir, 'credentials');
     const [config, cred] = await Promise.all([readFile(configPath, 'utf8').catch(() => ''), readFile(credPath, 'utf8').catch(() => '')]);
     return AwsProfiles.read(config, cred);
+  }
+
+  /** 팀원에게 붙일 지금 AWS 상태 한 줄(설정 파일만 읽는다, 모델·CLI 없음) */
+  nowLine(vpn: { readonly name: string; readonly routes: readonly string[] } | null): string {
+    const dir = join(this.deps.home, '.aws');
+    const read = (p: string): string => {
+      try {
+        return readFileSync(p, 'utf8');
+      } catch {
+        return '';
+      }
+    };
+    const profiles = AwsProfiles.read(read(this.deps.env['AWS_CONFIG_FILE'] ?? join(dir, 'config')), read(this.deps.env['AWS_SHARED_CREDENTIALS_FILE'] ?? join(dir, 'credentials')));
+    return awsNowLine(profiles, this.deps.env, vpn);
   }
 
   async profiles(): Promise<AwsProfilesView> {

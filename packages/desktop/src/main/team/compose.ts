@@ -168,6 +168,8 @@ export interface ComposeOptions {
   readonly plugins?: (() => readonly PluginLoad[]) | undefined;
   /** 레포 폴더에 연결된 DB(DB 탭에 저장한 연결 중 레포 설정과 맞는 것). 코드 작업 팀원에게 읽기 전용 도구로 붙는다. 없으면 붙이지 않는다. */
   readonly database?: ((repoRoot: string) => Promise<LinkedDatabase | null>) | undefined;
+  /** 지금 AWS 상태 한 줄(프로필·리전·VPN). AWS 작업 팀원에게만 붙는다. 없으면 붙이지 않는다. */
+  readonly awsNow?: (() => string) | undefined;
 }
 
 /** 작업 공간(rauha가 여는 폴더)과 그 안의 레포들, 그리고 이번 요청이 가리킨 다른 레포들(읽기만) */
@@ -246,6 +248,7 @@ export function composeSession(options: ComposeOptions, root: string, io: TeamIo
     ...(options.database !== undefined ? { database: () => options.database!(keyRoot) } : {}),
     ...(options.rules !== undefined ? { rules: (tool: string, detail: string) => options.rules!().verdictFor(tool, detail, keyRoot), alwaysRules: () => options.rules!().alwaysTexts(keyRoot).map((t) => `- ${t}`).join('\n') } : {}),
     ...(options.styleNotes !== undefined ? { styleNotes: options.styleNotes } : {}),
+    ...(options.awsNow !== undefined ? { awsNow: options.awsNow } : {}),
   });
   const team = stoppable(new ModelRoutingTeam(inner, () => ModelSettingsDto.from(options.models?.()).toEntity(), (line) => {
     io.progress.step(line);

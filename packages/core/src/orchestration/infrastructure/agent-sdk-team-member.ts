@@ -52,6 +52,13 @@ export interface AgentSdkTeamMemberOptions {
   readonly plugins?: () => readonly PluginLoad[];
   /** rauha 작업 공간 사실(레포 목록·최근 변경·내 커밋·할 일). 답변·문서·분석 팀원(WorkspaceToolAccess)에게 읽기 전용 도구(mcp__rauha__*)로 붙인다. */
   readonly workspace?: () => WorkspaceFacts | undefined;
+  /** 지금 AWS 상태 한 줄(프로필·리전·VPN). AWS 도구 묶음을 붙인 호출에만 붙인다. 팀원이 이걸 알아내려고 쓰는 턴을 없앤다. 없으면 빈 글. */
+  readonly awsNow?: () => string;
+}
+
+/** AWS 도구 묶음을 붙인 호출에만 지금 AWS 상태를 덧붙인다(로그인·계정 확인은 여전히 CLI 로 — 이 줄은 출발점일 뿐) */
+export function withAwsNow(system: string, kits: readonly string[], line: string): string {
+  return !kits.includes('aws') || line.trim() === '' ? system : `${system}\n\n<aws_now>\nrauha 가 이 호출 직전에 본 AWS 상태입니다. 계정별 사실을 말하기 전에는 여전히 aws CLI 로 확인하세요.\n${line.trim()}\n</aws_now>`;
 }
 
 /** 팀원 세션에 붙일 플러그인 폴더 하나 */
@@ -269,7 +276,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const facts = allowed.length > 0 ? this.options.workspace?.() : undefined;
     const kits = withWorkspace(withDatabase(withConnectors(kitServers(call.kits ?? [], this.options.env), (call.kits ?? []).includes('connectors') ? this.options.connectors?.() : undefined), db), facts, (paths) => session.opened.push(...paths), allowed);
     const base = this.options.prompts.system(call.role, call.kits ?? []);
-    const system = kits.guide === '' ? base : `${base}\n\n${kits.guide}`;
+    const system = withAwsNow(kits.guide === '' ? base : `${base}\n\n${kits.guide}`, call.kits ?? [], (call.kits ?? []).includes('aws') ? (this.options.awsNow?.() ?? '') : '');
     const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? [], call.setting.plugins !== false);
     return {
       ...LEAN_SESSION,

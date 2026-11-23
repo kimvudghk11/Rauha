@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AwsProfiles, callerOf } from './aws-profiles.js';
+import { AwsProfiles, awsNowLine, callerOf } from './aws-profiles.js';
 
 const CONFIG = `[default]
 region = ap-northeast-2
@@ -58,6 +58,26 @@ describe('AWS 프로필 목록', () => {
 
   it('파일이 없거나 비어도 빈 목록이다', () => {
     expect(AwsProfiles.read('', '').list()).toEqual([]);
+  });
+});
+
+describe('팀원에게 붙이는 지금 AWS 상태 한 줄', () => {
+  const p = AwsProfiles.read(CONFIG, CREDENTIALS);
+
+  it('AWS_PROFILE 이 가리키는 프로필과 그 리전, 다른 프로필, VPN 을 적는다', () => {
+    expect(awsNowLine(p, { AWS_PROFILE: 'company-dev' }, { name: '회사', routes: ['172.31.0.0/16'] })).toBe('profile=company-dev (SSO) · region=ap-northeast-2 · 다른 프로필: default, personal, old-keys · VPN: "회사" 연결됨, 172.31.0.0/16');
+  });
+
+  it('AWS_PROFILE 이 없으면 default, AWS_REGION 이 있으면 그 리전', () => {
+    expect(awsNowLine(p, { AWS_REGION: 'us-west-2' }, null)).toMatch(/^profile=default \(access keys\) · region=us-west-2 · .* · VPN: 꺼짐$/);
+  });
+
+  it('키 값은 담지 않는다', () => {
+    expect(awsNowLine(p, {}, null)).not.toMatch(/SECRET|AKIA/);
+  });
+
+  it('프로필도 VPN 도 없으면 빈 글(붙이지 않는다)', () => {
+    expect(awsNowLine(AwsProfiles.read('', ''), {}, null)).toBe('');
   });
 });
 

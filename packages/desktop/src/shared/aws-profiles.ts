@@ -67,6 +67,26 @@ export class AwsProfiles {
   }
 }
 
+/**
+ * 팀원에게 붙여 줄 "지금 AWS 상태" 한 줄. 모델 호출·CLI 없이 설정 파일·환경 변수·VPN 상태만으로 만든다.
+ * 예: "profile=company-dev (SSO) · region=ap-northeast-2 · 다른 프로필: default, personal · VPN: \"회사\" 연결됨, 172.31.0.0/16"
+ */
+export function awsNowLine(profiles: AwsProfiles, env: Readonly<Record<string, string | undefined>>, vpn: { readonly name: string; readonly routes: readonly string[] } | null): string {
+  const list = profiles.list();
+  if (list.length === 0 && vpn === null) return '';
+  const name = env['AWS_PROFILE'] ?? env['AWS_DEFAULT_PROFILE'] ?? 'default';
+  const current = list.find((p) => p.name === name);
+  const region = env['AWS_REGION'] ?? env['AWS_DEFAULT_REGION'] ?? current?.region ?? null;
+  const parts = [
+    current === undefined ? `profile=${name} (설정 파일에 없음)` : `profile=${name}${current.sso ? ' (SSO)' : current.keys ? ' (access keys)' : ''}`,
+    `region=${region ?? '정하지 않음'}`,
+  ];
+  const others = list.filter((p) => p.name !== name).map((p) => p.name);
+  if (others.length > 0) parts.push(`다른 프로필: ${others.slice(0, 8).join(', ')}`);
+  parts.push(vpn === null ? 'VPN: 꺼짐' : `VPN: "${vpn.name}" 연결됨${vpn.routes.length > 0 ? `, ${vpn.routes.join(', ')}` : ', 모든 접속'}`);
+  return parts.join(' · ');
+}
+
 /** `aws sts get-caller-identity --output json` → 계정 번호와 누구인지(역할/사용자 이름) */
 export function callerOf(json: string): { readonly account: string; readonly who: string } | null {
   try {
