@@ -384,7 +384,10 @@ async function startRunner(): Promise<JobRunner> {
             const repoHere = await insideRepo(root);
             if (startsAsNewProject({ ...folderFacts(root), insideRepo: repoHere, entries: readdirSync(root) })) await initRepo(root).catch(() => undefined);
             // 같은 레포에 두 번째로 오는 작업은 자기 worktree에서 일한다(첫 작업은 원래 폴더). git 이 아닌 상위 폴더는 함께 원래 폴더에서
-            const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`), await isRepoTop(root));
+            // 저장소 맨 위가 아닌 폴더(여러 레포를 담은 상위 폴더, 홈 전체가 저장소인 PC)는 worktree·변경 기록·되돌리기를 하지 않는다:
+            // 바깥 저장소(홈 전체)의 git 상태를 이 일의 변경으로 잡거나 되돌리지 않게
+            const repoTop = await isRepoTop(root);
+            const claim = ledger.claim(job.id, root, () => join(worktreeRoot(), `${basename(root)}-${job.id.slice(0, 8)}`), repoTop);
             ledger = claim.ledger;
             const cwd = claim.place.kind === 'worktree' ? claim.place.path : root;
             jobRoots.set(job.id, cwd);
@@ -396,9 +399,9 @@ async function startRunner(): Promise<JobRunner> {
                 // worktree는 HEAD에서 만들어져 앞 업무가 남긴 커밋 안 한 파일이 없다 → 앞 대화가 가리키는 파일만(비밀·링크 제외) 복사해 이어 일하게 한다
                 await carryPreviousFiles(root, cwd).catch(() => undefined);
               }
-              before = await snapshotChanges(cwd);
+              before = repoTop ? await snapshotChanges(cwd) : null;
               // 되돌리기·변경 보기를 위한 기준(HEAD·시작 때 파일 상태). worktree 작업은 그 브랜치가 체크포인트다.
-              await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
+              if (repoTop) await checkpoints.begin(job.id, { repoRoot: root, cwd, place: claim.place.kind === 'worktree' ? 'worktree' : 'repo' });
               // 채팅에 붙인 이미지: 팀원은 이 임시 폴더만 읽을 수 있고(Read), 요청 앞에 그 경로를 적어 준다
               const staged = jobImages.get(job.id);
               const session = composeSession({ direct: true, notebook: notebookService, claudeMd: claudeMdText, addTodo: addOneTodo, home, addTodos: addChatTodos, openTodos: openChatTodos, ...(FAKE ? {} : { actions: actionsClient }), prompts, profileFor, plan: () => usage.current().plan, claudeExecutable: claudeExecutable(), rules: effectiveRules, roleOverrides: () => team.overrides(), analysis: () => settings.analysisFlow, models: () => settings.models, styleNotes: () => styleStore.promptBlock(), awsNow: () => awsNowText(), onFallback: (line) => fallbacks.add(line), readRoots: staged === undefined ? [] : [staged.dir], connectors: () => connectorService?.servers() ?? { servers: {}, tools: [], names: [] }, plugins: () => pluginService?.loads() ?? [], database: (repo) => (dbService === null ? Promise.resolve(null) : linkRepoDatabase(repo, dbService)) }, cwd, io, root, { workspaceRoot: currentWorkDir(), repos: all, also: picked !== null ? target.also : [] });
