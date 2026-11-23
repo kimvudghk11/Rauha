@@ -16,6 +16,7 @@ import { buildApi } from './api-view.js';
 import { buildDb } from './db-view.js';
 import { buildDocker } from './docker-view.js';
 import { buildAws } from './aws-view.js';
+import { vpnChatIntent, vpnChatReply, type VpnChatIntent } from '../shared/vpn-chat.js';
 import { buildCommands, commandsApi } from './commands-view.js';
 import { useCharacterSet, useLooks } from './characters.js';
 import { repaintAll } from './stage.js';
@@ -291,6 +292,29 @@ const runner = createRunner({
   board: () => lastBoard,
   api: window.rauha,
 });
+/** 채팅의 VPN 말: 할 일을 하고 결과를 채팅에 남긴다. 연결은 끝날 때(연결됨·실패)까지 최대 30초 지켜본다 */
+async function handleVpnChat(intent: VpnChatIntent): Promise<void> {
+  const { act, say } = vpnChatReply(intent, await window.rauha.vpn.list());
+  chat.notice(say);
+  if (act === null) return;
+  if (act.kind === 'open-tab') return show('aws');
+  if (act.kind === 'disconnect') {
+    const r = await window.rauha.vpn.disconnect(act.id);
+    chat.notice(r.ok ? 'VPN 을 끊었어요.' : r.error);
+    return;
+  }
+  const r = await window.rauha.vpn.connect(act.id);
+  if (!r.ok) return chat.notice(r.error);
+  for (let i = 0; i < 60; i++) {
+    const p = (await window.rauha.vpn.list()).profiles.find((x) => x.id === act.id);
+    if (p === undefined) return;
+    if (p.status.phase === 'connected') return chat.notice(`연결됐어요${p.status.ip !== null ? ` (VPN 주소 ${p.status.ip})` : ''}.`);
+    if (p.status.phase === 'failed' || p.status.phase === 'off') return chat.notice(`연결하지 못했어요: ${p.status.detail || '이유를 모름'}`);
+    await new Promise((res) => setTimeout(res, 500));
+  }
+  chat.notice('아직 연결 중이에요. AWS 탭에서 상태를 볼 수 있어요.');
+}
+
 /** 캐릭터 세트를 적용하고, 이미 그려진 채팅 메인 칸(얼굴·안내)을 다시 그린다. 시작할 때와 설정에서 바꿀 때 같은 것을 쓴다 */
 function applyCharacterSet(id: string): void {
   useCharacterSet(id);
@@ -306,7 +330,15 @@ void window.rauha.getCommands().then((json) => (commandBook = CommandBookDto.fro
 
 // ── 채팅 ──
 const chat = buildChat({
-  intercept: (text) => runner.intercept(text),
+  intercept: async (text) => {
+    // "VPN 켜줘·꺼줘·상태" 는 모델을 부르지 않고 바로 한다(토큰 0)
+    const vpnIntent = vpnChatIntent(text);
+    if (vpnIntent !== null) {
+      void handleVpnChat(vpnIntent);
+      return null;
+    }
+    return runner.intercept(text);
+  },
   suggest: (text) => commandBook.suggest(text),
   submit: (text, images) => window.rauha.submit(text, images),
   askOther: (id, text) => window.rauha.externalAi.ask(id, text),
