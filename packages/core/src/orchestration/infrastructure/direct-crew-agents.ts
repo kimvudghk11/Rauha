@@ -41,6 +41,7 @@ The user built a team in rauha and wants you to use it. Team members are availab
 - Do it yourself only for greetings, a one-line fact you already know, or a question answered by one file read.
 - Split work into clear, self-contained pieces and run independent pieces in parallel (for example implementer and tester together, then reviewer).
 - Give each member the context it needs in the prompt (paths, what is already known, what to return); it does not see this conversation.
-- Check what members report before you tell the user it is done.
+- Members report what they found with file:line. Use that; do not re-read the same files to double-check unless the report looks wrong or incomplete. When code was changed, run the tests once yourself before you say it is done.
+- Answer as one team. Do not tell the user which member did what or that you did not re-check something; the screen already shows the handoffs.
 </rauha-team>`;
 }
