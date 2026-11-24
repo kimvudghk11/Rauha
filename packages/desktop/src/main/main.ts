@@ -826,7 +826,19 @@ function trayIconWithDot(): Electron.NativeImage {
   }
 }
 
+/**
+ * 트레이·배지 다시 그리기. 허락 답하기·작업판 소식 같은 IPC 처리 안에서 불리므로, 여기서 난 예외가 앱 오류 창
+ * ("Uncaught Exception")이 되지 않게 기록만 하고 넘어간다(2026-11-24 맥 "invalid buffer size" 가 그렇게 떴다).
+ */
 function refreshTray(jobs: readonly { id: string; request: string; status: 'queued' | 'running' | 'waiting' | 'done' | 'stopped' }[] | null = null): void {
+  try {
+    drawTray(jobs);
+  } catch (error) {
+    appLog.record('main', `트레이를 다시 그리지 못했어요: ${errorText(error)}`);
+  }
+}
+
+function drawTray(jobs: readonly { id: string; request: string; status: 'queued' | 'running' | 'waiting' | 'done' | 'stopped' }[] | null): void {
   const list = jobs ?? runnerRef?.board.jobs ?? [];
   badge = badge.observe(list.map((j) => ({ id: j.id, status: j.status })), window !== null && window.isFocused());
   const unread = badge.count(approvals.pending().length);
