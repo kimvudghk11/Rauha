@@ -1030,7 +1030,22 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
   const { writeFileSync } = await import('node:fs');
   const only = process.env['RAUHA_SMOKE_REQUEST'];
   for (const text of only !== undefined ? [only] : ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림']) runner.submit(text);
-  await new Promise((r) => setTimeout(r, Number(process.env['RAUHA_SMOKE_WAIT'] ?? '4300')));
+  // 확인용: RAUHA_SMOKE_EVERY=ms 면 일이 도는 동안 그 간격으로 화면(path-1.png …)과 진행 줄을 남기고, 일이 다 끝나면 기다림을 끝낸다
+  const every = Number(process.env['RAUHA_SMOKE_EVERY'] ?? '0');
+  const until = Date.now() + Number(process.env['RAUHA_SMOKE_WAIT'] ?? '4300');
+  if (every > 0) {
+    for (let n = 1; Date.now() < until; n += 1) {
+      await new Promise((r) => setTimeout(r, every));
+      // RAUHA_SMOKE_OPEN=선택자: 그 차례에 한 번 누른다(예: 진행 보기를 열어 무대를 찍는다)
+      const open = process.env['RAUHA_SMOKE_OPEN'];
+      if (open !== undefined && n === Number(process.env['RAUHA_SMOKE_OPEN_AT'] ?? '2')) await window!.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(open)})?.click()`);
+      const shot = await window!.webContents.capturePage();
+      writeFileSync(path.replace(/\.png$/, `-${n}.png`), shot.toPNG());
+      const jobs = boardView(runner.board, threads).jobs;
+      console.log('TICK', n, JSON.stringify(jobs.map((j) => ({ status: j.status, role: j.role, cast: j.cast, notes: j.notes.map((x) => `${x.role ?? '-'}: ${x.message}`) }))));
+      if (jobs.every((j) => j.status === 'done' || j.status === 'stopped')) break;
+    }
+  } else await new Promise((r) => setTimeout(r, Math.max(0, until - Date.now())));
   const width = Number(process.env['RAUHA_SMOKE_WIDTH'] ?? '0');
   if (width > 0) {
     window?.setSize(width, Number(process.env['RAUHA_SMOKE_HEIGHT'] ?? '640'));

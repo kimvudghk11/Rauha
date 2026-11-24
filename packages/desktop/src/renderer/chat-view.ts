@@ -1221,7 +1221,7 @@ export function buildChat(actions: ChatActions) {
       paintTalk(box, talk);
       if (!over) {
         const typing = el('div', 'tc-line tc-typing');
-        const what = t.status === 'queued' ? 'Waiting in the queue' : t.status === 'waiting' ? 'Waiting for your permission or choice' : `${t.roleName ?? 'Team'} is working`;
+        const what = t.status === 'queued' ? 'Waiting in the queue' : t.status === 'waiting' ? 'Waiting for your permission or choice' : `${t.role !== null && isRole(t.role) ? nameOf(t.role) : (t.roleName ?? 'Team')} is working`;
         typing.append(el('span', 'dim', what), el('span', 'tc-dots', '…'));
         box.appendChild(typing);
       }

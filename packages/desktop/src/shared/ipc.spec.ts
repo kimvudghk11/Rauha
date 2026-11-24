@@ -48,6 +48,20 @@ describe('jobView', () => {
     expect(castOf(j)).toEqual(['implementer', 'reviewer', 'writer']);
   });
 
+  it('메인 채팅 Claude(direct)는 팀장(지배인)으로 무대에 서고, 넘겨받은 팀원이 그 옆에 선다', () => {
+    const j = job().start().noted('direct', '작업 중…', AT).noted('tester', '넘겨받았어요: 테스트', AT).noted(null, '테스트 · 실행: yarn test', AT).noted('direct', '테스트 받았어요', AT);
+    const view = jobView(j);
+    expect(view.cast).toEqual(['intake', 'tester']);
+    expect(view.role).toBe('intake');
+    expect(view.roleName).toBe('팀장');
+    expect(view.notes.map((n) => n.role)).toEqual(['intake', 'tester', null, 'intake']);
+  });
+
+  it('팀원이 여럿 넘겨받아도 팀장(지배인)은 무대에서 밀려나지 않는다', () => {
+    const j = job().start().noted('direct', '작업 중…', AT).noted('debugger', 'a', AT).noted('implementer', 'b', AT).noted('tester', 'c', AT);
+    expect(castOf(j)).toEqual(['intake', 'implementer', 'tester']);
+  });
+
   it('돈(달러)은 화면용 모양 어디에도 들어가지 않는다', () => {
     expect(JSON.stringify(jobView(job().start()))).not.toContain('$');
   });

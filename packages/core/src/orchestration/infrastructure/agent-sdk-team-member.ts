@@ -329,7 +329,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       maxTurns: call.setting.maxTurns,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
-        PreToolUse: [{ hooks: [createToolGuard({ root: this.options.cwd, role: call.role, ...readCapOf(call.role), canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
+        PreToolUse: [...(crew.length > 0 ? [{ matcher: 'Agent', hooks: [foregroundAgentHook] }] : []), { hooks: [createToolGuard({ root: this.options.cwd, role: call.role, ...readCapOf(call.role), canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
         PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally), openedHook(session.opened)] }],
       },
       stderr: (data) => {
@@ -392,6 +392,16 @@ function newSession(): Session {
 function spareKey(call: PreparedCall): string {
   return JSON.stringify([call.role, call.setting, call.outputSchema, modelOf(call)]);
 }
+
+/**
+ * 팀원(서브에이전트)은 기본이 백그라운드라, 지배인이 결과를 기다리지 않고 "맡겼고 아직 진행 중"이라고 답을 끝냈다(2026-11-24 실측).
+ * 넘긴 일은 끝날 때까지 기다리게 한다. 한 번에 여러 명에게 넘기면 그대로 동시에 돈다.
+ */
+export const foregroundAgentHook: HookCallback = async (input) => {
+  if (input.hook_event_name !== 'PreToolUse' || input.tool_name !== 'Agent') return {};
+  const toolInput = typeof input.tool_input === 'object' && input.tool_input !== null ? (input.tool_input as Record<string, unknown>) : {};
+  return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, run_in_background: false } } };
+};
 
 /** 도구를 쓸 때마다 이름만 센다(입력·경로는 보지 않는다). */
 export function toolCountHook(tally: ToolTally): HookCallback {

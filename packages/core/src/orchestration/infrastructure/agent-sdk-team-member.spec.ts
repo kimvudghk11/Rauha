@@ -3,7 +3,7 @@ import { ToolTally } from '../domain/tool-tally.js';
 import { CrewWatch } from '../domain/direct-crew.js';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, crewSteps, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
+import { addUsage, crewSteps, foregroundAgentHook, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -156,15 +156,23 @@ describe('withUserNotes', () => {
   });
 });
 
+describe('foregroundAgentHook', () => {
+  it('팀원에게 넘긴 일은 백그라운드로 돌리지 않고 끝날 때까지 기다린다', async () => {
+    const out = await foregroundAgentHook({ hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'tester', prompt: 'p', run_in_background: true } } as never, 'id', { signal: new AbortController().signal });
+    expect(out).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { subagent_type: 'tester', prompt: 'p', run_in_background: false } } });
+    expect(await foregroundAgentHook({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {} } as never, 'id', { signal: new AbortController().signal })).toEqual({});
+  });
+});
+
 describe('crewSteps', () => {
   const assistant = (content: unknown[], parent: string | null) => ({ type: 'assistant', parent_tool_use_id: parent, message: { content } }) as unknown as SDKMessage;
   const user = (content: unknown[]) => ({ type: 'user', parent_tool_use_id: null, message: { content } }) as unknown as SDKMessage;
 
   it('지배인이 팀원에게 넘기고, 팀원이 도구를 쓰고, 지배인에게 돌아오는 흐름을 진행 줄로 바꾼다', () => {
     const watch = CrewWatch.start();
-    expect(crewSteps(watch, assistant([{ type: 'text', text: '넘길게요' }, { type: 'tool_use', id: 't1', name: 'Agent', input: { subagent_type: 'implementer', description: '로그인 고치기' } }], null))).toEqual([{ role: 'implementer', text: '넘겨받았어요: 로그인 고치기' }]);
-    expect(crewSteps(watch, assistant([{ type: 'tool_use', id: 'e1', name: 'Edit', input: { file_path: 'src/login.ts' } }], 't1'))).toEqual([{ role: 'implementer', text: '고치는 중: login.ts' }]);
-    expect(crewSteps(watch, user([{ type: 'tool_result', tool_use_id: 't1', content: 'done' }]))).toEqual([{ role: 'direct', text: '구현 받았어요' }]);
+    expect(crewSteps(watch, assistant([{ type: 'text', text: '넘길게요' }, { type: 'tool_use', id: 't1', name: 'Agent', input: { subagent_type: 'implementer', description: '로그인 고치기' } }], null))).toEqual([{ role: 'implementer', text: '로그인 고치기' }]);
+    expect(crewSteps(watch, assistant([{ type: 'tool_use', id: 'e1', name: 'Edit', input: { file_path: 'src/login.ts' } }], 't1'))).toEqual([{ role: null, text: '구현 · 고치는 중: login.ts' }]);
+    expect(crewSteps(watch, user([{ type: 'tool_result', tool_use_id: 't1', content: 'done' }]))).toEqual([{ role: 'direct', text: '구현 결과 확인' }]);
   });
 
   it('글만 있는 메시지나 결과 메시지는 진행 줄이 없다', () => {

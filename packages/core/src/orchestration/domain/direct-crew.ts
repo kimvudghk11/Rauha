@@ -34,7 +34,8 @@ export class DirectCrew {
 
 /** 화면 진행 줄 한 줄: 누가(role) 무엇을 */
 export interface CrewStep {
-  readonly role: MemberRole;
+  /** 넘김·돌아옴은 그 팀원, 도구 사용(읽기·실행)은 null: 팀 대화 말풍선이 아니라 작업 로그 한 줄 */
+  readonly role: MemberRole | null;
   readonly text: string;
 }
 
@@ -54,15 +55,18 @@ const oneLine = (text: string): string => {
   return flat.length <= LINE_MAX ? flat : `${flat.slice(0, LINE_MAX - 1)}…`;
 };
 const fileName = (path: unknown): string => (typeof path === 'string' ? (path.split(/[\\/]/).filter((p) => p !== '').pop() ?? path) : '');
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+/** 앱의 Claude Code 세션에서 도구 입력이 &amp;&amp; 처럼 오는 때가 있어(2026-11-24 실측) 원래 글자로 되돌린다 */
+const unescape = (text: string): string => text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+const str = (v: unknown): string => (typeof v === 'string' ? unescape(v) : '');
 
 /**
  * 지배인 세션 안에서 일어나는 일(팀원에게 넘김·도구 사용·돌아옴)을 진행 줄로 바꾼다.
  * 시간만 늘고 무엇을 하는지 안 보이던 것을 고친다(2026-11-24 사용자 지적).
  */
 export class CrewWatch {
-  /** Agent 도구 호출 id → 넘겨받은 팀원(팀원이 아니면 null) */
+  /** Agent 도구 호출 id → 넘겨받은 팀원(팀원이 아니면 null). 돌아온 뒤에도 남겨 둔다(늦게 오는 그 팀원 도구 줄도 누구 일인지 알게) */
   private readonly handed = new Map<string, MemberRole | null>();
+  private readonly returned = new Set<string>();
 
   private constructor() {}
 
@@ -73,22 +77,24 @@ export class CrewWatch {
   /** parent: 이 도구를 쓴 서브에이전트를 연 Agent 호출 id(지배인이 직접 썼으면 null) */
   toolUse(use: SeenToolUse, parent: string | null): CrewStep | null {
     const by: MemberRole = (parent !== null ? this.handed.get(parent) : null) ?? 'direct';
+    const who = by === 'direct' ? '' : `${MATE_WORK[by] ?? '팀원'} · `;
     if (AGENT_TOOLS.has(use.name)) {
       const mate = DirectCrew.roleOf(str(use.input['subagent_type']));
       this.handed.set(use.id, mate);
       const what = oneLine(str(use.input['description']));
-      return mate !== null ? { role: mate, text: oneLine(`넘겨받았어요: ${what}`) } : { role: by, text: oneLine(`도우미에게 맡겼어요: ${what}`) };
+      // 팀 대화가 "지배인, 받았어요" 같은 넘김 말을 붙이므로 여기서는 맡은 일만 적는다
+      return mate !== null ? { role: mate, text: what } : { role: by, text: oneLine(`도우미에게 맡겼어요: ${what}`) };
     }
     const text = describe(use);
-    return text === null ? null : { role: by, text };
+    return text === null ? null : { role: null, text: oneLine(`${who}${text}`) };
   }
 
   /** 팀원에게 넘긴 일이 끝났으면 지배인에게 돌아온 한 줄 */
   toolResult(toolUseId: string): CrewStep | null {
-    if (!this.handed.has(toolUseId)) return null;
+    if (!this.handed.has(toolUseId) || this.returned.has(toolUseId)) return null;
     const mate = this.handed.get(toolUseId) ?? null;
-    this.handed.delete(toolUseId);
-    return { role: 'direct', text: mate === null ? '도우미 일 받았어요' : `${MATE_WORK[mate] ?? '일'} 받았어요` };
+    this.returned.add(toolUseId);
+    return { role: 'direct', text: mate === null ? '도우미 결과 확인' : `${MATE_WORK[mate] ?? '팀원'} 결과 확인` };
   }
 }
 
@@ -103,17 +109,18 @@ const MATE_WORK: Partial<Record<MemberRole, string>> = {
   securitychecker: '보안 점검',
 };
 
+/** 앞의 `cd "작업 폴더" &&` 는 떼고 실제 명령만(긴 임시 경로가 줄을 다 차지했다) */
+const withoutCd = (command: string): string => command.replace(/^\s*(?:cd|Set-Location)\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*/i, '');
+
 function describe(use: SeenToolUse): string | null {
   const i = use.input;
   if (QUIET_TOOLS.has(use.name)) return null;
   if (use.name === 'Read') return oneLine(`읽는 중: ${fileName(i['file_path'])}`);
   if (use.name === 'Edit' || use.name === 'Write' || use.name === 'NotebookEdit') return oneLine(`고치는 중: ${fileName(i['file_path'] ?? i['notebook_path'])}`);
-  if (use.name === 'Bash' || use.name === 'PowerShell') return oneLine(`실행: ${str(i['command'])}`);
+  if (use.name === 'Bash' || use.name === 'PowerShell') return oneLine(`실행: ${withoutCd(str(i['command']))}`);
   if (use.name === 'Grep') return oneLine(`찾는 중: ${str(i['pattern'])}`);
   if (use.name === 'Glob') return oneLine(`파일 찾는 중: ${str(i['pattern'])}`);
   if (use.name === 'WebFetch') return oneLine(`웹 읽는 중: ${str(i['url'])}`);
   if (use.name === 'WebSearch') return oneLine(`웹 검색: ${str(i['query'])}`);
-  if (use.name === 'Skill') return oneLine(`스킬: ${str(i['skill'])}`);
-  const mcp = /^mcp__[^_]+(?:_[^_]+)*?__(.+)$/.exec(use.name);
-  return oneLine(`도구: ${mcp !== null ? mcp[1]! : use.name}`);
+  return null;
 }

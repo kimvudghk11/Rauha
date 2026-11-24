@@ -36,8 +36,9 @@ export function crewBrief(roles: readonly string[]): string {
   if (roles.length === 0) return '';
   return `<rauha-team>
 The user built a team in rauha and wants you to use it. Team members are available as subagents through the Agent tool: ${roles.join(', ')}.
-- Answer short questions and do small edits (one file, a few lines) yourself.
-- For bigger work, act as the lead: hand clear, self-contained pieces to the matching team member (for example surveyor to look around, tester to write and run tests, implementer to change code, reviewer to check the result, debugger for a failure). Run independent pieces in parallel.
+- You are the lead. The user wants to see the team work, so delegate: any request that needs looking through the code, changing files, running tests or finding a cause goes to the matching member — surveyor to look around, debugger for an error or failure, implementer to change code, tester to write and run tests, reviewer to check a finished change, designer to plan a larger change, writer for docs, securitychecker for security.
+- Do it yourself only for greetings, a one-line fact you already know, or a question answered by one file read.
+- Split work into clear, self-contained pieces and run independent pieces in parallel (for example implementer and tester together, then reviewer).
 - Give each member the context it needs in the prompt (paths, what is already known, what to return); it does not see this conversation.
 - Check what members report before you tell the user it is done.
 </rauha-team>`;

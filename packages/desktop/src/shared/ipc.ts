@@ -433,10 +433,20 @@ export interface TerminalRauhaView {
 const CAST_MAX = 3;
 
 /** 기록에 나온 단계 이름을 순서대로(같은 단계는 한 번). 끝난 작업은 모두 done, 아니면 마지막이 now. */
+/**
+ * 메인 채팅 Claude(direct)는 사용자에게 메인 칸 얼굴(팀장, 카페 테마의 지배인)이다.
+ * 화면에서는 팀장으로 그려야 무대에 서고, 팀원에게 넘기는 장면이 이어진다.
+ */
+export function leadRole(role: MemberRole): MemberRole;
+export function leadRole(role: MemberRole | null): MemberRole | null;
+export function leadRole(role: MemberRole | null): MemberRole | null {
+  return role === 'direct' ? 'intake' : role;
+}
+
 export function stepsOf(job: Job): readonly StepView[] {
   const labels: string[] = [];
   for (const note of job.notes) {
-    const stage = note.role === null ? null : ROLE_INFO[note.role].stage;
+    const stage = note.role === null ? null : ROLE_INFO[leadRole(note.role)].stage;
     if (stage !== null && labels[labels.length - 1] !== stage && !labels.includes(stage)) labels.push(stage);
   }
   return labels.map((label, i) => ({ label, state: !job.isOver && i === labels.length - 1 ? 'now' : 'done' }));
@@ -444,12 +454,17 @@ export function stepsOf(job: Job): readonly StepView[] {
 
 export function castOf(job: Job): readonly MemberRole[] {
   const seen: MemberRole[] = [];
-  for (const note of job.notes) if (note.role !== null && !seen.includes(note.role)) seen.push(note.role);
-  return seen.length === 0 ? ['intake'] : seen.slice(-CAST_MAX);
+  for (const note of job.notes) {
+    const role = leadRole(note.role);
+    if (role !== null && !seen.includes(role)) seen.push(role);
+  }
+  // 팀장(지배인)은 늘 무대에 서고, 그 옆에 최근에 일한 팀원들(넘겨받은 팀원이 많아도 팀장이 밀려나지 않게)
+  if (!seen.includes('intake')) return seen.length === 0 ? ['intake'] : seen.slice(-CAST_MAX);
+  return ['intake', ...seen.filter((r) => r !== 'intake').slice(-(CAST_MAX - 1))];
 }
 
 export function jobView(job: Job, link: ThreadLink | null = null): JobView {
-  const role = job.activeRole;
+  const role = leadRole(job.activeRole);
   return {
     id: job.id,
     request: job.request,
@@ -466,7 +481,10 @@ export function jobView(job: Job, link: ThreadLink | null = null): JobView {
     canGoDeeper: job.resultMeta.canGoDeeper,
     knowledgeMissing: job.resultMeta.knowledgeMissing,
     toolsLine: job.resultMeta.toolsLine ?? null,
-    notes: job.notes.map((n) => ({ role: n.role, roleName: n.role === null ? null : ROLE_INFO[n.role].name, message: n.message, at: n.at })),
+    notes: job.notes.map((n) => {
+      const r = leadRole(n.role);
+      return { role: r, roleName: r === null ? null : ROLE_INFO[r].name, message: n.message, at: n.at };
+    }),
     thread: link?.root ?? null,
     inTask: link?.inTask ?? false,
   };

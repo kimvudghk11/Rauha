@@ -435,7 +435,7 @@ export class ChatSession {
         canWrite: () => true,
         crew,
         // 지배인 세션 안의 넘김·읽기·실행을 진행 줄로(시간만 늘고 무엇을 하는지 안 보이지 않게)
-        onStep: (step) => this.deps.progress.step(step.text, step.role),
+        onStep: (step) => (step.role === null ? this.deps.progress.step(step.text) : this.deps.progress.step(step.text, step.role)),
         ...(dirs.length > 0 ? { dirs } : {}),
         ...(from !== null ? { continueFrom: from } : {}),
       });
