@@ -1029,21 +1029,34 @@ async function copyDiagnostics(): Promise<DiagnosticsResult> {
 async function smoke(runner: JobRunner, path: string): Promise<void> {
   const { writeFileSync } = await import('node:fs');
   const only = process.env['RAUHA_SMOKE_REQUEST'];
-  for (const text of only !== undefined ? [only] : ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림']) runner.submit(text);
+  for (const text of only !== undefined ? only.split('‖').map((t) => t.trim()).filter((t) => t !== '') : ['결제 타임아웃 원인 찾아줘', '온보딩 시안 3개', '주간보고 허락 초안', 'VPC 피어링 정리 문서', '정산 배치 알림']) runner.submit(text);
   // 확인용: RAUHA_SMOKE_EVERY=ms 면 일이 도는 동안 그 간격으로 화면(path-1.png …)과 진행 줄을 남기고, 일이 다 끝나면 기다림을 끝낸다
   const every = Number(process.env['RAUHA_SMOKE_EVERY'] ?? '0');
   const until = Date.now() + Number(process.env['RAUHA_SMOKE_WAIT'] ?? '4300');
+  const thenQueue = (process.env['RAUHA_SMOKE_THEN'] ?? '').split('‖').map((t) => t.trim()).filter((t) => t !== '');
   if (every > 0) {
     for (let n = 1; Date.now() < until; n += 1) {
       await new Promise((r) => setTimeout(r, every));
       // RAUHA_SMOKE_OPEN=선택자: 그 차례에 한 번 누른다(예: 진행 보기를 열어 무대를 찍는다)
       const open = process.env['RAUHA_SMOKE_OPEN'];
       if (open !== undefined && n === Number(process.env['RAUHA_SMOKE_OPEN_AT'] ?? '2')) await window!.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(open)})?.click()`);
+      // RAUHA_SMOKE_STOP_AT=n: 그 차례에 도는 일을 모두 멈춘다(멈춤이 팀원까지 멈추는지 확인)
+      if (n === Number(process.env['RAUHA_SMOKE_STOP_AT'] ?? '-1')) for (const j of runner.board.jobs) if (j.status === 'running' || j.status === 'waiting') runner.stop(j.id);
+      // RAUHA_SMOKE_ALLOW=1: 허락 카드가 보이면 "Allow once" 를 누른다(허락 → 트레이 다시 그리기 경로 확인)
+      if (process.env['RAUHA_SMOKE_ALLOW'] === '1') {
+        const clicked = await window!.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent === 'Allow once' && !x.disabled); if (!b) return null; const t = b.closest('.card, .m, div')?.innerText?.slice(0, 160) ?? ''; b.click(); return t; })()`);
+        if (clicked !== null) console.log('ALLOWED', JSON.stringify(clicked));
+      }
       const shot = await window!.webContents.capturePage();
       writeFileSync(path.replace(/\.png$/, `-${n}.png`), shot.toPNG());
       const jobs = boardView(runner.board, threads).jobs;
       console.log('TICK', n, JSON.stringify(jobs.map((j) => ({ status: j.status, role: j.role, cast: j.cast, notes: j.notes.map((x) => `${x.role ?? '-'}: ${x.message}`) }))));
-      if (jobs.every((j) => j.status === 'done' || j.status === 'stopped')) break;
+      // RAUHA_SMOKE_THEN=다음 말들(‖ 로 나눔): 앞 일이 다 끝나면 메인 채팅에 차례로 보낸다(이어서 말하기 확인)
+      if (jobs.every((j) => j.status === 'done' || j.status === 'stopped')) {
+        const next = thenQueue.shift();
+        if (next === undefined) break;
+        runner.submit(next);
+      }
     }
   } else await new Promise((r) => setTimeout(r, Math.max(0, until - Date.now())));
   const width = Number(process.env['RAUHA_SMOKE_WIDTH'] ?? '0');

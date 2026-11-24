@@ -129,7 +129,12 @@ export class Job {
   noted(role: MemberRole | null, message: string, at: string): Job {
     const text = message.trim();
     if (this.isOver || text === '') return this;
-    const notes = [...this.state.notes, { role, message: text, at }].slice(-JOB_NOTE_LIMIT);
+    const notes = [...this.state.notes, { role, message: text, at }];
+    // 넘치면 오래된 작업 로그 줄(role 없음)부터 버린다: 큰 일에서 읽기·실행 줄이 팀원끼리 넘긴 말을 밀어내지 않게
+    while (notes.length > JOB_NOTE_LIMIT) {
+      const log = notes.findIndex((n) => n.role === null);
+      notes.splice(log === -1 ? 0 : log, 1);
+    }
     return new Job({ ...this.state, notes });
   }
 

@@ -11,6 +11,8 @@ describe('팀원을 메인 채팅 Claude 의 서브에이전트로', () => {
     expect(agents['tester']!.model).toBe('claude-opus-5-5');
     expect(agents['tester']!.tools).toEqual(['Read', 'Grep', 'Edit']);
     expect(agents['tester']!.maxTurns).toBe(40);
+    expect(agents['tester']!.effort).toBe('high');
+    expect(agents['tester']!.background).toBe(false);
     expect(agents['tester']!.description.length).toBeGreaterThan(10);
   });
 
@@ -26,6 +28,11 @@ describe('팀원을 메인 채팅 Claude 의 서브에이전트로', () => {
   it('사용자가 팀원에게 더한 지시를 그대로 붙인다', () => {
     const p = crewAgents([{ role: 'tester', setting: { ...setting, extraInstruction: '테스트 이름은 한국어로' } }], () => prompt)['tester']!.prompt;
     expect(p).toContain('테스트 이름은 한국어로');
+  });
+
+  it('사용자 룰(회사 CLAUDE.md·항상 룰)을 팀원 프롬프트에도 붙인다(코드는 팀원이 쓴다)', () => {
+    const p = crewAgents([{ role: 'tester', setting }], () => prompt, (x) => `${x}\n<claude-md>회사 룰</claude-md>`)['tester']!.prompt;
+    expect(p.endsWith('<claude-md>회사 룰</claude-md>')).toBe(true);
   });
 
   it('팀원 목록에 없는 역할은 빼고, 넘길 팀원이 없으면 안내도 없다', () => {

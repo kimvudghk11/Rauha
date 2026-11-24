@@ -16,8 +16,9 @@ When done, reply in plain text (not JSON): what you did or found first, then the
 /**
  * 팀원 프롬프트는 rauha 팀 흐름(잠긴 테스트·구조화 출력)에 맞춰 있어서, 역할과 전문성만 가져오고
  * 서브에이전트로 일하는 법과 사용자가 그 팀원에게 더한 지시를 붙인다.
+ * withUserRules: 사용자 룰(~/.claude/CLAUDE.md·@import, 항상 룰, 취향). 코드를 실제로 쓰는 건 팀원이라 팀원도 따라야 한다.
  */
-export function crewAgents(crew: readonly CrewCall[], promptOf: (role: MemberRole) => string): Record<string, AgentDefinition> {
+export function crewAgents(crew: readonly CrewCall[], promptOf: (role: MemberRole) => string, withUserRules: (prompt: string) => string = (p) => p): Record<string, AgentDefinition> {
   const agents: Record<string, AgentDefinition> = {};
   for (const { role, setting } of crew) {
     const mate = DirectCrew.mates.find((m) => m.role === role);
@@ -26,7 +27,7 @@ export function crewAgents(crew: readonly CrewCall[], promptOf: (role: MemberRol
     const parts = [section(text, 'role'), section(text, 'expertise'), AS_SUBAGENT].filter((p) => p !== '');
     const extra = setting.extraInstruction?.trim() ?? '';
     if (extra !== '') parts.push(`<user-team-instruction>\n사용자가 이 팀원에게 더한 지시입니다.\n${extra}\n</user-team-instruction>`);
-    agents[role] = { description: mate.description, prompt: parts.join('\n\n'), model: MODEL_ID[setting.tier], tools: [...setting.tools], maxTurns: setting.maxTurns };
+    agents[role] = { description: mate.description, prompt: withUserRules(parts.join('\n\n')), model: MODEL_ID[setting.tier], effort: setting.effort, tools: [...setting.tools], maxTurns: setting.maxTurns, background: false };
   }
   return agents;
 }

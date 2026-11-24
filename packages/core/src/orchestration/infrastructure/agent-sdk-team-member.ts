@@ -303,7 +303,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const system = withAwsNow(kits.guide === '' ? base : `${base}\n\n${kits.guide}`, call.kits ?? [], (call.kits ?? []).includes('aws') ? (this.options.awsNow?.() ?? '') : '');
     const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? [], call.setting.plugins !== false);
     // 메인 채팅 Claude 는 사용자가 꾸린 팀원을 서브에이전트로 부를 수 있다(일이 크면 넘긴다)
-    const agents = crewAgents(call.crew ?? [], (role) => this.options.prompts.system(role, []));
+    const agents = crewAgents(call.crew ?? [], (role) => this.options.prompts.system(role, []), (prompt) => this.withAlwaysRules(prompt));
     const crew = Object.keys(agents);
     const brief = crewBrief(crew);
     const withCrew = (text: string): string => (brief === '' ? text : `${text}\n\n${brief}`);

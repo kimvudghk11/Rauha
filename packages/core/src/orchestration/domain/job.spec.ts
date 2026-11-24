@@ -111,6 +111,15 @@ describe('Job 기록과 결과', () => {
     expect(job.notes[0]!.message).toBe('줄 50');
   });
 
+  it('상한을 넘으면 팀원 말(넘김)이 아니라 오래된 작업 로그 줄부터 버린다', () => {
+    let job = queued().start().noted('direct', '작업 중…', AT).noted('debugger', '원인 찾기', AT);
+    for (let i = 0; i < 250; i += 1) job = job.noted(null, `줄 ${i}`, AT);
+    job = job.noted('implementer', '고치기', AT);
+    expect(job.notes.length).toBe(200);
+    expect(job.notes.filter((n) => n.role !== null).map((n) => n.role)).toEqual(['direct', 'debugger', 'implementer']);
+    expect(job.notes[job.notes.length - 2]!.message).toBe('줄 249');
+  });
+
   it('결과 글을 붙이면 새 작업이 되고 원래 작업은 그대로다', () => {
     const job = queued().start();
     expect(job.withResult('끝났어요').result).toBe('끝났어요');
