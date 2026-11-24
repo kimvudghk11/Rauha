@@ -127,6 +127,8 @@ export interface NoteView {
   readonly roleName: string | null;
   readonly message: string;
   readonly at: string;
+  /** 메인 Claude 작업에서 지배인이 넘긴 팀원 줄(동시에 넘겨도 지배인에게 받은 것으로 말한다) */
+  readonly fromLead?: boolean;
 }
 
 export interface JobView {
@@ -465,6 +467,8 @@ export function castOf(job: Job): readonly MemberRole[] {
 
 export function jobView(job: Job, link: ThreadLink | null = null): JobView {
   const role = leadRole(job.activeRole);
+  // 메인 Claude 작업이면 팀원은 모두 지배인이 넘긴 것(팀원끼리 넘기는 /work 흐름과 다르다)
+  const byLead = job.notes.some((n) => n.role === 'direct');
   return {
     id: job.id,
     request: job.request,
@@ -483,7 +487,8 @@ export function jobView(job: Job, link: ThreadLink | null = null): JobView {
     toolsLine: job.resultMeta.toolsLine ?? null,
     notes: job.notes.map((n) => {
       const r = leadRole(n.role);
-      return { role: r, roleName: r === null ? null : ROLE_INFO[r].name, message: n.message, at: n.at };
+      const fromLead = byLead && n.role !== null && n.role !== 'direct';
+      return { role: r, roleName: r === null ? null : ROLE_INFO[r].name, message: n.message, at: n.at, ...(fromLead ? { fromLead } : {}) };
     }),
     thread: link?.root ?? null,
     inTask: link?.inTask ?? false,

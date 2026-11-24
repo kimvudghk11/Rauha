@@ -179,6 +179,8 @@ export interface NoteLike {
   readonly role: string | null;
   readonly roleName: string | null;
   readonly message: string;
+  /** 지배인(메인 Claude)이 넘긴 팀원 줄: 동시에 넘겨도 앞 팀원이 아니라 지배인에게 받은 것으로 말한다 */
+  readonly fromLead?: boolean;
 }
 
 export interface ChatLine {
@@ -195,8 +197,10 @@ export function teamChat(notes: readonly NoteLike[], max = 14, options: VoiceOpt
   const spices = options.set === undefined ? [] : (SPICE[options.set] ?? []);
   let lastSpice: string | null = null;
   team.forEach((n, i) => {
-    const prev = team[i - 1];
-    const handoff = prev !== undefined && prev.role !== n.role ? `${handoffLine(prev.role, prev.roleName, n.role, i, seed)} ` : '';
+    const before = team[i - 1];
+    const lead = n.fromLead === true ? team.slice(0, i).reverse().find((t) => t.role === 'intake') : undefined;
+    const prev = before !== undefined && before.role !== n.role && lead !== undefined ? lead : before;
+    const handoff = prev !== undefined && before !== undefined && before.role !== n.role ? `${handoffLine(prev.role, prev.roleName, n.role, i, seed)} ` : '';
     let said = voiceOf(n.role, n.message, i, options);
     // 바로 앞 줄과 같은 컨셉 말끝이면 뗀다(연달아 "산호 옆에서 정리할게요."는 기계 같다)
     const spice = spices.find((s) => said.endsWith(` ${s}`)) ?? null;

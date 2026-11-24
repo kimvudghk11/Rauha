@@ -143,3 +143,18 @@ describe('메인 채팅 Claude 진행 줄', () => {
     expect(teamChat(notes).length).toBe(2);
   });
 });
+
+describe('지배인이 동시에 넘긴 팀원', () => {
+  it('지배인이 넘긴 팀원(fromLead)은 바로 앞 팀원이 아니라 지배인에게 받은 것으로 말한다', () => {
+    const notes = [
+      { role: 'intake', roleName: '지배인', message: '작업 중…' },
+      { role: 'implementer', roleName: '라떼', message: '키 수정', fromLead: true },
+      { role: 'tester', roleName: '맛봄', message: '테스트 추가', fromLead: true },
+    ];
+    const lines = teamChat(notes, 14, { seed: 7 });
+    expect(lines[2]!.text.startsWith(`${handoffLine('intake', '지배인', 'tester', 2, 7)} `)).toBe(true);
+    // /work 처럼 팀원끼리 넘기는 흐름(fromLead 없음)은 그대로 앞 팀원에게 받는다
+    const plain = teamChat(notes.map(({ fromLead: _f, ...n }) => n), 14, { seed: 7 });
+    expect(plain[2]!.text.startsWith(`${handoffLine('implementer', '라떼', 'tester', 2, 7)} `)).toBe(true);
+  });
+});

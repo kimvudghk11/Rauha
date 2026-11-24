@@ -57,6 +57,13 @@ describe('jobView', () => {
     expect(view.notes.map((n) => n.role)).toEqual(['intake', 'tester', null, 'intake']);
   });
 
+  it('메인 Claude 작업에서 팀원 줄은 지배인이 넘긴 것(fromLead)으로 표시한다, /work 흐름은 아니다', () => {
+    const direct = jobView(job().start().noted('direct', '작업 중…', AT).noted('tester', 'a', AT).noted(null, 'log', AT));
+    expect(direct.notes.map((n) => n.fromLead === true)).toEqual([false, true, false]);
+    const team = jobView(job().start().noted('intake', '접수', AT).noted('tester', 'a', AT));
+    expect(team.notes.some((n) => n.fromLead === true)).toBe(false);
+  });
+
   it('팀원이 여럿 넘겨받아도 팀장(지배인)은 무대에서 밀려나지 않는다', () => {
     const j = job().start().noted('direct', '작업 중…', AT).noted('debugger', 'a', AT).noted('implementer', 'b', AT).noted('tester', 'c', AT);
     expect(castOf(j)).toEqual(['intake', 'implementer', 'tester']);
