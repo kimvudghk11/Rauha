@@ -1067,7 +1067,10 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
       if (jobs.every((j) => j.status === 'done' || j.status === 'stopped')) {
         const next = thenQueue.shift();
         if (next === undefined) break;
-        runner.submit(next);
+        // ↩ 로 시작하면 마지막 일에 Reply(이어 묻기)로 보낸다
+        const last = jobs[jobs.length - 1];
+        if (next.startsWith('↩') && last !== undefined) await window!.webContents.executeJavaScript(`window.rauha.followUp(${JSON.stringify(last.id)}, ${JSON.stringify(next.slice(1).trim())}, false)`);
+        else runner.submit(next);
       }
     }
   } else await new Promise((r) => setTimeout(r, Math.max(0, until - Date.now())));
@@ -1799,7 +1802,8 @@ void app.whenReady().then(async () => {
     const next = runner.submit(text);
     nextThread = null;
     if (next === null) return null;
-    const team = threadTeam(turns).map((r) => (Object.hasOwn(ROLE_INFO, r) ? ROLE_INFO[r as MemberRole].name : r));
+    // 팀원 이름 옆에 역할 id 도 적는다: 메인 Claude 가 같은 팀원(서브에이전트 subagent_type)에게 다시 넘길 수 있게
+    const team = threadTeam(turns).map((r) => (Object.hasOwn(ROLE_INFO, r) ? `${ROLE_INFO[r as MemberRole].name} (${r})` : r));
     followContext.set(next.id, followUpPrompt(turns, team, text));
     learnStyle(text);
     const root = jobRepoRoots.get(parentId) ?? jobRepoRoots.get(rootId);
