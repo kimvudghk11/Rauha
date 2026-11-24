@@ -1,4 +1,5 @@
 import type { PermissionAnswer } from '@rauha/core';
+import { leadRole } from '../../shared/ipc.js';
 import { ROLE_INFO } from '@rauha/core/jobs';
 import { summarizeRequest } from '../../shared/approval-summary.js';
 import { ASK_CUSTOM_LIMIT, ASK_REASON_LIMIT, type AskView } from '../../shared/ask-card.js';
@@ -71,8 +72,9 @@ export function approvalView(p: PendingApproval, protectedBranches?: readonly st
   return {
     id: p.id,
     jobId: p.jobId,
-    role: p.request.role,
-    roleName: ROLE_INFO[p.request.role].name,
+    // 메인 Claude(direct)가 묻는 허락은 지배인(팀장)이 묻는 것으로 보인다
+    role: leadRole(p.request.role),
+    roleName: ROLE_INFO[leadRole(p.request.role)].name,
     tool: p.request.tool,
     detail: p.request.detail,
     reason: p.request.reason,

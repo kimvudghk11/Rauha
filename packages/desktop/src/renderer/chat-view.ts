@@ -1109,7 +1109,7 @@ export function buildChat(actions: ChatActions) {
     card.setAttribute('role', 'group');
     card.setAttribute('aria-label', 'Permission request');
     card.appendChild(el('div', 'ah', `Permission needed · ${a.summary.headline}`));
-    card.appendChild(el('div', 'who', `Requested by: ${a.roleName}`));
+    card.appendChild(el('div', 'who', `Requested by: ${isRole(a.role) ? nameOf(a.role) : a.roleName}`));
     if (a.summary.risks.length > 0) {
       const ul = el('ul');
       for (const r of a.summary.risks) ul.appendChild(el('li', undefined, r));

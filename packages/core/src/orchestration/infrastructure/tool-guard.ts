@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { DirectCrew } from '../domain/direct-crew.js';
 import { realpath } from 'node:fs/promises';
 import { isAbsolute, resolve, win32 } from 'node:path';
 import type { HookCallback } from '@anthropic-ai/claude-agent-sdk';
@@ -180,7 +181,9 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
       if (options.remembered.has(key)) return decide('allow', '사용자가 이번 실행 동안 허락한 동작입니다.');
       const reason = verdict.reason ?? '위험할 수 있는 동작입니다.';
       const risk = InfraRiskDto.fromNote(toolInput['description']);
-      const answer = await options.ask({ role: options.role, tool: input.tool_name, detail, reason, ...(risk !== null ? { risk } : {}) });
+      // 메인 Claude 의 팀원(서브에이전트)이 쓴 도구면 허락 카드에 그 팀원이 묻는 것으로 보인다(쓰기 권한은 위에서 메인 기준으로 이미 봤다)
+      const asker = options.role === 'direct' ? (DirectCrew.roleOf(input.agent_type) ?? options.role) : options.role;
+      const answer = await options.ask({ role: asker, tool: input.tool_name, detail, reason, ...(risk !== null ? { risk } : {}) });
       if (answer.kind === 'allow-always') options.remembered.add(key);
       if (answer.kind !== 'deny') return decide('allow', '사용자가 허락했습니다.');
       const note = answer.note === null ? '' : ` 사용자가 남긴 말: "${answer.note}"`;

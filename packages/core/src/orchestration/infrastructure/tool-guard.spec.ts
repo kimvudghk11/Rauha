@@ -41,6 +41,21 @@ function guardWith(answers: PermissionAnswer[], overrides: Partial<ToolGuardOpti
   return { guard, asked };
 }
 
+describe('createToolGuard — 메인 Claude 의 팀원(서브에이전트)이 묻는 허락', () => {
+  it('팀원이 쓴 도구면 허락 카드에 그 팀원이 묻는 것으로 보인다(쓰기 권한은 그대로 메인 기준)', async () => {
+    const { guard, asked } = guardWith([{ kind: 'allow' }], { role: 'direct' });
+    await guard({ ...input('Write', { file_path: 'E:/outside/a.txt' }), agent_type: 'implementer' }, 't1', opts);
+    await guard(input('Write', { file_path: 'E:/outside/b.txt' }), 't2', opts);
+    expect(asked.map((a) => a.role)).toEqual(['implementer', 'direct']);
+  });
+
+  it('팀원이 아닌 서브에이전트면 메인 이름 그대로', async () => {
+    const { guard, asked } = guardWith([{ kind: 'allow' }], { role: 'direct' });
+    await guard({ ...input('Write', { file_path: 'E:/outside/a.txt' }), agent_type: 'general-purpose' }, 't1', opts);
+    expect(asked.map((a) => a.role)).toEqual(['direct']);
+  });
+});
+
 describe('createToolGuard', () => {
   describe('읽기 줄 한도(readCap) — 읽은 줄은 다음 턴마다 다시 읽혀 세션을 쓴다', () => {
     const spec = (out: unknown) => (out as { hookSpecificOutput?: { updatedInput?: Record<string, unknown>; additionalContext?: string } }).hookSpecificOutput;

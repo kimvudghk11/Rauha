@@ -24,6 +24,12 @@ describe('approvalView', () => {
     expect(view.detail).toBe('git push origin main');
     expect(view.summary.protectedBranch).toBe('main');
   });
+
+  it('메인 Claude 가 묻는 허락은 지배인(팀장)이 묻는 것으로 보인다', () => {
+    const view = approvalView({ id: 'p2', jobId: 'j1', at: '2026-11-08T00:00:00.000Z', request: { role: 'direct', tool: 'Write', detail: '../notes.txt', reason: '작업 폴더 밖' }, ask: null });
+    expect(view.role).toBe('intake');
+    expect(view.roleName).toBe('팀장');
+  });
 });
 
 describe('answerFor — 질문 카드', () => {
