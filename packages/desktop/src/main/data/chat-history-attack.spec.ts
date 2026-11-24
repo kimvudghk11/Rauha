@@ -62,7 +62,7 @@ describe('채팅 기록 파일 변조', () => {
     const items = (await load()).items;
     expect(items.length).toBe(1);
     expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
-    expect(Object.keys(items[0]!).sort()).toEqual(['cast', 'endedAt', 'id', 'inTask', 'queuedAt', 'request', 'result', 'status', 'stopReason', 'thread', 'toolsLine']);
+    expect(Object.keys(items[0]!).sort()).toEqual(['cast', 'endedAt', 'id', 'inTask', 'queuedAt', 'request', 'result', 'status', 'stopReason', 'talk', 'thread', 'toolsLine']);
   });
 
   it('역할 목록에 객체 기본 이름(constructor·__proto__·toString)을 끼워 넣어도 역할로 인정하지 않는다', () => {
