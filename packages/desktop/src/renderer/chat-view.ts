@@ -1,7 +1,7 @@
 import type { InfraRisk } from '@rauha/core/jobs';
 import type { ApprovalSummary } from '../shared/approval-summary.js';
 import { providerOf, type AiProviderId } from '../shared/external-ai.js';
-import { seedOf, stageBubble, teamChat } from '../shared/team-voice.js';
+import { asLead, seedOf, stageBubble, teamChat } from '../shared/team-voice.js';
 import { buildAiBar, type AiBarDeps, type ChatTarget } from './ai-bar.js';
 import { AI_LOGO_SVG, aiLogoUrl } from './ai-logos.js';
 import type { AiResult } from '../shared/external-ai-ipc.js';
@@ -688,8 +688,9 @@ export function buildChat(actions: ChatActions) {
 
   /** 진행 글 → 팀원 얼굴·이름·말풍선 줄(성격은 말투로만, shared/team-voice.ts). 직책 대신 지금 컨셉의 캐릭터 이름으로 부른다 */
   function talkOf(t: JobView, max: number): { readonly role: string; readonly who: string; readonly text: string }[] {
-    const titleOf = new Map(t.notes.filter((n) => n.role !== null).map((n) => [n.role as string, n.roleName ?? '']));
-    return teamChat(t.notes.map((n) => (n.role !== null && isRole(n.role) ? { ...n, roleName: nameOf(n.role) } : n)), max, { set: characterSetId(), seed: seedOf(rootIdOf(t.id)) }).map((l) => ({ ...l, who: `${l.who}${titleOf.get(l.role) ? ` · ${titleOf.get(l.role)}` : ''}` }));
+    const notes = asLead(t.notes);
+    const titleOf = new Map(notes.filter((n) => n.role !== null).map((n) => [n.role as string, n.roleName ?? '']));
+    return teamChat(notes.map((n) => (n.role !== null && isRole(n.role) ? { ...n, roleName: nameOf(n.role) } : n)), max, { set: characterSetId(), seed: seedOf(rootIdOf(t.id)) }).map((l) => ({ ...l, who: `${l.who}${titleOf.get(l.role) ? ` · ${titleOf.get(l.role)}` : ''}` }));
   }
 
   function paintTalk(box: HTMLElement, lines: readonly { readonly role: string; readonly who: string; readonly text: string }[]): void {

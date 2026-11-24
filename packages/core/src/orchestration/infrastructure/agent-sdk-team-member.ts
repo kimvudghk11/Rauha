@@ -22,6 +22,8 @@ import { withDatabase } from './db-mcp.js';
 import { WorkspaceToolAccess } from '../domain/workspace-tools.js';
 import type { WorkspaceFacts } from '../application/workspace-facts.js';
 import { withWorkspace } from './workspace-mcp.js';
+import { CrewWatch, type CrewStep } from '../domain/direct-crew.js';
+import { crewAgents, crewBrief } from './direct-crew-agents.js';
 
 export interface AgentSdkTeamMemberOptions {
   /** 작업 폴더. 팀원은 이 안에서만 일한다. */
@@ -190,14 +192,24 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     let partial: string | null = null;
     let spent: MemberUsage | null = null;
     let messages = opened.messages;
+    const watch = call.onStep !== undefined ? CrewWatch.start() : null;
+    const tell = (message: SDKMessage): void => {
+      if (watch === null || call.onStep === undefined) return;
+      try {
+        for (const step of crewSteps(watch, message)) call.onStep(step);
+      } catch {
+        // 진행 줄은 보여 주기만 한다. 못 보여도 일은 그대로
+      }
+    };
     try {
       // 턴 한도에 닿았거나 결과 형식만 못 맞춘 호출은 멈추지 않고 같은 대화를 이어서 끝낸다(MemberContinue).
       for (let continued = 0; ; continued += 1) {
         result = null;
         try {
           for await (const message of messages) {
+            tell(message);
             if (message.type === 'result') result = message;
-            else if (message.type === 'assistant') partial = lastText(message.message.content) ?? partial;
+            else if (message.type === 'assistant' && message.parent_tool_use_id === null) partial = lastText(message.message.content) ?? partial;
           }
         } catch (error) {
           // SDK는 턴 한도 같은 오류 결과를 준 뒤에 예외도 던진다. 결과를 이미 받았으면 그 결과로 판단한다(버리면 이어 하기도 멈춘 이유도 잃는다).
@@ -244,7 +256,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
 
   /** 다른 폴더도 읽거나 도구 묶음을 붙이는 호출은 띄울 때의 설정이 달라서 미리 띄운 프로세스를 쓰지 않는다. */
   private takeSpare(call: MemberCall): Spare | null {
-    if ((call.additionalDirectories?.length ?? 0) > 0 || (call.kits?.length ?? 0) > 0) return null;
+    if ((call.additionalDirectories?.length ?? 0) > 0 || (call.kits?.length ?? 0) > 0 || (call.crew?.length ?? 0) > 0) return null;
     const key = spareKey(call);
     const spare = this.spares.get(key) ?? null;
     this.spares.delete(key);
@@ -281,7 +293,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     return withUserNotes(system, this.options.alwaysRules?.() ?? '', this.options.styleNotes?.() ?? '', { claudeMd: this.options.claudeMd?.() ?? '', memory: this.options.memoryNotes?.() ?? '' });
   }
 
-  private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits'>, session: Session, db: LinkedDatabase | null = null): Options {
+  private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits' | 'crew'>, session: Session, db: LinkedDatabase | null = null): Options {
     // rauha 작업 공간 도구: 팀원이 레포를 하나씩 뒤지지 않고 rauha 가 읽은 사실을 부른다. 역할마다 하는 일에 맞는 도구만 붙고,
     // 도구로 본 저장소는 "연 곳"으로 남긴다.
     const allowed = WorkspaceToolAccess.toolsFor(call.role);
@@ -290,18 +302,25 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const base = this.options.prompts.system(call.role, call.kits ?? []);
     const system = withAwsNow(kits.guide === '' ? base : `${base}\n\n${kits.guide}`, call.kits ?? [], (call.kits ?? []).includes('aws') ? (this.options.awsNow?.() ?? '') : '');
     const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? [], call.setting.plugins !== false);
+    // 메인 채팅 Claude 는 사용자가 꾸린 팀원을 서브에이전트로 부를 수 있다(일이 크면 넘긴다)
+    const agents = crewAgents(call.crew ?? [], (role) => this.options.prompts.system(role, []));
+    const crew = Object.keys(agents);
+    const brief = crewBrief(crew);
+    const withCrew = (text: string): string => (brief === '' ? text : `${text}\n\n${brief}`);
+    const agentTool = crew.length > 0 ? ['Agent'] : [];
     return {
       ...LEAN_SESSION,
       ...pluginLoad,
+      ...(crew.length > 0 ? { agents } : {}),
       model: modelOf(call),
       abortController: session.controller,
       cwd: this.options.cwd,
       ...(readDirs(call.additionalDirectories, this.options.readRoots).length > 0 ? { additionalDirectories: readDirs(call.additionalDirectories, this.options.readRoots) } : {}),
       env: this.options.env,
       ...(this.options.claudeExecutable !== undefined ? { pathToClaudeCodeExecutable: this.options.claudeExecutable } : {}),
-      systemPrompt: systemPromptFor(call.role, withTeamInstruction(this.withAlwaysRules(db === null ? system : withDbGuide(system, this.options.prompts.dbGuide(call.role))), call.setting.extraInstruction)),
-      tools: [...call.setting.tools, ...pluginTools],
-      allowedTools: [...call.setting.tools, ...pluginTools, ...kits.tools],
+      systemPrompt: systemPromptFor(call.role, withCrew(withTeamInstruction(this.withAlwaysRules(db === null ? system : withDbGuide(system, this.options.prompts.dbGuide(call.role))), call.setting.extraInstruction))),
+      tools: [...call.setting.tools, ...pluginTools, ...agentTool],
+      allowedTools: [...call.setting.tools, ...pluginTools, ...kits.tools, ...agentTool],
       // 도구 묶음은 요청이 그쪽을 가리킬 때만 붙인다(도구 설명이 길어서).
       ...(kits.tools.length > 0 ? { mcpServers: kits.servers } : {}),
       permissionMode: 'dontAsk',
@@ -403,6 +422,30 @@ export function openedHook(opened: string[], max = OPENED_MAX): HookCallback {
     else if (input.tool_name === 'Bash' && typeof toolInput['command'] === 'string') for (const m of toolInput['command'].matchAll(GIT_C)) keep(m[1] ?? m[2] ?? m[3]);
     return {};
   };
+}
+
+/**
+ * SDK 메시지 하나에서 진행 줄을 뽑는다: assistant 의 tool_use(서브에이전트 안이면 parent_tool_use_id 가 있다),
+ * user 의 tool_result(팀원에게 넘긴 일이 끝났는지).
+ */
+export function crewSteps(watch: CrewWatch, message: SDKMessage): CrewStep[] {
+  const blocks = (content: unknown): Record<string, unknown>[] => (Array.isArray(content) ? content.filter((b): b is Record<string, unknown> => typeof b === 'object' && b !== null) : []);
+  const steps: CrewStep[] = [];
+  if (message.type === 'assistant') {
+    for (const b of blocks(message.message.content)) {
+      if (b['type'] !== 'tool_use' || typeof b['id'] !== 'string' || typeof b['name'] !== 'string') continue;
+      const input = typeof b['input'] === 'object' && b['input'] !== null ? (b['input'] as Record<string, unknown>) : {};
+      const step = watch.toolUse({ id: b['id'], name: b['name'], input }, message.parent_tool_use_id);
+      if (step !== null) steps.push(step);
+    }
+  } else if (message.type === 'user') {
+    for (const b of blocks(message.message.content)) {
+      if (b['type'] !== 'tool_result' || typeof b['tool_use_id'] !== 'string') continue;
+      const step = watch.toolResult(b['tool_use_id']);
+      if (step !== null) steps.push(step);
+    }
+  }
+  return steps;
 }
 
 /** assistant 메시지 내용에서 마지막 글 블록. 없으면 null. */

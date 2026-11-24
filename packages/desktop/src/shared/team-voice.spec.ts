@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handoffLine, stageBubble, teamChat, voiceOf } from './team-voice.js';
+import { asLead, handoffLine, stageBubble, teamChat, voiceOf } from './team-voice.js';
 
 describe('팀원 말투(실제 진행 글은 그대로, 성격은 말투로만)', () => {
   it('역할마다 성격이 다르고, 진행 글이 문장 안에 그대로 들어 있다', () => {
@@ -128,5 +128,18 @@ describe('컨셉 말끝', () => {
         if (s !== null && i > 0) expect(tail[i - 1], `seed ${seed} line ${i}`).not.toBe(s);
       });
     }
+  });
+});
+
+describe('메인 채팅 Claude 진행 줄', () => {
+  it('Claude(direct) 줄은 팀장(지배인) 줄로 그리고 다른 팀원 줄은 그대로 둔다', () => {
+    const notes = asLead([
+      { role: 'direct', roleName: 'Claude', message: '읽는 중: a.ts' },
+      { role: 'tester', roleName: '테스트', message: '넘겨받았어요: 테스트' },
+      { role: null, roleName: null, message: '작업 중…' },
+    ]);
+    expect(notes.map((n) => n.role)).toEqual(['intake', 'tester', null]);
+    expect(notes[0]!.roleName).toBe('팀장');
+    expect(teamChat(notes).length).toBe(2);
   });
 });

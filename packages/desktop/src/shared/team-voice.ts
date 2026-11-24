@@ -206,3 +206,11 @@ export function teamChat(notes: readonly NoteLike[], max = 14, options: VoiceOpt
   });
   return out.slice(-max);
 }
+
+/**
+ * 메인 채팅 Claude(direct)는 사용자에게 메인 칸 얼굴(팀장, 카페 테마의 지배인)이다.
+ * 그 진행 줄을 팀장 줄로 바꿔 그려야 팀원에게 넘기는 장면이 이어진다.
+ */
+export function asLead<T extends NoteLike>(notes: readonly T[]): T[] {
+  return notes.map((n) => (n.role === 'direct' ? { ...n, role: 'intake', roleName: '팀장' } : n));
+}

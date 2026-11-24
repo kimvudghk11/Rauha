@@ -3,7 +3,8 @@ import type { MemberRole } from '../domain/member-role.js';
 import type { ModelTier } from '../domain/team.js';
 import type { ToolKit } from '../domain/tool-kit.js';
 import type { RoleSetting } from './dto/role-settings.dto.js';
-import type { MemberResult } from './ports.js';
+import type { CrewCall, MemberResult } from './ports.js';
+import type { CrewStep } from '../domain/direct-crew.js';
 import type { TurnOutcome } from './turn-outcome.js';
 
 /** 팀원 한 번 호출에 붙는 선택 사항 */
@@ -23,6 +24,10 @@ export interface MemberOptions {
   readonly request?: string;
   /** 같은 팀원의 앞 호출 세션을 잇는다(parts 에는 새로 할 말만). 읽은 파일을 다시 읽지 않게 */
   readonly continueFrom?: string;
+  /** 이 호출이 Agent 도구로 넘길 수 있는 팀원(메인 채팅 Claude) */
+  readonly crew?: readonly CrewCall[];
+  /** 세션 안의 넘김·도구 사용을 진행 줄로 받는다 */
+  readonly onStep?: (step: CrewStep) => void;
 }
 
 /** 앞 세션을 이을 때 덧붙이는 한 줄 */

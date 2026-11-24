@@ -49,7 +49,7 @@ class FakeMemory implements MemoryPort {
 type Script = (call: MemberCall) => unknown;
 
 class FakeTeam implements TeamMemberPort {
-  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; effort: string; maxTurns: number; request?: string | undefined; continueFrom?: string | undefined }[] = [];
+  readonly calls: { role: MemberRole; message: string; signal: AbortSignal | undefined; dirs: readonly string[] | undefined; canWrite: (path: string) => boolean; tier: string; effort: string; maxTurns: number; request?: string | undefined; continueFrom?: string | undefined; crew?: MemberCall['crew']; onStep?: MemberCall['onStep'] }[] = [];
   /** 켜면 호출마다 세션 id 를 돌려준다(이어 하기 확인용). failResume 이면 이어 하기 호출은 결과 없이 끝난다. */
   sessions: 'off' | 'on' | 'failResume' = 'off';
   /** 호출마다 보고할 맥락 크기(입력 + 캐시 읽기 토큰) */
@@ -68,7 +68,7 @@ class FakeTeam implements TeamMemberPort {
     this.prepared.push(call.role);
   }
   async run(call: MemberCall): Promise<MemberResult> {
-    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier, effort: call.setting.effort, maxTurns: call.setting.maxTurns, request: call.request, continueFrom: call.continueFrom });
+    this.calls.push({ role: call.role, message: call.userMessage, signal: call.signal, dirs: call.additionalDirectories, canWrite: call.canWrite, tier: call.setting.tier, effort: call.setting.effort, maxTurns: call.setting.maxTurns, request: call.request, continueFrom: call.continueFrom, crew: call.crew, onStep: call.onStep });
     const sessionId = this.sessions === 'off' ? {} : { sessionId: `${call.role}-${this.calls.length}` };
     if (this.sessions === 'failResume' && call.continueFrom !== undefined) {
       return { output: null, error: 'No conversation found', fetched: [], usage: { model: call.setting.tier, durationMs: 1, costUsd: 0, turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, denials: [], endReason: 'error' } };
@@ -2290,6 +2290,25 @@ describe('ChatSession — 원문 그대로(라우터는 길잡이)', () => {
     expect(team.calls[0]!.message.endsWith(said)).toBe(true);
     expect(team.calls[0]!.message).not.toContain('<question>');
     expect(turn.kind === 'answer' && turn.answer).toBe('확인했어요.');
+  });
+
+  it('Claude 가 사용자가 꾸린 팀원(켠 것만, 그 설정 그대로)에게 넘길 수 있다', async () => {
+    const team = new FakeTeam({ direct: [() => ({ answer: '네' })] });
+    const roles = RoleSettingsDto.defaults().withOverrides({ writer: { enabled: false }, tester: { tier: 'fable' } });
+    await direct(team, { roles }).handle('로그인 버그 고쳐줘');
+    const crew = team.calls[0]!.crew ?? [];
+    expect(crew.map((c) => c.role)).toContain('implementer');
+    expect(crew.map((c) => c.role)).not.toContain('writer');
+    expect(crew.find((c) => c.role === 'tester')!.setting.tier).toBe('fable');
+  });
+
+  it('Claude 세션 안의 넘김·도구 사용을 그 팀원 이름으로 진행 줄에 남긴다', async () => {
+    const steps: string[] = [];
+    const team = new FakeTeam({ direct: [() => ({ answer: '네' })] });
+    const chat = ChatSession.start({ ...sessionDeps({ team }), direct: true, progress: { step: (m: string, r?: string) => void steps.push(`${r}:${m}`) } });
+    await chat.handle('로그인 버그 고쳐줘');
+    team.calls[0]!.onStep!({ role: 'tester', text: '넘겨받았어요: 테스트' });
+    expect(steps).toContain('tester:넘겨받았어요: 테스트');
   });
 
   it('"투두"·"할 일" 같은 단어가 있어도 가로채지 않고 Claude 가 원문을 보고 정한다', async () => {

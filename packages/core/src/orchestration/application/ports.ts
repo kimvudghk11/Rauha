@@ -8,6 +8,7 @@ import type { ToolCount } from '../domain/tool-tally.js';
 import type { TestRun } from '../domain/test-run.js';
 import type { ToolKit } from '../domain/tool-kit.js';
 import type { CheckResult } from '../domain/verification.js';
+import type { CrewStep } from '../domain/direct-crew.js';
 import type { Assumption } from './dto/intake.dto.js';
 import type { MemberRole, RoleSetting } from './dto/role-settings.dto.js';
 
@@ -34,10 +35,20 @@ export interface MemberCall {
    * userMessage 에는 새로 할 말만 담는다(설계 대화의 다음 차례, 빠진 항목 마저 하기). 없으면 새 세션.
    */
   readonly continueFrom?: string;
+  /** 이 호출(메인 채팅 Claude)이 Agent 도구로 넘길 수 있는 팀원. 사용자가 팀 설정에서 켠 것만, 그 설정 그대로 */
+  readonly crew?: readonly CrewCall[];
+  /** 세션 안에서 일어나는 일(팀원에게 넘김·도구 사용·돌아옴)을 진행 줄로 받는다 */
+  readonly onStep?: (step: CrewStep) => void;
+}
+
+/** 메인 채팅 Claude 에게 넘길 수 있는 팀원 하나 */
+export interface CrewCall {
+  readonly role: MemberRole;
+  readonly setting: RoleSetting;
 }
 
 /** 미리 띄워 둘 호출. 보낼 메시지만 아직 모른다. */
-export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories' | 'kits' | 'request'>;
+export type PreparedCall = Omit<MemberCall, 'userMessage' | 'signal' | 'additionalDirectories' | 'kits' | 'request' | 'crew' | 'onStep'>;
 
 export interface MemberUsage {
   readonly model: string;

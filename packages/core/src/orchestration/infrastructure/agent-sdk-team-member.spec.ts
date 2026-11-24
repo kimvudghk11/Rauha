@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ToolTally } from '../domain/tool-tally.js';
+import { CrewWatch } from '../domain/direct-crew.js';
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
+import { addUsage, crewSteps, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -151,5 +153,24 @@ describe('withUserNotes', () => {
     expect(text.indexOf('<rauha-memory>')).toBeGreaterThan(text.indexOf('<user-rules>'));
     expect(text).toContain('VPN 은 …');
     expect(withUserNotes('SYS', '', '', { claudeMd: '', memory: '' })).toBe('SYS');
+  });
+});
+
+describe('crewSteps', () => {
+  const assistant = (content: unknown[], parent: string | null) => ({ type: 'assistant', parent_tool_use_id: parent, message: { content } }) as unknown as SDKMessage;
+  const user = (content: unknown[]) => ({ type: 'user', parent_tool_use_id: null, message: { content } }) as unknown as SDKMessage;
+
+  it('지배인이 팀원에게 넘기고, 팀원이 도구를 쓰고, 지배인에게 돌아오는 흐름을 진행 줄로 바꾼다', () => {
+    const watch = CrewWatch.start();
+    expect(crewSteps(watch, assistant([{ type: 'text', text: '넘길게요' }, { type: 'tool_use', id: 't1', name: 'Agent', input: { subagent_type: 'implementer', description: '로그인 고치기' } }], null))).toEqual([{ role: 'implementer', text: '넘겨받았어요: 로그인 고치기' }]);
+    expect(crewSteps(watch, assistant([{ type: 'tool_use', id: 'e1', name: 'Edit', input: { file_path: 'src/login.ts' } }], 't1'))).toEqual([{ role: 'implementer', text: '고치는 중: login.ts' }]);
+    expect(crewSteps(watch, user([{ type: 'tool_result', tool_use_id: 't1', content: 'done' }]))).toEqual([{ role: 'direct', text: '구현 받았어요' }]);
+  });
+
+  it('글만 있는 메시지나 결과 메시지는 진행 줄이 없다', () => {
+    const watch = CrewWatch.start();
+    expect(crewSteps(watch, assistant([{ type: 'text', text: '안녕' }], null))).toEqual([]);
+    expect(crewSteps(watch, { type: 'result' } as unknown as SDKMessage)).toEqual([]);
+    expect(crewSteps(watch, user(['plain']))).toEqual([]);
   });
 });

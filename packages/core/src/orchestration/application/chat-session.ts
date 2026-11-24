@@ -25,6 +25,7 @@ import { FilesBlockDto } from './dto/files-block.dto.js';
 import { ReviewReportDto } from './dto/review-report.dto.js';
 import { RouteDto, type Route } from './dto/route.dto.js';
 import { DirectChain } from '../domain/direct-chain.js';
+import { DirectCrew } from '../domain/direct-crew.js';
 import { DirectAnswerDto } from './dto/direct-answer.dto.js';
 import { ANSWER_SCHEMA, DIRECT_SCHEMA, TODO_SCHEMA, OPS_SCHEMA, PUBLISH_SCHEMA, REVIEWER_REPORT_SCHEMA, ROUTE_SCHEMA, WRITER_SCHEMA } from './dto/schemas.js';
 import { WriterReportDto } from './dto/writer-report.dto.js';
@@ -423,6 +424,8 @@ export class ChatSession {
     const canChain = chain !== null && DirectChain.continues(chain, { now: this.deps.now(), tier: setting.tier }) && !CHAINS_IN_USE.has(chain.id);
     const dirs = also.map((a) => a.root);
     const kits = ToolKits.for('direct', input);
+    // 사용자가 꾸린 팀(켠 팀원, 그 설정 그대로)을 Claude 가 넘길 수 있게 붙인다
+    const crew = DirectCrew.mates.filter((m) => this.deps.roles.isEnabled(m.role)).map((m) => ({ role: m.role, setting: this.deps.roles.get(m.role) }));
     const now = `<now>${this.deps.nowText()}</now>`;
     const call = (from: string | null): Promise<MemberResult> =>
       this.member('direct', from !== null ? [now, input] : [conversationBlock(conversation), now, input], DIRECT_SCHEMA, {
@@ -430,6 +433,9 @@ export class ChatSession {
         kits,
         request: input,
         canWrite: () => true,
+        crew,
+        // 지배인 세션 안의 넘김·읽기·실행을 진행 줄로(시간만 늘고 무엇을 하는지 안 보이지 않게)
+        onStep: (step) => this.deps.progress.step(step.text, step.role),
         ...(dirs.length > 0 ? { dirs } : {}),
         ...(from !== null ? { continueFrom: from } : {}),
       });
@@ -1151,6 +1157,8 @@ ${SINGLE_REPO_NOTE}
       ...((options.kits?.length ?? 0) > 0 ? { kits: options.kits } : {}),
       ...(options.request !== undefined ? { request: options.request } : {}),
       ...(options.continueFrom !== undefined ? { continueFrom: options.continueFrom } : {}),
+      ...((options.crew?.length ?? 0) > 0 ? { crew: options.crew } : {}),
+      ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
     });
     this.costUsd += result.usage.costUsd;
     this.calls[call.setting.tier] += 1;
