@@ -162,6 +162,12 @@ describe('foregroundAgentHook', () => {
     expect(out).toEqual({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { subagent_type: 'tester', prompt: 'p', run_in_background: false } } });
     expect(await foregroundAgentHook({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: {} } as never, 'id', { signal: new AbortController().signal })).toEqual({});
   });
+
+  it('누구에게 넘길지(subagent_type) 안 적으면 막고 팀원 이름을 적어 다시 넘기게 한다', async () => {
+    const out = (await foregroundAgentHook({ hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { description: 'd', prompt: 'p' } } as never, 'id', { signal: new AbortController().signal })) as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } };
+    expect(out.hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(out.hookSpecificOutput.permissionDecisionReason).toContain('implementer');
+  });
 });
 
 describe('crewSteps', () => {

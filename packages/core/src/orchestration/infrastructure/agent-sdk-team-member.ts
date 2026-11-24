@@ -22,7 +22,7 @@ import { withDatabase } from './db-mcp.js';
 import { WorkspaceToolAccess } from '../domain/workspace-tools.js';
 import type { WorkspaceFacts } from '../application/workspace-facts.js';
 import { withWorkspace } from './workspace-mcp.js';
-import { CrewWatch, type CrewStep } from '../domain/direct-crew.js';
+import { CrewWatch, DirectCrew, type CrewStep } from '../domain/direct-crew.js';
 import { crewAgents, crewBrief } from './direct-crew-agents.js';
 
 export interface AgentSdkTeamMemberOptions {
@@ -400,6 +400,12 @@ function spareKey(call: PreparedCall): string {
 export const foregroundAgentHook: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PreToolUse' || input.tool_name !== 'Agent') return {};
   const toolInput = typeof input.tool_input === 'object' && input.tool_input !== null ? (input.tool_input as Record<string, unknown>) : {};
+  // subagent_type 을 빼면 이름 없는 도우미(general-purpose)가 받아 화면에 팀원이 안 나온다(2026-11-25 실측).
+  const target = typeof toolInput.subagent_type === 'string' ? toolInput.subagent_type.trim() : '';
+  if (target === '') {
+    const names = DirectCrew.mates.map((m) => m.role).join(', ');
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `Set subagent_type to the team member who should do this (${names}) and call Agent again.` } };
+  }
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, run_in_background: false } } };
 };
 

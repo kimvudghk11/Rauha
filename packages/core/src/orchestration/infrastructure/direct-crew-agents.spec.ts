@@ -40,4 +40,10 @@ describe('팀원을 메인 채팅 Claude 의 서브에이전트로', () => {
     expect(crewBrief([])).toBe('');
     expect(crewBrief(['tester', 'implementer'])).toContain('tester, implementer');
   });
+
+  it('원인을 찾은 뒤 고치기는 지배인이 직접 하지 않고 구현 팀원에게 넘기라고 안내한다', () => {
+    const brief = crewBrief(['debugger', 'implementer']);
+    expect(brief).toContain('Do not edit files yourself');
+    expect(brief).toContain('after the debugger finds the cause');
+  });
 });
