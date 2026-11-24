@@ -2,6 +2,18 @@
 const RED = { r: 0xe5, g: 0x39, b: 0x35 };
 
 /**
+ * 레티나(@2x) 그림은 getSize() 가 논리 크기를, toBitmap() 이 실제 픽셀을 준다.
+ * 바이트 수에서 실제 픽셀 크기·배율을 구한다. 맞는 배율이 없으면 null(그리지 말 것).
+ */
+export function bitmapPixels(byteLength: number, logical: { width: number; height: number }): { width: number; height: number; scaleFactor: number } | null {
+  if (logical.width <= 0 || logical.height <= 0) return null;
+  const scale = Math.sqrt(byteLength / (4 * logical.width * logical.height));
+  const scaleFactor = Math.round(scale);
+  if (scaleFactor < 1 || Math.abs(scale - scaleFactor) > 1e-9) return null;
+  return { width: logical.width * scaleFactor, height: logical.height * scaleFactor, scaleFactor };
+}
+
+/**
  * BGRA 비트맵(가로 width) 오른쪽 위에 빨간 점을 그린 새 비트맵. 원본은 바꾸지 않는다.
  * radius 는 점 반지름(픽셀). 점 둘레 1픽셀은 흰 테두리로 그려 어두운·밝은 바탕 모두에서 보이게 한다.
  */

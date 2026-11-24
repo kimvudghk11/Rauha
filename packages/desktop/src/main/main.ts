@@ -23,7 +23,7 @@ import { dirname } from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, safeStorage, screen, shell, Tray, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron';
 import { trayView } from './platform/tray-menu.js';
 import { UnreadBadge } from '../shared/unread-badge.js';
-import { recolored, redDotBitmap, withNewBadge, withRedDot } from '../shared/red-dot.js';
+import { bitmapPixels, recolored, redDotBitmap, withNewBadge, withRedDot } from '../shared/red-dot.js';
 import { DefaultRuleSet, DefaultRulesDto, DomainError, askInterviewer, COMPANIES, companyOf, discoverRepos, draftBlog, draftCommit, draftPostings, draftResume, draftRule, evaluateCompany, extractStyle, INDUSTRY_ROLES, MarketDto, researchMarket, STAGES, LANGUAGE_POLICY_LABEL, type JobPosting, type Market, FileRuleStore, loadSecretPolicy, PromptLibrary, readPlanUsage, RuleBook, RuleBookDto, type PlanUsage, type TodoCard } from '@rauha/core';
 import { JobRunner } from '@rauha/core/jobs';
 import { replaceRule, ruleSizeError, type RuleView } from '../shared/rules-form.js';
@@ -798,18 +798,32 @@ function applyBadge(count: number): void {
  * 돌고래는 메뉴 막대가 어두우면 흰색·밝으면 검정으로 직접 칠한다. 레티나(@2x) 그림에 그린다.
  */
 function macTrayIconWithBadge(): Electron.NativeImage {
-  const src = nativeImage.createFromPath(join(app.getAppPath(), 'build', 'trayTemplate@2x.png'));
-  const { width, height } = src.getSize();
-  const gray = nativeTheme.shouldUseDarkColors ? 0xff : 0x00;
-  const bitmap = withNewBadge(recolored(src.toBitmap(), gray), width, height);
-  return nativeImage.createFromBitmap(Buffer.from(bitmap), { width, height, scaleFactor: 2 });
+  try {
+    const src = nativeImage.createFromPath(join(app.getAppPath(), 'build', 'trayTemplate@2x.png'));
+    const raw = src.toBitmap();
+    const size = bitmapPixels(raw.length, src.getSize());
+    if (size === null) return trayIcon();
+    const gray = nativeTheme.shouldUseDarkColors ? 0xff : 0x00;
+    const bitmap = withNewBadge(recolored(raw, gray), size.width, size.height);
+    return nativeImage.createFromBitmap(Buffer.from(bitmap), { width: size.width, height: size.height, scaleFactor: size.scaleFactor });
+  } catch (e) {
+    console.error('tray badge', e);
+    return trayIcon();
+  }
 }
 
 /** Windows 알림 영역 아이콘에 빨간 점을 얹은 것 */
 function trayIconWithDot(): Electron.NativeImage {
-  const base = trayIcon();
-  const { width, height } = base.getSize();
-  return nativeImage.createFromBitmap(Buffer.from(withRedDot(base.toBitmap(), width, height)), { width, height });
+  try {
+    const base = trayIcon();
+    const raw = base.toBitmap();
+    const size = bitmapPixels(raw.length, base.getSize());
+    if (size === null) return base;
+    return nativeImage.createFromBitmap(Buffer.from(withRedDot(raw, size.width, size.height)), size);
+  } catch (e) {
+    console.error('tray dot', e);
+    return trayIcon();
+  }
 }
 
 function refreshTray(jobs: readonly { id: string; request: string; status: 'queued' | 'running' | 'waiting' | 'done' | 'stopped' }[] | null = null): void {
