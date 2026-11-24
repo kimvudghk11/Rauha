@@ -1054,13 +1054,13 @@ async function smoke(runner: JobRunner, path: string): Promise<void> {
       if (open !== undefined && n === Number(process.env['RAUHA_SMOKE_OPEN_AT'] ?? '2')) await window!.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(open)})?.click()`);
       // RAUHA_SMOKE_STOP_AT=n: 그 차례에 도는 일을 모두 멈춘다(멈춤이 팀원까지 멈추는지 확인)
       if (n === Number(process.env['RAUHA_SMOKE_STOP_AT'] ?? '-1')) for (const j of runner.board.jobs) if (j.status === 'running' || j.status === 'waiting') runner.stop(j.id);
-      // RAUHA_SMOKE_ALLOW=1: 허락 카드가 보이면 "Allow once" 를 누른다(허락 → 트레이 다시 그리기 경로 확인)
-      if (process.env['RAUHA_SMOKE_ALLOW'] === '1') {
-        const clicked = await window!.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent === 'Allow once' && !x.disabled); if (!b) return null; const t = b.closest('.card, .m, div')?.innerText?.slice(0, 160) ?? ''; b.click(); return t; })()`);
-        if (clicked !== null) console.log('ALLOWED', JSON.stringify(clicked));
-      }
       const shot = await window!.webContents.capturePage();
       writeFileSync(path.replace(/\.png$/, `-${n}.png`), shot.toPNG());
+      // RAUHA_SMOKE_ALLOW=1: 허락 카드가 보이면(화면을 찍은 뒤) "Allow once" 를 누른다(허락 → 트레이 다시 그리기 경로 확인)
+      if (process.env['RAUHA_SMOKE_ALLOW'] === '1') {
+        const clicked = await window!.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent === 'Allow once' && !x.disabled); if (!b) return null; const who = [...document.querySelectorAll('.who')].map((w) => w.textContent).filter((t) => t.startsWith('Requested by')).pop() ?? ''; b.click(); return who; })()`);
+        if (clicked !== null) console.log('ALLOWED', n, JSON.stringify(clicked));
+      }
       const jobs = boardView(runner.board, threads).jobs;
       console.log('TICK', n, JSON.stringify(jobs.map((j) => ({ status: j.status, role: j.role, cast: j.cast, notes: j.notes.map((x) => `${x.role ?? '-'}: ${x.message}`) }))));
       // RAUHA_SMOKE_THEN=다음 말들(‖ 로 나눔): 앞 일이 다 끝나면 메인 채팅에 차례로 보낸다(이어서 말하기 확인)
