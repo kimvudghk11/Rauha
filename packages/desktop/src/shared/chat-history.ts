@@ -16,6 +16,14 @@ export interface HistoryEntry {
   readonly thread: string | null;
   /** 태스크 안에서 이어 물었는지(Main 에 카드로 안 띄움) */
   readonly inTask: boolean;
+  /** 팀 대화(팀원 말만, 작업 로그 줄은 빼고). 앱을 다시 켜도 넘김 장면이 남게. 예전 기록에는 없다 */
+  readonly talk?: readonly TalkLine[];
+}
+
+/** 팀원 한 마디(역할 id 와 말) */
+export interface TalkLine {
+  readonly role: string;
+  readonly message: string;
 }
 
 /** 앱을 다시 켰을 때 화면에 올릴 일: 끝난 것은 그대로, 돌던 것은 중단됨 */
@@ -23,7 +31,7 @@ export interface RestoredEntry extends Omit<HistoryEntry, 'status'> {
   readonly status: 'done' | 'stopped';
 }
 
-export const HISTORY_LIMITS = { jobs: 50, request: 4000, result: 20000, reason: 500, tools: 200, cast: 3 } as const;
+export const HISTORY_LIMITS = { jobs: 50, request: 4000, result: 20000, reason: 500, tools: 200, cast: 3, talk: 40, talkLine: 300 } as const;
 export const INTERRUPTED_REASON = '앱이 꺼져서 중단됐어요.';
 
 const cut = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
@@ -93,6 +101,7 @@ export class ChatHistory {
       result: over ? clean(job.result, HISTORY_LIMITS.result) : null,
       toolsLine: over ? clean(job.toolsLine, HISTORY_LIMITS.tools) : null,
       cast: over ? job.cast.slice(-HISTORY_LIMITS.cast) : [],
+      talk: over ? (job.talk ?? []).slice(-HISTORY_LIMITS.talk).map((t) => ({ role: t.role, message: cut(redactSecrets(t.message), HISTORY_LIMITS.talkLine) })) : [],
       queuedAt: job.queuedAt,
       endedAt: over ? job.endedAt : null,
       thread: job.thread,

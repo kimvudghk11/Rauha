@@ -41,7 +41,16 @@ export class ChatHistoryDto {
     // thread·inTask 는 나중에 생긴 칸: 예전 파일에는 없다(없으면 이어진 작업이 아님)
     const thread = text(o['thread'], 200);
     const linked = thread !== null && thread !== '';
-    return { id, request, status, stopReason: text(o['stopReason']), result: text(o['result']), toolsLine: text(o['toolsLine']), cast, queuedAt, endedAt: text(o['endedAt'], 100), thread: linked ? thread : null, inTask: linked && o['inTask'] === true };
+    // talk 는 나중에 생긴 칸: 모르는 역할·깨진 줄은 버린다
+    const talk = Array.isArray(o['talk'])
+      ? (o['talk'] as unknown[]).flatMap((t) => {
+          const line = typeof t === 'object' && t !== null ? (t as Record<string, unknown>) : {};
+          const role = line['role'];
+          const message = text(line['message'], 2000);
+          return typeof role === 'string' && Object.hasOwn(ROLE_INFO, role) && message !== null ? [{ role, message }] : [];
+        })
+      : [];
+    return { id, request, status, stopReason: text(o['stopReason']), result: text(o['result']), toolsLine: text(o['toolsLine']), cast, queuedAt, endedAt: text(o['endedAt'], 100), thread: linked ? thread : null, inTask: linked && o['inTask'] === true, talk };
   }
 
   toEntity(): ChatHistory {

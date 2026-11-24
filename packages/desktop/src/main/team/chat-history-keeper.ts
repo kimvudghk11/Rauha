@@ -18,6 +18,7 @@ export function entryOfView(view: JobView): HistoryEntry {
     endedAt: view.endedAt,
     thread: view.thread,
     inTask: view.inTask,
+    talk: view.notes.flatMap((n) => (n.role === null ? [] : [{ role: n.role, message: n.message }])),
   };
 }
 

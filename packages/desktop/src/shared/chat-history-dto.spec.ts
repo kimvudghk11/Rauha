@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ChatHistory } from './chat-history.js';
 import { ChatHistoryDto } from './chat-history-dto.js';
+import { restoredView } from './chat-history-view.js';
 
 const ok = { id: 'a', request: '요청', status: 'done', stopReason: null, result: '결과', toolsLine: null, cast: ['intake', 'nobody'], queuedAt: 't0', endedAt: 't1' };
 
@@ -24,6 +25,19 @@ describe('ChatHistoryDto', () => {
   });
   it('모르는 역할 이름은 버린다', () => {
     expect(ChatHistoryDto.from({ jobs: [ok] }).toEntity().items[0]?.cast).toEqual(['intake']);
+  });
+
+  it('팀 대화(talk)를 다시 읽고, 모르는 역할·깨진 줄은 버리며, 예전 파일(talk 없음)은 빈 대화다', () => {
+    const talk = [{ role: 'intake', message: '작업 중…' }, { role: 'tester', message: '테스트 쓰기' }, { role: 'nobody', message: 'x' }, { role: 'tester' }, 3];
+    const again = ChatHistoryDto.from(ChatHistoryDto.fromEntity(ChatHistoryDto.from({ jobs: [{ ...ok, talk }] }).toEntity())).toEntity().items[0];
+    expect(again?.talk).toEqual([{ role: 'intake', message: '작업 중…' }, { role: 'tester', message: '테스트 쓰기' }]);
+    expect(ChatHistoryDto.from({ jobs: [ok] }).toEntity().items[0]?.talk).toEqual([]);
+  });
+
+  it('복원한 일은 팀 대화를 진행 줄로 다시 그린다', () => {
+    const [entry] = ChatHistoryDto.from({ jobs: [{ ...ok, talk: [{ role: 'debugger', message: '원인 찾기' }] }] }).toEntity().restored();
+    const view = restoredView(entry!);
+    expect(view.notes).toEqual([{ role: 'debugger', roleName: '디버깅 팀원', message: '원인 찾기', at: 't0' }]);
   });
 
   it('깨진 항목은 건너뛰고 센다', () => {

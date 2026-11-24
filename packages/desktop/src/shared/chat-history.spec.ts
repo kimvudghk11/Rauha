@@ -56,6 +56,16 @@ describe('ChatHistory', () => {
     expect(e?.result).not.toContain('ghp_');
   });
 
+  it('끝난 일의 팀 대화(팀원 말)를 남겨 앱을 다시 켜도 넘김 장면이 보인다 — 줄 수·길이 한도, 비밀 값은 가림', () => {
+    const talk = [...Array.from({ length: HISTORY_LIMITS.talk + 3 }, (_, i) => ({ role: 'tester', message: `줄 ${i}` })), { role: 'intake', message: `키 sk-abcdefghijklmnopqrstuv ${'x'.repeat(HISTORY_LIMITS.talkLine)}` }];
+    const [e] = ChatHistory.empty().remember([entry('a', { talk })]).items;
+    expect(e?.talk).toHaveLength(HISTORY_LIMITS.talk);
+    expect(e?.talk?.[0]?.message).toBe('줄 4');
+    expect(e?.talk?.at(-1)?.message).not.toContain('sk-abcdef');
+    expect(e?.talk?.at(-1)?.message.length).toBeLessThanOrEqual(HISTORY_LIMITS.talkLine);
+    expect(ChatHistory.empty().remember([entry('b', { status: 'running', talk })]).items[0]?.talk).toEqual([]);
+  });
+
   it('돌던 일에는 결과를 담지 않는다', () => {
     const [e] = ChatHistory.empty().remember([entry('a', { status: 'running', result: '중간 글', cast: ['intake'] })]).items;
     expect(e?.result).toBeNull();

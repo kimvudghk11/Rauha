@@ -1,8 +1,8 @@
-import type { MemberRole } from '@rauha/core/jobs';
+import { ROLE_INFO, type MemberRole } from '@rauha/core/jobs';
 import type { RestoredEntry } from './chat-history.js';
 import type { JobView } from './ipc.js';
 
-/** 복원한 일을 화면이 그리는 모양으로. 단계·기록 줄은 저장하지 않으므로 비어 있다. */
+/** 복원한 일을 화면이 그리는 모양으로. 단계·작업 로그 줄은 저장하지 않고, 팀 대화(팀원 말)만 다시 그린다. */
 export function restoredView(entry: RestoredEntry): JobView {
   return {
     id: entry.id,
@@ -20,7 +20,7 @@ export function restoredView(entry: RestoredEntry): JobView {
     canGoDeeper: false,
     knowledgeMissing: false,
     toolsLine: entry.toolsLine,
-    notes: [],
+    notes: (entry.talk ?? []).map((t) => ({ role: t.role as MemberRole, roleName: ROLE_INFO[t.role as MemberRole].name, message: t.message, at: entry.queuedAt })),
     thread: entry.thread,
     inTask: entry.inTask,
   };
