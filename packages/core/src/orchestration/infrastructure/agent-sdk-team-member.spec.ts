@@ -3,7 +3,7 @@ import { ToolTally } from '../domain/tool-tally.js';
 import { CrewWatch } from '../domain/direct-crew.js';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, budgetOf, crewSteps, foregroundAgentHook, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
+import { addUsage, budgetOf, crewReadCap, crewSteps, foregroundAgentHook, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -69,6 +69,13 @@ describe('readDirs', () => {
   });
   it('둘 다 없으면 빈 목록이다(읽을 폴더가 늘지 않는다)', () => {
     expect(readDirs(undefined, undefined)).toEqual([]);
+  });
+});
+
+describe('crewReadCap', () => {
+  it('읽기만 하는 팀원과 문서 팀원에게 줄 한도를 걸고, 코드를 고치는 팀원(구현·테스트·원인 분석)에는 걸지 않는다', () => {
+    for (const role of ['surveyor', 'writer', 'reviewer', 'designer', 'securitychecker']) expect(crewReadCap(role)).toBeGreaterThan(0);
+    for (const role of ['implementer', 'tester', 'debugger', 'direct']) expect(crewReadCap(role)).toBeUndefined();
   });
 });
 

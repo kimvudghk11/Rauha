@@ -3,6 +3,8 @@ import type { CrewCall } from '../application/ports.js';
 import { DirectCrew } from '../domain/direct-crew.js';
 import type { MemberRole } from '../domain/member-role.js';
 import { MODEL_ID } from '../domain/team.js';
+import { WorkspaceToolAccess } from '../domain/workspace-tools.js';
+import { WORKSPACE_SERVER } from './workspace-mcp.js';
 
 const section = (text: string, tag: string): string => {
   const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(text);
@@ -13,14 +15,25 @@ const AS_SUBAGENT = `You were handed this task by the lead Claude in the user's 
 Check the real state yourself: open files and run commands instead of guessing.
 When done, reply in plain text (not JSON): what you did or found first, then the evidence (file:line, command output) only as much as needed, and the files you changed. Keep it short.`;
 
-/** <rules> 가 rauha 팀 흐름(잠긴 테스트·작업 지시서)에 묶여 있어 서브에이전트에게 맞지 않는 역할 */
+/** <rules> 전체가 rauha 팀 흐름(잠긴 테스트·작업 지시서·결과 칸)에 묶여 있어 서브에이전트에게 맞지 않는 역할 */
 const FLOW_BOUND_RULES: ReadonlySet<MemberRole> = new Set(['implementer', 'reviewer']);
-/** rauha 앱에 쓰는 도구: 사용자 말을 받은 지배인만 쓴다 */
-const LEAD_ONLY_TOOLS = /^mcp__rauha__(add_todo|remember|keep_rule)$/;
+/** 규칙 한 줄이 팀 흐름의 작업 지시서·결과 칸·잠긴 파일을 가리키는지(서브에이전트에게는 그런 칸이 없다) */
+const FLOW_BOUND_LINE = /<areas>|`sources`|`question`|work order|acceptance criteria|criteria|정해 둔|locked|stub signatures/i;
 
-/** 문서 팀원이 서브에이전트일 때: 사실은 rauha 도구로 한 번에 모으고, 블로그 글은 블로그답게 */
-const WRITER_AS_SUBAGENT = `Gather facts cheaply before opening files: mcp__rauha__my_commits with \`since\` set to the period asked (the user's own commits in every repository), mcp__rauha__repo_changes for commits, tags and CHANGELOG, mcp__rauha__show_commit for one commit's change, mcp__rauha__past_work for decisions rauha remembers. For the user's saved Markdown notes, Glob for *.md (docs/, notes) and read only the ones whose names match the topic. Do not read whole folders or every file.
-For a blog post, retrospective or write-up of the user's own work: pick the few pieces of work that tell a story (problem, what was tried, the decision, the result), group commits by theme instead of listing them, use real names, dates and numbers from what you read, and mark anything the source does not say as "(직접 채우기)". Write it for readers of a developer blog (velog style) in the user's language. Save it as a Markdown file only if the user asked for a file; reply with the full post text either way.`;
+/** 규칙에서 팀 흐름에 묶인 줄만 빼고 일반 규칙(지어내지 마라 등)은 남긴다 */
+export function subagentRules(rules: string): string {
+  return rules
+    .split('\n')
+    .filter((line) => !(line.trimStart().startsWith('- ') && FLOW_BOUND_LINE.test(line)))
+    .join('\n')
+    .trim();
+}
+
+/** rauha 도구가 있을 때만 붙는 지침: 사실은 도구로 한 번에 모은다 */
+const WRITER_GATHER = `Gather facts cheaply before opening files: mcp__rauha__my_commits with \`since\` set to the period asked (the user's own commits in every repository), mcp__rauha__repo_changes for commits, tags and CHANGELOG, mcp__rauha__show_commit for one commit's change, mcp__rauha__past_work for decisions rauha remembers. For the user's saved Markdown notes, Glob for *.md (docs/, notes) and read only the ones whose names match the topic. Do not read whole folders or every file.`;
+/** 문서 팀원이 서브에이전트일 때: 블로그 글은 블로그답게, 읽기 한도 때문에 다 못 읽은 파일은 통째로 덮지 않는다 */
+const WRITER_AS_SUBAGENT = `For a blog post, retrospective or write-up of the user's own work: pick the few pieces of work that tell a story (problem, what was tried, the decision, the result), group commits by theme instead of listing them, use real names, dates and numbers from what you read, and mark anything the source does not say as "(직접 채우기)". Write it for readers of a developer blog (velog style) in the user's language. Save it as a Markdown file only if the user asked for a file; reply with the full post text either way.
+Long files are read only in part. To change an existing file use Edit; never rewrite a file with Write unless you have read all of it.`;
 
 /**
  * 팀원 프롬프트는 rauha 팀 흐름(잠긴 테스트·구조화 출력)에 맞춰 있어서, 역할·전문성·규칙만 가져오고
@@ -30,13 +43,16 @@ For a blog post, retrospective or write-up of the user's own work: pick the few 
  */
 export function crewAgents(crew: readonly CrewCall[], promptOf: (role: MemberRole) => string, withUserRules: (prompt: string) => string = (p) => p, workspaceTools: readonly string[] = []): Record<string, AgentDefinition> {
   const agents: Record<string, AgentDefinition> = {};
-  const rauhaReads = workspaceTools.filter((t) => t.startsWith('mcp__rauha__') && !LEAD_ONLY_TOOLS.test(t));
   for (const { role, setting } of crew) {
     const mate = DirectCrew.mates.find((m) => m.role === role);
     if (mate === undefined) continue;
+    // 이 역할이 쓸 수 있는 rauha 도구는 도메인(WorkspaceToolAccess)이 정한다. 앱에 쓰는 도구는 지배인만이라 거기서 빠진다
+    const allowed = new Set(WorkspaceToolAccess.toolsFor(role).map((n) => `mcp__${WORKSPACE_SERVER}__${n}`));
+    const rauhaReads = workspaceTools.filter((t) => allowed.has(t));
     const text = promptOf(role);
-    const rules = FLOW_BOUND_RULES.has(role) ? '' : section(text, 'rules');
-    const parts = [section(text, 'role'), section(text, 'expertise'), rules === '' ? '' : `<rules>\n${rules}\n</rules>`, AS_SUBAGENT, role === 'writer' ? WRITER_AS_SUBAGENT : ''].filter((p) => p !== '');
+    const rules = FLOW_BOUND_RULES.has(role) ? '' : subagentRules(section(text, 'rules'));
+    const writer = role === 'writer' ? [rauhaReads.length > 0 ? WRITER_GATHER : '', WRITER_AS_SUBAGENT] : [];
+    const parts = [section(text, 'role'), section(text, 'expertise'), rules === '' ? '' : `<rules>\n${rules}\n</rules>`, AS_SUBAGENT, ...writer].filter((p) => p !== '');
     const extra = setting.extraInstruction?.trim() ?? '';
     if (extra !== '') parts.push(`<user-team-instruction>\n사용자가 이 팀원에게 더한 지시입니다.\n${extra}\n</user-team-instruction>`);
     agents[role] = { description: mate.description, prompt: withUserRules(parts.join('\n\n')), model: MODEL_ID[setting.tier], effort: setting.effort, tools: [...setting.tools, ...rauhaReads], maxTurns: setting.maxTurns, background: false };
@@ -50,7 +66,7 @@ export function crewBrief(roles: readonly string[]): string {
   return `<rauha-team>
 The user built a team in rauha and wants you to use it. Team members are available as subagents through the Agent tool: ${roles.join(', ')}.
 - You are the lead. The user wants to see the team work, so delegate: any request that needs looking through the code, changing files, running tests or finding a cause goes to the matching member — surveyor to look around, debugger for an error whose cause is hard to find, implementer to change code, tester to write and run tests, reviewer to check a finished change, designer to plan a larger change, writer for docs, securitychecker for security.
-- A blog post, retrospective, portfolio entry or summary of the user's own past work goes straight to writer in one handoff (no surveyor first): writer gathers commits and saved notes with the rauha tools itself. Tell writer the period, repositories and tone the user asked for, and show the user writer's full text.
+- A blog post, retrospective, portfolio entry or summary of the user's own past work goes straight to writer in one handoff (no surveyor first): writer gathers the commits and saved notes itself. Tell writer the period, repositories and tone the user asked for, and show the user writer's full text.
 - Do it yourself only for greetings, a one-line fact you already know, or a question answered by one file read.
 - Do not edit files yourself, even small fixes: after the debugger finds the cause, hand the change to implementer (and new tests to tester), in parallel when both are needed.
 - reviewer, designer, debugger and securitychecker run on the costliest model: call them only when they pay off (a risky or multi-file change, a real security question). For a bug report with a plain symptom (wrong text, wrong value, a failing test), send surveyor first: if its report already names the cause, hand the fix to implementer and do not call debugger; call debugger only when surveyor could not explain it. For a small change that the tests cover, skip reviewer; for a clear task, skip designer.

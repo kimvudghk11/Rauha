@@ -47,12 +47,45 @@ describe('팀원을 메인 채팅 Claude 의 서브에이전트로', () => {
     expect(crewAgents([{ role: 'implementer', setting }], () => withRules)['implementer']!.prompt).not.toContain('Do not invent numbers.');
   });
 
-  it('블로그·회고처럼 내 작업을 정리하는 글은 조사 없이 문서 팀원에게 바로 넘기고, 문서 팀원은 rauha 도구로 모은다', () => {
+  it('규칙 중 작업 지시서·결과 칸에 묶인 줄만 빼고 일반 규칙은 남긴다(실측 리뷰: 조사 팀원의 `sources`·`<areas>` 줄이 그대로 갔다)', () => {
+    const rules = `<rules>
+- Write only what the files you opened show.
+- \`sources\` lists only the files you actually opened for that note, as exact paths from \`<areas>\`.
+- Lock in what the acceptance criteria require and their natural edge values, nothing more.
+- One behaviour per test; name tests after the rule they check.
+</rules>`;
+    const surveyor = crewAgents([{ role: 'surveyor', setting }], () => `${prompt}\n${rules}`)['surveyor']!.prompt;
+    expect(surveyor).toContain('Write only what the files you opened show.');
+    expect(surveyor).not.toContain('`sources`');
+    const tester = crewAgents([{ role: 'tester', setting }], () => `${prompt}\n${rules}`)['tester']!.prompt;
+    expect(tester).toContain('One behaviour per test');
+    expect(tester).not.toContain('acceptance criteria');
+  });
+
+  it('문서 팀원: rauha 도구가 있으면 그걸로 모으라고 하고, 없으면 도구 이름 없이 일반 지침만 준다(없는 도구를 부르다 실패하지 않게)', () => {
+    const ws = ['mcp__rauha__my_commits', 'mcp__rauha__repo_changes'];
+    const withTools = crewAgents([{ role: 'writer', setting }], () => prompt, (p) => p, ws)['writer']!.prompt;
+    expect(withTools).toContain('mcp__rauha__my_commits');
+    expect(withTools).toMatch(/velog/);
+    const without = crewAgents([{ role: 'writer', setting }], () => prompt)['writer']!.prompt;
+    expect(without).not.toContain('mcp__rauha__');
+    expect(without).toMatch(/velog/);
+  });
+
+  it('문서 팀원은 읽기 한도 때문에 다 읽지 못한 파일을 Write 로 통째로 다시 쓰지 않는다고 안내한다', () => {
+    expect(crewAgents([{ role: 'writer', setting }], () => prompt)['writer']!.prompt).toMatch(/never rewrite .*Write/i);
+  });
+
+  it('rauha 도구 이름은 도메인(WorkspaceToolAccess)이 정한 역할별 목록만 따른다(쓰기 도구를 따로 베끼지 않는다)', () => {
+    const ws = ['mcp__rauha__my_commits', 'mcp__rauha__add_todo', 'mcp__rauha__unknown_tool'];
+    expect(crewAgents([{ role: 'writer', setting }], () => prompt, (p) => p, ws)['writer']!.tools).toEqual(['Read', 'Grep', 'Edit', 'mcp__rauha__my_commits']);
+  });
+
+  it('블로그·회고처럼 내 작업을 정리하는 글은 조사 없이 문서 팀원에게 바로 넘기라고 안내하고, 안내는 rauha 도구 유무에 기대지 않는다', () => {
     const brief = crewBrief(['surveyor', 'writer']);
     expect(brief).toMatch(/blog/i);
     expect(brief).toContain('straight to writer');
-    const p = crewAgents([{ role: 'writer', setting }], () => prompt)['writer']!.prompt;
-    expect(p).toContain('mcp__rauha__my_commits');
+    expect(brief).not.toContain('rauha tools');
   });
 
   it('비싼 팀원(reviewer·designer·debugger·securitychecker)은 필요할 때만 부르라고 안내한다', () => {
