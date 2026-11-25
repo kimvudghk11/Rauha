@@ -18,7 +18,7 @@
 | 모델이 레포를 하나씩 뒤지다 빠뜨린다 | **rauha 도구 14개**(mcp__rauha__*): 모든 레포 변경·코드 검색·CI·의존성·표 읽기를 rauha가 직접 읽어 준다 |
 | 모르는 것도 아는 척 | 모르는 칸은 지어내지 않고 **"모름"** 이라고 쓴다. 화면에 금액도 없다 |
 
-- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.3.11/rauha-Setup-0.3.11-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.3.11/rauha-0.3.11-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.3.11/rauha-0.3.11-mac-x64.dmg) — 설치 방법은 아래 "설치"
+- **바로 내려받기(로그인 필요 없음)**: [Windows](https://github.com/kimvudghk11/rauha/releases/download/v0.3.12/rauha-Setup-0.3.12-x64.exe) · [Mac Apple 칩](https://github.com/kimvudghk11/rauha/releases/download/v0.3.12/rauha-0.3.12-mac-arm64.dmg) · [Mac 인텔](https://github.com/kimvudghk11/rauha/releases/download/v0.3.12/rauha-0.3.12-mac-x64.dmg) — 설치 방법은 아래 "설치"
 - 사용 안내(한 장): [docs/desktop-guide.md](docs/desktop-guide.md) · 되는 것과 아직 안 되는 것: [docs/release-checklist.md](docs/release-checklist.md)
 
 ## 무엇을 하나
@@ -46,9 +46,9 @@
 
 | 내 컴퓨터 | 내려받기 | 크기 |
 | --- | --- | --- |
-| Windows | [rauha-Setup-0.3.11-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.3.11/rauha-Setup-0.3.11-x64.exe) | 338MB |
-| Mac (Apple 칩, M1 이상) | [rauha-0.3.11-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.3.11/rauha-0.3.11-mac-arm64.dmg) | 335MB |
-| Mac (인텔) | [rauha-0.3.11-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.3.11/rauha-0.3.11-mac-x64.dmg) | 346MB |
+| Windows | [rauha-Setup-0.3.12-x64.exe](https://github.com/kimvudghk11/rauha/releases/download/v0.3.12/rauha-Setup-0.3.12-x64.exe) | 338MB |
+| Mac (Apple 칩, M1 이상) | [rauha-0.3.12-mac-arm64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.3.12/rauha-0.3.12-mac-arm64.dmg) | 335MB |
+| Mac (인텔) | [rauha-0.3.12-mac-x64.dmg](https://github.com/kimvudghk11/rauha/releases/download/v0.3.12/rauha-0.3.12-mac-x64.dmg) | 346MB |
 
 내 맥의 칩은 Apple 메뉴 → 이 Mac에 관하여에서 볼 수 있다. 다른 버전은 [Releases 페이지](https://github.com/kimvudghk11/rauha/releases)에 있다.
 
