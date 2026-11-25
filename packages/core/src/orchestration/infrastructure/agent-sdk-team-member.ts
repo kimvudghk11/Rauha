@@ -293,6 +293,11 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     return withUserNotes(system, this.options.alwaysRules?.() ?? '', this.options.styleNotes?.() ?? '', { claudeMd: this.options.claudeMd?.() ?? '', memory: this.options.memoryNotes?.() ?? '' });
   }
 
+  /** 팀원(서브에이전트)용: 사용자 룰·취향·CLAUDE.md 만(rauha 기억은 빼서 팀원마다 다시 읽히지 않게) */
+  private withCrewRules(system: string): string {
+    return withUserNotes(system, this.options.alwaysRules?.() ?? '', this.options.styleNotes?.() ?? '', { claudeMd: this.options.claudeMd?.() ?? '' });
+  }
+
   private sdkOptions(call: PreparedCall & Pick<MemberCall, 'additionalDirectories' | 'kits' | 'crew'>, session: Session, db: LinkedDatabase | null = null): Options {
     // rauha 작업 공간 도구: 팀원이 레포를 하나씩 뒤지지 않고 rauha 가 읽은 사실을 부른다. 역할마다 하는 일에 맞는 도구만 붙고,
     // 도구로 본 저장소는 "연 곳"으로 남긴다.
@@ -303,7 +308,9 @@ export class AgentSdkTeamMember implements TeamMemberPort {
     const system = withAwsNow(kits.guide === '' ? base : `${base}\n\n${kits.guide}`, call.kits ?? [], (call.kits ?? []).includes('aws') ? (this.options.awsNow?.() ?? '') : '');
     const { tools: pluginTools, ...pluginLoad } = pluginOptions(call.role, this.options.plugins?.() ?? [], call.setting.plugins !== false);
     // 메인 채팅 Claude 는 사용자가 꾸린 팀원을 서브에이전트로 부를 수 있다(일이 크면 넘긴다)
-    const agents = crewAgents(call.crew ?? [], (role) => this.options.prompts.system(role, []), (prompt) => this.withAlwaysRules(prompt));
+    // 팀원에게는 rauha 기억을 붙이지 않는다(팀원마다 매 턴 다시 읽혀 세션을 쓴다). 사용자 룰·취향·CLAUDE.md 는 코드를 쓰는 팀원도 따라야 해서 둔다.
+    // rauha 작업 공간 읽기 도구도 넘긴다: 없으면 팀원이 git·md 를 하나씩 뒤졌다
+    const agents = crewAgents(call.crew ?? [], (role) => this.options.prompts.system(role, []), (prompt) => this.withCrewRules(prompt), kits.tools);
     const crew = Object.keys(agents);
     const brief = crewBrief(crew);
     const withCrew = (text: string): string => (brief === '' ? text : `${text}\n\n${brief}`);
@@ -329,7 +336,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       maxTurns: call.setting.maxTurns,
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
-        PreToolUse: [...(crew.length > 0 ? [{ matcher: 'Agent', hooks: [foregroundAgentHook] }] : []), { hooks: [createToolGuard({ root: this.options.cwd, role: call.role, ...readCapOf(call.role), canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
+        PreToolUse: [...(crew.length > 0 ? [{ matcher: 'Agent', hooks: [foregroundAgentHook] }] : []), { hooks: [createToolGuard({ root: this.options.cwd, role: call.role, ...readCapOf(call.role), ...(crew.length > 0 ? { subagentReadCap: crewReadCap } : {}), canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
         PostToolUse: [{ hooks: [session.fetchLog.hook, toolCountHook(session.tally), openedHook(session.opened)] }],
       },
       stderr: (data) => {
@@ -497,6 +504,9 @@ export function addUsage(before: MemberUsage | null, last: MemberUsage): MemberU
 // intake: 실측에서 SPEC(14K자)을 통째로 읽었다. 접수는 범위·수용 기준만 정하면 되므로 목차·맞는 절만 보면 된다
 const READ_CAPS: Partial<Record<string, number>> = { answerer: 400, surveyor: 200, intake: 150 };
 const readCapOf = (role: string): { readCap?: number } => (READ_CAPS[role] === undefined ? {} : { readCap: READ_CAPS[role] });
+/** 지배인의 팀원(서브에이전트) 읽기 한도: 읽기만 하는 팀원과 문서 팀원. 코드를 고치는 팀원(구현·테스트·원인 분석)은 파일 전체가 필요해 두지 않는다 */
+const CREW_READ_CAPS: Partial<Record<string, number>> = { surveyor: 200, writer: 200, reviewer: 300, designer: 300, securitychecker: 300 };
+export const crewReadCap = (role: string): number | undefined => CREW_READ_CAPS[role];
 
 /**
  * RAUHA_CALL_LOG 에 파일 경로가 있으면 호출 하나마다 역할·모델·토큰(모델별 캐시 생성·읽기 포함)·턴·도구를 한 줄(JSON)로 남긴다.

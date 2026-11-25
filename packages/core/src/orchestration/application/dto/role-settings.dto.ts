@@ -81,7 +81,7 @@ export class RoleSettingsDto {
       // 예전 haiku 의 얕은 메모(구조를 덜 읽고 추측)가 뒤 작업 전체를 흐렸다 → sonnet(low). 한 번 쓰고 오래 쓰여 호출 수는 적다.
       surveyor: { tier: 'sonnet', effort: 'medium', maxTurns: 60, maxBudgetUsd: 1.5, tools: ['Read', 'Grep', 'Glob'], readsProject: true },
       // 코드가 아닌 결과물(포트폴리오·보고서·정리 문서)을 만든다. git 기록을 읽어야 해서 Bash, 문서만 쓰므로 Write·Edit은 .md로 막는다.
-      writer: { tier: 'sonnet', effort: 'high', maxTurns: 160, maxBudgetUsd: 6, tools: ['Read', 'Grep', 'Glob', 'Bash', 'Write', 'Edit'], readsProject: true },
+      writer: { tier: 'sonnet', effort: 'medium', maxTurns: 60, maxBudgetUsd: 6, tools: ['Read', 'Grep', 'Glob', 'Bash', 'Write', 'Edit'], readsProject: true },
       // 설계 대화: 사용자와 여러 번 주고받으며 설계안을 쓴다. 코드와 문서는 읽기만 한다.
       designer: { tier: 'opus', effort: 'high', maxTurns: 70, maxBudgetUsd: 4, tools: READ_TOOLS, readsProject: true },
       // 운영 요청(aws 같은 CLI로 조회·변경하고 결과를 알린다). 파일은 쓰지 않고 명령만 실행한다. 위험한 명령은 도구 검사가 사용자에게 묻는다.

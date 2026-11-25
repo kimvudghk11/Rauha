@@ -82,6 +82,14 @@ describe('createToolGuard', () => {
       expect(spec(await guard(input('Grep', { pattern: 'x', output_mode: 'content', head_limit: 20 }), 'id', opts))?.updatedInput).toBeUndefined();
     });
 
+    it('지배인 세션 안의 팀원(서브에이전트) 읽기에는 그 팀원 한도를 건다(지배인 한도가 없어도)', async () => {
+      const { guard } = guardWith([], { role: 'direct', subagentReadCap: (r) => (r === 'writer' ? 200 : undefined) });
+      const out = spec(await guard({ ...input('Read', { file_path: `${ROOT}/src/big.ts` }), agent_type: 'writer' }, 'id', opts));
+      expect(out?.updatedInput).toEqual({ file_path: `${ROOT}/src/big.ts`, limit: 200 });
+      expect(spec(await guard({ ...input('Read', { file_path: `${ROOT}/src/big.ts` }), agent_type: 'implementer' }, 'id', opts))?.updatedInput).toBeUndefined();
+      expect(spec(await guard(input('Read', { file_path: `${ROOT}/src/big.ts` }), 'id', opts))?.updatedInput).toBeUndefined();
+    });
+
     it('비밀 파일은 한도와 상관없이 거절한다', async () => {
       const { guard } = guardWith([], { role: 'answerer', readCap: 400 });
       expect(decision(await guard(input('Read', { file_path: `${ROOT}/.env` }), 'id', opts))).toBe('deny');

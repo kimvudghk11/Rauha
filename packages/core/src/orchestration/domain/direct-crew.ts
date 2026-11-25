@@ -14,7 +14,7 @@ const MATES: readonly CrewMate[] = [
   { role: 'reviewer', description: 'Reviews a finished change (diff or files) for bugs, missed requirements and risky code. Read-only.' },
   { role: 'debugger', description: 'Finds the root cause of an error, failing test or unexpected behaviour by reproducing and reading code.' },
   { role: 'designer', description: 'Plans the design of a larger change (structure, files to touch, steps) before implementation. Read-only.' },
-  { role: 'writer', description: 'Writes or updates documentation (README, guides, specs, changelogs) in Markdown.' },
+  { role: 'writer', description: 'Writes documentation (README, guides, specs, changelogs) and blog posts, retrospectives or portfolio write-ups of the user\'s own work from their commits and saved notes.' },
   { role: 'securitychecker', description: 'Checks a change or area for security problems (secrets, injection, auth, permissions). Read-only.' },
 ];
 

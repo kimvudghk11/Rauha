@@ -37,6 +37,8 @@ export interface ToolGuardOptions {
   readonly role: MemberRole;
   /** 범위 없이 파일 전체를 읽는 Read 를 처음 이 줄 수만 읽게 바꾼다(읽은 줄은 다음 턴마다 다시 읽힌다). 없으면 그대로. */
   readonly readCap?: number;
+  /** 지배인 세션 안의 팀원(서브에이전트)이 읽을 때의 줄 한도. 그 팀원 역할로 고른다(세션 역할 한도 대신). 없으면 한도 없음 */
+  readonly subagentReadCap?: (role: MemberRole) => number | undefined;
   /** 작업 폴더 기준 상대 경로를 이 역할이 쓸 수 있는지(WritePolicy). */
   readonly canWrite: (relPath: string) => boolean;
   readonly ask: PermissionAsker;
@@ -189,7 +191,10 @@ export function createToolGuard(options: ToolGuardOptions): HookCallback {
       const note = answer.note === null ? '' : ` 사용자가 남긴 말: "${answer.note}"`;
       return decide('deny', `사용자가 허락하지 않았습니다: ${reason}.${note} 더 안전한 방법을 쓰세요.`);
     }
-    return capRead(options.readCap, input.tool_name, toolInput);
+    // 팀원이 쓴 읽기는 그 팀원 한도로(세션은 지배인이라 세션 한도가 없었다: 문서 팀원이 큰 md 를 통째로 읽었다)
+    const mate = DirectCrew.roleOf(input.agent_type);
+    const cap = mate !== null && options.subagentReadCap !== undefined ? options.subagentReadCap(mate) : options.readCap;
+    return capRead(cap, input.tool_name, toolInput);
   };
 }
 
