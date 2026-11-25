@@ -334,6 +334,7 @@ export class AgentSdkTeamMember implements TeamMemberPort {
       settingSources: call.setting.readsProject ? ['project'] : [],
       effort: call.setting.effort,
       maxTurns: call.setting.maxTurns,
+      ...budgetOf(call),
       outputFormat: { type: 'json_schema', schema: call.outputSchema },
       hooks: {
         PreToolUse: [...(crew.length > 0 ? [{ matcher: 'Agent', hooks: [foregroundAgentHook] }] : []), { hooks: [createToolGuard({ root: this.options.cwd, role: call.role, ...readCapOf(call.role), ...(crew.length > 0 ? { subagentReadCap: crewReadCap } : {}), canWrite: call.canWrite, ask: this.options.ask, remembered: this.remembered, secrets: this.options.secrets, secretFiles: this.secretFilesOnce(), extraRoots: call.additionalDirectories ?? [], publishIntent: () => session.intent.current, connectors: kits.connectorNames, connectorIntent: () => session.connectorIntent.current,...(this.options.rules !== undefined ? { rules: this.options.rules } : {}) })] }],
@@ -382,6 +383,15 @@ export function withDbGuide(system: string, guide: string): string {
 /** 호출이 더 읽을 폴더 + 항상 읽을 폴더(중복 없이) */
 export function readDirs(call: readonly string[] | undefined, always: readonly string[] | undefined): string[] {
   return [...new Set([...(call ?? []), ...(always ?? [])])];
+}
+
+/**
+ * 이 호출이 쓸 수 있는 상한(SDK maxBudgetUsd). 설정에는 있었지만 SDK 에 넘기지 않아서 길어지는 일을 막는 게 없었다.
+ * 닿으면 SDK 가 error_max_budget_usd 로 끝내고, 이어 달리기(MemberContinue)는 턴 한도에서만 하므로 거기서 멈춘다.
+ */
+export function budgetOf(call: { readonly setting: { readonly maxBudgetUsd: number } }): { maxBudgetUsd?: number } {
+  const usd = call.setting.maxBudgetUsd;
+  return Number.isFinite(usd) && usd > 0 ? { maxBudgetUsd: usd } : {};
 }
 
 /** 부르는 쪽이 정한 모델이 있으면 그것, 없으면 등급의 기본 모델 */

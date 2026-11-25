@@ -67,7 +67,7 @@ export class RoleSettingsDto {
     return new RoleSettingsDto({
       intake: { tier: 'sonnet', effort: 'medium', maxTurns: 40, maxBudgetUsd: 1.5, tools: READ_TOOLS, readsProject: true },
       // 메인 채팅 기본: 사용자 말을 그대로 받아 Claude Code 처럼 읽고·확인하고·명령을 돌리고·시키면 고친다(쓰기는 가드·허락을 거친다).
-      direct: { tier: 'sonnet', effort: 'high', maxTurns: 200, maxBudgetUsd: 10, tools: WRITE_TOOLS, readsProject: true },
+      direct: { tier: 'sonnet', effort: 'medium', maxTurns: 100, maxBudgetUsd: 10, tools: WRITE_TOOLS, readsProject: true },
       tester: { tier: 'sonnet', effort: 'high', maxTurns: 80, maxBudgetUsd: 1, tools: WRITE_TOOLS, readsProject: true },
       implementer: { tier: 'sonnet', effort: 'high', maxTurns: 120, maxBudgetUsd: 2, tools: WRITE_TOOLS, readsProject: true },
       // 리뷰어는 읽기만 한다. 같은 모델은 같은 실수를 놓치기 쉬워서 구현보다 한 단계 위(opus).

@@ -14,6 +14,12 @@ describe('RoleSettingsDto', () => {
     expect(roles.get('intake').tools).not.toContain('Write');
   });
 
+  it('메인 채팅(지배인)은 넘기고 확인하는 조율이라 effort medium·턴 100 이내로 시작한다(깊은 생각은 팀원 몫)', () => {
+    const direct = RoleSettingsDto.defaults().get('direct');
+    expect(direct).toMatchObject({ tier: 'sonnet', effort: 'medium' });
+    expect(direct.maxTurns).toBeLessThanOrEqual(100);
+  });
+
   it('환경 변수로 역할의 모델과 effort를 바꾼다', () => {
     const roles = RoleSettingsDto.defaults().withEnv({ RAUHA_ROLE_IMPLEMENTER: 'sonnet:high', RAUHA_ROLE_TESTER: 'opus' });
     expect(roles.get('implementer')).toMatchObject({ tier: 'sonnet', effort: 'high' });

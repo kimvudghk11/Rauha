@@ -55,6 +55,13 @@ describe('팀원을 메인 채팅 Claude 의 서브에이전트로', () => {
     expect(p).toContain('mcp__rauha__my_commits');
   });
 
+  it('비싼 팀원(reviewer·designer·debugger·securitychecker)은 필요할 때만 부르라고 안내한다', () => {
+    const brief = crewBrief(['reviewer', 'implementer']);
+    expect(brief).toMatch(/costliest/i);
+    expect(brief).toContain('small change');
+    expect(brief).toContain('surveyor first');
+  });
+
   it('팀원 목록에 없는 역할은 빼고, 넘길 팀원이 없으면 안내도 없다', () => {
     expect(crewAgents([{ role: 'router', setting }], () => prompt)).toEqual({});
     expect(crewBrief([])).toBe('');

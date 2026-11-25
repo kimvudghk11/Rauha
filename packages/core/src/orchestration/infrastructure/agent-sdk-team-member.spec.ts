@@ -3,7 +3,7 @@ import { ToolTally } from '../domain/tool-tally.js';
 import { CrewWatch } from '../domain/direct-crew.js';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { MemberUsage } from '../application/ports.js';
-import { addUsage, crewSteps, foregroundAgentHook, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
+import { addUsage, budgetOf, crewSteps, foregroundAgentHook, modelOf, openedHook, pluginOptions, readDirs, toolCountHook, withConnectors, withTeamInstruction, withUserNotes } from './agent-sdk-team-member.js';
 
 describe('withTeamInstruction', () => {
   it('추가 지시가 없으면 시스템 프롬프트를 그대로 둔다', () => {
@@ -69,6 +69,16 @@ describe('readDirs', () => {
   });
   it('둘 다 없으면 빈 목록이다(읽을 폴더가 늘지 않는다)', () => {
     expect(readDirs(undefined, undefined)).toEqual([]);
+  });
+});
+
+describe('budgetOf', () => {
+  it('팀 설정의 사용 상한을 SDK 에 그대로 넘긴다(설정에만 있고 걸리지 않던 상한)', () => {
+    expect(budgetOf({ setting: { maxBudgetUsd: 2 } })).toEqual({ maxBudgetUsd: 2 });
+  });
+  it('상한이 0 이하이거나 숫자가 아니면 걸지 않는다(0 이 "바로 멈춤"이 되지 않게)', () => {
+    expect(budgetOf({ setting: { maxBudgetUsd: 0 } })).toEqual({});
+    expect(budgetOf({ setting: { maxBudgetUsd: Number.NaN } })).toEqual({});
   });
 });
 
